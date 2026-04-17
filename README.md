@@ -1,76 +1,61 @@
-# Pre-Sales WebApp (Python Version)
+# PRE-SALES.AI | Smart Scoping Framework
 
-Framework para o time de pré-vendas construído com FastAPI, SQLModel e Jinja2.
+Framework avançado para o time de pré-vendas (SC e AE), focado em padronização de escopo e estimativa de esforço técnico.
 
-## Requisitos
-- Python 3.9+
-- Pip
+## 🛠️ Tecnologias e Diretrizes
 
-## Instalação
+Este projeto foi construído seguindo rigorosos padrões de engenharia de software para garantir escalabilidade e manutenibilidade.
 
-1.  Crie um ambiente virtual:
+### 📐 Princípios de Design
+- **DRY (Don't Repeat Yourself)**: Lógica de cálculo e componentes de UI centralizados para evitar duplicidade.
+- **YAGNI (You Ain't Gonna Need It)**: Implementação focada nas funcionalidades reais do time de pré-vendas, sem over-engineering.
+- **SOLID (S e D)**:
+  - **Single Responsibility Principle (S)**: Componentes e Server Actions com responsabilidades únicas e bem definidas.
+  - **Dependency Inversion Principle (D)**: Uso de abstrações para acesso a dados (Prisma Client) e serviços de autenticação.
+- **Clean Code**: Nomenclatura semântica, funções pequenas e código autoexplicativo.
+
+### 🚀 Stack Técnica
+- **Frontend**: Next.js 14 (App Router), Tailwind CSS, Lucide Icons.
+- **Backend**: Next.js Server Actions, Prisma ORM.
+- **Banco de Dados**: SQLite (Local) / PostgreSQL (Produção).
+- **Autenticação**: NextAuth.js com Credentials Provider.
+- **Internacionalização**: i18next para suporte multi-idioma.
+
+### 🔧 Qualidade de Código
+- **Linting & Formatting**: ESLint + Prettier configurados para manter a consistência do código.
+- **Conventional Commits**: Padrão de mensagens de commit para histórico semântico e legível.
+- **Metodologia**: Escrita de código baseada em Clean Code e componentização atômica.
+
+## 📦 Instalação e Setup
+
+1.  **Dependências**:
     ```bash
-    python -m venv venv
+    npm install
     ```
 
-2.  Ative o ambiente virtual:
-    - Windows: `venv\Scripts\activate`
-    - Linux/Mac: `source venv/bin/activate`
-
-3.  Instale as dependências:
+2.  **Banco de Dados**:
     ```bash
-    pip install -r requirements.txt
+    npx prisma db push
+    npx prisma db seed
     ```
 
-4.  Configure as variáveis de ambiente:
-    - Copie `.env.example` para `.env`
-    - Preencha suas credenciais do Google SSO.
+3.  **Ambiente**:
+    - Renomeie `.env.example` para `.env`
+    - Configure a `NEXTAUTH_SECRET`.
 
-## Execução
-Opção 1 (via módulo):
-```bash
-python -m uvicorn main:app --reload
-```
+4.  **Desenvolvimento**:
+    ```bash
+    npm run dev
+    ```
 
-Opção 2 (direta):
-```bash
-python main.py
-```
+## 🔐 Estrutura de Acesso (RBAC)
 
-Acesse `http://localhost:8000`.
+O sistema utiliza um modelo de permissões baseado na flag `isAdmin` do banco de dados:
 
-## Funcionalidades
-- **Admin**: Gestão de pacotes, variáveis e savestates (rollback).
-- **SC + Implantação**: Checklist de escopo e cálculo de horas.
-- **AE**: Verificação de viabilidade de pacotes baseada em horas e categoria.
-- **SSO Google**: Autenticação integrada.
-- **Exportação**: Exportar pacotes para CSV.
-- **Planilhas**: Salvar conteúdo de planilhas CSV diretamente no sistema.
+- **AE (Account Executive)**: Acesso ao Histórico Pessoal e Calculadora de Viabilidade.
+- **SC (Solutions Consultant)**: Acesso aos Projetos Técnicos, Checklists de Escopo e Calculadora.
+- **Admin**: Gestão total de usuários, pacotes do framework e configurações globais.
 
-## Escopo de Serviços Suportados
+---
 
-### Zendesk Support
-- Configurações gerais e de segurança (2FA, Restrição IP, etc.)
-- Aparência, Localização e Eventos de perfil
-- Conexão de redes sociais (Facebook, X)
-- Interface do agente, Painel de Contexto e Conversas Paralelas
-- Single Sign-On (SAML / JWT / OpenID)
-- Gestão de Marcas, Funções, Grupos e Membros de Equipe
-- Campos de Usuário e Organização, Importação de dados
-
-### Canais
-- **Ticket**: Email, Formulário, Facebook, X, Microsoft Teams
-- **Messaging**: Web Widget, Facebook Messenger, Instagram, Android, iOS, Unity, LINE, Apple Messages, Slack, WeChat, Google RCS, KakaoTalk, Telegram
-- **Voz**: Zendesk Talk, CallWe, Integrações Marketplace
-
-### Funcionalidades Avançadas
-- **AI Agents**: Essential e Advanced (Droz, etc.)
-- **Workspace**: Macros, Conteúdo Dinâmico, Layouts, Objetos Personalizados
-- **Roteamento**: Omnichannel, Filas, Regras de Capacidade
-- **Automação**: Gatilhos (Simples/Complexos), Webhooks, Metas de Mensagens
-- **Marketplace**: Integração com lista infinita de aplicativos (Nome, Link, Horas)
-- **Integrações Nativas**: Salesforce, Shopify, Slack, Workday, Google Agenda, Jira, MS 365 Copilot
-- **Asset Management**: Sincronização nativa (Intune/Jamf), Tipos de ativos, Registros
-
-### Módulos Adicionais
-- Knowledge, Analytics, Copilot, QA, WFM, Solution Design, ADPP.
+*Desenvolvido com foco na eficiência do time Aktie Now.*
