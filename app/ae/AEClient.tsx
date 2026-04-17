@@ -237,7 +237,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                     type="number" 
                     min="0"
                     value={agents}
-                    onChange={(e) => setAgents(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setAgents(Math.max(0, parseInt(e.target.value) || 0))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                   />
                 </div>
@@ -250,7 +250,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                     type="number" 
                     min="0"
                     value={brands}
-                    onChange={(e) => setBrands(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setBrands(Math.max(0, parseInt(e.target.value) || 0))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                   />
                 </div>
@@ -263,7 +263,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                     type="number" 
                     min="0"
                     value={areas}
-                    onChange={(e) => setAreas(parseInt(e.target.value) || 0)}
+                    onChange={(e) => setAreas(Math.max(0, parseInt(e.target.value) || 0))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                   />
                 </div>

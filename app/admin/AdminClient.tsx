@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { Plus, Download, History, Box, Settings, Users, Trash2, ExternalLink, Shield, Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Plus, Download, History, Box, Settings, Users, Trash2, ExternalLink, Shield, Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw } from 'lucide-react';
 import { 
   createFrameworkSnapshotAction, 
   restoreFrameworkSnapshotAction, 
@@ -9,7 +9,8 @@ import {
   updateUserRoleAction,
   addPackageAction,
   deletePackageAction,
-  updateUserAdminStatusAction
+  updateUserAdminStatusAction,
+  reseedFrameworkAction
 } from './actions';
 import { addVariableAction, deleteVariableAction } from './variable_actions';
 
@@ -31,21 +32,32 @@ export default function AdminClient({ packages, variables, versions, users }: an
     });
   };
 
-  const handleRestore = async (id: number, name: string) => {
-    if (confirm(`AVISO: Restaurar o snapshot "${name}" substituirá a biblioteca atual. Deseja continuar?`)) {
+  const handleRestore = (id: number, name: string) => {
+    if (confirm(`Deseja restaurar o snapshot "${name}"? Isso substituirá as configurações atuais.`)) {
       startTransition(async () => {
-        try {
-          await restoreFrameworkSnapshotAction(id);
-          alert("Biblioteca restaurada!");
-        } catch (e) {
-          alert("Erro ao restaurar.");
-        }
+        await restoreFrameworkSnapshotAction(id);
       });
     }
   };
 
-  const handleDeleteUser = async (id: number, email: string) => {
-    if (confirm(`Remover usuário ${email}?`)) {
+  const handleDeletePackage = (id: number, name: string) => {
+    if (confirm(`Deseja remover o pacote "${name}"?`)) {
+      startTransition(async () => {
+        await deletePackageAction(id);
+      });
+    }
+  };
+
+  const handleDeleteVariable = (id: number, key: string) => {
+    if (confirm(`Deseja remover a variável "${key}"?`)) {
+      startTransition(async () => {
+        await deleteVariableAction(id);
+      });
+    }
+  };
+
+  const handleDeleteUser = (id: number, email: string) => {
+    if (confirm(`Tem certeza que deseja excluir o usuário ${email}?`)) {
       startTransition(async () => {
         await deleteUserAction(id);
       });
@@ -58,6 +70,14 @@ export default function AdminClient({ packages, variables, versions, users }: an
     });
   };
 
+  const handleReseed = () => {
+    if (confirm("Deseja restaurar a biblioteca para o padrão de fábrica? Isso recuperará todos os pacotes excluídos e não afetará os snapshots salvos.")) {
+      startTransition(async () => {
+        await reseedFrameworkAction();
+      });
+    }
+  };
+
   return (
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -66,6 +86,15 @@ export default function AdminClient({ packages, variables, versions, users }: an
           <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">Gestão de pacotes, variáveis globais e controle de versões.</p>
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
+          <button 
+            onClick={handleReseed}
+            disabled={isPending}
+            className="flex-1 md:flex-none bg-amber-50 text-amber-600 border border-amber-200 px-6 py-4 rounded-2xl font-black hover:bg-amber-100 transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest disabled:opacity-50"
+            title="Restaurar Biblioteca Padrão"
+          >
+            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            <span>Reset Factory</span>
+          </button>
           <button 
             onClick={handleCreateSnapshot}
             disabled={isPending}
@@ -162,7 +191,7 @@ export default function AdminClient({ packages, variables, versions, users }: an
                 <div className="grid grid-cols-2 gap-6">
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Horas</label>
-                    <input type="number" step="0.5" name="hours" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all text-center" required />
+                    <input type="number" step="0.5" min="0" name="hours" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all text-center" required />
                   </div>
                   <div>
                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Skill</label>
@@ -222,8 +251,9 @@ export default function AdminClient({ packages, variables, versions, users }: an
                       </td>
                       <td className="px-10 py-8 text-right">
                         <button 
-                          onClick={() => deletePackageAction(pkg.id)}
-                          className="inline-flex items-center text-[9px] font-black text-slate-300 hover:text-red-500 uppercase tracking-[0.2em] transition-colors"
+                          onClick={() => handleDeletePackage(pkg.id, pkg.name)}
+                          disabled={isPending}
+                          className="inline-flex items-center text-[9px] font-black text-slate-300 hover:text-red-500 uppercase tracking-[0.2em] transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Remover
@@ -291,8 +321,9 @@ export default function AdminClient({ packages, variables, versions, users }: an
                       </td>
                       <td className="px-10 py-8 text-right">
                         <button 
-                          onClick={() => deleteVariableAction(v.id)}
-                          className="inline-flex items-center text-[9px] font-black text-slate-300 hover:text-red-500 uppercase tracking-[0.2em] transition-colors"
+                          onClick={() => handleDeleteVariable(v.id, v.key)}
+                          disabled={isPending}
+                          className="inline-flex items-center text-[9px] font-black text-slate-300 hover:text-red-500 uppercase tracking-[0.2em] transition-colors disabled:opacity-50"
                         >
                           <Trash2 className="w-4 h-4 mr-2" />
                           Remover
