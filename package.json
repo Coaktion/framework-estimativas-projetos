@@ -33,6 +33,7 @@
     "tailwind-merge": "^2.2.2"
   },
   "devDependencies": {
+    "@netlify/plugin-nextjs": "^5.15.9",
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/react": "^14.2.2",
     "@types/bcryptjs": "^2.4.6",
