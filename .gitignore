@@ -50,9 +50,7 @@ reset-admin.js
 check-db.js
 check-admin.js
 
-# CI/CD and Auto Deploy (Disabled)
-.github/
-.github/workflows/
+# Vercel local config
 .vercel/
 
 
