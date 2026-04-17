@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #065F46;
+  --secondary: #10B981;
+  --accent: #8B5CF6;
+  --dark: #0F172A;
+}
+
+body {
+  @apply bg-white text-slate-900 font-sans antialiased;
+}
+
+@layer components {
+  .brand-bg-primary {
+    background-color: var(--primary);
+  }
+  .brand-text-primary {
+    color: var(--primary);
+  }
+  .btn-premium {
+    @apply transition-all duration-300 hover:scale-[1.02] active:scale-[0.98];
+    box-shadow: 0 20px 40px -15px rgba(6, 95, 70, 0.25);
+  }
+  .btn-premium:hover {
+    box-shadow: 0 25px 50px -12px rgba(6, 95, 70, 0.35);
+  }
+}
+
+/* Custom transitions for Next.js app */
+.tab-content {
+  @apply transition-all duration-700;
+}

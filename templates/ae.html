@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto space-y-12">
+    <div class="text-center space-y-4">
+        <h1 class="text-4xl font-black text-brand-dark tracking-tighter font-heading uppercase">Ambiente AE</h1>
+        <p class="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">Verificação simplificada de viabilidade técnica.</p>
+    </div>
+    
+    <div class="bg-white p-12 rounded-[3rem] border border-slate-50 shadow-2xl space-y-12">
+        <section class="space-y-8">
+            <div class="flex items-center space-x-4">
+                <div class="brand-bg-primary p-2 rounded-xl shadow-lg shadow-green-900/10">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <h2 class="text-xl font-black text-brand-dark font-heading tracking-tight uppercase">Validar Horas</h2>
+            </div>
+
+            <form action="/ae/verify" method="POST" class="space-y-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div class="space-y-3">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Horas Estimadas</label>
+                        <input type="number" name="hours" step="0.5" 
+                               class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" 
+                               placeholder="Ex: 40" required>
+                    </div>
+                    
+                    <div class="space-y-3">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria</label>
+                        <select name="category" class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all appearance-none cursor-pointer" required>
+                            <option value="">Selecione...</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat }}">{{ cat }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full brand-bg-primary text-white py-5 rounded-2xl font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase text-xs tracking-[0.2em]">
+                    Verificar Viabilidade
+                </button>
+            </form>
+        </section>
+
+        {% if suggestion %}
+        <section id="result" class="pt-10 border-t border-slate-50 space-y-6">
+            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Resultado da Análise</h3>
+            <div class="p-8 brand-bg-primary rounded-[2rem] shadow-xl text-center transform hover:scale-[1.02] transition-transform">
+                <p class="text-2xl font-black text-white font-heading tracking-tight">
+                    {{ suggestion }}
+                </p>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="space-y-6">
+            <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest">Biblioteca de Referência</h3>
+            <div class="grid grid-cols-1 gap-3">
+                {% for p in packages %}
+                    <div class="group flex justify-between items-center p-5 rounded-2xl border border-slate-50 bg-slate-50/50 hover:bg-white hover:border-brand-primary/30 transition-all cursor-default shadow-sm">
+                        <span class="text-xs font-black text-brand-dark uppercase tracking-tight group-hover:text-brand-primary transition-all">{{ p.name }}</span>
+                        <div class="bg-brand-dark text-white px-4 py-1.5 rounded-xl text-[10px] font-black tracking-widest uppercase">
+                            <span>{{ p.hours }}H</span>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

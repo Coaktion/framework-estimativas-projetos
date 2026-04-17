@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold mb-8">SC + Implantação</h1>
+    
+    <div class="bg-white p-8 rounded-lg shadow space-y-8">
+        <section>
+            <h2 class="text-xl font-bold mb-4">Escopo do Projeto</h2>
+            <form action="/sc/calculate" method="POST" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded">
+                        <input type="checkbox" name="check_integracao" id="c1" class="h-5 w-5 text-blue-600">
+                        <label for="c1">Integração com ERP ( +10h )</label>
+                    </div>
+                    <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded">
+                        <input type="checkbox" name="check_custom" id="c2" class="h-5 w-5 text-blue-600">
+                        <label for="c2">Customização de Relatórios ( +10h )</label>
+                    </div>
+                    <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded">
+                        <input type="checkbox" name="check_treinamento" id="c3" class="h-5 w-5 text-blue-600">
+                        <label for="c3">Treinamento Presencial ( +10h )</label>
+                    </div>
+                    <div class="flex items-center space-x-3 p-4 bg-gray-50 rounded">
+                        <input type="checkbox" name="check_migration" id="c4" class="h-5 w-5 text-blue-600">
+                        <label for="c4">Migração de Dados ( +10h )</label>
+                    </div>
+                </div>
+
+                <div class="space-y-4 pt-4 border-t">
+                    <h3 class="font-bold">Informações Adicionais</h3>
+                    <input type="number" name="tempo_extra" placeholder="Horas extras manuais" class="w-full border p-2 rounded">
+                    <textarea name="obs" placeholder="Observações do projeto" class="w-full border p-2 rounded" rows="3"></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 transition">
+                    Calcular Estimativa e Salvar
+                </button>
+            </form>
+        </section>
+
+        <section class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+            <h2 class="text-lg font-bold text-blue-800 mb-2">Resumo das Variáveis</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {% for v in variables if v.category == 'SC_CALC' %}
+                    <div class="bg-white p-3 rounded shadow-sm text-center">
+                        <p class="text-xs text-gray-500 uppercase">{{ v.key }}</p>
+                        <p class="text-xl font-bold">{{ v.value }}h</p>
+                    </div>
+                {% endfor %}
+            </div>
+        </section>
+    </div>
+</div>
+{% endblock %}

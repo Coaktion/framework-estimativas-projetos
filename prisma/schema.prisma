@@ -1,0 +1,112 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            Int               @id @default(autoincrement())
+  email         String            @unique
+  password      String?           // New field for custom login
+  name          String?
+  picture       String?
+  role          String            @default("USER") // SC, DEV, CONSULTING, USER
+  isAdmin       Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  projects      Project[]
+  projectVers   ProjectVersion[]
+  frameworkVers FrameworkVersion[]
+  aeEstimates   AEEstimate[]
+}
+
+model AEEstimate {
+  id            Int      @id @default(autoincrement())
+  clientName    String
+  data          String   // JSON string with selected options
+  resultHours   Float
+  needsSC       Boolean
+  createdAt     DateTime @default(now())
+  createdBy     Int
+  creator       User     @relation(fields: [createdBy], references: [id])
+}
+
+model Package {
+  id             Int      @id @default(autoincrement())
+  name           String   @unique
+  hours          Float
+  scopeIncluded  String   @default("")
+  scopeExcluded  String   @default("")
+  category       String?
+  skill          String   @default("Implantação") // Implantação, GP, Solution Design, Desenvolvimento, Design
+  link           String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+}
+
+model Variable {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  category  String?
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+}
+
+model FrameworkVersion {
+  id          Int      @id @default(autoincrement())
+  versionName String
+  type        String   @default("SC_AE") // SC_AE, DEV, CONSULTING
+  data        String   // JSON string
+  createdAt   DateTime @default(now())
+  createdBy   Int?
+  creator     User?    @relation(fields: [createdBy], references: [id])
+}
+
+model Project {
+  id          Int              @id @default(autoincrement())
+  name        String
+  ownerId     Int
+  owner       User             @relation(fields: [ownerId], references: [id])
+  status      String           @default("DRAFT")
+  isPrivate   Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  versions    ProjectVersion[]
+  spreadsheets Spreadsheet[]
+}
+
+model ProjectVersion {
+  id                  Int      @id @default(autoincrement())
+  projectId           Int
+  project             Project  @relation(fields: [projectId], references: [id])
+  versionName         String
+  data                String   // JSON string
+  technicalScopeLink  String?
+  
+  // Overrides and percentages
+  gpPercent           Float    @default(25.0)
+  discoveryPercent    Float    @default(0.0)
+  validationPercent   Float    @default(0.0)
+  
+  gpOverride          Float?
+  discoveryOverride   Float?
+  validationOverride  Float?
+  
+  createdAt           DateTime @default(now())
+  createdBy           Int?
+  creator             User?    @relation(fields: [createdBy], references: [id])
+}
+
+model Spreadsheet {
+  id        Int      @id @default(autoincrement())
+  name      String
+  content   String   // CSV/XLSX content or path
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id])
+  createdAt DateTime @default(now())
+}
