@@ -132,9 +132,16 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? (checked ? 'on' : 'off') : value;
+
+    // Prevent negative numbers for numeric inputs
+    if (type === 'number') {
+      finalValue = Math.max(0, parseFloat(value) || 0).toString();
+    }
+
     setFormData((prev: any) => ({
       ...prev,
-      [name]: type === 'checkbox' ? (checked ? 'on' : 'off') : value
+      [name]: finalValue
     }));
   };
 
@@ -225,11 +232,17 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
   const updateCustomPackage = (id: string, field: string, value: any) => {
     setCustomPackages(prev => prev.map(p => {
       if (p.id === id) {
-        const updated = { ...p, [field]: value };
+        let finalValue = value;
+        // Prevent negative numbers for numeric fields
+        if (['hours', 'qty', 'overrideVal'].includes(field)) {
+          finalValue = Math.max(0, parseFloat(value) || 0);
+        }
+        
+        const updated = { ...p, [field]: finalValue };
         // Sync with formData
         const prefix = `custom_pkg_${p.category}_${p.index}`;
         const formKey = field === 'overrideCheck' ? `${prefix}_override_check` : `${prefix}_${field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)}`;
-        setFormData((f: any) => ({ ...f, [formKey]: value === true ? 'on' : value === false ? 'off' : value }));
+        setFormData((f: any) => ({ ...f, [formKey]: finalValue === true ? 'on' : finalValue === false ? 'off' : finalValue }));
         return updated;
       }
       return p;
@@ -591,6 +604,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                                 <div className="flex justify-center">
                                   <input 
                                     type="number" 
+                                    min="0"
                                     name={`item_${p.id}_qty`}
                                     value={formData[`item_${p.id}_qty`] || ''}
                                     onChange={handleInputChange}
@@ -620,6 +634,8 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                                   {formData[`item_override_check_${p.id}`] === 'on' && (
                                     <input 
                                       type="number" 
+                                      min="0"
+                                      step="0.1"
                                       name={`item_override_val_${p.id}`}
                                       value={formData[`item_override_val_${p.id}`] || ''}
                                       onChange={handleInputChange}
@@ -683,6 +699,8 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                               <td className="py-4 text-xs align-top text-center pt-6 font-black text-slate-400">
                                 <input 
                                   type="number" 
+                                  min="0"
+                                  step="0.1"
                                   value={pkg.hours || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'hours', e.target.value)}
                                   placeholder="0.0" 
@@ -692,6 +710,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                               <td className="py-4 text-xs align-top text-center pt-6">
                                 <input 
                                   type="number" 
+                                  min="0"
                                   value={pkg.qty || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'qty', e.target.value)}
                                   className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary outline-none"
@@ -718,6 +737,8 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                                   {pkg.overrideCheck && (
                                     <input 
                                       type="number" 
+                                      min="0"
+                                      step="0.1"
                                       value={pkg.overrideVal || ''}
                                       onChange={(e) => updateCustomPackage(pkg.id, 'overrideVal', e.target.value)}
                                       placeholder="Total" 
@@ -810,8 +831,9 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 shadow-sm">
                     <input 
                       type="number" 
+                      min="0"
                       value={percents.gp}
-                      onChange={(e) => setPercents(p => ({ ...p, gp: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setPercents(p => ({ ...p, gp: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       className="w-8 bg-transparent text-[10px] font-black outline-none text-center text-brand-dark"
                     />
                     <span className="text-brand-secondary text-[9px] font-black">%</span>
@@ -822,8 +844,10 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   ) : (
                     <input 
                       type="number" 
+                      min="0"
+                      step="0.1"
                       value={overrides.gp}
-                      onChange={(e) => setOverrides(o => ({ ...o, gp: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setOverrides(o => ({ ...o, gp: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       placeholder="0.0" 
                       className="w-16 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right outline-none text-brand-secondary"
                     />
@@ -851,8 +875,9 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 shadow-sm">
                     <input 
                       type="number" 
+                      min="0"
                       value={percents.discovery}
-                      onChange={(e) => setPercents(p => ({ ...p, discovery: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setPercents(p => ({ ...p, discovery: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       className="w-8 bg-transparent text-[10px] font-black outline-none text-center text-brand-dark"
                     />
                     <span className="text-brand-secondary text-[9px] font-black">%</span>
@@ -863,8 +888,10 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   ) : (
                     <input 
                       type="number" 
+                      min="0"
+                      step="0.1"
                       value={overrides.discovery}
-                      onChange={(e) => setOverrides(o => ({ ...o, discovery: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setOverrides(o => ({ ...o, discovery: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       placeholder="0.0" 
                       className="w-16 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right outline-none text-brand-secondary"
                     />
@@ -892,8 +919,9 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <div className="flex items-center bg-slate-50 border border-slate-300 rounded-lg px-2 py-1 shadow-sm">
                     <input 
                       type="number" 
+                      min="0"
                       value={percents.validation}
-                      onChange={(e) => setPercents(p => ({ ...p, validation: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setPercents(p => ({ ...p, validation: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       className="w-8 bg-transparent text-[10px] font-black outline-none text-center text-brand-dark"
                     />
                     <span className="text-brand-secondary text-[9px] font-black">%</span>
@@ -904,8 +932,10 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   ) : (
                     <input 
                       type="number" 
+                      min="0"
+                      step="0.1"
                       value={overrides.validation}
-                      onChange={(e) => setOverrides(o => ({ ...o, validation: parseFloat(e.target.value) || 0 }))}
+                      onChange={(e) => setOverrides(o => ({ ...o, validation: Math.max(0, parseFloat(e.target.value) || 0) }))}
                       placeholder="0.0" 
                       className="w-16 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right outline-none text-brand-secondary"
                     />
