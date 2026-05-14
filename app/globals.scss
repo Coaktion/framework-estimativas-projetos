@@ -1,0 +1,165 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --primary: #065F46;
+  --secondary: #10B981;
+  --accent: #8B5CF6;
+  --dark: #0F172A;
+  --bg-main: #F8FAFC;
+  --text-main: #0F172A;
+  --text-muted: #64748b;
+  --border-main: #E2E8F0;
+  --bg-card: #FFFFFF;
+  --bg-input: #F1F5F9;
+  --bg-navbar: #FFFFFF;
+}
+
+.dark {
+  --bg-main: #020617;
+  --text-main: #10B981; /* Verde principal da paleta */
+  --text-muted: #10B981; /* Forçando tudo para verde no dark mode */
+  --border-main: #065F46;
+  --bg-card: #0F172A;
+  --dark: #10B981;
+  --bg-input: #020617;
+  --bg-navbar: #0F172A;
+}
+
+body {
+  @apply antialiased transition-colors duration-300;
+  background-color: var(--bg-main);
+  color: var(--text-main);
+}
+
+.dark {
+  * {
+    color: var(--text-main) !important;
+    border-color: var(--border-main) !important;
+  }
+
+  svg {
+    color: var(--text-main) !important;
+    stroke: var(--text-main) !important;
+  }
+  
+  .text-white, 
+  .bg-brand-primary .text-white, 
+  button.bg-brand-primary span,
+  .brand-bg-primary *,
+  .bg-brand-dark .text-white,
+  .bg-purple-600 * {
+    color: white !important; /* Exceções para botões e áreas de destaque */
+  }
+
+  .bg-brand-primary svg, .brand-bg-primary svg {
+    stroke: white !important;
+    color: white !important;
+  }
+
+  .text-slate-400, .text-slate-500, .text-slate-300, .text-slate-600, .text-brand-dark {
+    color: var(--text-main) !important;
+  }
+}
+
+.compact {
+  @apply text-[0.95em];
+  
+  td, th {
+    @apply py-2 px-4 !important;
+  }
+  
+  .p-10, .p-12, .p-16 {
+    @apply p-6 !important;
+  }
+  
+  .p-8 {
+    @apply p-4 !important;
+  }
+  
+  .space-y-12 {
+    @apply space-y-6 !important;
+  }
+  
+  .space-y-10 {
+    @apply space-y-5 !important;
+  }
+  
+  .gap-10 {
+    @apply gap-5 !important;
+  }
+}
+
+@layer components {
+  .bg-white {
+    background-color: var(--bg-card);
+  }
+  .border-slate-200, .border-slate-300, .border-slate-100 {
+    border-color: var(--border-main);
+  }
+  .text-brand-dark {
+    color: var(--dark);
+  }
+  .bg-slate-50, .bg-slate-50\/50, .bg-slate-50\/30 {
+    background-color: var(--bg-input);
+  }
+
+  nav {
+    background-color: var(--bg-navbar) !important;
+    border-color: var(--border-main) !important;
+    backdrop-filter: blur(16px);
+  }
+  
+  .dark {
+    .text-slate-400, .text-slate-500 {
+      color: var(--text-muted);
+    }
+    .shadow-xl, .shadow-2xl, .shadow-sm {
+      box-shadow: none !important;
+      border: 1px solid var(--border-main);
+    }
+    input, select, textarea {
+      background-color: var(--bg-input) !important;
+      border-color: var(--border-main) !important;
+      color: var(--text-main) !important;
+      
+      &::placeholder {
+        color: var(--text-muted) !important;
+        opacity: 0.5;
+      }
+    }
+
+    .bg-white {
+      background-color: var(--bg-card) !important;
+    }
+
+    .bg-slate-50, .bg-slate-50\/50, .bg-slate-50\/30 {
+      background-color: var(--bg-input) !important;
+    }
+
+    nav {
+      background-color: var(--bg-navbar) !important;
+      border-color: var(--border-main) !important;
+    }
+  }
+
+  .brand-bg-primary {
+    background-color: var(--primary);
+  }
+  .brand-text-primary {
+    color: var(--primary);
+  }
+  .btn-premium {
+    @apply transition-all duration-300 hover:scale-[1.02] active:scale-[0.98];
+    box-shadow: 0 20px 40px -15px rgba(6, 95, 70, 0.25);
+  }
+  .btn-premium:hover {
+    box-shadow: 0 25px 50px -12px rgba(6, 95, 70, 0.35);
+  }
+}
+
+/* Custom transitions for Next.js app */
+.tab-content {
+  @apply transition-all duration-700;
+}

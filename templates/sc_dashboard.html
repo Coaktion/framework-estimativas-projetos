@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-10">
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-4xl font-black text-brand-dark tracking-tighter font-heading">Projetos & Estimativas</h1>
+            <p class="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">Gerencie e acompanhe todos os escopos técnicos ativos.</p>
+        </div>
+        <button onclick="document.getElementById('new-project-modal').classList.remove('hidden')" class="brand-bg-primary text-white px-8 py-4 rounded-2xl font-black hover:opacity-90 shadow-lg btn-premium transition-all flex items-center space-x-3 text-xs uppercase tracking-widest">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Novo Projeto</span>
+        </button>
+    </div>
+
+    <!-- Projects Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {% for project in projects %}
+        <div class="group relative bg-white rounded-[2rem] border border-slate-300 shadow-sm hover:shadow-2xl hover:border-brand-primary/20 transition-all duration-500 flex flex-col overflow-hidden">
+            <!-- Project Header -->
+            <div class="p-8 flex-grow">
+                <div class="flex justify-between items-start mb-6">
+                    <div class="brand-bg-primary p-2.5 rounded-2xl text-white shadow-lg shadow-green-900/10">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                    </div>
+                    <span class="px-3 py-1 text-[9px] font-black rounded-full uppercase tracking-[0.15em] 
+                    {% if project.status == 'ACTIVE' %}bg-emerald-50 text-emerald-600 border border-emerald-100{% else %}bg-amber-50 text-amber-600 border border-amber-100{% endif %}">
+                        {{ project.status }}
+                    </span>
+                </div>
+
+                <a href="/sc/project/{{ project.id }}" class="block group/title">
+                    <h3 class="text-xl font-black text-brand-dark group-hover/title:text-brand-primary transition-all line-clamp-1 mb-2 font-heading tracking-tight">
+                        {{ project.name }}
+                    </h3>
+                    {% if project.is_private %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-black bg-slate-100 text-slate-500 uppercase tracking-widest border border-slate-200">
+                            🔒 Privado
+                        </span>
+                    {% endif %}
+                </a>
+
+                <div class="mt-8 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs">📅</span>
+                        <span>{{ project.created_at.strftime('%d/%m/%Y') }}</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="w-1.5 h-1.5 rounded-full bg-brand-secondary"></span>
+                        <span class="italic">v.{{ project.versions|length if project.versions else '1' }}</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card Actions -->
+            <div class="px-8 py-6 bg-slate-50/30 border-t border-slate-50 flex items-center justify-between">
+                <a href="/sc/project/{{ project.id }}" class="text-xs font-black text-brand-dark hover:text-brand-primary flex items-center group/btn uppercase tracking-widest transition-colors">
+                    Ver Detalhes
+                    <svg class="w-4 h-4 ml-2 transform group-hover/btn:translateX(3px) transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M9 5l7 7-7 7" />
+                    </svg>
+                </a>
+
+                {% if user.role == 'SC' %}
+                <a href="/sc/project/{{ project.id }}/delete" 
+                   onclick="return confirm('Tem certeza que deseja excluir o projeto {{ project.name }}? Esta ação é irreversível e apagará todas as versões.')"
+                   class="p-2.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                   title="Excluir Projeto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                </a>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="col-span-full py-24 bg-white rounded-[3rem] border-4 border-dashed border-slate-50 text-center">
+            <div class="brand-bg-primary w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+            </div>
+            <h3 class="text-brand-dark font-black text-2xl tracking-tight">Nenhum projeto encontrado</h3>
+            <p class="text-slate-400 text-sm mt-2 font-bold uppercase tracking-widest">Clique no botão "Novo Projeto" para começar.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- New Project Modal -->
+<div id="new-project-modal" class="fixed inset-0 bg-brand-dark/60 backdrop-blur-md hidden flex items-center justify-center z-[60] p-4 transition-all">
+    <div class="bg-white rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden transform transition-all border border-white/20">
+        <div class="brand-bg-primary p-10">
+            <h3 class="text-2xl font-black text-white font-heading tracking-tight">Novo Projeto</h3>
+            <p class="text-white/60 text-xs mt-2 font-bold uppercase tracking-widest">Inicie uma nova estimativa técnica.</p>
+        </div>
+        
+        <form action="/sc/project" method="POST" class="p-10">
+            <div class="space-y-8">
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3">Nome do Projeto</label>
+                    <input type="text" name="name" placeholder="Ex: Cliente XPTO" 
+                           class="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" required>
+                </div>
+                
+                <div class="bg-slate-50 p-6 rounded-3xl border border-slate-300">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-4">
+                            <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-300">
+                                <svg class="w-5 h-5 text-brand-secondary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <label for="is_private" class="block text-sm font-black text-brand-dark tracking-tight">Privacidade</label>
+                                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Apenas você terá acesso</p>
+                            </div>
+                        </div>
+                        <input type="checkbox" name="is_private" id="is_private" 
+                               class="w-6 h-6 rounded-lg border-slate-200 text-brand-primary focus:ring-brand-primary transition-all cursor-pointer">
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mt-12 flex flex-col space-y-4">
+                <button type="submit" class="w-full brand-bg-primary text-white py-5 rounded-2xl text-xs font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase tracking-[0.2em]">
+                    Criar Projeto
+                </button>
+                <button type="button" onclick="document.getElementById('new-project-modal').classList.add('hidden')" 
+                        class="w-full py-4 text-[10px] font-black text-slate-400 hover:text-brand-dark transition-colors uppercase tracking-[0.2em]">
+                    Cancelar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

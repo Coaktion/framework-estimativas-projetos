@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="text-center py-20">
+    <h1 class="text-4xl font-bold mb-4">Bem-vindo ao Framework de Pré-Vendas</h1>
+    <p class="text-xl text-gray-600 mb-8">Escolha sua área de atuação para começar.</p>
+    {% if user and user.role in ['SC', 'DEV', 'CONSULTING'] %}
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+        <a href="/sc" class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
+            <h2 class="text-2xl font-bold mb-2">SC + Implantação</h2>
+            <p class="text-gray-500">Formulários de escopo e cálculo de horas.</p>
+        </a>
+        <a href="/ae" class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
+            <h2 class="text-2xl font-bold mb-2">AE</h2>
+            <p class="text-gray-500">Verificação simplificada de pacotes.</p>
+        </a>
+        <a href="/admin" class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
+            <h2 class="text-2xl font-bold mb-2">Admin</h2>
+            <p class="text-gray-500">Gestão de pacotes, variáveis e savestates.</p>
+        </a>
+    </div>
+    {% endif %}
+    {% if user and user.role in ['USER'] %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <a href="/sc" class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
+            <h2 class="text-2xl font-bold mb-2">SC + Implantação</h2>
+            <p class="text-gray-500">Formulários de escopo e cálculo de horas.</p>
+        </a>
+        <a href="/ae" class="bg-white p-8 rounded-lg shadow hover:shadow-lg transition">
+            <h2 class="text-2xl font-bold mb-2">AE</h2>
+            <p class="text-gray-500">Verificação simplificada de pacotes.</p>
+        </a>
+    {% endif %}
+    
+</div>
+{% endblock %}

@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlmodel
+jinja2
+python-multipart
+authlib
+itsdangerous
+httpx
+python-dotenv
+pandas
+openpyxl

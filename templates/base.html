@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pre-Sales Framework</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            primary: '#065F46',    // Verde Escuro (Emerald 800)
+                            secondary: '#5d2784',  // Roxo 
+                            dark: '#020617',      // Quase preto
+                            accent: '#10B981',     // Verde médio (Emerald 500)
+                            purple: '#A78BFA',     // Roxo claro
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        heading: ['Plus Jakarta Sans', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #065F46;
+            --secondary: #8B5CF6;
+            --dark: #020617;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+        }
+        h1, h2, h3, h4, .font-heading {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            letter-spacing: -0.03em;
+        }
+        .nav-link {
+            position: relative;
+            transition: color 0.3s ease;
+        }
+        .nav-link::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 3px;
+            background: var(--primary);
+            transition: width 0.3s ease;
+            border-radius: 99px;
+        }
+        .nav-link:hover::after {
+            width: 100%;
+        }
+        .glass-card {
+            background: #FFFFFF;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .btn-premium {
+            transition: all 0.2s ease;
+        }
+        .btn-premium:hover {
+            transform: translateY(-1px);
+            filter: brightness(1.1);
+        }
+        .brand-bg-primary {
+            background-color: var(--primary);
+        }
+        .brand-bg-secondary {
+            background-color: var(--secondary);
+        }
+        .brand-text-primary {
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body class="min-h-screen selection:bg-purple-100 selection:text-purple-900">
+    <nav class="bg-white border-b border-slate-300 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-20">
+                <div class="flex items-center">
+                    <a href="/" class="flex items-center space-x-3 group">
+                        <div class="brand-bg-primary p-2 rounded-2xl group-hover:scale-105 transition-all duration-500 shadow-lg shadow-green-900/10">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-xl font-black tracking-tighter text-brand-dark leading-none uppercase">
+                                Pre-Sales
+                            </span>
+                            <span class="text-[9px] font-black text-slate-400 tracking-[0.3em] uppercase leading-none mt-1.5">Framework</span>
+                        </div>
+                    </a>
+                </div>
+                
+                <div class="hidden md:flex items-center space-x-10">
+                    <a href="/sc" class="text-[11px] font-black text-slate-900 hover:text-brand-dark nav-link uppercase tracking-widest">Projetos</a>
+                    <a href="/ae" class="text-[11px] font-black text-slate-900 hover:text-brand-dark nav-link uppercase tracking-widest">Aprovação AE</a>
+                    {% if user and user.role in ['SC', 'DEV', 'CONSULTING'] %}
+                    <a href="/admin" class="text-[11px] font-black text-slate-900 hover:text-brand-dark nav-link uppercase tracking-widest">Admin</a>
+                    {% endif %}
+                </div>
+
+                <div class="flex items-center space-x-6">
+                    {% if user %}
+                        <div class="flex items-center space-x-3 bg-slate-50/50 p-1 rounded-full border border-slate-300 pr-4">
+                            <div class="w-9 h-9 rounded-full brand-bg-primary flex items-center justify-center border-2 border-white shadow-md">
+                                <span class="text-xs font-black text-white uppercase">{{ user.email[0] }}</span>
+                            </div>
+                            <div class="flex flex-col items-start hidden sm:flex">
+                                <span class="text-[10px] font-black text-slate-900 leading-none">{{ user.email.split('@')[0] }}</span>
+                                <span class="text-[8px] font-black text-brand-secondary uppercase tracking-widest mt-1">{{ user.role }}</span>
+                            </div>
+                        </div>
+                        <a href="/logout" class="text-[10px] font-black text-slate-400 hover:text-red-500 transition-colors uppercase tracking-[0.2em]">Sair</a>
+                    {% else %}
+                        <a href="/login" class="brand-bg-primary text-white px-8 py-3.5 rounded-2xl text-[11px] font-black hover:opacity-90 btn-premium shadow-xl shadow-green-500/10 transition-all uppercase tracking-widest">
+                            Acessar Framework
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% if dev_mode %}
+        <div class="brand-bg-secondary text-white text-[9px] font-black tracking-[0.4em] text-center py-1.5 uppercase opacity-90">
+            Ambiente de Desenvolvimento • Sandbox
+        </div>
+        {% endif %}
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
