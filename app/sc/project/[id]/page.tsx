@@ -32,16 +32,21 @@ export default async function ProjectEditorPage({
 
   const preferences = await getUserPreferencesAction();
 
+  const categoriesData = await prisma.category.findMany({
+    where: { isActive: true },
+    orderBy: { name: 'asc' },
+  });
+
   const packages = await prisma.package.findMany({
     where: { isActive: true },
-    orderBy: { categoryName: 'asc' },
+    orderBy: { name: 'asc' },
   });
 
   const variables = await prisma.variable.findMany({
     where: { isActive: true },
   });
 
-  const categories = Array.from(new Set(packages.map(p => p.categoryName).filter(Boolean))) as string[];
+  const categories = categoriesData.map(c => c.name);
   const packagesByCategory = categories.reduce((acc: any, cat) => {
     acc[cat] = packages.filter(p => p.categoryName === cat);
     return acc;

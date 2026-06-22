@@ -6,14 +6,17 @@ import {
   User, Briefcase, Globe, Layers, 
   Settings, CheckSquare, Save, Loader2,
   AlertTriangle, CheckCircle2, Bot, 
-  MessageSquare, Users, Shield, Clock, Box
+  MessageSquare, Users, Shield, Clock, Box,
+  Copy
 } from 'lucide-react';
 import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
+import { calculateAEEstimate } from '@/lib/ae-engine';
 
 export default function AEClient({ packages, variables, initialClientName = '' }: any) {
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
+  const [markdownReport, setMarkdownReport] = useState('');
 
   // Form States
   const [clientName, setClientName] = useState(initialClientName);
@@ -23,8 +26,9 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [analyticsBasicReports, setAnalyticsBasicReports] = useState(0);
   const [analyticsAdvancedReports, setAnalyticsAdvancedReports] = useState(0);
-  const [knowledgeLevel, setKnowledgeLevel] = useState('basic');
+  const [knowledgeArticles, setKnowledgeArticles] = useState(0);
   const [hasCommunity, setHasCommunity] = useState(false);
+  const [hasHCCustomization, setHasHCCustomization] = useState(false);
   
   const [operationTypes, setOperationTypes] = useState<string[]>([]);
   const [skuType, setSkuType] = useState('customer_service');
@@ -57,8 +61,9 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setSelectedModules([]);
     setAnalyticsBasicReports(0);
     setAnalyticsAdvancedReports(0);
-    setKnowledgeLevel('basic');
+    setKnowledgeArticles(0);
     setHasCommunity(false);
+    setHasHCCustomization(false);
     setOperationTypes([]);
     setSkuType('customer_service');
     setDeploymentType('new');
@@ -99,6 +104,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
  
   // Channels Checklist
   const channelOptions = [
+    { id: 'web_form', label: 'Web Form', package: 'Ticket: Formulários/Catálogos (por form)' },
     { id: 'email', label: 'Email', package: 'Ticket: Email (por endereço)' },
     { id: 'web_widget', label: 'Web Widget', package: 'Messaging: Web Widget (por widget)' },
     { id: 'whatsapp', label: 'WhatsApp', package: 'Messaging: LINE' },
@@ -160,83 +166,16 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 
   // Calculation Logic
   const estimation = useMemo(() => {
-    let techHours = 0;
+    const inputs = {
+      agents, brands, areas, selectedChannels, channelQuantities,
+      selectedModules, operationTypes, zendeskPlan, knowledgeArticles,
+      hasCommunity, hasHCCustomization, hasQA, hasWFM, hasCopilot,
+      copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType
+    };
 
-    // 1. Base Config
-    const basePkg = packages.find((p: any) => p.name.includes('Configurações gerais (Config Base)'));
-    if (basePkg) techHours += basePkg.hours;
+    const { techHours, results, escalationRequired, escalationMessage } = calculateAEEstimate(inputs);
 
-    // 2. Agents
-    const agentPkg = packages.find((p: any) => p.name.includes('Membros de equipe'));
-    if (agentPkg && agents > 0) techHours += (agents * agentPkg.hours);
-
-    // 3. Brands
-    const brandPkg = packages.find((p: any) => p.name.includes('Support: Marcas'));
-    if (brandPkg && brands > 0) techHours += (brands * brandPkg.hours);
-
-    // 4. Channels
-    selectedChannels.forEach(channelId => {
-      const opt = channelOptions.find(o => o.id === channelId);
-      const pkg = packages.find((p: any) => p.name.includes(opt?.package));
-      const qty = channelQuantities[channelId] || 1;
-      if (pkg) techHours += pkg.hours * qty;
-    });
-
-    // 5. Areas
-    if (areas > 1) techHours += (areas - 1) * 2;
-
-    // 6. Modules
-    if (selectedModules.includes('Support')) techHours += 2;
-    if (selectedModules.includes('Knowledge')) {
-      const levelHours = knowledgeLevel === 'basic' ? 2 : knowledgeLevel === 'intermediate' ? 4 : 8;
-      techHours += levelHours;
-      if (hasCommunity) techHours += 3;
-    }
-    if (selectedModules.includes('Analytics')) {
-      techHours += 1; // Base
-      techHours += analyticsBasicReports * 0.5;
-      techHours += analyticsAdvancedReports * 2;
-    }
-    if (selectedModules.includes('ADPP')) techHours += 10;
-    if (selectedModules.includes('Callwe')) techHours += 5;
-    if (selectedModules.includes('Droz')) techHours += 15;
-
-    // 7. Apps & Marketplace
-    if (hasAppsMarketplace) {
-      techHours += 1; // Setup
-      selectedApps.forEach(app => {
-        if (app === 'Outros') techHours += 2;
-        else techHours += 0.5;
-      });
-    }
-
-    // 8. Native Connections
-    if (hasNativeConnections) {
-      techHours += selectedNativeConnections.length * 2;
-    }
-
-    // 9. Development / Custom Integration
-    if (hasIntegration) techHours += 10;
-
-    // 10. Copilot
-    if (hasCopilot) {
-      const copilotPkg = packages.find((p: any) => p.name.includes('Copilot: Configuração básica'));
-      if (copilotPkg) techHours += copilotPkg.hours;
-      if (copilotType === 'with_api') techHours += 10;
-    }
-
-    // 11. AI Agents
-    if (hasAIAgents) {
-      const aiPkg = packages.find((p: any) => p.name.includes('AI Advanced: Configurações básicas'));
-      if (aiPkg) techHours += aiPkg.hours;
-    }
-
-    // Deployment Adjustment
-    if (deploymentType === 'optimization') {
-      techHours *= 0.7; // 30% discount for optimization
-    }
-
-    // GP Calculation
+    // GP Calculation (Keep GP logic here as it depends on variables from DB)
     const aeGpVar = variables?.find((v: any) => v.key === 'AE_GP_PERCENTAGE' || v.key === 'GP_STANDARD');
     const gpPercent = aeGpVar ? (parseFloat(aeGpVar.value) / (aeGpVar.value.includes('%') ? 100 : (parseFloat(aeGpVar.value) > 1 ? 100 : 1))) : 0.15;
     const gpHours = techHours * gpPercent;
@@ -249,18 +188,63 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       gpHours,
       total,
       needsSC,
-      gpPercent: (gpPercent * 100).toFixed(0)
+      gpPercent: (gpPercent * 100).toFixed(0),
+      escalationRequired,
+      escalationMessage,
+      calculatedResults: results
     };
   }, [
     agents, brands, selectedChannels, channelQuantities, areas, 
-    selectedModules, analyticsBasicReports, analyticsAdvancedReports, knowledgeLevel, hasCommunity,
+    selectedModules, analyticsBasicReports, analyticsAdvancedReports, knowledgeArticles, hasCommunity, hasHCCustomization,
     deploymentType, hasAppsMarketplace, selectedApps, hasNativeConnections, selectedNativeConnections,
-    hasIntegration, hasQA, hasWFM, hasCopilot, copilotType, hasAIAgents, 
+    hasIntegration, hasQA, hasWFM, hasCopilot, copilotType, hasAIAgents, zendeskPlan, operationTypes,
     packages, variables
   ]);
 
   const handleCalculate = async () => {
     setIsPending(true);
+    
+    // Generate Markdown Report
+    const res = estimation.calculatedResults;
+    const report = `
+# Relatório Executivo de Estimativa - ${clientName}
+
+## 📊 Resumo de Volumes Estimados
+
+### Support
+| Item | Quantidade |
+| :--- | :--- |
+| Funções | ${res.support.funcoes} |
+| Grupos | ${res.support.grupos} |
+| Campos de Ticket | ${res.support.campos_ticket} |
+| Condicionais de Campos | ${res.support.condicionais_campos} |
+| Campos de Usuário | ${res.support.campos_usuario} |
+| Campos de Organização | ${res.support.campos_organizacao} |
+| Visualizações | ${res.support.visualizacoes} |
+| Macros | ${res.support.macros} |
+| Gatilhos (Simples/Complexos) | ${res.support.gatilhos_simples} / ${res.support.gatilhos_complexos} |
+| Automações (Simples/Complexas) | ${res.support.automacoes_simples} / ${res.support.automacoes_complexas} |
+| Políticas de SLA | ${res.support.politicas_sla} |
+
+### Knowledge & Voice
+- **Knowledge:** ${res.knowledge.horas_estimadas}h estimadas (${knowledgeArticles} artigos)
+- **Voice (IVR/Saudações):** ${res.voice.ivr} níveis / ${res.voice.saudacoes} saudações
+
+### Inteligência e Operação (WFM/QA/Copilot)
+- **Copilot (Intenções/Entidades/Proced.):** ${res.copilot.intencoes_personalizadas} / ${res.copilot.entidades} / ${res.copilot.procedimentos}
+- **WFM (Grupos/Equipes/Turnos):** ${res.wfm.grupos_trabalho} / ${res.wfm.equipes} / ${res.wfm.turnos}
+- **QA (Filtros/Quizzes/Tabelas):** ${res.qa.filtros} / ${res.qa.quizzes} / ${res.qa.tabelas_desempenho}
+
+### Apps Aktie Now
+- **Condicionais Avançadas:** ${res.apps_aktie_now.condicionais_avancadas_horas}h
+- **Ticket Manager:** ${res.apps_aktie_now.ticket_manager_horas}h
+
+---
+**Esforço Total Estimado:** ${estimation.total.toFixed(1)}h
+${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
+`;
+    
+    setMarkdownReport(report.trim());
     setShowResult(true);
 
     try {
@@ -271,8 +255,9 @@ export default function AEClient({ packages, variables, initialClientName = '' }
         selectedModules,
         analyticsBasicReports,
         analyticsAdvancedReports,
-        knowledgeLevel,
+        knowledgeArticles,
         hasCommunity,
+        hasHCCustomization,
         operationTypes,
         skuType,
         deploymentType,
@@ -379,7 +364,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                 <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
                   <Layers className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Módulos e Operação</h2>
+                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Módulos, Operação e Serviços</h2>
               </div>
 
               <div className="space-y-8">
@@ -416,19 +401,34 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                 )}
 
                 {selectedModules.includes('Knowledge') && (
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-6 animate-in fade-in slide-in-from-top-2">
                     <div className="space-y-2">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Nível Knowledge</label>
-                      <select value={knowledgeLevel} onChange={(e) => setKnowledgeLevel(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black uppercase">
-                        <option value="basic">Básico</option>
-                        <option value="intermediate">Intermediário</option>
-                        <option value="advanced">Avançado</option>
-                      </select>
+                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Quantidade de Artigos</label>
+                      <input 
+                        type="number" 
+                        min="0"
+                        value={knowledgeArticles} 
+                        onChange={(e) => setKnowledgeArticles(Math.max(0, parseInt(e.target.value) || 0))} 
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black" 
+                        placeholder="Ex: 10"
+                      />
                     </div>
-                    <label className="flex items-center space-x-3 cursor-pointer">
-                      <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="rounded border-slate-300 text-brand-primary" />
-                      <span className="text-[9px] font-black text-slate-500 uppercase">Incluir Community</span>
-                    </label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center space-x-3 cursor-pointer group">
+                        <div className={`w-10 h-6 rounded-full relative transition-all ${hasCommunity ? 'bg-brand-primary' : 'bg-slate-200'}`}>
+                          <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="sr-only" />
+                          <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all ${hasCommunity ? 'translate-x-4' : ''}`} />
+                        </div>
+                        <span className="text-[9px] font-black text-slate-500 uppercase">Comunidade</span>
+                      </label>
+                      <label className="flex items-center space-x-3 cursor-pointer group">
+                        <div className={`w-10 h-6 rounded-full relative transition-all ${hasHCCustomization ? 'bg-brand-primary' : 'bg-slate-200'}`}>
+                          <input type="checkbox" checked={hasHCCustomization} onChange={(e) => setHasHCCustomization(e.target.checked)} className="sr-only" />
+                          <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all ${hasHCCustomization ? 'translate-x-4' : ''}`} />
+                        </div>
+                        <span className="text-[9px] font-black text-slate-500 uppercase">Personalização HC</span>
+                      </label>
+                    </div>
                   </div>
                 )}
 
@@ -465,6 +465,42 @@ export default function AEClient({ packages, variables, initialClientName = '' }
                   <div className="flex bg-slate-100 p-1 rounded-xl">
                     <button onClick={() => setDeploymentType('new')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'new' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>Nova</button>
                     <button onClick={() => setDeploymentType('optimization')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'optimization' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>Otimização</button>
+                  </div>
+                </div>
+
+                <div className="space-y-6 pt-6 border-t border-slate-100">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Serviços Adicionais</label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {[
+                      { id: 'int', label: 'Integração Personalizada', state: hasIntegration, setter: setHasIntegration, icon: Settings },
+                      { id: 'qa', label: 'QA / Qualidade', state: hasQA, setter: setHasQA, icon: CheckSquare },
+                      { id: 'wfm', label: 'WFM / Workforce', state: hasWFM, setter: setHasWFM, icon: Users },
+                      { id: 'ai', label: 'AI Agents Advanced', state: hasAIAgents, setter: setHasAIAgents, icon: Bot },
+                    ].map(item => (
+                      <label key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${item.state ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                        <div className="flex items-center space-x-3">
+                          <item.icon className={`w-4 h-4 ${item.state ? 'text-brand-primary' : 'text-slate-400'}`} />
+                          <span className={`text-[9px] font-black uppercase tracking-widest ${item.state ? 'text-brand-dark' : 'text-slate-500'}`}>{item.label}</span>
+                        </div>
+                        <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                      </label>
+                    ))}
+                  </div>
+
+                  <div className={`p-5 rounded-2xl border transition-all space-y-4 ${hasCopilot ? 'bg-purple-50 border-purple-200' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                    <label className="flex items-center justify-between cursor-pointer">
+                      <div className="flex items-center space-x-3">
+                        <MessageSquare className={`w-4 h-4 ${hasCopilot ? 'text-purple-600' : 'text-slate-400'}`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${hasCopilot ? 'text-purple-900' : 'text-slate-500'}`}>Zendesk Copilot</span>
+                      </div>
+                      <input type="checkbox" checked={hasCopilot} onChange={(e) => setHasCopilot(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
+                    </label>
+                    {hasCopilot && (
+                      <div className="grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95">
+                        <button onClick={() => setCopilotType('without_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'without_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Sem API</button>
+                        <button onClick={() => setCopilotType('with_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'with_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Com API</button>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -607,40 +643,16 @@ export default function AEClient({ packages, variables, initialClientName = '' }
             </div>
 
             <div className="bg-brand-dark rounded-[3rem] p-10 space-y-8 text-white shadow-2xl">
-              <h2 className="text-xl font-black uppercase tracking-tight border-b border-white/10 pb-6">Serviços Adicionais</h2>
+              <div className="flex items-center space-x-4 border-b border-white/10 pb-6">
+                <div className="brand-bg-primary p-3 rounded-2xl text-white">
+                  <Zap className="w-6 h-6" />
+                </div>
+                <h2 className="text-xl font-black uppercase tracking-tight">Finalizar Estimativa</h2>
+              </div>
               
-              <div className="grid grid-cols-1 gap-4">
-                {[
-                  { id: 'int', label: 'Desenvolvimento / Integração Personalizada', state: hasIntegration, setter: setHasIntegration, icon: Settings },
-                  { id: 'qa', label: 'QA / Controle de Qualidade', state: hasQA, setter: setHasQA, icon: CheckSquare },
-                  { id: 'wfm', label: 'WFM / Gestão de Força de Trabalho', state: hasWFM, setter: setHasWFM, icon: Users },
-                  { id: 'ai', label: 'AI Agents (Zendesk Advanced AI)', state: hasAIAgents, setter: setHasAIAgents, icon: Bot },
-                ].map(item => (
-                  <label key={item.id} className={`flex items-center justify-between p-5 rounded-2xl border transition-all cursor-pointer ${item.state ? 'bg-white/10 border-brand-primary' : 'bg-white/5 border-white/5 opacity-60'}`}>
-                    <div className="flex items-center space-x-4">
-                      <item.icon className="w-4 h-4 text-brand-primary" />
-                      <span className="text-[9px] font-black uppercase tracking-widest">{item.label}</span>
-                    </div>
-                    <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-white/20 text-brand-primary focus:ring-brand-primary bg-transparent" />
-                  </label>
-                ))}
-              </div>
-
-              <div className="bg-white/5 rounded-[2rem] p-6 border border-white/5 space-y-4">
-                <label className="flex items-center justify-between cursor-pointer">
-                  <div className="flex items-center space-x-4">
-                    <MessageSquare className={`w-5 h-5 ${hasCopilot ? 'text-brand-primary' : 'text-white/20'}`} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Zendesk Copilot</span>
-                  </div>
-                  <input type="checkbox" checked={hasCopilot} onChange={(e) => setHasCopilot(e.target.checked)} className="w-5 h-5 rounded border-white/20 text-brand-primary bg-transparent" />
-                </label>
-                {hasCopilot && (
-                  <div className="grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95">
-                    <button onClick={() => setCopilotType('without_api')} className={`py-3 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'without_api' ? 'bg-brand-primary border-brand-primary text-white' : 'bg-white/5 border-white/10 text-white/40'}`}>Sem Conexão Externa (API)</button>
-                    <button onClick={() => setCopilotType('with_api')} className={`py-3 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'with_api' ? 'bg-brand-primary border-brand-primary text-white' : 'bg-white/5 border-white/10 text-white/40'}`}>Com Conexão Externa (API)</button>
-                  </div>
-                )}
-              </div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-relaxed">
+                Revise os campos acima. A estimativa considera esforço técnico padrão e margem de GP configurada.
+              </p>
 
               <button
                 onClick={handleCalculate}
@@ -715,6 +727,34 @@ export default function AEClient({ packages, variables, initialClientName = '' }
               </div>
             </div>
           </div>
+
+          {/* New Results Section: Markdown & JSON */}
+          <div className="mt-12 space-y-12">
+            <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-xl overflow-hidden">
+              <div className="flex items-center justify-between mb-8 border-b border-slate-50 pb-6">
+                <div className="flex items-center space-x-4">
+                  <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
+                    <MessageSquare className="w-6 h-6" />
+                  </div>
+                  <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Relatório Executivo</h2>
+                </div>
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(markdownReport);
+                    alert('Relatório copiado!');
+                  }}
+                  className="bg-slate-50 hover:bg-slate-100 text-slate-500 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center space-x-2"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Markdown</span>
+                </button>
+              </div>
+              <div className="prose prose-slate max-w-none text-xs font-medium leading-relaxed whitespace-pre-wrap">
+                {markdownReport}
+              </div>
+            </div>
+          </div>
+          
           <div className="mt-12 text-center">
           </div>
         </div>

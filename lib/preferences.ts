@@ -60,3 +60,26 @@ export async function savePresetAction(name: string, hiddenItems: string[]) {
 
   revalidatePath("/");
 }
+
+export async function deletePresetAction(presetName: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) throw new Error("Não autorizado");
+
+  const userId = parseInt(session.user.id);
+  
+  const currentPrefs = await prisma.userPreference.findUnique({
+    where: { userId }
+  });
+
+  if (!currentPrefs?.presets) return;
+
+  const presets = JSON.parse(currentPrefs.presets);
+  const newPresets = presets.filter((p: any) => p.name !== presetName);
+
+  await prisma.userPreference.update({
+    where: { userId },
+    data: { presets: JSON.stringify(newPresets) }
+  });
+
+  revalidatePath("/");
+}
