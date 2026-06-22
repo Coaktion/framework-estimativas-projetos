@@ -1,4 +1,5 @@
 # PRE-SALES.AI | Smart Scoping Framework
+Última atualização: 22/06/2026
 
 Framework para o time de pré-vendas (SC e AE), focado em padronização de escopo e estimativa de esforço técnico.
 
