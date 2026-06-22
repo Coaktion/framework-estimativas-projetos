@@ -4,6 +4,11 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 
+// Ensure NEXTAUTH_URL is set in production to avoid localhost:3000 default
+if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL) {
+  process.env.NEXTAUTH_URL = process.env.URL || 'https://framework-sc.netlify.app';
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
   providers: [
