@@ -6,11 +6,12 @@ import bcrypt from "bcryptjs";
 
 // Ensure NEXTAUTH_URL is set in production to avoid localhost:3000 default
 if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL) {
-  process.env.NEXTAUTH_URL = process.env.URL || 'https://framework-sc.netlify.app';
+  process.env.NEXTAUTH_URL = 'https://framework-sc.netlify.app';
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Removing PrismaAdapter for now as it's not needed for Credentials + JWT 
+  // and can sometimes cause issues in serverless environments
   providers: [
     CredentialsProvider({
       name: "Credentials",
@@ -51,23 +52,17 @@ export const authOptions: NextAuthOptions = {
   },
   callbacks: {
     async session({ session, token }: any) {
+      console.log("Session Callback - Token ID:", token?.id);
       if (session.user && token.id) {
-        // Fetch fresh user data from database to ensure roles and isAdmin are up to date
-        const dbUser = await prisma.user.findUnique({
-          where: { id: parseInt(token.id) }
-        });
-
-        if (dbUser) {
-          session.user.id = dbUser.id.toString();
-          session.user.role = dbUser.role;
-          session.user.isAdmin = dbUser.isAdmin;
-          session.user.name = dbUser.name;
-        }
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.isAdmin = token.isAdmin;
       }
       return session;
     },
     async jwt({ token, user }: any) {
       if (user) {
+        console.log("JWT Callback - User Found:", user.email);
         token.id = user.id;
         token.role = user.role;
         token.isAdmin = user.isAdmin;

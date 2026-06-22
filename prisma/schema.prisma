@@ -70,7 +70,7 @@ model Package {
   scopeExcluded   String   @default("")
   categoryName    String?
   category        Category? @relation(fields: [categoryName], references: [name])
-  skillName       String   @default("Implantação")
+  skillName       String?
   skill           Skill?    @relation(fields: [skillName], references: [name])
   link            String?
   isActive        Boolean  @default(true)
