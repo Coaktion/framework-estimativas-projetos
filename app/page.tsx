@@ -37,8 +37,8 @@ export default async function Home() {
         )}
 
         {(isAE || isSC || isAdmin) && (
-          <Link href="/ae/history" className="group bg-white p-12 rounded-[3rem] border border-slate-300 hover:border-brand-accent transition-all duration-500 shadow-xl hover:shadow-2xl flex flex-col items-center space-y-8">
-            <div className="w-16 h-16 bg-brand-accent rounded-[2rem] flex items-center justify-center text-white shadow-2xl group-hover:scale-110 transition-all">
+          <Link href="/ae/history" className="group bg-white p-12 rounded-[3rem] border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-xl hover:shadow-2xl flex flex-col items-center space-y-8">
+            <div className="w-16 h-16 brand-bg-primary rounded-[2rem] flex items-center justify-center text-white shadow-2xl group-hover:scale-110 transition-all">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
