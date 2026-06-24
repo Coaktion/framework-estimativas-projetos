@@ -27,8 +27,8 @@ export default function LoginPage() {
       if (result?.error) {
         setError("Credenciais inválidas. Verifique seu email e senha.");
       } else {
-        router.push("/");
-        router.refresh();
+        // Force a full page reload to the root to ensure session is picked up
+        window.location.href = "/";
       }
     } catch (err) {
       setError("Ocorreu um erro ao tentar entrar.");
