@@ -67,7 +67,7 @@ export default function UserMenu() {
           </div>
           
           <button 
-            onClick={() => signOut({ callbackUrl: 'https://framework-sc.netlify.app/login?callbackUrl=%2F' })}
+            onClick={() => signOut({ callbackUrl: '/login' })}
             className="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 transition-all group"
           >
             <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
