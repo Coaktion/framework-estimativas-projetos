@@ -12,6 +12,7 @@ import {
   deleteUserAction, 
   updateUserRoleAction,
   addPackageAction,
+  deleteCategoryAction,
   updatePackageAction,
   deletePackageAction,
   updateUserAdminStatusAction,
