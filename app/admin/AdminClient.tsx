@@ -68,8 +68,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const handleSaveEdit = async () => {
     if (!editingId) return;
     startTransition(async () => {
-      await updatePackageAction(editingId, editValues);
-      setEditingId(null);
+      const result = await updatePackageAction(editingId, editValues);
+      if (result?.success) {
+        setEditingId(null);
+      } else if (result?.error) {
+        alert(result.error);
+      }
     });
   };
 

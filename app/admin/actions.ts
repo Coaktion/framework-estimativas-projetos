@@ -95,16 +95,24 @@ export async function updatePackageAction(id: number, data: any) {
 
   const { hours, dependsOnItemId, ...rest } = data;
   
-  await prisma.package.update({
-    where: { id },
-    data: {
-      ...rest,
-      hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
-      dependsOnItemId: dependsOnItemId !== undefined ? (parseInt(dependsOnItemId) || null) : undefined
-    }
-  });
+  try {
+    await prisma.package.update({
+      where: { id },
+      data: {
+        ...rest,
+        hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
+        dependsOnItemId: dependsOnItemId !== undefined ? (parseInt(dependsOnItemId) || null) : undefined
+      }
+    });
 
-  revalidatePath("/admin");
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (error: any) {
+    if (error.code === 'P2002') {
+      return { success: false, error: "Já existe um pacote cadastrado com este nome. Por favor, utilize um nome exclusivo." };
+    }
+    return { success: false, error: "Erro ao atualizar o pacote. Tente novamente." };
+  }
 }
 
 export async function addCategoryAction(name: string) {
