@@ -28,7 +28,7 @@ export async function updateVariableAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
 
-  const { targetItems, targetCategories, flatValue, ...rest } = data;
+  const { targetItems, targetCategories, excludedItems, flatValue, ...rest } = data;
 
   await prisma.variable.update({
     where: { id },
@@ -36,7 +36,8 @@ export async function updateVariableAction(id: number, data: any) {
       ...rest,
       flatValue: flatValue !== undefined ? parseFloat(flatValue) : undefined,
       targetItems: targetItems ? JSON.stringify(targetItems) : undefined,
-      targetCategories: targetCategories ? JSON.stringify(targetCategories) : undefined
+      targetCategories: targetCategories ? JSON.stringify(targetCategories) : undefined,
+      excludedItems: excludedItems ? JSON.stringify(excludedItems) : undefined
     }
   });
 

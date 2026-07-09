@@ -56,7 +56,8 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
   });
 
   const [versionName, setVersionName] = useState(currentVersion?.versionName || 'V1');
-  const [techLink, setTechLink] = useState(currentVersion?.technical_scope_link || '');
+  const [techLink, setTechLink] = useState(currentVersion?.technicalScopeLink || '');
+  const [zohoLink, setZohoLink] = useState(currentVersion?.zohoLink || '');
   
   const [percents, setPercents] = useState({
     gp: currentVersion?.gpPercent ?? 25,
@@ -106,9 +107,26 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
     return extracted;
   });
 
+  const [marketplaceApps, setMarketplaceApps] = useState<any[]>(() => {
+    try {
+      return formData.marketplace_apps ? JSON.parse(formData.marketplace_apps) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [safetyHours, setSafetyHours] = useState<Record<string, number>>(() => {
+    try {
+      return initialVersion?.safetyHours ? JSON.parse(initialVersion.safetyHours) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
   // Calculation Engine
   const totals = useMemo(() => {
     let subtotal = 0;
+    let flatHoursMarketplace = marketplaceApps.length * 5;
     const itemTotals: Record<number, number> = {};
     const catTotals: Record<string, number> = {};
     const skillTotals: any = {
@@ -169,18 +187,66 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       // Determine base for calculation
       const targets = JSON.parse(vDef.targetItems || '[]');
       const targetCats = JSON.parse(vDef.targetCategories || '[]');
+      const varExclusions = JSON.parse(vDef.excludedItems || '[]');
       
       let base = 0;
+      const allItems = packages; // All library items
+
       if (targets.length === 0 && targetCats.length === 0) {
-        base = subtotal;
+        // Global variable: sum everything NOT excluded from this specific variable
+        Object.keys(packagesByCategory).forEach(cat => {
+          if (formData[`check_area_${cat}`] !== 'on') return;
+          
+          packagesByCategory[cat].forEach((pkg: any) => {
+            const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
+            if (qty <= 0) return;
+
+            const itemExclusions = JSON.parse(pkg.excludedFromVariables || '[]');
+            // Check if item is excluded either via its own config OR via the variable's config
+            const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(pkg.id.toString());
+            
+            if (!isExcluded) {
+              base += (itemTotals[pkg.id] || 0);
+            }
+          });
+        });
+        
+        // Also add custom packages if not explicitly excluded (custom pkgs don't have exclusions yet)
+        customPackages.forEach(pkg => {
+          if (formData[`check_area_${pkg.category}`] === 'on') {
+            const qty = parseFloat(pkg.qty || 0);
+            const hours = parseFloat(pkg.hours || 0);
+            base += (qty * hours);
+          }
+        });
       } else {
-        targets.forEach((id: string) => { base += (itemTotals[parseInt(id)] || 0); });
-        targetCats.forEach((cat: string) => { base += (catTotals[cat] || 0); });
+        targets.forEach((id: string) => { 
+          const pkg = allItems.find((p: any) => p.id === parseInt(id));
+          const itemExclusions = JSON.parse(pkg?.excludedFromVariables || '[]');
+          const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(id);
+          
+          if (!isExcluded) {
+            base += (itemTotals[parseInt(id)] || 0); 
+          }
+        });
+        targetCats.forEach((cat: string) => { 
+          packagesByCategory[cat]?.forEach((pkg: any) => {
+            const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
+            if (qty <= 0) return;
+
+            const itemExclusions = JSON.parse(pkg.excludedFromVariables || '[]');
+            const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(pkg.id.toString());
+            
+            if (!isExcluded) {
+              base += (itemTotals[pkg.id] || 0);
+            }
+          });
+        });
       }
 
       // Calculate based on type
       let result = 0;
-      const pctValue = manualPercent; // Use manual percent from UI if available
+      const pctValue = manualPercent;
       
       if (vDef.type === 'PERCENT') {
         result = base * (pctValue / 100);
@@ -197,8 +263,20 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
     const discVal = calculateVariable('DISCOVERY_STANDARD', percents.discovery, overrides.discovery);
     const validVal = calculateVariable('VALIDATION_STANDARD', percents.validation, overrides.validation);
 
+    // Add safety hours to skill totals
+    Object.entries(safetyHours).forEach(([skill, hours]) => {
+      if (skillTotals[skill] !== undefined) {
+        skillTotals[skill] += (hours || 0);
+      }
+    });
+
+    const totalSafety = Object.values(safetyHours).reduce((a, b) => a + (b || 0), 0);
+
     // Add calculated GP to skill totals for UI display
     skillTotals['GP'] = (skillTotals['GP'] || 0) + gpVal;
+    
+    // Add Marketplace FLAT hours to Implantação for skill breakdown but not to subtotal for GP calc
+    skillTotals['Implantação'] = (skillTotals['Implantação'] || 0) + flatHoursMarketplace;
 
     return {
       subtotal,
@@ -206,9 +284,11 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       gpVal,
       discVal,
       validVal,
-      grandTotal: Math.ceil(subtotal + gpVal + discVal + validVal)
+      flatHoursMarketplace,
+      totalSafety,
+      grandTotal: Math.ceil(subtotal + gpVal + discVal + validVal + flatHoursMarketplace + totalSafety)
     };
-  }, [formData, customPackages, percents, overrides, packagesByCategory, variables]);
+  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, packages]);
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
@@ -224,9 +304,30 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
         ...prev,
         [name]: finalValue
       };
-      console.log('Update FormData:', name, finalValue, newData);
       return newData;
     });
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const form = e.currentTarget.form;
+      if (!form) return;
+
+      // Get all quantity inputs in the form
+      const qtyInputs = Array.from(form.querySelectorAll('input[name^="item_"][name$="_qty"]')) as HTMLInputElement[];
+      const currentIndex = qtyInputs.indexOf(e.currentTarget);
+      
+      if (currentIndex !== -1 && currentIndex < qtyInputs.length - 1) {
+        // Focus and select the next quantity input
+        const nextInput = qtyInputs[currentIndex + 1];
+        nextInput.focus();
+        nextInput.select();
+      } else {
+        // If it's the last one, just blur
+        e.currentTarget.blur();
+      }
+    }
   };
 
   const handleSave = async () => {
@@ -240,13 +341,18 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
         const result = await saveProjectVersionAction(project.id, {
           versionName,
           technicalScopeLink: techLink,
+          zohoLink,
           gpPercent: percents.gp,
           discoveryPercent: percents.discovery,
           validationPercent: percents.validation,
           gpOverride: overrides.gp,
           discoveryOverride: overrides.discovery,
           validationOverride: overrides.validation,
-          data: formData
+          safetyHours: JSON.stringify(safetyHours),
+          data: {
+            ...formData,
+            marketplace_apps: JSON.stringify(marketplaceApps)
+          }
         });
         
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
@@ -335,6 +441,18 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
   const toggleSection = (cat: string) => {
     setCollapsedSections(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
+  const addMarketplaceApp = () => {
+    setMarketplaceApps([...marketplaceApps, { id: Date.now(), name: '', link: '' }]);
+  };
+
+  const updateMarketplaceApp = (id: number, field: string, value: string) => {
+    setMarketplaceApps(prev => prev.map(app => app.id === id ? { ...app, [field]: value } : app));
+  };
+
+  const removeMarketplaceApp = (id: number) => {
+    setMarketplaceApps(prev => prev.filter(app => app.id !== id));
   };
 
   const isAEEstimate = formData?.type === 'AE_ESTIMATE';
@@ -558,7 +676,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-2">
               <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Identificação da Versão</label>
               <input 
@@ -580,6 +698,21 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   value={techLink}
                   onChange={(e) => setTechLink(e.target.value)}
                   placeholder="https://docs.google.com/..." 
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Link da Solicitação (Zoho)</label>
+              <div className="relative group">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
+                  <Search className="w-4 h-4" />
+                </div>
+                <input 
+                  type="url" 
+                  value={zohoLink}
+                  onChange={(e) => setZohoLink(e.target.value)}
+                  placeholder="https://crm.zoho.com/..." 
                   className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
                 />
               </div>
@@ -892,6 +1025,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                                     name={`item_${p.id}_qty`}
                                     value={formData[`item_${p.id}_qty`] || ''}
                                     onChange={handleInputChange}
+                                    onKeyDown={handleKeyDown}
                                     className="w-16 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                                   />
                                 </div>
@@ -1064,6 +1198,78 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                       Novo Pacote Personalizado
                     </button>
                   </div>
+
+                  {cat === 'Marketplace' && (
+                    <div className="mt-8 space-y-6 pt-6 border-t-2 border-slate-50">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <div className="bg-brand-primary/10 p-2 rounded-xl text-brand-primary">
+                            <Plus className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-dark">Apps do Marketplace</h4>
+                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Custo FLAT: 5h por App (Não incide GP/Disco/Validação)</p>
+                          </div>
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={addMarketplaceApp}
+                          className="bg-brand-primary text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg shadow-green-900/10"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Adicionar Outro App</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {marketplaceApps.map((app) => (
+                          <div key={app.id} className="bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex items-start space-x-4 relative group">
+                            <div className="flex-1 space-y-3">
+                              <div className="space-y-1">
+                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do App</label>
+                                <input 
+                                  type="text"
+                                  value={app.name}
+                                  onChange={(e) => updateMarketplaceApp(app.id, 'name', e.target.value)}
+                                  placeholder="Ex: Zendesk Advanced Search"
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Link do Marketplace</label>
+                                <input 
+                                  type="url"
+                                  value={app.link}
+                                  onChange={(e) => updateMarketplaceApp(app.id, 'link', e.target.value)}
+                                  placeholder="https://zendesk.com/marketplace/..."
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                                />
+                              </div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => removeMarketplaceApp(app.id)}
+                              className="mt-6 p-2 text-slate-300 hover:text-red-500 transition-colors bg-white rounded-lg border border-slate-200 shadow-sm"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="absolute top-4 right-14 bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded text-[8px] font-black uppercase">
+                              5H FLAT
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {marketplaceApps.length > 0 && (
+                        <div className="flex justify-end pt-2">
+                          <div className="bg-brand-dark text-white px-4 py-2 rounded-xl flex items-center space-x-3">
+                            <span className="text-[8px] font-black uppercase tracking-widest">Total FLAT Marketplace:</span>
+                            <span className="text-sm font-black text-brand-accent">{marketplaceApps.length * 5}H</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

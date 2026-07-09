@@ -61,7 +61,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
       skillName: pkg.skillName,
       categoryName: pkg.categoryName,
       tooltip: pkg.tooltip || '',
-      dependsOnItemId: pkg.dependsOnItemId || ''
+      dependsOnItemId: pkg.dependsOnItemId || '',
+      excludedFromVariables: JSON.parse(pkg.excludedFromVariables || '[]')
     });
   };
 
@@ -86,7 +87,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
       type: v.type,
       flatValue: v.flatValue || 0,
       targetItems: JSON.parse(v.targetItems || '[]'),
-      targetCategories: JSON.parse(v.targetCategories || '[]')
+      targetCategories: JSON.parse(v.targetCategories || '[]'),
+      excludedItems: JSON.parse(v.excludedItems || '[]')
     });
   };
 
@@ -493,6 +495,32 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     <option value="">Sem Dependência</option>
                                     {packages.filter((p: any) => p.id !== pkg.id).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
+                                  
+                                  <div className="space-y-1.5 pt-1">
+                                    <label className="block text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Excluir do % de:</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                      {variables.filter((v: any) => v.type === 'PERCENT' || v.type === 'MIXED').map((v: any) => (
+                                        <button
+                                          key={v.key}
+                                          type="button"
+                                          onClick={() => {
+                                            const current = editValues.excludedFromVariables || [];
+                                            const next = current.includes(v.key) 
+                                              ? current.filter((k: string) => k !== v.key)
+                                              : [...current, v.key];
+                                            setEditValues({ ...editValues, excludedFromVariables: next });
+                                          }}
+                                          className={`px-2 py-0.5 rounded text-[7px] font-black uppercase transition-all border ${
+                                            (editValues.excludedFromVariables || []).includes(v.key)
+                                              ? 'bg-red-50 text-red-500 border-red-200'
+                                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300'
+                                          }`}
+                                        >
+                                          {v.key.replace('_STANDARD', '')}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
@@ -694,6 +722,27 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 ))}
                               </div>
                             </div>
+                            <div className="space-y-2">
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Itens Excluídos</label>
+                              <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
+                                {packages.map((pkg: any) => (
+                                  <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
+                                    <input 
+                                      type="checkbox" 
+                                      checked={editVariableValues.excludedItems.includes(pkg.id.toString())}
+                                      onChange={(e) => {
+                                        const newItems = e.target.checked 
+                                          ? [...editVariableValues.excludedItems, pkg.id.toString()]
+                                          : editVariableValues.excludedItems.filter((id: string) => id !== pkg.id.toString());
+                                        setEditVariableValues({ ...editVariableValues, excludedItems: newItems });
+                                      }}
+                                      className="rounded border-slate-300 text-red-500 focus:ring-red-500"
+                                    />
+                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">{pkg.name}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
                           </div>
                         ) : (
                           <>
@@ -708,6 +757,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               {JSON.parse(v.targetCategories || '[]').length > 0 && (
                                 <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border border-purple-100">
                                   {JSON.parse(v.targetCategories || '[]').length} Cats
+                                </span>
+                              )}
+                              {JSON.parse(v.excludedItems || '[]').length > 0 && (
+                                <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border border-red-100">
+                                  {JSON.parse(v.excludedItems || '[]').length} Excluídos
                                 </span>
                               )}
                             </div>

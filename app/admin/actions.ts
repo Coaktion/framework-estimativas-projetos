@@ -93,7 +93,7 @@ export async function updatePackageAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
 
-  const { hours, dependsOnItemId, ...rest } = data;
+  const { hours, dependsOnItemId, excludedFromVariables, ...rest } = data;
   
   try {
     await prisma.package.update({
@@ -101,7 +101,8 @@ export async function updatePackageAction(id: number, data: any) {
       data: {
         ...rest,
         hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
-        dependsOnItemId: dependsOnItemId !== undefined ? (parseInt(dependsOnItemId) || null) : undefined
+        dependsOnItemId: dependsOnItemId !== undefined ? (parseInt(dependsOnItemId) || null) : undefined,
+        excludedFromVariables: excludedFromVariables !== undefined ? JSON.stringify(excludedFromVariables) : undefined
       }
     });
 

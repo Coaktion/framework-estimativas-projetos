@@ -39,6 +39,7 @@ model UserPreference {
 model AEEstimate {
   id            Int      @id @default(autoincrement())
   clientName    String
+  zohoLink      String?  // Link opcional para o deal no Zoho
   data          String   // JSON string with selected options
   resultHours   Float
   needsSC       Boolean
@@ -81,6 +82,7 @@ model Package {
   dependentItems  Package[] @relation("ItemDependencies")
 
   createdAt      DateTime @default(now())
+  excludedFromVariables String? @default("[]") // JSON string array of variable keys to exclude this item from
 }
 
 model Variable {
@@ -96,6 +98,7 @@ model Variable {
   // Incidência Granular
   targetItems     String?  @default("[]") // JSON array de IDs de itens
   targetCategories String? @default("[]") // JSON array de nomes de categorias
+  excludedItems    String? @default("[]") // JSON array de IDs de itens para excluir
 }
 
 model FrameworkVersion {
@@ -128,6 +131,7 @@ model ProjectVersion {
   versionName         String
   data                String   // JSON string
   technicalScopeLink  String?
+  zohoLink            String?
   
   // Overrides and percentages
   gpPercent           Float    @default(25.0)
@@ -138,6 +142,7 @@ model ProjectVersion {
   discoveryOverride   Float?
   validationOverride  Float?
   
+  safetyHours         String?  // JSON object mapping skill names to extra hours
   createdAt           DateTime @default(now())
   createdBy           Int?
   creator             User?    @relation(fields: [createdBy], references: [id])

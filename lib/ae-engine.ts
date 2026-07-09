@@ -46,6 +46,16 @@ export interface AEInputData {
   hasIntegration: boolean;
   hasAppsMarketplace: boolean;
   deploymentType: string;
+  selectedApps: string[];
+  appQuantities: Record<string, number>;
+  selectedNativeConnections: string[];
+  connectionQuantities: Record<string, number>;
+  analyticsTrainingType: 'standard' | 'advanced';
+  hasSSO: boolean;
+  hasITAM: boolean;
+  hasTeamsSideConv: boolean;
+  hasSlackSideConv: boolean;
+  operationLanguages: number;
 }
 
 export function calculateAEEstimate(inputs: AEInputData) {
@@ -53,7 +63,10 @@ export function calculateAEEstimate(inputs: AEInputData) {
     agents, brands, areas, selectedChannels, channelQuantities,
     selectedModules, operationTypes, zendeskPlan, knowledgeArticles,
     hasCommunity, hasHCCustomization, hasQA, hasWFM, hasCopilot,
-    copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType
+    copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType,
+    selectedApps, appQuantities, selectedNativeConnections, connectionQuantities,
+    analyticsTrainingType, hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv,
+    operationLanguages
   } = inputs;
 
   // 1. Auxiliary Variables
@@ -144,10 +157,26 @@ export function calculateAEEstimate(inputs: AEInputData) {
   }
 
   // Apps Block
-  let appsCondicionaisHoras = 0, appsTicketManagerHoras = 0;
+  let appsCondicionaisHoras = 0, appsTicketManagerHoras = 0, marketplaceAppsHoras = 0, nativeConnectionsHoras = 0;
   if (hasAppsMarketplace) {
     appsCondicionaisHoras = 0.33 + (((supportVisualizacoes * 0.1) + (supportGatilhosSimples * 0.125)) * 0.25);
     appsTicketManagerHoras = 0.67 + ((supportCamposTicket * 0.02) * qtdOperacoes);
+    
+    // Marketplace Apps Logic: 1h per standard app, 1h per SweetHawk/Other quantity
+    selectedApps.forEach(app => {
+      if (app === 'SweetHawk' || app === 'Outros') {
+        marketplaceAppsHoras += (appQuantities[app] || 1) * 1;
+      } else {
+        marketplaceAppsHoras += 1;
+      }
+    });
+  }
+
+  // Native Connections Logic: 2h per connection (standard)
+  if (selectedNativeConnections && selectedNativeConnections.length > 0) {
+    selectedNativeConnections.forEach(conn => {
+      nativeConnectionsHoras += (connectionQuantities[conn] || 1) * 2;
+    });
   }
 
   // 3. Escalation Logic (SE)
@@ -160,9 +189,9 @@ export function calculateAEEstimate(inputs: AEInputData) {
   if (brands > seLimits.max_marcas) escalationRequired = true;
   if (somaTotalTiposDeCanais > seLimits.max_canais) escalationRequired = true;
   
-  const mandatoryModules = ['itam', 'ai_agents', 'droz', 'call_we', 'adpp'];
+  const mandatoryModules = ['itam', 'ai_agents', 'adpp'];
   if (selectedModules.some(m => mandatoryModules.includes(m.toLowerCase()))) escalationRequired = true;
-  if (hasAIAgents || selectedModules.includes('Droz') || selectedModules.includes('Callwe') || selectedModules.includes('ADPP')) escalationRequired = true;
+  if (hasAIAgents || selectedModules.includes('ADPP') || hasITAM) escalationRequired = true;
 
   if (hasHCCustomization) escalationRequired = true;
   if (copilotType === 'with_api') escalationRequired = true;
@@ -172,18 +201,52 @@ export function calculateAEEstimate(inputs: AEInputData) {
     escalationMessage = "⚠️ ATENÇÃO: Este projeto possui complexidade que exige escalonamento obrigatório para um Sales Engineer.";
   }
 
+  // Analytics Block
+  let analyticsHoras = 0;
+  if (selectedModules.includes('Analytics')) {
+    analyticsHoras = analyticsTrainingType === 'advanced' ? 8 : 4;
+  }
+
   // 4. Final Aggregation
-  let techHours = knowledgeHoras + appsCondicionaisHoras + appsTicketManagerHoras;
+  let techHours = knowledgeHoras + appsCondicionaisHoras + appsTicketManagerHoras + marketplaceAppsHoras + nativeConnectionsHoras + analyticsHoras;
+  
+  // Add Additional Services Hours
+  if (hasSSO) techHours += 1;
+  if (hasITAM) techHours += 2;
+  if (hasTeamsSideConv) techHours += 1;
+  if (hasSlackSideConv) techHours += 1;
+  if (operationLanguages > 1) techHours += (operationLanguages - 1) * 2;
+
   if (selectedModules.includes('Support')) {
      techHours += (supportFuncoes * 0.5) + (supportGrupos * 0.2) + (supportCamposTicket * 0.1);
   }
   if (hasWFM) techHours += 4;
   if (hasQA) techHours += 4;
   if (hasCopilot) techHours += 5;
-  if (selectedModules.includes('Droz')) techHours += 15;
-  if (selectedModules.includes('Callwe')) techHours += 5;
 
   if (deploymentType === 'optimization') techHours *= 0.7;
+
+  // 5. New Variable Calculations (GP, Discovery, Validation, Go-live, Com. Técnica)
+  // Base A: Todo o esforço de implantação EXCETO treinamento, integrações nativas e apps
+  const baseStandard = techHours - analyticsHoras - nativeConnectionsHoras - marketplaceAppsHoras - appsCondicionaisHoras - appsTicketManagerHoras;
+  
+  const commTechHours = baseStandard * 0.10;
+  const discoveryHours = baseStandard * 0.20;
+  const validationHours = baseStandard * 0.15;
+  const goLiveHours = baseStandard * 0.05;
+
+  // Base GP: Todo o esforço de implantação EXCETO apps e integrações nativas + Discovery + Validação + Go-live
+  // Note: apps here include marketplace, condiccionais and ticket manager
+  const implEffortExcludingAppsAndIntegrations = techHours - marketplaceAppsHoras - nativeConnectionsHoras - appsCondicionaisHoras - appsTicketManagerHoras;
+  const baseGP = implEffortExcludingAppsAndIntegrations + discoveryHours + validationHours + goLiveHours;
+
+  let gpHours = baseGP * 0.176470588235294;
+  
+  // GP Only counts if total hours (tech + standard variables) is at least 30
+  const totalBeforeGP = techHours + commTechHours + discoveryHours + validationHours + goLiveHours;
+  if (totalBeforeGP < 30) {
+    gpHours = 0;
+  }
 
   const results = {
     support: {
@@ -235,11 +298,33 @@ export function calculateAEEstimate(inputs: AEInputData) {
     apps_aktie_now: {
       condicionais_avancadas_horas: parseFloat(appsCondicionaisHoras.toFixed(2)),
       ticket_manager_horas: parseFloat(appsTicketManagerHoras.toFixed(2))
+    },
+    marketplace_apps: {
+      horas_estimadas: marketplaceAppsHoras
+    },
+    native_connections: {
+      horas_estimadas: nativeConnectionsHoras
+    },
+    analytics: {
+      horas_estimadas: analyticsHoras,
+      treinamento: analyticsTrainingType
+    },
+    variables: {
+      gp: parseFloat(gpHours.toFixed(2)),
+      discovery: parseFloat(discoveryHours.toFixed(2)),
+      validation: parseFloat(validationHours.toFixed(2)),
+      go_live: parseFloat(goLiveHours.toFixed(2)),
+      comunicacao_tecnica: parseFloat(commTechHours.toFixed(2)),
+      base_standard: parseFloat(baseStandard.toFixed(2)),
+      base_gp: parseFloat(baseGP.toFixed(2))
     }
   };
 
+  const totalFinal = techHours + gpHours + discoveryHours + validationHours + goLiveHours + commTechHours;
+
   return {
     techHours,
+    totalFinal: parseFloat(totalFinal.toFixed(1)),
     results,
     escalationRequired,
     escalationMessage

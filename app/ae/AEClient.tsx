@@ -20,12 +20,12 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 
   // Form States
   const [clientName, setClientName] = useState(initialClientName);
+  const [zohoLink, setZohoLink] = useState('');
   const [clientObjectives, setClientObjectives] = useState('');
   const [successIndicators, setSuccessIndicators] = useState('');
   
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
-  const [analyticsBasicReports, setAnalyticsBasicReports] = useState(0);
-  const [analyticsAdvancedReports, setAnalyticsAdvancedReports] = useState(0);
+  const [analyticsTrainingType, setAnalyticsTrainingType] = useState<'standard' | 'advanced'>('standard');
   const [knowledgeArticles, setKnowledgeArticles] = useState(0);
   const [hasCommunity, setHasCommunity] = useState(false);
   const [hasHCCustomization, setHasHCCustomization] = useState(false);
@@ -36,17 +36,20 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   
   const [hasAppsMarketplace, setHasAppsMarketplace] = useState(false);
   const [selectedApps, setSelectedApps] = useState<string[]>([]);
+  const [appQuantities, setAppQuantities] = useState<Record<string, number>>({});
   const [otherApp, setOtherApp] = useState('');
   
   const [zendeskPlan, setZendeskPlan] = useState('professional');
   const [hasNativeConnections, setHasNativeConnections] = useState(false);
   const [selectedNativeConnections, setSelectedNativeConnections] = useState<string[]>([]);
+  const [connectionQuantities, setConnectionQuantities] = useState<Record<string, number>>({});
 
   const [agents, setAgents] = useState(0);
   const [brands, setBrands] = useState(0);
   const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
   const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>({});
   const [areas, setAreas] = useState(0);
+  const [showExtraChannels, setShowExtraChannels] = useState(false);
   const [hasIntegration, setHasIntegration] = useState(false);
   const [hasQA, setHasQA] = useState(false);
   const [hasWFM, setHasWFM] = useState(false);
@@ -54,13 +57,20 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const [copilotType, setCopilotType] = useState('none'); // 'none', 'with_api', 'without_api'
   const [hasAIAgents, setHasAIAgents] = useState(false);
 
+  // Additional Services States
+  const [hasSSO, setHasSSO] = useState(false);
+  const [hasITAM, setHasITAM] = useState(false);
+  const [hasTeamsSideConv, setHasTeamsSideConv] = useState(false);
+  const [hasSlackSideConv, setHasSlackSideConv] = useState(false);
+  const [operationLanguages, setOperationLanguages] = useState(1);
+
   const resetForm = () => {
     setClientName('');
+    setZohoLink('');
     setClientObjectives('');
     setSuccessIndicators('');
     setSelectedModules([]);
-    setAnalyticsBasicReports(0);
-    setAnalyticsAdvancedReports(0);
+    setAnalyticsTrainingType('standard');
     setKnowledgeArticles(0);
     setHasCommunity(false);
     setHasHCCustomization(false);
@@ -69,10 +79,12 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setDeploymentType('new');
     setHasAppsMarketplace(false);
     setSelectedApps([]);
+    setAppQuantities({});
     setOtherApp('');
     setZendeskPlan('professional');
     setHasNativeConnections(false);
     setSelectedNativeConnections([]);
+    setConnectionQuantities({});
     setAgents(0);
     setBrands(0);
     setSelectedChannels([]);
@@ -84,6 +96,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setHasCopilot(false);
     setCopilotType('none');
     setHasAIAgents(false);
+    setHasSSO(false);
+    setHasITAM(false);
+    setHasTeamsSideConv(false);
+    setHasSlackSideConv(false);
+    setOperationLanguages(1);
     setShowResult(false);
   };
 
@@ -117,8 +134,28 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     { id: 'sms', label: 'SMS/Text', package: 'Messaging: Text/SMS (por número)' }
   ];
 
-  const appOptions = ["Answer Bot", "Time Tracking", "Field Manager", "Conditional Fields", "Sidebar Search", "User Data", "Outros"];
-  const connectionOptions = ["Salesforce", "Shopify", "Slack", "Jira", "Microsoft Teams", "HubSpot", "Microsoft Dynamics"];
+  const extraChannelOptions = [
+    { id: 'ios', label: 'iOS', package: 'Messaging: iOS SDK' },
+    { id: 'unity', label: 'Unity', package: 'Messaging: Unity SDK' },
+    { id: 'line', label: 'LINE', package: 'Messaging: LINE' },
+    { id: 'apple_business', label: 'Apple Messages for Business', package: 'Messaging: Apple Messages' },
+    { id: 'wechat', label: 'WeChat', package: 'Messaging: WeChat' },
+    { id: 'google_rcs', label: 'Google RCS', package: 'Messaging: Google RCS' },
+    { id: 'google_business', label: 'Business Messages do Google', package: 'Messaging: Google Business' },
+    { id: 'kakaotalk', label: 'KakaoTalk', package: 'Messaging: KakaoTalk' }
+  ];
+
+  const nativeConnectionOptions = useMemo(() => {
+    return packages
+      .filter((p: any) => p.categoryName === 'Integrações Nativas')
+      .map((p: any) => p.name);
+  }, [packages]);
+
+  const marketplaceOptions = useMemo(() => {
+    return packages
+      .filter((p: any) => p.categoryName === 'Marketplace')
+      .map((p: any) => p.name);
+  }, [packages]);
 
   const toggleChannel = (id: string) => {
     setSelectedChannels(prev => {
@@ -141,9 +178,31 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   };
 
   const toggleModule = (id: string) => {
-    setSelectedModules(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedModules(prev => {
+      const isSelected = prev.includes(id);
+      const next = isSelected ? prev.filter(i => i !== id) : [...prev, id];
+      
+      // Sync legacy boolean states with new module selection
+      if (id === 'QA') setHasQA(!isSelected);
+      if (id === 'WFM') setHasWFM(!isSelected);
+      if (id === 'AI Agents') setHasAIAgents(!isSelected);
+      if (id === 'Copilot') {
+        setHasCopilot(!isSelected);
+        if (isSelected) setCopilotType('none');
+      }
+      
+      return next;
+    });
+  };
+
+  const syncModuleFromCheckbox = (id: string, checked: boolean) => {
+    setSelectedModules(prev => {
+      if (checked) {
+        return prev.includes(id) ? prev : [...prev, id];
+      } else {
+        return prev.filter(m => m !== id);
+      }
+    });
   };
 
   const toggleOperationType = (id: string) => {
@@ -153,15 +212,47 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   };
 
   const toggleApp = (id: string) => {
-    setSelectedApps(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedApps(prev => {
+      const isSelected = prev.includes(id);
+      if (isSelected) {
+        const newApps = prev.filter(i => i !== id);
+        if (id === 'SweetHawk' || id === 'Outros') {
+          const newQuantities = { ...appQuantities };
+          delete newQuantities[id];
+          setAppQuantities(newQuantities);
+        }
+        return newApps;
+      } else {
+        if (id === 'SweetHawk' || id === 'Outros') {
+          setAppQuantities(prev => ({ ...prev, [id]: 1 }));
+        }
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleAppQtyChange = (id: string, qty: number) => {
+    setAppQuantities(prev => ({ ...prev, [id]: Math.max(1, qty) }));
   };
 
   const toggleNativeConnection = (id: string) => {
-    setSelectedNativeConnections(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setSelectedNativeConnections(prev => {
+      const isSelected = prev.includes(id);
+      if (isSelected) {
+        const newConns = prev.filter(i => i !== id);
+        const newQuantities = { ...connectionQuantities };
+        delete newQuantities[id];
+        setConnectionQuantities(newQuantities);
+        return newConns;
+      } else {
+        setConnectionQuantities(prev => ({ ...prev, [id]: 1 }));
+        return [...prev, id];
+      }
+    });
+  };
+
+  const handleConnectionQtyChange = (id: string, qty: number) => {
+    setConnectionQuantities(prev => ({ ...prev, [id]: Math.max(1, qty) }));
   };
 
   // Calculation Logic
@@ -170,34 +261,30 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       agents, brands, areas, selectedChannels, channelQuantities,
       selectedModules, operationTypes, zendeskPlan, knowledgeArticles,
       hasCommunity, hasHCCustomization, hasQA, hasWFM, hasCopilot,
-      copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType
+      copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType,
+      selectedApps, appQuantities, selectedNativeConnections, connectionQuantities,
+      analyticsTrainingType, hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv,
+      operationLanguages
     };
 
-    const { techHours, results, escalationRequired, escalationMessage } = calculateAEEstimate(inputs);
+    const { techHours, totalFinal, results, escalationRequired, escalationMessage } = calculateAEEstimate(inputs as any);
 
-    // GP Calculation (Keep GP logic here as it depends on variables from DB)
-    const aeGpVar = variables?.find((v: any) => v.key === 'AE_GP_PERCENTAGE' || v.key === 'GP_STANDARD');
-    const gpPercent = aeGpVar ? (parseFloat(aeGpVar.value) / (aeGpVar.value.includes('%') ? 100 : (parseFloat(aeGpVar.value) > 1 ? 100 : 1))) : 0.15;
-    const gpHours = techHours * gpPercent;
-    const total = techHours + gpHours;
-
-    const needsSC = total > 60;
+    const needsSC = totalFinal > 60;
 
     return {
       techHours,
-      gpHours,
-      total,
+      total: totalFinal,
       needsSC,
-      gpPercent: (gpPercent * 100).toFixed(0),
       escalationRequired,
       escalationMessage,
       calculatedResults: results
     };
   }, [
     agents, brands, selectedChannels, channelQuantities, areas, 
-    selectedModules, analyticsBasicReports, analyticsAdvancedReports, knowledgeArticles, hasCommunity, hasHCCustomization,
+    selectedModules, analyticsTrainingType, knowledgeArticles, hasCommunity, hasHCCustomization,
     deploymentType, hasAppsMarketplace, selectedApps, hasNativeConnections, selectedNativeConnections,
     hasIntegration, hasQA, hasWFM, hasCopilot, copilotType, hasAIAgents, zendeskPlan, operationTypes,
+    hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv, operationLanguages,
     packages, variables
   ]);
 
@@ -226,6 +313,10 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 | Automações (Simples/Complexas) | ${res.support.automacoes_simples} / ${res.support.automacoes_complexas} |
 | Políticas de SLA | ${res.support.politicas_sla} |
 
+### Analytics
+- **Treinamento:** ${res.analytics.treinamento === 'advanced' ? 'Avançado (8h)' : 'Padrão (4h)'}
+- **Esforço Estimado:** ${res.analytics.horas_estimadas}h
+
 ### Knowledge & Voice
 - **Knowledge:** ${res.knowledge.horas_estimadas}h estimadas (${knowledgeArticles} artigos)
 - **Voice (IVR/Saudações):** ${res.voice.ivr} níveis / ${res.voice.saudacoes} saudações
@@ -239,6 +330,13 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 - **Condicionais Avançadas:** ${res.apps_aktie_now.condicionais_avancadas_horas}h
 - **Ticket Manager:** ${res.apps_aktie_now.ticket_manager_horas}h
 
+## 📈 Variáveis e Adicionais
+- **Discovery (20%):** ${res.variables.discovery}h
+- **Validação (15%):** ${res.variables.validation}h
+- **Comunicação Técnica (10%):** ${res.variables.comunicacao_tecnica}h
+- **Go-live (5%):** ${res.variables.go_live}h
+- **Gestão de Projeto (17.6%):** ${res.variables.gp}h ${res.variables.gp === 0 ? '(Abaixo de 30h totais)' : ''}
+
 ---
 **Esforço Total Estimado:** ${estimation.total.toFixed(1)}h
 ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
@@ -250,11 +348,11 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
     try {
       await saveAEEstimateAction({
         clientName,
+        zohoLink,
         clientObjectives,
         successIndicators,
         selectedModules,
-        analyticsBasicReports,
-        analyticsAdvancedReports,
+        analyticsTrainingType,
         knowledgeArticles,
         hasCommunity,
         hasHCCustomization,
@@ -278,8 +376,15 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
         hasCopilot,
         copilotType,
         hasAIAgents,
+        hasSSO,
+        hasITAM,
+        hasTeamsSideConv,
+        hasSlackSideConv,
+        operationLanguages,
         resultHours: estimation.total,
-        needsSC: estimation.needsSC
+        needsSC: estimation.needsSC,
+        appQuantities,
+        connectionQuantities
       });
     } catch (error) {
       console.error("Error saving estimate:", error);
@@ -341,6 +446,21 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                   />
                 </div>
                 <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link do Deal (Zoho)</label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
+                      <Search className="w-4 h-4" />
+                    </div>
+                    <input 
+                      type="url" 
+                      value={zohoLink}
+                      onChange={(e) => setZohoLink(e.target.value)}
+                      placeholder="https://crm.zoho.com/..." 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Objetivos e dores do cliente</label>
                   <textarea 
                     value={clientObjectives}
@@ -371,7 +491,7 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Módulos</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {['Support', 'Knowledge', 'Analytics', 'ADPP', 'Callwe', 'Droz'].map(m => (
+                    {['Support', 'Knowledge', 'Analytics', 'ADPP', 'QA', 'WFM', 'AI Agents', 'Copilot'].map(m => (
                       <button
                         key={m}
                         onClick={() => toggleModule(m)}
@@ -388,46 +508,37 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                 </div>
 
                 {selectedModules.includes('Analytics') && (
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2">
-                    <div className="space-y-2">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Relatórios Básicos</label>
-                      <input type="number" value={analyticsBasicReports} onChange={(e) => setAnalyticsBasicReports(parseInt(e.target.value) || 0)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black" />
+                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Tipo de Treinamento</label>
+                    <div className="flex bg-white p-1 rounded-xl border border-slate-200">
+                      <button 
+                        onClick={() => setAnalyticsTrainingType('standard')} 
+                        className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'standard' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Treinamento Padrão
+                      </button>
+                      <button 
+                        onClick={() => setAnalyticsTrainingType('advanced')} 
+                        className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'advanced' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                      >
+                        Treinamento Avançado
+                      </button>
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Avançados</label>
-                      <input type="number" value={analyticsAdvancedReports} onChange={(e) => setAnalyticsAdvancedReports(parseInt(e.target.value) || 0)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black" />
-                    </div>
+                    <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter px-1 text-center">
+                      {analyticsTrainingType === 'standard' ? 'Foco em dashboards nativos e métricas essenciais (4h)' : 'Foco em relatórios customizados e fórmulas complexas (8h)'}
+                    </p>
                   </div>
                 )}
 
-                {selectedModules.includes('Knowledge') && (
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-6 animate-in fade-in slide-in-from-top-2">
-                    <div className="space-y-2">
-                      <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Quantidade de Artigos</label>
-                      <input 
-                        type="number" 
-                        min="0"
-                        value={knowledgeArticles} 
-                        onChange={(e) => setKnowledgeArticles(Math.max(0, parseInt(e.target.value) || 0))} 
-                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2 text-xs font-black" 
-                        placeholder="Ex: 10"
-                      />
+                {selectedModules.includes('Copilot') && (
+                  <div className={`p-5 rounded-2xl border transition-all space-y-4 bg-purple-50 border-purple-200 animate-in fade-in slide-in-from-top-2`}>
+                    <div className="flex items-center space-x-3">
+                      <MessageSquare className={`w-4 h-4 text-purple-600`} />
+                      <span className={`text-[10px] font-black uppercase tracking-widest text-purple-900`}>Configuração do Zendesk Copilot</span>
                     </div>
-                    <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center space-x-3 cursor-pointer group">
-                        <div className={`w-10 h-6 rounded-full relative transition-all ${hasCommunity ? 'bg-brand-primary' : 'bg-slate-200'}`}>
-                          <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="sr-only" />
-                          <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all ${hasCommunity ? 'translate-x-4' : ''}`} />
-                        </div>
-                        <span className="text-[9px] font-black text-slate-500 uppercase">Comunidade</span>
-                      </label>
-                      <label className="flex items-center space-x-3 cursor-pointer group">
-                        <div className={`w-10 h-6 rounded-full relative transition-all ${hasHCCustomization ? 'bg-brand-primary' : 'bg-slate-200'}`}>
-                          <input type="checkbox" checked={hasHCCustomization} onChange={(e) => setHasHCCustomization(e.target.checked)} className="sr-only" />
-                          <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-all ${hasHCCustomization ? 'translate-x-4' : ''}`} />
-                        </div>
-                        <span className="text-[9px] font-black text-slate-500 uppercase">Personalização HC</span>
-                      </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button onClick={() => setCopilotType('without_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'without_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Sem API</button>
+                      <button onClick={() => setCopilotType('with_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'with_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Com API</button>
                     </div>
                   </div>
                 )}
@@ -470,38 +581,91 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
 
                 <div className="space-y-6 pt-6 border-t border-slate-100">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Serviços Adicionais</label>
-                  <div className="grid grid-cols-1 gap-3">
-                    {[
-                      { id: 'int', label: 'Integração Personalizada', state: hasIntegration, setter: setHasIntegration, icon: Settings },
-                      { id: 'qa', label: 'QA / Qualidade', state: hasQA, setter: setHasQA, icon: CheckSquare },
-                      { id: 'wfm', label: 'WFM / Workforce', state: hasWFM, setter: setHasWFM, icon: Users },
-                      { id: 'ai', label: 'AI Agents Advanced', state: hasAIAgents, setter: setHasAIAgents, icon: Bot },
-                    ].map(item => (
-                      <label key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${item.state ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                  
+                  {/* Support Additional Services */}
+                  {selectedModules.includes('Support') && (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          { id: 'sso', label: 'Single Sign On', state: hasSSO, setter: setHasSSO, icon: ShieldCheck },
+                          { id: 'itam', label: 'Ativos de TI (Itam)', state: hasITAM, setter: setHasITAM, icon: Laptop },
+                          { id: 'teams', label: 'Conversas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
+                          { id: 'slack', label: 'Conversas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash },
+                        ].map(item => (
+                          <label key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${item.state ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                            <div className="flex items-center space-x-3">
+                              <item.icon className={`w-4 h-4 ${item.state ? 'text-brand-primary' : 'text-slate-400'}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${item.state ? 'text-brand-dark' : 'text-slate-500'}`}>{item.label}</span>
+                            </div>
+                            <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                          </label>
+                        ))}
+                      </div>
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
-                          <item.icon className={`w-4 h-4 ${item.state ? 'text-brand-primary' : 'text-slate-400'}`} />
-                          <span className={`text-[9px] font-black uppercase tracking-widest ${item.state ? 'text-brand-dark' : 'text-slate-500'}`}>{item.label}</span>
+                          <Globe className="w-4 h-4 text-slate-400" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Idiomas da Operação</span>
                         </div>
-                        <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
-                      </label>
-                    ))}
-                  </div>
+                        <input 
+                          type="number" 
+                          min="1" 
+                          value={operationLanguages} 
+                          onChange={(e) => setOperationLanguages(Math.max(1, parseInt(e.target.value) || 1))}
+                          className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                        />
+                      </div>
+                    </div>
+                  )}
 
-                  <div className={`p-5 rounded-2xl border transition-all space-y-4 ${hasCopilot ? 'bg-purple-50 border-purple-200' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                    <label className="flex items-center justify-between cursor-pointer">
-                      <div className="flex items-center space-x-3">
-                        <MessageSquare className={`w-4 h-4 ${hasCopilot ? 'text-purple-600' : 'text-slate-400'}`} />
-                        <span className={`text-[10px] font-black uppercase tracking-widest ${hasCopilot ? 'text-purple-900' : 'text-slate-500'}`}>Zendesk Copilot</span>
+                  {/* Knowledge Additional Services */}
+                  {selectedModules.includes('Knowledge') && (
+                    <div className="space-y-4 mt-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center space-x-3">
+                          <BookOpen className="w-4 h-4 text-slate-400" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Quantidade de Artigos</span>
+                        </div>
+                        <input 
+                          type="number" 
+                          min="0" 
+                          value={knowledgeArticles} 
+                          onChange={(e) => setKnowledgeArticles(Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                        />
                       </div>
-                      <input type="checkbox" checked={hasCopilot} onChange={(e) => setHasCopilot(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
-                    </label>
-                    {hasCopilot && (
-                      <div className="grid grid-cols-2 gap-2 animate-in fade-in zoom-in-95">
-                        <button onClick={() => setCopilotType('without_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'without_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Sem API</button>
-                        <button onClick={() => setCopilotType('with_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'with_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Com API</button>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasHCCustomization ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                          <div className="flex items-center space-x-3">
+                            <Code className={`w-4 h-4 ${hasHCCustomization ? 'text-brand-primary' : 'text-slate-400'}`} />
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${hasHCCustomization ? 'text-brand-dark' : 'text-slate-500'}`}>Personalização de Código</span>
+                          </div>
+                          <input type="checkbox" checked={hasHCCustomization} onChange={(e) => setHasHCCustomization(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                        </label>
+                        <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasCommunity ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                          <div className="flex items-center space-x-3">
+                            <Users className={`w-4 h-4 ${hasCommunity ? 'text-brand-primary' : 'text-slate-400'}`} />
+                            <span className={`text-[9px] font-black uppercase tracking-widest ${hasCommunity ? 'text-brand-dark' : 'text-slate-500'}`}>Comunidade</span>
+                          </div>
+                          <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                        </label>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
+
+                  {/* Integration (Generic) */}
+                  <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasIntegration ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                    <div className="flex items-center space-x-3">
+                      <Settings className={`w-4 h-4 ${hasIntegration ? 'text-brand-primary' : 'text-slate-400'}`} />
+                      <span className={`text-[9px] font-black uppercase tracking-widest ${hasIntegration ? 'text-brand-dark' : 'text-slate-500'}`}>Integração Personalizada (API)</span>
+                    </div>
+                    <input type="checkbox" checked={hasIntegration} onChange={(e) => setHasIntegration(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                  </label>
+
+                  {!selectedModules.includes('Support') && !selectedModules.includes('Knowledge') && (
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center py-4 italic">
+                      Selecione Support ou Knowledge para ver serviços adicionais
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
@@ -532,34 +696,73 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Canais Ativos</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {channelOptions.map((opt) => (
-                    <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
-                      selectedChannels.includes(opt.id) ? 'bg-white border-brand-primary shadow-sm' : 'bg-transparent border-slate-200 opacity-60'
-                    }`}>
-                      <button
-                        onClick={() => toggleChannel(opt.id)}
-                        className={`flex-1 text-left text-[9px] font-black uppercase tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
-                      >
-                        {opt.label}
-                      </button>
-                      {selectedChannels.includes(opt.id) && (
-                        <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                          <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
-                          <input 
-                            type="number" 
-                            value={channelQuantities[opt.id] || 1} 
-                            onChange={(e) => handleChannelQtyChange(opt.id, parseInt(e.target.value) || 1)}
-                            className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-black text-center"
-                          />
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Canais Ativos</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {channelOptions.map((opt) => (
+                      <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                        selectedChannels.includes(opt.id) ? 'bg-white border-brand-primary shadow-sm' : 'bg-transparent border-slate-200 opacity-60'
+                      }`}>
+                        <button
+                          onClick={() => toggleChannel(opt.id)}
+                          className={`flex-1 text-left text-[9px] font-black uppercase tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
+                        >
+                          {opt.label}
+                        </button>
+                        {selectedChannels.includes(opt.id) && (
+                          <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
+                            <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                            <input 
+                              type="number" 
+                              value={channelQuantities[opt.id] || 1} 
+                              onChange={(e) => handleChannelQtyChange(opt.id, parseInt(e.target.value) || 1)}
+                              className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Ver mais canais */}
+                  <div className="mt-4">
+                    <button
+                      onClick={() => setShowExtraChannels(!showExtraChannels)}
+                      className="text-[9px] font-black text-brand-primary uppercase tracking-widest flex items-center space-x-2 hover:opacity-70 transition-all ml-1"
+                    >
+                      <Plus className={`w-3 h-3 transition-transform duration-300 ${showExtraChannels ? 'rotate-45' : ''}`} />
+                      <span>{showExtraChannels ? 'Ver menos canais' : 'Ver mais canais nativos'}</span>
+                    </button>
+
+                    {showExtraChannels && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                        {extraChannelOptions.map((opt) => (
+                          <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
+                            selectedChannels.includes(opt.id) ? 'bg-white border-brand-primary shadow-sm' : 'bg-transparent border-slate-200 opacity-60'
+                          }`}>
+                            <button
+                              onClick={() => toggleChannel(opt.id)}
+                              className={`flex-1 text-left text-[9px] font-black uppercase tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
+                            >
+                              {opt.label}
+                            </button>
+                            {selectedChannels.includes(opt.id) && (
+                              <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
+                                <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                                <input 
+                                  type="number" 
+                                  value={channelQuantities[opt.id] || 1} 
+                                  onChange={(e) => handleChannelQtyChange(opt.id, parseInt(e.target.value) || 1)}
+                                  className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
             </div>
 
             <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
@@ -594,16 +797,29 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                   {hasAppsMarketplace && (
                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex flex-wrap gap-2">
-                        {appOptions.map(app => (
-                          <button
-                            key={app}
-                            onClick={() => toggleApp(app)}
-                            className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
-                              selectedApps.includes(app) ? 'bg-brand-primary border-brand-primary text-white' : 'bg-white border-slate-200 text-slate-400'
-                            }`}
-                          >
-                            {app}
-                          </button>
+                        {marketplaceOptions.map(app => (
+                          <div key={app} className="flex items-center space-x-2">
+                            <button
+                              onClick={() => toggleApp(app)}
+                              className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                                selectedApps.includes(app) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                              }`}
+                            >
+                              {app}
+                            </button>
+                            {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros') && (
+                              <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
+                                <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                                <input 
+                                  type="number" 
+                                  min="1"
+                                  value={appQuantities[app] || 1} 
+                                  onChange={(e) => handleAppQtyChange(app, parseInt(e.target.value) || 1)}
+                                  className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center text-brand-dark focus:ring-1 focus:ring-brand-primary outline-none"
+                                />
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
                       {selectedApps.includes('Outros') && (
@@ -624,18 +840,33 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                     <input type="checkbox" checked={hasNativeConnections} onChange={(e) => setHasNativeConnections(e.target.checked)} className="w-5 h-5 rounded-lg border-slate-300 text-brand-primary" />
                   </label>
                   {hasNativeConnections && (
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 flex flex-wrap gap-2 animate-in fade-in slide-in-from-top-2">
-                      {connectionOptions.map(conn => (
-                        <button
-                          key={conn}
-                          onClick={() => toggleNativeConnection(conn)}
-                          className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
-                            selectedNativeConnections.includes(conn) ? 'bg-brand-primary border-brand-primary text-white' : 'bg-white border-slate-200 text-slate-400'
-                          }`}
-                        >
-                          {conn}
-                        </button>
-                      ))}
+                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
+                      <div className="flex flex-wrap gap-2">
+                        {nativeConnectionOptions.map(conn => (
+                          <div key={conn} className="flex items-center space-x-2">
+                            <button
+                              onClick={() => toggleNativeConnection(conn)}
+                              className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                                selectedNativeConnections.includes(conn) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                              }`}
+                            >
+                              {conn}
+                            </button>
+                            {selectedNativeConnections.includes(conn) && (
+                              <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
+                                <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                                <input 
+                                  type="number" 
+                                  min="1"
+                                  value={connectionQuantities[conn] || 1} 
+                                  onChange={(e) => handleConnectionQtyChange(conn, parseInt(e.target.value) || 1)}
+                                  className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center text-brand-dark focus:ring-1 focus:ring-brand-primary outline-none"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -698,14 +929,30 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
               </div>
 
               {!estimation.needsSC && (
-                <div className="grid grid-cols-2 gap-8 max-w-lg mx-auto pt-8 border-t border-white/10">
-                  <div className="text-center">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">Técnico</span>
-                    <span className="text-2xl font-black tracking-tight">{estimation.techHours.toFixed(1)}H</span>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto pt-8 border-t border-white/10">
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Implantação</span>
+                    <span className="text-xl font-black tracking-tight">{estimation.techHours.toFixed(1)}H</span>
                   </div>
-                  <div className="text-center">
-                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1">GP ({estimation.gpPercent}%)</span>
-                    <span className="text-2xl font-black tracking-tight text-brand-secondary">{estimation.gpHours.toFixed(1)}H</span>
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">GP</span>
+                    <span className="text-xl font-black tracking-tight text-brand-secondary">{estimation.calculatedResults.variables.gp.toFixed(1)}H</span>
+                  </div>
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Discovery</span>
+                    <span className="text-xl font-black tracking-tight text-amber-500">{estimation.calculatedResults.variables.discovery.toFixed(1)}H</span>
+                  </div>
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Validação</span>
+                    <span className="text-xl font-black tracking-tight text-blue-500">{estimation.calculatedResults.variables.validation.toFixed(1)}H</span>
+                  </div>
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Com. Técnica</span>
+                    <span className="text-xl font-black tracking-tight text-purple-500">{estimation.calculatedResults.variables.comunicacao_tecnica.toFixed(1)}H</span>
+                  </div>
+                  <div className="text-center p-4 bg-white/5 rounded-2xl">
+                    <span className="text-[8px] font-black text-slate-500 uppercase tracking-widest block mb-1">Go-live</span>
+                    <span className="text-xl font-black tracking-tight text-green-500">{estimation.calculatedResults.variables.go_live.toFixed(1)}H</span>
                   </div>
                 </div>
               )}
