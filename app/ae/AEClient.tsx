@@ -216,14 +216,14 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       const isSelected = prev.includes(id);
       if (isSelected) {
         const newApps = prev.filter(i => i !== id);
-        if (id === 'SweetHawk' || id === 'Outros') {
+        if (id === 'SweetHawk' || id === 'Outros' || id === 'App Marketplace') {
           const newQuantities = { ...appQuantities };
           delete newQuantities[id];
           setAppQuantities(newQuantities);
         }
         return newApps;
       } else {
-        if (id === 'SweetHawk' || id === 'Outros') {
+        if (id === 'SweetHawk' || id === 'Outros' || id === 'App Marketplace') {
           setAppQuantities(prev => ({ ...prev, [id]: 1 }));
         }
         return [...prev, id];
@@ -807,7 +807,7 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                             >
                               {app}
                             </button>
-                            {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros') && (
+                            {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros' || app === 'App Marketplace') && (
                               <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
                                 <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
                                 <input 
