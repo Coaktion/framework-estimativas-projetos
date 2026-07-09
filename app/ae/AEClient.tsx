@@ -7,7 +7,7 @@ import {
   Settings, CheckSquare, Save, Loader2,
   AlertTriangle, CheckCircle2, Bot, 
   MessageSquare, Users, Shield, Clock, Box,
-  Copy
+  Copy, BookOpen, Laptop, Hash, Code
 } from 'lucide-react';
 import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
