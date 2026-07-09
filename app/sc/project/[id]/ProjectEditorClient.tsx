@@ -190,7 +190,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       const varExclusions = JSON.parse(vDef.excludedItems || '[]');
       
       let base = 0;
-      const allItems = packages; // All library items
+      const allItems = allPackages; // All library items
 
       if (targets.length === 0 && targetCats.length === 0) {
         // Global variable: sum everything NOT excluded from this specific variable
@@ -288,7 +288,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       totalSafety,
       grandTotal: Math.ceil(subtotal + gpVal + discVal + validVal + flatHoursMarketplace + totalSafety)
     };
-  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, packages]);
+  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages]);
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
