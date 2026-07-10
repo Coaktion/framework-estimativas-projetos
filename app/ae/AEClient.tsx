@@ -7,11 +7,11 @@ import {
   Settings, CheckSquare, Save, Loader2,
   AlertTriangle, CheckCircle2, Bot, 
   MessageSquare, Users, Shield, Clock, Box,
-  Copy, BookOpen, Laptop, Hash, Code
+  Copy, BookOpen, Hash
 } from 'lucide-react';
 import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
-import { calculateAEEstimate } from '@/lib/ae-engine';
+import { ACTION_FLOW_OPTIONS, calculateAEEstimate, isSideConversationEligible } from '@/lib/ae-engine';
 
 export default function AEClient({ packages, variables, initialClientName = '' }: any) {
   const [isPending, setIsPending] = useState(false);
@@ -51,10 +51,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const [areas, setAreas] = useState(0);
   const [showExtraChannels, setShowExtraChannels] = useState(false);
   const [hasIntegration, setHasIntegration] = useState(false);
+  const [selectedActionFlows, setSelectedActionFlows] = useState<string[]>([]);
   const [hasQA, setHasQA] = useState(false);
   const [hasWFM, setHasWFM] = useState(false);
   const [hasCopilot, setHasCopilot] = useState(false);
-  const [copilotType, setCopilotType] = useState('none'); // 'none', 'with_api', 'without_api'
+  const [copilotType, setCopilotType] = useState('standard');
   const [hasAIAgents, setHasAIAgents] = useState(false);
 
   // Additional Services States
@@ -91,10 +92,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setChannelQuantities({});
     setAreas(0);
     setHasIntegration(false);
+    setSelectedActionFlows([]);
     setHasQA(false);
     setHasWFM(false);
     setHasCopilot(false);
-    setCopilotType('none');
+    setCopilotType('standard');
     setHasAIAgents(false);
     setHasSSO(false);
     setHasITAM(false);
@@ -112,6 +114,28 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       resetForm();
     }
   }, [initialClientName]);
+
+  useEffect(() => {
+    if (!isSideConversationEligible(skuType, zendeskPlan)) {
+      setHasTeamsSideConv(false);
+      setHasSlackSideConv(false);
+    }
+  }, [skuType, zendeskPlan]);
+
+  useEffect(() => {
+    if (!selectedModules.includes('Support')) {
+      setHasSSO(false);
+      setHasTeamsSideConv(false);
+      setHasSlackSideConv(false);
+      setOperationLanguages(1);
+    }
+
+    if (!selectedModules.includes('Knowledge')) {
+      setKnowledgeArticles(0);
+      setHasCommunity(false);
+      setHasHCCustomization(false);
+    }
+  }, [selectedModules]);
 
   const handleNewSimulation = () => {
     resetForm();
@@ -188,7 +212,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       if (id === 'AI Agents') setHasAIAgents(!isSelected);
       if (id === 'Copilot') {
         setHasCopilot(!isSelected);
-        if (isSelected) setCopilotType('none');
+        setCopilotType('standard');
       }
       
       return next;
@@ -255,15 +279,26 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setConnectionQuantities(prev => ({ ...prev, [id]: Math.max(1, qty) }));
   };
 
+  const toggleActionFlow = (name: string) => {
+    setSelectedActionFlows(prev =>
+      prev.includes(name) ? prev.filter(item => item !== name) : [...prev, name]
+    );
+  };
+
+  const canUseSideConversations = useMemo(
+    () => isSideConversationEligible(skuType, zendeskPlan),
+    [skuType, zendeskPlan]
+  );
+
   // Calculation Logic
   const estimation = useMemo(() => {
     const inputs = {
       agents, brands, areas, selectedChannels, channelQuantities,
-      selectedModules, operationTypes, zendeskPlan, knowledgeArticles,
+      selectedModules, operationTypes, skuType, zendeskPlan, knowledgeArticles,
       hasCommunity, hasHCCustomization, hasQA, hasWFM, hasCopilot,
       copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType,
       selectedApps, appQuantities, selectedNativeConnections, connectionQuantities,
-      analyticsTrainingType, hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv,
+      selectedActionFlows, analyticsTrainingType, hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv,
       operationLanguages
     };
 
@@ -283,7 +318,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     agents, brands, selectedChannels, channelQuantities, areas, 
     selectedModules, analyticsTrainingType, knowledgeArticles, hasCommunity, hasHCCustomization,
     deploymentType, hasAppsMarketplace, selectedApps, hasNativeConnections, selectedNativeConnections,
-    hasIntegration, hasQA, hasWFM, hasCopilot, copilotType, hasAIAgents, zendeskPlan, operationTypes,
+    hasIntegration, selectedActionFlows, hasQA, hasWFM, hasCopilot, copilotType, hasAIAgents, zendeskPlan, skuType, operationTypes,
     hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv, operationLanguages,
     packages, variables
   ]);
@@ -314,7 +349,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 | Políticas de SLA | ${res.support.politicas_sla} |
 
 ### Analytics
-- **Treinamento:** ${res.analytics.treinamento === 'advanced' ? 'Avançado (8h)' : 'Padrão (4h)'}
+- **Treinamento:** ${res.analytics.treinamento === 'advanced' ? 'Completo (6h de GP)' : 'Padrão (4h de GP)'}
 - **Esforço Estimado:** ${res.analytics.horas_estimadas}h
 
 ### Knowledge & Voice
@@ -329,6 +364,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
 ### Apps Aktie Now
 - **Condicionais Avançadas:** ${res.apps_aktie_now.condicionais_avancadas_horas}h
 - **Ticket Manager:** ${res.apps_aktie_now.ticket_manager_horas}h
+- **Action Flow:** ${res.action_flows.horas_estimadas}h (${res.action_flows.quantidade} integrações)
+
+## Workshops e Treinamentos
+- **Workshop:** ${res.workshops.horas_estimadas}h
+- **Treinamento:** ${res.trainings.horas_estimadas}h
 
 ## 📈 Variáveis e Adicionais
 - **Discovery (20%):** ${res.variables.discovery}h
@@ -365,6 +405,7 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
         zendeskPlan,
         hasNativeConnections,
         selectedNativeConnections,
+        selectedActionFlows,
         agents,
         brands,
         channels: selectedChannels,
@@ -525,21 +566,8 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                       </button>
                     </div>
                     <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter px-1 text-center">
-                      {analyticsTrainingType === 'standard' ? 'Foco em dashboards nativos e métricas essenciais (4h)' : 'Foco em relatórios customizados e fórmulas complexas (8h)'}
+                      {analyticsTrainingType === 'standard' ? 'Implantação fixa de 3.5h e treinamento padrão de 4h para GP' : 'Implantação fixa de 3.5h e treinamento completo de 6h para GP'}
                     </p>
-                  </div>
-                )}
-
-                {selectedModules.includes('Copilot') && (
-                  <div className={`p-5 rounded-2xl border transition-all space-y-4 bg-purple-50 border-purple-200 animate-in fade-in slide-in-from-top-2`}>
-                    <div className="flex items-center space-x-3">
-                      <MessageSquare className={`w-4 h-4 text-purple-600`} />
-                      <span className={`text-[10px] font-black uppercase tracking-widest text-purple-900`}>Configuração do Zendesk Copilot</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => setCopilotType('without_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'without_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Sem API</button>
-                      <button onClick={() => setCopilotType('with_api')} className={`py-2.5 rounded-xl text-[8px] font-black uppercase border transition-all ${copilotType === 'with_api' ? 'bg-purple-600 border-purple-600 text-white shadow-md' : 'bg-white border-purple-200 text-purple-400 hover:bg-purple-100'}`}>Com API</button>
-                    </div>
                   </div>
                 )}
 
@@ -588,9 +616,12 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
                           { id: 'sso', label: 'Single Sign On', state: hasSSO, setter: setHasSSO, icon: ShieldCheck },
-                          { id: 'itam', label: 'Ativos de TI (Itam)', state: hasITAM, setter: setHasITAM, icon: Laptop },
-                          { id: 'teams', label: 'Conversas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
-                          { id: 'slack', label: 'Conversas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash },
+                          ...(canUseSideConversations
+                            ? [
+                                { id: 'teams', label: 'Conversas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
+                                { id: 'slack', label: 'Conversas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash }
+                              ]
+                            : []),
                         ].map(item => (
                           <label key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${item.state ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                             <div className="flex items-center space-x-3">
@@ -614,6 +645,11 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                           className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
                         />
                       </div>
+                      {!canUseSideConversations && (
+                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                          Side conversations disponiveis apenas para ES Growth+ ou CS Professional+.
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -634,13 +670,6 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                         />
                       </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasHCCustomization ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                          <div className="flex items-center space-x-3">
-                            <Code className={`w-4 h-4 ${hasHCCustomization ? 'text-brand-primary' : 'text-slate-400'}`} />
-                            <span className={`text-[9px] font-black uppercase tracking-widest ${hasHCCustomization ? 'text-brand-dark' : 'text-slate-500'}`}>Personalização de Código</span>
-                          </div>
-                          <input type="checkbox" checked={hasHCCustomization} onChange={(e) => setHasHCCustomization(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
-                        </label>
                         <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasCommunity ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                           <div className="flex items-center space-x-3">
                             <Users className={`w-4 h-4 ${hasCommunity ? 'text-brand-primary' : 'text-slate-400'}`} />
@@ -651,15 +680,6 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                       </div>
                     </div>
                   )}
-
-                  {/* Integration (Generic) */}
-                  <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasIntegration ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                    <div className="flex items-center space-x-3">
-                      <Settings className={`w-4 h-4 ${hasIntegration ? 'text-brand-primary' : 'text-slate-400'}`} />
-                      <span className={`text-[9px] font-black uppercase tracking-widest ${hasIntegration ? 'text-brand-dark' : 'text-slate-500'}`}>Integração Personalizada (API)</span>
-                    </div>
-                    <input type="checkbox" checked={hasIntegration} onChange={(e) => setHasIntegration(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
-                  </label>
 
                   {!selectedModules.includes('Support') && !selectedModules.includes('Knowledge') && (
                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center py-4 italic">
@@ -782,6 +802,30 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                     <option value="professional">Suite Professional</option>
                     <option value="enterprise">Suite Enterprise</option>
                   </select>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Action Flow</label>
+                  <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
+                    <div className="flex flex-wrap gap-2">
+                      {ACTION_FLOW_OPTIONS.map(flow => (
+                        <button
+                          key={flow}
+                          onClick={() => toggleActionFlow(flow)}
+                          className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                            selectedActionFlows.includes(flow)
+                              ? 'bg-brand-dark border-brand-dark text-white shadow-lg'
+                              : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                          }`}
+                        >
+                          {flow}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                      Cada integracao adiciona 4.5h de implantacao.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="space-y-4">

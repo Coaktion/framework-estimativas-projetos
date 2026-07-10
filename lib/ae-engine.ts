@@ -1,30 +1,99 @@
+export const ACTION_FLOW_OPTIONS = [
+  'Airtable',
+  'Asana',
+  'BambooHR',
+  'Calendly',
+  'Chargebee',
+  'Claude',
+  'Confluence',
+  'Gemini',
+  'GitHub',
+  'Gmail',
+  'Google Calendar',
+  'Google Drive',
+  'Google Forms',
+  'Google Sheets',
+  'HubSpot',
+  'Incident.io',
+  'Jamf',
+  'Jira',
+  'Klaviyo',
+  'Linear',
+  'Mailchimp',
+  'Microsoft Calendar',
+  'Microsoft Dynamics 365 Sales',
+  'Microsoft Entra ID',
+  'Microsoft Excel',
+  'Microsoft Intune',
+  'Microsoft OneDrive',
+  'Microsoft Outlook',
+  'Microsoft Planner',
+  'Microsoft SharePoint',
+  'Microsoft Teams',
+  'New Relic',
+  'Notion',
+  'Okta',
+  'OpenAI',
+  'PagerDuty',
+  'Recurly',
+  'Salesforce',
+  'Shopify',
+  'Slack',
+  'Snowflake',
+  'Stripe',
+  'SurveyMonkey',
+  'Workday'
+] as const;
+
+const PLAN_RANK = {
+  team: 1,
+  growth: 2,
+  professional: 3,
+  enterprise: 4
+} as const;
+
 export const AE_DATABASE = {
   fatores_plano: {
-    funcoes: { "team": 0.0, "growth": 0.0, "professional": 0.0, "enterprise": 1.0 },
-    campos_ticket: { "team": 1.0, "growth": 1.04, "professional": 1.08, "enterprise": 1.12 },
-    sla: { "team": 0.0, "growth": 1.0, "professional": 1.0, "enterprise": 1.5 }
+    funcoes: { team: 0.0, growth: 0.0, professional: 0.0, enterprise: 1.0 },
+    campos_ticket: { team: 1.0, growth: 1.04, professional: 1.08, enterprise: 1.12 },
+    sla: { team: 0.0, growth: 1.0, professional: 1.0, enterprise: 1.5 }
   },
   fatores_operacao: {
-    campos_usuario: { "B2C": 0, "B2B": 0, "B2E": 3 },
-    campos_organizacao: { "B2C": 0, "B2B": 3, "B2E": 3 }
-  },
-  pesos_canais_ticket: { "web_form": 10, "email": 8, "whatsapp": 8, "voice": 5, "outros": 6 },
-  regras_knowledge_horas: [
-    { min_artigos: 0, max_artigos: 20, horas: 2 },
-    { min_artigos: 21, max_artigos: 100, horas: 10 }
-  ],
-  valores_fixos_flat: {
-    support_team_plus: { encaminhamento_omnichannel: 1, gatilho_webhook_proprio: 1, webhooks: 1, pesquisa_satisfacao: 1 },
-    support_professional_plus: { programacao_feriados: 1 },
-    wfm: { cenarios_previsao: 2, paineis_desempenho: 1, url_externas_monitoradas: 10 },
-    adpp: { programacao_exclusao: 2, gatilhos_supressao_automatica: 5 }
+    campos_usuario: { B2C: 0, B2B: 0, B2E: 3 },
+    campos_organizacao: { B2C: 0, B2B: 3, B2E: 3 }
   },
   limites_escalonamento_se: {
-    max_artigos: 100, max_agentes: 100, max_marcas: 3, max_canais: 10,
-    modulos_obrigatorios: ["itam", "ai_agents", "droz", "call_we", "adpp"],
-    flags_obrigatorias: ["personalizacao_codigo_helpcenter", "copilot_acoes_externas_api", "acoes_externas_api"]
+    max_artigos: 100,
+    max_agentes: 100,
+    max_marcas: 3,
+    max_canais: 10
+  },
+  horas_base_modulos: {
+    support: 1,
+    voice: 0.5,
+    knowledge: 2,
+    analytics: 3.5,
+    copilot: 0.5,
+    wfm: 0.33,
+    qa: 1,
+    adpp: 1.5
+  },
+  horas_marketplace: {
+    woocommerce: 1.5,
+    dialpad: 1.5,
+    aircall: 2,
+    vtex: 1,
+    stripe: 1,
+    pipedrive: 1,
+    sweethawk: 2,
+    outros: 5,
+    app_marketplace: 5
+  },
+  horas_adpp_setup: {
+    programacoes_exclusao: 2 * 0.25,
+    gatilhos_simples: 5 * 0.08
   }
-};
+} as const;
 
 export interface AEInputData {
   agents: number;
@@ -34,6 +103,7 @@ export interface AEInputData {
   channelQuantities: Record<string, number>;
   selectedModules: string[];
   operationTypes: string[];
+  skuType: string;
   zendeskPlan: string;
   knowledgeArticles: number;
   hasCommunity: boolean;
@@ -50,6 +120,7 @@ export interface AEInputData {
   appQuantities: Record<string, number>;
   selectedNativeConnections: string[];
   connectionQuantities: Record<string, number>;
+  selectedActionFlows?: string[];
   analyticsTrainingType: 'standard' | 'advanced';
   hasSSO: boolean;
   hasITAM: boolean;
@@ -58,41 +129,102 @@ export interface AEInputData {
   operationLanguages: number;
 }
 
+export function isSideConversationEligible(skuType: string, zendeskPlan: string) {
+  const planRank = PLAN_RANK[zendeskPlan as keyof typeof PLAN_RANK] || 0;
+
+  if (skuType === 'employee_service') {
+    return planRank >= PLAN_RANK.growth;
+  }
+
+  return planRank >= PLAN_RANK.professional;
+}
+
+function round2(value: number) {
+  return parseFloat(value.toFixed(2));
+}
+
+function getMarketplaceHours(app: string, qty: number) {
+  const normalized = app.trim().toLowerCase();
+
+  if (normalized.includes('woocommerce')) return qty * AE_DATABASE.horas_marketplace.woocommerce;
+  if (normalized.includes('dialpad')) return qty * AE_DATABASE.horas_marketplace.dialpad;
+  if (normalized.includes('aircall')) return qty * AE_DATABASE.horas_marketplace.aircall;
+  if (normalized.includes('vtex')) return qty * AE_DATABASE.horas_marketplace.vtex;
+  if (normalized.includes('stripe')) return qty * AE_DATABASE.horas_marketplace.stripe;
+  if (normalized.includes('pipedrive')) return qty * AE_DATABASE.horas_marketplace.pipedrive;
+  if (normalized.includes('sweethawk')) return qty * AE_DATABASE.horas_marketplace.sweethawk;
+  if (normalized.includes('outros')) return qty * AE_DATABASE.horas_marketplace.outros;
+  if (normalized.includes('app marketplace')) return qty * AE_DATABASE.horas_marketplace.app_marketplace;
+
+  return qty * AE_DATABASE.horas_marketplace.outros;
+}
+
 export function calculateAEEstimate(inputs: AEInputData) {
   const {
-    agents, brands, areas, selectedChannels, channelQuantities,
-    selectedModules, operationTypes, zendeskPlan, knowledgeArticles,
-    hasCommunity, hasHCCustomization, hasQA, hasWFM, hasCopilot,
-    copilotType, hasAIAgents, hasIntegration, hasAppsMarketplace, deploymentType,
-    selectedApps, appQuantities, selectedNativeConnections, connectionQuantities,
-    analyticsTrainingType, hasSSO, hasITAM, hasTeamsSideConv, hasSlackSideConv,
+    agents,
+    brands,
+    areas,
+    selectedChannels,
+    channelQuantities,
+    selectedModules,
+    operationTypes,
+    skuType,
+    zendeskPlan,
+    knowledgeArticles,
+    hasCommunity,
+    hasHCCustomization,
+    hasQA,
+    hasWFM,
+    hasCopilot,
+    hasAIAgents,
+    hasAppsMarketplace,
+    selectedApps,
+    appQuantities,
+    selectedNativeConnections,
+    connectionQuantities,
+    selectedActionFlows = [],
+    analyticsTrainingType,
+    hasSSO,
+    hasTeamsSideConv,
+    hasSlackSideConv,
     operationLanguages
   } = inputs;
 
-  // 1. Auxiliary Variables
   const qtdOperacoes = operationTypes.length || 1;
-  const somaTotalCanais = Object.values(channelQuantities).reduce((a, b) => a + b, 0);
+  const somaTotalCanais = Object.values(channelQuantities).reduce((acc, value) => acc + (value || 0), 0);
   const somaTotalTiposDeCanais = selectedChannels.length;
-  const somaTiposDeOutrosCanais = selectedChannels.filter(c => !['web_form', 'email', 'voice'].includes(c)).length;
-  
+  const somaTiposDeOutrosCanais = selectedChannels.filter((channel) => !['web_form', 'email', 'voice'].includes(channel)).length;
+
   const webFormsPresente = selectedChannels.includes('web_form') ? 1 : 0;
   const emailPresente = selectedChannels.includes('email') ? 1 : 0;
   const whatsAppPresente = selectedChannels.includes('whatsapp') ? 1 : 0;
   const vozPresente = selectedChannels.includes('voice') ? 1 : 0;
 
-  const fatorPlanoFuncoes = AE_DATABASE.fatores_plano.funcoes[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.funcoes] || 0;
-  const fatorPlanoCamposTicket = AE_DATABASE.fatores_plano.campos_ticket[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.campos_ticket] || 1;
-  const fatorPlanoSLA = AE_DATABASE.fatores_plano.sla[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.sla] || 0;
+  const fatorPlanoFuncoes =
+    AE_DATABASE.fatores_plano.funcoes[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.funcoes] || 0;
+  const fatorPlanoCamposTicket =
+    AE_DATABASE.fatores_plano.campos_ticket[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.campos_ticket] || 1;
+  const fatorPlanoSLA =
+    AE_DATABASE.fatores_plano.sla[zendeskPlan as keyof typeof AE_DATABASE.fatores_plano.sla] || 0;
 
-  const somaFatorOperacaoUsuario = operationTypes.reduce((acc, op) => acc + (AE_DATABASE.fatores_operacao.campos_usuario[op as keyof typeof AE_DATABASE.fatores_operacao.campos_usuario] || 0), 0);
-  const somaFatorOperacaoOrganizacao = operationTypes.reduce((acc, op) => acc + (AE_DATABASE.fatores_operacao.campos_organizacao[op as keyof typeof AE_DATABASE.fatores_operacao.campos_organizacao] || 0), 0);
+  const somaFatorOperacaoUsuario = operationTypes.reduce(
+    (acc, op) => acc + (AE_DATABASE.fatores_operacao.campos_usuario[op as keyof typeof AE_DATABASE.fatores_operacao.campos_usuario] || 0),
+    0
+  );
+  const somaFatorOperacaoOrganizacao = operationTypes.reduce(
+    (acc, op) =>
+      acc + (AE_DATABASE.fatores_operacao.campos_organizacao[op as keyof typeof AE_DATABASE.fatores_operacao.campos_organizacao] || 0),
+    0
+  );
 
-  // 2. Sequential Formulas - Support Block
   let supportFuncoes = (((0.1 * agents) + areas) * (0.25 + (0.75 * brands))) * fatorPlanoFuncoes;
   supportFuncoes = Math.min(supportFuncoes, agents);
 
-  const supportGrupos = ((0.1 * agents) + 0.3 * areas) * (0.25 + (0.75 * brands)) * (0.4 + (qtdOperacoes * 0.6));
-  const supportCamposTicket = ((webFormsPresente * 10) + (emailPresente * 8) + (whatsAppPresente * 8) + (vozPresente * 5) + (somaTiposDeOutrosCanais * 6)) * (0.7 + (0.3 * brands)) * fatorPlanoCamposTicket;
+  const supportGrupos = ((0.1 * agents) + (0.3 * areas)) * (0.25 + (0.75 * brands)) * (0.4 + (qtdOperacoes * 0.6));
+  const supportCamposTicket =
+    ((webFormsPresente * 10) + (emailPresente * 8) + (whatsAppPresente * 8) + (vozPresente * 5) + (somaTiposDeOutrosCanais * 6)) *
+    (0.7 + (0.3 * brands)) *
+    fatorPlanoCamposTicket;
   const supportCondicionaisCampos = supportCamposTicket * 0.5;
   const supportCamposUsuario = ((2 * supportGrupos) + (2 * areas)) * (1 + somaFatorOperacaoUsuario);
   const supportCamposOrganizacao = 2 * areas * (1 + somaFatorOperacaoOrganizacao);
@@ -104,30 +236,33 @@ export function calculateAEEstimate(inputs: AEInputData) {
   const supportAutomacoesComplexas = supportAutomacoesSimples * 0.25;
   const supportPoliticasSLA = ((somaTotalCanais * (0.3 + (0.7 * brands))) + supportGrupos) * fatorPlanoSLA;
 
-  // Knowledge Block
   let knowledgeHoras = 0;
   if (selectedModules.includes('Knowledge')) {
-    const rule = AE_DATABASE.regras_knowledge_horas.find(r => knowledgeArticles >= r.min_artigos && knowledgeArticles <= r.max_artigos);
-    knowledgeHoras = rule ? rule.horas : (knowledgeArticles > 100 ? 10 : 0);
-    if (hasCommunity) knowledgeHoras += 3;
-    if (hasHCCustomization) knowledgeHoras += 12;
+    knowledgeHoras = Math.max(AE_DATABASE.horas_base_modulos.knowledge, knowledgeArticles * 0.1);
+    if (hasCommunity) knowledgeHoras += 1;
   }
 
-  // Voice Block
-  const voiceQty = channelQuantities['voice'] || 0;
-  const voiceIVR = 6 * voiceQty;
+  const voiceQty = channelQuantities.voice || 0;
+  const voiceIVR = ['team', 'growth'].includes(zendeskPlan) ? 0 : 6 * voiceQty;
   const voiceSaudacoes = 6 * voiceIVR;
 
-  // Copilot Block
-  let copilotIntencoes = 0, copilotEntidades = 0, copilotProcedimentos = 0;
+  let copilotIntencoes = 0;
+  let copilotEntidades = 0;
+  let copilotProcedimentos = 0;
   if (hasCopilot) {
-    copilotIntencoes = supportCamposTicket * 0.1 * ((hasQA ? 0.2 : 0) + 1) * qtdOperacoes;
+    copilotIntencoes = supportCamposTicket * 0.2 * ((hasQA ? 0.2 : 0) + 1) * qtdOperacoes;
     copilotEntidades = supportCamposTicket * 0.1;
     copilotProcedimentos = (areas + supportGrupos) * 0.5 * brands * qtdOperacoes;
   }
 
-  // WFM Block
-  let wfmLocalizacoes = 0, wfmTurnos = 0, wfmGruposTrabalho = 0, wfmEquipes = 0, wfmMotivosFolga = 0, wfmTarefasGerais = 0, wfmAutomacoes = 0, wfmFuncoes = 0;
+  let wfmLocalizacoes = 0;
+  let wfmTurnos = 0;
+  let wfmGruposTrabalho = 0;
+  let wfmEquipes = 0;
+  let wfmMotivosFolga = 0;
+  let wfmTarefasGerais = 0;
+  let wfmAutomacoes = 0;
+  let wfmFuncoes = 0;
   if (hasWFM) {
     wfmLocalizacoes = brands * qtdOperacoes;
     wfmTurnos = wfmLocalizacoes * 2;
@@ -139,8 +274,18 @@ export function calculateAEEstimate(inputs: AEInputData) {
     wfmFuncoes = 2 + supportFuncoes;
   }
 
-  // QA Block
-  let qaDestaques = 0, qaQuizzes = 0, qaFiltros = 0, qaTabelasDesempenho = 0, qaCategoriasManuais = 0, qaCategoriasIA = 0, qaUsuarios = 0, qaBots = 0, qaEspacoTrabalho = 0, qaAtribuicoes = 0, qaGrupos = 0, qaHashtags = 0;
+  let qaDestaques = 0;
+  let qaQuizzes = 0;
+  let qaFiltros = 0;
+  let qaTabelasDesempenho = 0;
+  let qaCategoriasManuais = 0;
+  let qaCategoriasIA = 0;
+  let qaUsuarios = 0;
+  let qaBots = 0;
+  let qaEspacoTrabalho = 0;
+  let qaAtribuicoes = 0;
+  let qaGrupos = 0;
+  let qaHashtags = 0;
   if (hasQA) {
     qaDestaques = Math.min(10, Math.max(0, brands + qtdOperacoes + areas));
     qaQuizzes = areas + brands + qtdOperacoes;
@@ -156,96 +301,154 @@ export function calculateAEEstimate(inputs: AEInputData) {
     qaHashtags = supportCamposTicket * 0.05;
   }
 
-  // Apps Block
-  let appsCondicionaisHoras = 0, appsTicketManagerHoras = 0, marketplaceAppsHoras = 0, nativeConnectionsHoras = 0;
+  let appsCondicionaisHoras = 0;
+  let appsTicketManagerHoras = 0;
+  let marketplaceAppsHoras = 0;
   if (hasAppsMarketplace) {
     appsCondicionaisHoras = 0.33 + (((supportVisualizacoes * 0.1) + (supportGatilhosSimples * 0.125)) * 0.25);
-    appsTicketManagerHoras = 0.67 + ((supportCamposTicket * 0.02) * qtdOperacoes);
-    
-    // Marketplace Apps Logic: 1h per standard app, 1h per SweetHawk/Other quantity
-    selectedApps.forEach(app => {
-      if (app === 'SweetHawk' || app === 'Outros') {
-        marketplaceAppsHoras += (appQuantities[app] || 1) * 1;
-      } else {
-        marketplaceAppsHoras += 1;
-      }
+    appsTicketManagerHoras = 0.67 + (0.5 * (qtdOperacoes + areas));
+
+    selectedApps.forEach((app) => {
+      const qty = appQuantities[app] || 1;
+      marketplaceAppsHoras += getMarketplaceHours(app, qty);
     });
   }
 
-  // Native Connections Logic: 2h per connection (standard)
-  if (selectedNativeConnections && selectedNativeConnections.length > 0) {
-    selectedNativeConnections.forEach(conn => {
-      nativeConnectionsHoras += (connectionQuantities[conn] || 1) * 2;
+  let nativeConnectionsHoras = 0;
+  if (selectedNativeConnections.length > 0) {
+    selectedNativeConnections.forEach((connection) => {
+      nativeConnectionsHoras += (connectionQuantities[connection] || 1) * 2;
     });
   }
 
-  // 3. Escalation Logic (SE)
+  const actionFlowHoras = selectedActionFlows.length * 4.5;
+
+  const hasSupportModule = selectedModules.includes('Support');
+  const hasKnowledgeModule = selectedModules.includes('Knowledge');
+  const sideConversationEligible = hasSupportModule && isSideConversationEligible(skuType, zendeskPlan);
+  const teamsSideConvHoras = sideConversationEligible && hasTeamsSideConv ? 0.5 : 0;
+  const slackSideConvHoras = sideConversationEligible && hasSlackSideConv ? 0.5 : 0;
+
+  const idiomasAdicionais = Math.max(0, operationLanguages - 1);
+  const idiomasHorasBase =
+    supportFuncoes +
+    supportGrupos +
+    (supportCamposTicket * 1.73) +
+    (supportCamposUsuario * 1.8) +
+    (supportCamposOrganizacao * 1.8) +
+    supportVisualizacoes +
+    supportMacros +
+    (supportGatilhosSimples * 0.1) +
+    (supportGatilhosComplexos * 0.1) +
+    (supportAutomacoesSimples * 0.1) +
+    (supportAutomacoesComplexas * 0.1) +
+    copilotIntencoes +
+    copilotEntidades +
+    copilotProcedimentos;
+  const operationLanguagesHoras = idiomasHorasBase * idiomasAdicionais;
+
+  const agentSetupHoras = agents * 0.05;
+  const brandSetupHoras = brands * 0.25;
+  const channelSetupHoras = selectedChannels.reduce((acc, channel) => {
+    const qty = channelQuantities[channel] || 1;
+
+    if (channel === 'web_form') return acc + (qty * 0.08);
+    if (channel === 'web_widget') return acc + (qty * 0.42);
+    return acc + (qty * 0.17);
+  }, 0);
+
+  const supportImplementationHoras = hasSupportModule
+    ? (supportFuncoes * 0.5) + (supportGrupos * 0.2) + (supportCamposTicket * 0.2) + AE_DATABASE.horas_base_modulos.support
+    : 0;
+  const voiceBaseHoras = selectedChannels.includes('voice') ? AE_DATABASE.horas_base_modulos.voice : 0;
+  const analyticsHoras = selectedModules.includes('Analytics') ? AE_DATABASE.horas_base_modulos.analytics : 0;
+  const copilotBaseHoras = hasCopilot ? AE_DATABASE.horas_base_modulos.copilot : 0;
+  const wfmBaseHoras = hasWFM ? AE_DATABASE.horas_base_modulos.wfm : 0;
+  const qaBaseHoras = hasQA ? AE_DATABASE.horas_base_modulos.qa : 0;
+  const adppBaseHoras = selectedModules.includes('ADPP') ? AE_DATABASE.horas_base_modulos.adpp : 0;
+  const adppSetupHoras = selectedModules.includes('ADPP')
+    ? AE_DATABASE.horas_adpp_setup.programacoes_exclusao + AE_DATABASE.horas_adpp_setup.gatilhos_simples
+    : 0;
+
+  const additionalServicesHoras =
+    (hasSupportModule && hasSSO ? 2 : 0) +
+    teamsSideConvHoras +
+    slackSideConvHoras +
+    (hasSupportModule ? operationLanguagesHoras : 0);
+
+  const techHours =
+    supportImplementationHoras +
+    knowledgeHoras +
+    voiceBaseHoras +
+    analyticsHoras +
+    copilotBaseHoras +
+    wfmBaseHoras +
+    qaBaseHoras +
+    adppBaseHoras +
+    adppSetupHoras +
+    appsCondicionaisHoras +
+    appsTicketManagerHoras +
+    marketplaceAppsHoras +
+    nativeConnectionsHoras +
+    actionFlowHoras +
+    additionalServicesHoras +
+    agentSetupHoras +
+    brandSetupHoras +
+    channelSetupHoras;
+
+  const workshopHoras =
+    (selectedModules.some((module) => ['Support', 'Knowledge', 'Analytics'].includes(module)) ? 1 : 0) +
+    (selectedChannels.includes('voice') ? 0.5 : 0) +
+    (hasCopilot ? 0.5 : 0) +
+    (hasAIAgents ? 0.5 : 0) +
+    (hasQA ? 0.5 : 0) +
+    (hasWFM ? 0.5 : 0);
+
+  let trainingHorasBase = 0;
+  if (selectedModules.includes('Analytics') && analyticsTrainingType === 'advanced') {
+    trainingHorasBase = 6;
+  } else if (selectedModules.some((module) => ['Support', 'Knowledge', 'Analytics'].includes(module))) {
+    trainingHorasBase = 4;
+  }
+
+  const trainingHoras =
+    trainingHorasBase +
+    (hasKnowledgeModule ? 1 : 0) +
+    (hasKnowledgeModule && hasCommunity ? 1.5 : 0) +
+    (selectedChannels.includes('voice') ? 2.5 : 0) +
+    (hasCopilot ? 2.5 : 0) +
+    (hasWFM ? 3 : 0) +
+    (hasQA ? 2 : 0) +
+    (hasAIAgents ? 4 : 0) +
+    (selectedModules.includes('ADPP') ? 1 : 0);
+
+  const baseCommonVariables = techHours;
+  const commTechBase = techHours + workshopHoras;
+  const discoveryHours = baseCommonVariables * 0.2;
+  const validationHours = baseCommonVariables * 0.15;
+  const goLiveHours = baseCommonVariables * 0.05;
+  const commTechHours = commTechBase * 0.1;
+  const gpBase = techHours + discoveryHours + validationHours + goLiveHours + workshopHoras + trainingHoras;
+
+  let gpHours = gpBase * 0.176470588235294;
+  const totalBeforeGP = techHours + discoveryHours + validationHours + goLiveHours + commTechHours;
+  if (totalBeforeGP < 30) {
+    gpHours = 0;
+  }
+
   const seLimits = AE_DATABASE.limites_escalonamento_se;
   let escalationRequired = false;
-  let escalationMessage = "";
+  let escalationMessage = '';
 
   if (knowledgeArticles > seLimits.max_artigos) escalationRequired = true;
   if (agents > seLimits.max_agentes) escalationRequired = true;
   if (brands > seLimits.max_marcas) escalationRequired = true;
   if (somaTotalTiposDeCanais > seLimits.max_canais) escalationRequired = true;
-  
-  const mandatoryModules = ['itam', 'ai_agents', 'adpp'];
-  if (selectedModules.some(m => mandatoryModules.includes(m.toLowerCase()))) escalationRequired = true;
-  if (hasAIAgents || selectedModules.includes('ADPP') || hasITAM) escalationRequired = true;
-
+  if (hasAIAgents || selectedModules.includes('AI Agents')) escalationRequired = true;
   if (hasHCCustomization) escalationRequired = true;
-  if (copilotType === 'with_api') escalationRequired = true;
-  if (hasIntegration) escalationRequired = true;
 
   if (escalationRequired) {
-    escalationMessage = "⚠️ ATENÇÃO: Este projeto possui complexidade que exige escalonamento obrigatório para um Sales Engineer.";
-  }
-
-  // Analytics Block
-  let analyticsHoras = 0;
-  if (selectedModules.includes('Analytics')) {
-    analyticsHoras = analyticsTrainingType === 'advanced' ? 8 : 4;
-  }
-
-  // 4. Final Aggregation
-  let techHours = knowledgeHoras + appsCondicionaisHoras + appsTicketManagerHoras + marketplaceAppsHoras + nativeConnectionsHoras + analyticsHoras;
-  
-  // Add Additional Services Hours
-  if (hasSSO) techHours += 1;
-  if (hasITAM) techHours += 2;
-  if (hasTeamsSideConv) techHours += 1;
-  if (hasSlackSideConv) techHours += 1;
-  if (operationLanguages > 1) techHours += (operationLanguages - 1) * 2;
-
-  if (selectedModules.includes('Support')) {
-     techHours += (supportFuncoes * 0.5) + (supportGrupos * 0.2) + (supportCamposTicket * 0.1);
-  }
-  if (hasWFM) techHours += 4;
-  if (hasQA) techHours += 4;
-  if (hasCopilot) techHours += 5;
-
-  if (deploymentType === 'optimization') techHours *= 0.7;
-
-  // 5. New Variable Calculations (GP, Discovery, Validation, Go-live, Com. Técnica)
-  // Base A: Todo o esforço de implantação EXCETO treinamento, integrações nativas e apps
-  const baseStandard = techHours - analyticsHoras - nativeConnectionsHoras - marketplaceAppsHoras - appsCondicionaisHoras - appsTicketManagerHoras;
-  
-  const commTechHours = baseStandard * 0.10;
-  const discoveryHours = baseStandard * 0.20;
-  const validationHours = baseStandard * 0.15;
-  const goLiveHours = baseStandard * 0.05;
-
-  // Base GP: Todo o esforço de implantação EXCETO apps e integrações nativas + Discovery + Validação + Go-live
-  // Note: apps here include marketplace, condiccionais and ticket manager
-  const implEffortExcludingAppsAndIntegrations = techHours - marketplaceAppsHoras - nativeConnectionsHoras - appsCondicionaisHoras - appsTicketManagerHoras;
-  const baseGP = implEffortExcludingAppsAndIntegrations + discoveryHours + validationHours + goLiveHours;
-
-  let gpHours = baseGP * 0.176470588235294;
-  
-  // GP Only counts if total hours (tech + standard variables) is at least 30
-  const totalBeforeGP = techHours + commTechHours + discoveryHours + validationHours + goLiveHours;
-  if (totalBeforeGP < 30) {
-    gpHours = 0;
+    escalationMessage = 'ATENCAO: Este projeto possui complexidade que exige escalonamento obrigatorio para um Sales Engineer.';
   }
 
   const results = {
@@ -264,8 +467,13 @@ export function calculateAEEstimate(inputs: AEInputData) {
       automacoes_complexas: Math.round(supportAutomacoesComplexas),
       politicas_sla: Math.round(supportPoliticasSLA)
     },
-    knowledge: { horas_estimadas: knowledgeHoras },
-    voice: { ivr: Math.round(voiceIVR), saudacoes: Math.round(voiceSaudacoes) },
+    knowledge: {
+      horas_estimadas: round2(knowledgeHoras)
+    },
+    voice: {
+      ivr: Math.round(voiceIVR),
+      saudacoes: Math.round(voiceSaudacoes)
+    },
     copilot: {
       intencoes_personalizadas: Math.round(copilotIntencoes),
       entidades: Math.round(copilotEntidades),
@@ -296,34 +504,55 @@ export function calculateAEEstimate(inputs: AEInputData) {
       hashtags: Math.round(qaHashtags)
     },
     apps_aktie_now: {
-      condicionais_avancadas_horas: parseFloat(appsCondicionaisHoras.toFixed(2)),
-      ticket_manager_horas: parseFloat(appsTicketManagerHoras.toFixed(2))
+      condicionais_avancadas_horas: round2(appsCondicionaisHoras),
+      ticket_manager_horas: round2(appsTicketManagerHoras)
     },
     marketplace_apps: {
-      horas_estimadas: marketplaceAppsHoras
+      horas_estimadas: round2(marketplaceAppsHoras)
     },
     native_connections: {
-      horas_estimadas: nativeConnectionsHoras
+      horas_estimadas: round2(nativeConnectionsHoras)
+    },
+    action_flows: {
+      horas_estimadas: round2(actionFlowHoras),
+      quantidade: selectedActionFlows.length
     },
     analytics: {
-      horas_estimadas: analyticsHoras,
-      treinamento: analyticsTrainingType
+      horas_estimadas: round2(analyticsHoras),
+      treinamento: analyticsTrainingType,
+      treinamento_horas: round2(trainingHorasBase)
+    },
+    workshops: {
+      horas_estimadas: round2(workshopHoras)
+    },
+    trainings: {
+      horas_estimadas: round2(trainingHoras)
+    },
+    setup: {
+      agentes_horas: round2(agentSetupHoras),
+      marcas_horas: round2(brandSetupHoras),
+      canais_horas: round2(channelSetupHoras),
+      idiomas_horas: round2(operationLanguagesHoras),
+      side_conversations_horas: round2(teamsSideConvHoras + slackSideConvHoras),
+      sso_horas: hasSupportModule && hasSSO ? 2 : 0,
+      adpp_setup_horas: round2(adppSetupHoras)
     },
     variables: {
-      gp: parseFloat(gpHours.toFixed(2)),
-      discovery: parseFloat(discoveryHours.toFixed(2)),
-      validation: parseFloat(validationHours.toFixed(2)),
-      go_live: parseFloat(goLiveHours.toFixed(2)),
-      comunicacao_tecnica: parseFloat(commTechHours.toFixed(2)),
-      base_standard: parseFloat(baseStandard.toFixed(2)),
-      base_gp: parseFloat(baseGP.toFixed(2))
+      gp: round2(gpHours),
+      discovery: round2(discoveryHours),
+      validation: round2(validationHours),
+      go_live: round2(goLiveHours),
+      comunicacao_tecnica: round2(commTechHours),
+      base_implantacao: round2(techHours),
+      base_comunicacao_tecnica: round2(commTechBase),
+      base_gp: round2(gpBase)
     }
   };
 
   const totalFinal = techHours + gpHours + discoveryHours + validationHours + goLiveHours + commTechHours;
 
   return {
-    techHours,
+    techHours: round2(techHours),
     totalFinal: parseFloat(totalFinal.toFixed(1)),
     results,
     escalationRequired,
