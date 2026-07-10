@@ -333,6 +333,14 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     );
   };
 
+  const addActionFlow = (name: string) => {
+    if (!name) return;
+
+    setSelectedActionFlows(prev =>
+      prev.includes(name) ? prev : [...prev, name]
+    );
+  };
+
   const canUseSideConversations = useMemo(
     () => isSideConversationEligible(skuType, zendeskPlan),
     [skuType, zendeskPlan]
@@ -857,21 +865,36 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Action Flow</label>
                   <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
-                    <div className="flex flex-wrap gap-2">
+                    <select
+                      value=""
+                      onChange={(e) => addActionFlow(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                    >
+                      <option value="" disabled>
+                        Selecione uma integração do Action Flow
+                      </option>
                       {ACTION_FLOW_OPTIONS.map(flow => (
-                        <button
-                          key={flow}
-                          onClick={() => toggleActionFlow(flow)}
-                          className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
-                            selectedActionFlows.includes(flow)
-                              ? 'bg-brand-dark border-brand-dark text-white shadow-lg'
-                              : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
-                          }`}
-                        >
+                        <option key={flow} value={flow} disabled={selectedActionFlows.includes(flow)}>
                           {flow}
-                        </button>
+                        </option>
                       ))}
-                    </div>
+                    </select>
+
+                    {selectedActionFlows.length > 0 && (
+                      <div className="flex flex-wrap gap-2">
+                        {selectedActionFlows.map(flow => (
+                          <button
+                            key={flow}
+                            onClick={() => toggleActionFlow(flow)}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-dark bg-brand-dark text-white text-[9px] font-black uppercase transition-all hover:opacity-90"
+                          >
+                            <span>{flow}</span>
+                            <X className="w-3 h-3" />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
                       Cada integracao adiciona 4.5h de implantacao.
                     </p>
