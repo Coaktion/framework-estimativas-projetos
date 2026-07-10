@@ -40,7 +40,7 @@ export async function updateUserPreferenceAction(data: any) {
   return prefs;
 }
 
-export async function savePresetAction(name: string, hiddenItems: string[]) {
+export async function savePresetAction(name: string, hiddenItems: string[], layoutConfig: any = {}) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) throw new Error("Não autorizado");
 
@@ -51,7 +51,7 @@ export async function savePresetAction(name: string, hiddenItems: string[]) {
   });
 
   const presets = currentPrefs?.presets ? JSON.parse(currentPrefs.presets) : [];
-  const newPresets = [...presets, { name, hiddenItems, createdAt: new Date() }];
+  const newPresets = [...presets, { name, hiddenItems, layoutConfig, createdAt: new Date() }];
 
   await prisma.userPreference.update({
     where: { userId },

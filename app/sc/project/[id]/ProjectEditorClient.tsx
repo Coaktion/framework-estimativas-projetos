@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useTransition } from 'react';
+import { Fragment, useState, useMemo, useEffect, useTransition } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
   CheckSquare, Bot, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X
@@ -10,25 +10,148 @@ import { useRouter } from 'next/navigation';
 import { saveProjectVersionAction, cloneProjectVersionAction } from './actions';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
+type LayoutConfig = {
+  categoryOrder: string[];
+  subcategoryOrder: Record<string, string[]>;
+  itemSubcategories: Record<string, string>;
+  itemOrder: Record<string, string[]>;
+};
+
+const DEFAULT_SUBCATEGORY = 'Geral';
+
+function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function moveItem<T>(list: T[], fromIndex: number, toIndex: number) {
+  const next = [...list];
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
+  return next;
+}
+
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function subcategoryKey(category: string, subcategory: string) {
+  return `${category}::${subcategory}`;
+}
+
+function inferDefaultSubcategory(category: string, pkg: any) {
+  const haystack = `${category} ${pkg?.name || ''} ${pkg?.tooltip || ''}`.toLowerCase();
+
+  if (/(email|whatsapp|voice|sms|facebook|instagram|teams|slack|web widget|web form|canal|channel|messaging)/.test(haystack)) {
+    return 'Canais';
+  }
+
+  if (/(integra|integration|api|webhook|marketplace|app|oauth|sso)/.test(haystack)) {
+    return 'Integrações';
+  }
+
+  if (/(campo|field|formul|form|catálogo|catalog|ticket|usuário|user|organiza)/.test(haystack)) {
+    return 'Campos e Formulários';
+  }
+
+  if (/(gatilho|trigger|automa|macro|view|visualiza|sla|regra|condicion)/.test(haystack)) {
+    return 'Automações e Regras';
+  }
+
+  if (/(article|artigo|help center|knowledge|community|guide|conteúdo)/.test(haystack)) {
+    return 'Conteúdo e Help Center';
+  }
+
+  if (/(dashboard|analytics|report|relatório|insight)/.test(haystack)) {
+    return 'Relatórios';
+  }
+
+  return DEFAULT_SUBCATEGORY;
+}
+
+function normalizeLayoutConfig(
+  rawLayout: Partial<LayoutConfig> | null | undefined,
+  categories: string[],
+  packagesByCategory: Record<string, any[]>
+): LayoutConfig {
+  const itemSubcategories = { ...(rawLayout?.itemSubcategories || {}) };
+  const subcategoryOrder: Record<string, string[]> = { ...(rawLayout?.subcategoryOrder || {}) };
+  const itemOrder: Record<string, string[]> = { ...(rawLayout?.itemOrder || {}) };
+  const categoryOrder = uniqueStrings([...(rawLayout?.categoryOrder || []), ...categories]);
+
+  categories.forEach((category) => {
+    const categoryPackages = packagesByCategory[category] || [];
+    const defaultAssignments = categoryPackages.map((pkg: any) => {
+      const itemId = String(pkg.id);
+      const subcategory = itemSubcategories[itemId] || inferDefaultSubcategory(category, pkg);
+      itemSubcategories[itemId] = subcategory;
+      return subcategory;
+    });
+
+    const orderedSubcategories = uniqueStrings([
+      ...(subcategoryOrder[category] || []),
+      ...defaultAssignments,
+      DEFAULT_SUBCATEGORY
+    ]);
+    subcategoryOrder[category] = orderedSubcategories;
+
+    orderedSubcategories.forEach((subcategory) => {
+      const key = subcategoryKey(category, subcategory);
+      const assignedItemIds = categoryPackages
+        .filter((pkg: any) => itemSubcategories[String(pkg.id)] === subcategory)
+        .map((pkg: any) => String(pkg.id));
+
+      itemOrder[key] = uniqueStrings([
+        ...(itemOrder[key] || []).filter((itemId) => assignedItemIds.includes(itemId)),
+        ...assignedItemIds
+      ]);
+    });
+  });
+
+  return {
+    categoryOrder,
+    subcategoryOrder,
+    itemSubcategories,
+    itemOrder
+  };
+}
+
 export default function ProjectEditorClient({ project, categories, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [hiddenItems, setHiddenItems] = useState<number[]>(preferences?.hiddenItems ? JSON.parse(preferences.hiddenItems) : []);
+  const [hiddenItems, setHiddenItems] = useState<number[]>(safeJsonParse(preferences?.hiddenItems, []));
   const [presetName, setPresetName] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [showHiddenTab, setShowHiddenTab] = useState(false);
-  
-  const presets = preferences?.presets ? JSON.parse(preferences.presets) : [];
+  const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() =>
+    normalizeLayoutConfig(safeJsonParse(preferences?.layoutConfig, {}), categories, packagesByCategory)
+  );
+
+  const presets = safeJsonParse(preferences?.presets, []);
+
+  const orderedCategories = useMemo(() => {
+    return uniqueStrings([...(layoutConfig.categoryOrder || []), ...categories]);
+  }, [layoutConfig.categoryOrder, categories]);
 
   const handleSavePreset = async () => {
     if (!presetName) return;
-    await savePresetAction(presetName, hiddenItems.map(String));
+    await savePresetAction(presetName, hiddenItems.map(String), layoutConfig);
     setPresetName('');
     alert('Preset salvo com sucesso! Este preset agora está disponível apenas para você.');
   };
 
-  const applyPreset = (preset: any) => {
-    setHiddenItems(preset.hiddenItems.map(Number));
+  const applyPreset = async (preset: any) => {
+    const presetHiddenItems = Array.isArray(preset?.hiddenItems) ? preset.hiddenItems : [];
+    setHiddenItems(presetHiddenItems.map(Number));
+    const nextLayout = normalizeLayoutConfig(preset.layoutConfig || layoutConfig, categories, packagesByCategory);
+    setLayoutConfig(nextLayout);
+    await updateUserPreferenceAction({
+      hiddenItems: JSON.stringify(presetHiddenItems),
+      layoutConfig: JSON.stringify(nextLayout)
+    });
   };
 
   const handleDeletePreset = async (name: string) => {
@@ -75,9 +198,170 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Flatten packages for easy lookup
-  const allPackages = useMemo(() => {
-    return Object.values(packagesByCategory).flat();
+  const allPackages = useMemo<any[]>(() => {
+    return Object.values(packagesByCategory).flat() as any[];
   }, [packagesByCategory]);
+
+  useEffect(() => {
+    setLayoutConfig((current) => normalizeLayoutConfig(current, categories, packagesByCategory));
+  }, [categories, packagesByCategory]);
+
+  const persistLayoutConfig = async (nextLayout: LayoutConfig) => {
+    const normalized = normalizeLayoutConfig(nextLayout, categories, packagesByCategory);
+    setLayoutConfig(normalized);
+    await updateUserPreferenceAction({ layoutConfig: JSON.stringify(normalized) });
+  };
+
+  const reorderCategory = async (category: string, direction: 'up' | 'down') => {
+    const currentIndex = orderedCategories.indexOf(category);
+    if (currentIndex === -1) return;
+
+    const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= orderedCategories.length) return;
+
+    await persistLayoutConfig({
+      ...layoutConfig,
+      categoryOrder: moveItem(orderedCategories, currentIndex, nextIndex)
+    });
+  };
+
+  const addSubcategory = async (category: string) => {
+    const input = prompt(`Nome da nova subcategoria para ${category}:`, '');
+    const name = input?.trim();
+    if (!name) return;
+
+    const nextOrder = uniqueStrings([...(layoutConfig.subcategoryOrder[category] || []), name]);
+    await persistLayoutConfig({
+      ...layoutConfig,
+      subcategoryOrder: {
+        ...layoutConfig.subcategoryOrder,
+        [category]: nextOrder
+      }
+    });
+  };
+
+  const renameSubcategory = async (category: string, currentName: string) => {
+    const input = prompt(`Novo nome para a subcategoria "${currentName}":`, currentName);
+    const nextName = input?.trim();
+    if (!nextName || nextName === currentName) return;
+
+    const nextItemSubcategories = { ...layoutConfig.itemSubcategories };
+    Object.entries(nextItemSubcategories).forEach(([itemId, subcategory]) => {
+      const pkg: any = allPackages.find((candidate: any) => String(candidate.id) === itemId);
+      if (pkg?.categoryName === category && subcategory === currentName) {
+        nextItemSubcategories[itemId] = nextName;
+      }
+    });
+
+    const nextLayout = {
+      ...layoutConfig,
+      subcategoryOrder: {
+        ...layoutConfig.subcategoryOrder,
+        [category]: (layoutConfig.subcategoryOrder[category] || []).map((name) => name === currentName ? nextName : name)
+      },
+      itemSubcategories: nextItemSubcategories,
+      itemOrder: { ...layoutConfig.itemOrder }
+    };
+
+    const currentKey = subcategoryKey(category, currentName);
+    const nextKey = subcategoryKey(category, nextName);
+    nextLayout.itemOrder[nextKey] = uniqueStrings([
+      ...(nextLayout.itemOrder[nextKey] || []),
+      ...(nextLayout.itemOrder[currentKey] || [])
+    ]);
+    delete nextLayout.itemOrder[currentKey];
+
+    await persistLayoutConfig(nextLayout);
+  };
+
+  const removeSubcategory = async (category: string, subcategory: string) => {
+    if (subcategory === DEFAULT_SUBCATEGORY) return;
+    if (!confirm(`Remover a subcategoria "${subcategory}"? Os itens serão movidos para "${DEFAULT_SUBCATEGORY}".`)) return;
+
+    const nextItemSubcategories = { ...layoutConfig.itemSubcategories };
+    Object.entries(nextItemSubcategories).forEach(([itemId, currentSubcategory]) => {
+      const pkg: any = allPackages.find((candidate: any) => String(candidate.id) === itemId);
+      if (pkg?.categoryName === category && currentSubcategory === subcategory) {
+        nextItemSubcategories[itemId] = DEFAULT_SUBCATEGORY;
+      }
+    });
+
+    const nextLayout = {
+      ...layoutConfig,
+      subcategoryOrder: {
+        ...layoutConfig.subcategoryOrder,
+        [category]: uniqueStrings([
+          ...(layoutConfig.subcategoryOrder[category] || []).filter((name) => name !== subcategory),
+          DEFAULT_SUBCATEGORY
+        ])
+      },
+      itemSubcategories: nextItemSubcategories,
+      itemOrder: { ...layoutConfig.itemOrder }
+    };
+
+    delete nextLayout.itemOrder[subcategoryKey(category, subcategory)];
+    await persistLayoutConfig(nextLayout);
+  };
+
+  const reorderSubcategory = async (category: string, subcategory: string, direction: 'up' | 'down') => {
+    const currentOrder = layoutConfig.subcategoryOrder[category] || [DEFAULT_SUBCATEGORY];
+    const currentIndex = currentOrder.indexOf(subcategory);
+    if (currentIndex === -1) return;
+
+    const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= currentOrder.length) return;
+
+    await persistLayoutConfig({
+      ...layoutConfig,
+      subcategoryOrder: {
+        ...layoutConfig.subcategoryOrder,
+        [category]: moveItem(currentOrder, currentIndex, nextIndex)
+      }
+    });
+  };
+
+  const moveItemToSubcategory = async (category: string, itemId: string, nextSubcategory: string) => {
+    const currentSubcategory = layoutConfig.itemSubcategories[itemId] || DEFAULT_SUBCATEGORY;
+    if (currentSubcategory === nextSubcategory) return;
+
+    const currentKey = subcategoryKey(category, currentSubcategory);
+    const nextKey = subcategoryKey(category, nextSubcategory);
+
+    await persistLayoutConfig({
+      ...layoutConfig,
+      subcategoryOrder: {
+        ...layoutConfig.subcategoryOrder,
+        [category]: uniqueStrings([...(layoutConfig.subcategoryOrder[category] || []), nextSubcategory])
+      },
+      itemSubcategories: {
+        ...layoutConfig.itemSubcategories,
+        [itemId]: nextSubcategory
+      },
+      itemOrder: {
+        ...layoutConfig.itemOrder,
+        [currentKey]: (layoutConfig.itemOrder[currentKey] || []).filter((currentItemId) => currentItemId !== itemId),
+        [nextKey]: uniqueStrings([...(layoutConfig.itemOrder[nextKey] || []), itemId])
+      }
+    });
+  };
+
+  const reorderItemInSubcategory = async (category: string, subcategory: string, itemId: string, direction: 'up' | 'down') => {
+    const key = subcategoryKey(category, subcategory);
+    const currentOrder = layoutConfig.itemOrder[key] || [];
+    const currentIndex = currentOrder.indexOf(itemId);
+    if (currentIndex === -1) return;
+
+    const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (nextIndex < 0 || nextIndex >= currentOrder.length) return;
+
+    await persistLayoutConfig({
+      ...layoutConfig,
+      itemOrder: {
+        ...layoutConfig.itemOrder,
+        [key]: moveItem(currentOrder, currentIndex, nextIndex)
+      }
+    });
+  };
 
   const [customPackages, setCustomPackages] = useState<any[]>(() => {
     // Extract custom packages from formData on initial load
@@ -117,7 +401,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
   const [safetyHours, setSafetyHours] = useState<Record<string, number>>(() => {
     try {
-      return initialVersion?.safetyHours ? JSON.parse(initialVersion.safetyHours) : {};
+      return currentVersion?.safetyHours ? JSON.parse(currentVersion.safetyHours) : {};
     } catch (e) {
       return {};
     }
@@ -190,7 +474,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       const varExclusions = JSON.parse(vDef.excludedItems || '[]');
       
       let base = 0;
-      const allItems = allPackages; // All library items
+      const allItems: any[] = allPackages; // All library items
 
       if (targets.length === 0 && targetCats.length === 0) {
         // Global variable: sum everything NOT excluded from this specific variable
@@ -453,6 +737,24 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
   const removeMarketplaceApp = (id: number) => {
     setMarketplaceApps(prev => prev.filter(app => app.id !== id));
+  };
+
+  const getOrderedPackagesForSubcategory = (category: string, subcategory: string) => {
+    const key = subcategoryKey(category, subcategory);
+    const orderedIds = layoutConfig.itemOrder[key] || [];
+    const visiblePackages = (packagesByCategory[category] || [])
+      .filter((pkg: any) => !hiddenItems.includes(pkg.id))
+      .filter((pkg: any) => (layoutConfig.itemSubcategories[String(pkg.id)] || DEFAULT_SUBCATEGORY) === subcategory);
+
+    return [...visiblePackages].sort((a: any, b: any) => {
+      const indexA = orderedIds.indexOf(String(a.id));
+      const indexB = orderedIds.indexOf(String(b.id));
+
+      if (indexA === -1 && indexB === -1) return a.name.localeCompare(b.name);
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
   };
 
   const isAEEstimate = formData?.type === 'AE_ESTIMATE';
@@ -764,7 +1066,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                           >
                             <div className="flex flex-col">
                               <span>{p.name}</span>
-                              <span className="text-[7px] text-slate-300 font-black">{p.hiddenItems.length} itens ocultos</span>
+                              <span className="text-[7px] text-slate-300 font-black">{Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0} itens ocultos</span>
                             </div>
                             <Check className="w-3 h-3 text-emerald-500 opacity-0 group-hover/preset:opacity-100 transition-opacity" />
                           </button>
@@ -807,7 +1109,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
         </div>
         
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
-          {categories.map((cat: string) => {
+          {orderedCategories.map((cat: string, index: number) => {
             const isChecked = formData[`check_area_${cat}`] === 'on';
             return (
               <div 
@@ -820,12 +1122,38 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   }));
                   setShowHiddenTab(false);
                 }}
-                className={`group flex flex-col items-center justify-center p-6 rounded-3xl border-2 transition-all cursor-pointer select-none ${
+                className={`relative group flex flex-col items-center justify-center p-6 rounded-3xl border-2 transition-all cursor-pointer select-none ${
                   isChecked 
                     ? 'bg-brand-primary border-brand-primary' 
                     : 'border-slate-50 bg-slate-50/30 hover:bg-white hover:border-brand-primary/30 hover:shadow-xl'
                 }`}
               >
+                <div className="absolute top-3 right-3 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void reorderCategory(cat, 'up');
+                    }}
+                    disabled={index === 0}
+                    className="p-1 rounded-md bg-white/80 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                    title="Mover categoria para cima"
+                  >
+                    <ChevronDown className="w-3 h-3 rotate-180" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void reorderCategory(cat, 'down');
+                    }}
+                    disabled={index === orderedCategories.length - 1}
+                    className="p-1 rounded-md bg-white/80 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                    title="Mover categoria para baixo"
+                  >
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                </div>
                 <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center mb-3 transition-all ${
                   isChecked ? 'border-white/50 bg-white/20' : 'border-slate-200'
                 }`}>
@@ -937,7 +1265,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
           </div>
         )}
 
-        {categories.map((cat: string) => (
+        {orderedCategories.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
             <div key={cat} className="bg-white rounded-[2rem] border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
               <div 
@@ -951,6 +1279,17 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <h3 className="text-base font-black text-brand-dark font-heading uppercase tracking-tight">{cat}</h3>
                 </div>
                 <div className="flex items-center space-x-2 text-slate-400 group-hover:text-brand-primary transition-colors">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void addSubcategory(cat);
+                    }}
+                    className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-500 hover:text-brand-primary border border-slate-200 text-[8px] font-black uppercase tracking-widest"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Subcategoria</span>
+                  </button>
                   <span className="text-[9px] font-black uppercase tracking-[0.15em]">Configurar Itens</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
@@ -965,108 +1304,207 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                           <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Pacote Sugerido</th>
                           <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Hrs Unit.</th>
                           <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] w-32">Quantidade</th>
+                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Organização</th>
                           <th className="pb-3 text-right text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Ajuste Manual</th>
                           <th className="pb-3 text-right text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Subtotal</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
-                        {packagesByCategory[cat]
-                          .filter((p: any) => !hiddenItems.includes(p.id))
-                          .map((p: any) => {
-                          // Conditional Logic: Show Item X only if Item Y has a value
-                          const isDependencyMet = !p.dependsOnItemId || 
-                                                 (formData[`item_${p.dependsOnItemId}_qty`] > 0);
-                          
-                          if (!isDependencyMet) return null;
-
-                          const qty = parseFloat(formData[`item_${p.id}_qty`] || 0);
-                          const isOverride = formData[`item_override_check_${p.id}`] === 'on';
-                          const overrideVal = parseFloat(formData[`item_override_val_${p.id}`] || 0);
-                          const rowTotal = isOverride ? overrideVal : qty * p.hours;
+                        {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((subcategory, subcategoryIndex, allSubcategories) => {
+                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory);
 
                           return (
-                            <tr key={p.id} className={`hover:bg-slate-50/20 transition-colors group ${hiddenItems.includes(p.id) ? 'opacity-40' : ''}`}>
-                              <td className="py-4 pr-4">
-                                <div className="flex items-center space-x-2">
-                                  <div className="font-black text-brand-dark text-xs mb-0.5 tracking-tight uppercase">{p.name}</div>
-                                  <button 
-                                    type="button"
-                                    onClick={() => toggleHideItem(p.id)}
-                                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
-                                    title={hiddenItems.includes(p.id) ? "Mostrar Item" : "Ocultar Item"}
-                                  >
-                                    <EyeOff className="w-3 h-3" />
-                                  </button>
-                                  {p.tooltip && (
-                                    <div className="group/tooltip relative cursor-help">
-                                      <div className="w-3 h-3 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-[8px] font-black group-hover/tooltip:bg-brand-primary group-hover/tooltip:text-white transition-colors">?</div>
-                                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-white text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
-                                        {p.tooltip}
-                                      </div>
+                            <Fragment key={`${cat}_${subcategory}`}>
+                              <tr key={`${cat}_${subcategory}_header`} className="bg-slate-50/70 border-y border-slate-200">
+                                <td colSpan={6} className="py-3 px-4">
+                                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-[8px] font-black uppercase tracking-widest text-brand-dark">
+                                        {subcategory}
+                                      </span>
+                                      <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">
+                                        {orderedPackages.length} item(ns)
+                                      </span>
                                     </div>
-                                  )}
-                                </div>
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">{p.skillName || p.skill}</span>
-                                  {p.dependsOnItemId && (
-                                    <span className="text-[8px] bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black uppercase tracking-widest">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
-                                  )}
-                                </div>
-                                <div className="text-[9px] text-slate-400 font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
-                                  {p.scopeIncluded}
-                                </div>
-                              </td>
-                              <td className="py-4 text-center text-[10px] font-black text-slate-400 tracking-tighter">{p.hours}</td>
-                              <td className="py-4 px-4">
-                                <div className="flex justify-center">
-                                  <input 
-                                    type="number" 
-                                    min="0"
-                                    name={`item_${p.id}_qty`}
-                                    value={formData[`item_${p.id}_qty`] || ''}
-                                    onChange={handleInputChange}
-                                    onKeyDown={handleKeyDown}
-                                    className="w-16 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-4 text-right">
-                                <div className="flex items-center justify-end space-x-2">
-                                  <label className="flex items-center cursor-pointer group/toggle">
-                                    <input 
-                                      type="checkbox" 
-                                      name={`item_override_check_${p.id}`}
-                                      checked={formData[`item_override_check_${p.id}`] === 'on'}
-                                      onChange={handleInputChange}
-                                      className="sr-only"
-                                    />
-                                    <div className={`w-6 h-3 rounded-full relative shadow-inner transition-all ${
-                                      formData[`item_override_check_${p.id}`] === 'on' ? 'bg-brand-secondary' : 'bg-slate-100'
-                                    }`}>
-                                      <div className={`absolute top-[1px] left-[1px] bg-white rounded-full h-2.5 w-2.5 transition-all ${
-                                        formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
-                                      }`} />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderSubcategory(cat, subcategory, 'up')}
+                                        disabled={subcategoryIndex === 0}
+                                        className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title="Mover subcategoria para cima"
+                                      >
+                                        <ChevronDown className="w-3 h-3 rotate-180" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderSubcategory(cat, subcategory, 'down')}
+                                        disabled={subcategoryIndex === allSubcategories.length - 1}
+                                        className="p-1.5 rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title="Mover subcategoria para baixo"
+                                      >
+                                        <ChevronDown className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void renameSubcategory(cat, subcategory)}
+                                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary"
+                                      >
+                                        Renomear
+                                      </button>
+                                      {subcategory !== DEFAULT_SUBCATEGORY && (
+                                        <button
+                                          type="button"
+                                          onClick={() => void removeSubcategory(cat, subcategory)}
+                                          className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-100 text-[8px] font-black uppercase tracking-widest text-red-500 hover:bg-red-100"
+                                        >
+                                          Remover
+                                        </button>
+                                      )}
                                     </div>
-                                    <span className="ml-1.5 text-[7px] font-black text-slate-400 group-hover/toggle:text-brand-secondary transition-colors uppercase tracking-widest">Manual</span>
-                                  </label>
-                                  {formData[`item_override_check_${p.id}`] === 'on' && (
-                                    <input 
-                                      type="number" 
-                                      min="0"
-                                      step="0.1"
-                                      name={`item_override_val_${p.id}`}
-                                      value={formData[`item_override_val_${p.id}`] || ''}
-                                      onChange={handleInputChange}
-                                      placeholder="0.0" 
-                                      className="w-16 bg-purple-50/50 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right focus:ring-2 focus:ring-brand-secondary outline-none"
-                                    />
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-4 text-right font-black text-brand-dark text-xs tracking-tighter">
-                                {rowTotal.toFixed(1)}
-                              </td>
-                            </tr>
+                                  </div>
+                                </td>
+                              </tr>
+
+                              {orderedPackages.length === 0 ? (
+                                <tr key={`${cat}_${subcategory}_empty`} className="bg-white">
+                                  <td colSpan={6} className="py-4 px-4 text-[9px] font-bold uppercase tracking-widest text-slate-300 text-center">
+                                    Nenhum item nesta subcategoria.
+                                  </td>
+                                </tr>
+                              ) : (
+                                orderedPackages.map((p: any) => {
+                                  const isDependencyMet = !p.dependsOnItemId ||
+                                    (formData[`item_${p.dependsOnItemId}_qty`] > 0);
+
+                                  if (!isDependencyMet) return null;
+
+                                  const qty = parseFloat(formData[`item_${p.id}_qty`] || 0);
+                                  const isOverride = formData[`item_override_check_${p.id}`] === 'on';
+                                  const overrideVal = parseFloat(formData[`item_override_val_${p.id}`] || 0);
+                                  const rowTotal = isOverride ? overrideVal : qty * p.hours;
+                                  const itemId = String(p.id);
+                                  const currentItemOrder = layoutConfig.itemOrder[subcategoryKey(cat, subcategory)] || [];
+                                  const itemIndex = currentItemOrder.indexOf(itemId);
+
+                                  return (
+                                    <tr key={p.id} className="hover:bg-slate-50/20 transition-colors group">
+                                      <td className="py-4 pr-4">
+                                        <div className="flex items-center space-x-2">
+                                          <div className="font-black text-brand-dark text-xs mb-0.5 tracking-tight uppercase">{p.name}</div>
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleHideItem(p.id)}
+                                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
+                                            title="Ocultar Item"
+                                          >
+                                            <EyeOff className="w-3 h-3" />
+                                          </button>
+                                          {p.tooltip && (
+                                            <div className="group/tooltip relative cursor-help">
+                                              <div className="w-3 h-3 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center text-[8px] font-black group-hover/tooltip:bg-brand-primary group-hover/tooltip:text-white transition-colors">?</div>
+                                              <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-white text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
+                                                {p.tooltip}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center space-x-2 mb-1">
+                                          <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">{p.skillName || p.skill}</span>
+                                          {p.dependsOnItemId && (
+                                            <span className="text-[8px] bg-amber-50 text-amber-600 px-2 py-1 rounded-lg font-black uppercase tracking-widest">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
+                                          )}
+                                        </div>
+                                        <div className="text-[9px] text-slate-400 font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
+                                          {p.scopeIncluded}
+                                        </div>
+                                      </td>
+                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 tracking-tighter">{p.hours}</td>
+                                      <td className="py-4 px-4">
+                                        <div className="flex justify-center">
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            name={`item_${p.id}_qty`}
+                                            value={formData[`item_${p.id}_qty`] || ''}
+                                            onChange={handleInputChange}
+                                            onKeyDown={handleKeyDown}
+                                            className="w-16 bg-slate-50 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
+                                          />
+                                        </div>
+                                      </td>
+                                      <td className="py-4 text-center">
+                                        <div className="flex items-center justify-center gap-2">
+                                          <select
+                                            value={subcategory}
+                                            onChange={(e) => void moveItemToSubcategory(cat, itemId, e.target.value)}
+                                            className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-[8px] font-black uppercase outline-none"
+                                          >
+                                            {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((option) => (
+                                              <option key={option} value={option}>{option}</option>
+                                            ))}
+                                          </select>
+                                          <button
+                                            type="button"
+                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
+                                            disabled={itemIndex <= 0}
+                                            className="p-1 rounded-md bg-slate-50 border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                            title="Mover item para cima"
+                                          >
+                                            <ChevronDown className="w-3 h-3 rotate-180" />
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
+                                            disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
+                                            className="p-1 rounded-md bg-slate-50 border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                            title="Mover item para baixo"
+                                          >
+                                            <ChevronDown className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </td>
+                                      <td className="py-4 text-right">
+                                        <div className="flex items-center justify-end space-x-2">
+                                          <label className="flex items-center cursor-pointer group/toggle">
+                                            <input
+                                              type="checkbox"
+                                              name={`item_override_check_${p.id}`}
+                                              checked={formData[`item_override_check_${p.id}`] === 'on'}
+                                              onChange={handleInputChange}
+                                              className="sr-only"
+                                            />
+                                            <div className={`w-6 h-3 rounded-full relative shadow-inner transition-all ${
+                                              formData[`item_override_check_${p.id}`] === 'on' ? 'bg-brand-secondary' : 'bg-slate-100'
+                                            }`}>
+                                              <div className={`absolute top-[1px] left-[1px] bg-white rounded-full h-2.5 w-2.5 transition-all ${
+                                                formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
+                                              }`} />
+                                            </div>
+                                            <span className="ml-1.5 text-[7px] font-black text-slate-400 group-hover/toggle:text-brand-secondary transition-colors uppercase tracking-widest">Manual</span>
+                                          </label>
+                                          {formData[`item_override_check_${p.id}`] === 'on' && (
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              step="0.1"
+                                              name={`item_override_val_${p.id}`}
+                                              value={formData[`item_override_val_${p.id}`] || ''}
+                                              onChange={handleInputChange}
+                                              placeholder="0.0"
+                                              className="w-16 bg-purple-50/50 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right focus:ring-2 focus:ring-brand-secondary outline-none"
+                                            />
+                                          )}
+                                        </div>
+                                      </td>
+                                      <td className="py-4 text-right font-black text-brand-dark text-xs tracking-tighter">
+                                        {rowTotal.toFixed(1)}
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </Fragment>
                           );
                         })}
                         
@@ -1133,6 +1571,11 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                                   onChange={(e) => updateCustomPackage(pkg.id, 'qty', e.target.value)}
                                   className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary outline-none"
                                 />
+                              </td>
+                              <td className="py-4 text-center align-top pt-6">
+                                <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-400">
+                                  Personalizado
+                                </span>
                               </td>
                               <td className="py-4 text-xs align-top text-right pt-6">
                                 <div className="flex items-center justify-end space-x-2">

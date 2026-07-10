@@ -32,6 +32,7 @@ model UserPreference {
   theme           String   @default("light") // light, dark
   isCompact       Boolean  @default(false)
   hiddenItems     String   @default("[]") // JSON array of package IDs
+  layoutConfig    String   @default("{}") // JSON object com ordem e subcategorias personalizadas
   presets         String   @default("[]") // JSON array of preset objects
   updatedAt       DateTime @updatedAt
 }
