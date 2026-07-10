@@ -13,6 +13,13 @@ import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
 import { ACTION_FLOW_OPTIONS, calculateAEEstimate, isSideConversationEligible } from '@/lib/ae-engine';
 
+const PLAN_RANK = {
+  team: 1,
+  growth: 2,
+  professional: 3,
+  enterprise: 4
+} as const;
+
 export default function AEClient({ packages, variables, initialClientName = '' }: any) {
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
@@ -24,7 +31,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const [clientObjectives, setClientObjectives] = useState('');
   const [successIndicators, setSuccessIndicators] = useState('');
   
-  const [selectedModules, setSelectedModules] = useState<string[]>([]);
+  const [selectedModules, setSelectedModules] = useState<string[]>(['Support']);
   const [analyticsTrainingType, setAnalyticsTrainingType] = useState<'standard' | 'advanced'>('standard');
   const [knowledgeArticles, setKnowledgeArticles] = useState(0);
   const [hasCommunity, setHasCommunity] = useState(false);
@@ -44,11 +51,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const [selectedNativeConnections, setSelectedNativeConnections] = useState<string[]>([]);
   const [connectionQuantities, setConnectionQuantities] = useState<Record<string, number>>({});
 
-  const [agents, setAgents] = useState(0);
-  const [brands, setBrands] = useState(0);
-  const [selectedChannels, setSelectedChannels] = useState<string[]>([]);
-  const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>({});
-  const [areas, setAreas] = useState(0);
+  const [agents, setAgents] = useState(1);
+  const [brands, setBrands] = useState(1);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(['web_form']);
+  const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>({ web_form: 1 });
+  const [areas, setAreas] = useState(1);
   const [showExtraChannels, setShowExtraChannels] = useState(false);
   const [hasIntegration, setHasIntegration] = useState(false);
   const [selectedActionFlows, setSelectedActionFlows] = useState<string[]>([]);
@@ -70,7 +77,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setZohoLink('');
     setClientObjectives('');
     setSuccessIndicators('');
-    setSelectedModules([]);
+    setSelectedModules(['Support']);
     setAnalyticsTrainingType('standard');
     setKnowledgeArticles(0);
     setHasCommunity(false);
@@ -86,11 +93,11 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setHasNativeConnections(false);
     setSelectedNativeConnections([]);
     setConnectionQuantities({});
-    setAgents(0);
-    setBrands(0);
-    setSelectedChannels([]);
-    setChannelQuantities({});
-    setAreas(0);
+    setAgents(1);
+    setBrands(1);
+    setSelectedChannels(['web_form']);
+    setChannelQuantities({ web_form: 1 });
+    setAreas(1);
     setHasIntegration(false);
     setSelectedActionFlows([]);
     setHasQA(false);
@@ -122,6 +129,27 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     }
   }, [skuType, zendeskPlan]);
 
+  const planRank = useMemo(
+    () => PLAN_RANK[zendeskPlan as keyof typeof PLAN_RANK] || PLAN_RANK.team,
+    [zendeskPlan]
+  );
+
+  const availableModules = useMemo(() => {
+    const baseModules = ['Support', 'Knowledge', 'Analytics', 'AI Agents'];
+
+    if (planRank >= PLAN_RANK.professional) {
+      baseModules.push('QA', 'WFM', 'Copilot');
+    }
+
+    if (planRank >= PLAN_RANK.enterprise) {
+      baseModules.push('ADPP');
+    }
+
+    return baseModules;
+  }, [planRank]);
+
+  const canShowKnowledgeCommunity = planRank >= PLAN_RANK.professional;
+
   useEffect(() => {
     if (!selectedModules.includes('Support')) {
       setHasSSO(false);
@@ -136,6 +164,23 @@ export default function AEClient({ packages, variables, initialClientName = '' }
       setHasHCCustomization(false);
     }
   }, [selectedModules]);
+
+  useEffect(() => {
+    setSelectedModules(prev => {
+      const filtered = prev.filter(module => availableModules.includes(module));
+      return filtered.length > 0 ? filtered : ['Support'];
+    });
+
+    if (planRank < PLAN_RANK.professional) {
+      setHasQA(false);
+      setHasWFM(false);
+      setHasCopilot(false);
+    }
+
+    if (!canShowKnowledgeCommunity) {
+      setHasCommunity(false);
+    }
+  }, [availableModules, canShowKnowledgeCommunity, planRank]);
 
   const handleNewSimulation = () => {
     resetForm();
@@ -185,6 +230,7 @@ export default function AEClient({ packages, variables, initialClientName = '' }
     setSelectedChannels(prev => {
       const isSelected = prev.includes(id);
       if (isSelected) {
+        if (prev.length === 1) return prev;
         const newChannels = prev.filter(i => i !== id);
         const newQuantities = { ...channelQuantities };
         delete newQuantities[id];
@@ -204,7 +250,9 @@ export default function AEClient({ packages, variables, initialClientName = '' }
   const toggleModule = (id: string) => {
     setSelectedModules(prev => {
       const isSelected = prev.includes(id);
-      const next = isSelected ? prev.filter(i => i !== id) : [...prev, id];
+      const next = isSelected
+        ? (prev.length === 1 ? prev : prev.filter(i => i !== id))
+        : [...prev, id];
       
       // Sync legacy boolean states with new module selection
       if (id === 'QA') setHasQA(!isSelected);
@@ -532,7 +580,7 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                 <div className="space-y-4">
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Módulos</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {['Support', 'Knowledge', 'Analytics', 'ADPP', 'QA', 'WFM', 'AI Agents', 'Copilot'].map(m => (
+                    {availableModules.map(m => (
                       <button
                         key={m}
                         onClick={() => toggleModule(m)}
@@ -618,8 +666,8 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                           { id: 'sso', label: 'Single Sign On', state: hasSSO, setter: setHasSSO, icon: ShieldCheck },
                           ...(canUseSideConversations
                             ? [
-                                { id: 'teams', label: 'Conversas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
-                                { id: 'slack', label: 'Conversas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash }
+                                { id: 'teams', label: 'Conversas paralelas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
+                                { id: 'slack', label: 'Conversas paralelas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash }
                               ]
                             : []),
                         ].map(item => (
@@ -669,15 +717,17 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                           className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
                         />
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasCommunity ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
-                          <div className="flex items-center space-x-3">
-                            <Users className={`w-4 h-4 ${hasCommunity ? 'text-brand-primary' : 'text-slate-400'}`} />
-                            <span className={`text-[9px] font-black uppercase tracking-widest ${hasCommunity ? 'text-brand-dark' : 'text-slate-500'}`}>Comunidade</span>
-                          </div>
-                          <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
-                        </label>
-                      </div>
+                      {canShowKnowledgeCommunity && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <label className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${hasCommunity ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
+                            <div className="flex items-center space-x-3">
+                              <Users className={`w-4 h-4 ${hasCommunity ? 'text-brand-primary' : 'text-slate-400'}`} />
+                              <span className={`text-[9px] font-black uppercase tracking-widest ${hasCommunity ? 'text-brand-dark' : 'text-slate-500'}`}>Comunidade</span>
+                            </div>
+                            <input type="checkbox" checked={hasCommunity} onChange={(e) => setHasCommunity(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
+                          </label>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -704,15 +754,15 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
               <div className="grid grid-cols-3 gap-6">
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Agentes</label>
-                  <input type="number" value={agents} onChange={(e) => setAgents(parseInt(e.target.value) || 0)} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <input type="number" min="1" value={agents} onChange={(e) => setAgents(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Marcas</label>
-                  <input type="number" value={brands} onChange={(e) => setBrands(parseInt(e.target.value) || 0)} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <input type="number" min="1" value={brands} onChange={(e) => setBrands(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
                   <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Áreas</label>
-                  <input type="number" value={areas} onChange={(e) => setAreas(parseInt(e.target.value) || 0)} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <input type="number" min="1" value={areas} onChange={(e) => setAreas(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
               </div>
 

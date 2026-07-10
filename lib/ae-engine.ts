@@ -160,17 +160,27 @@ function getMarketplaceHours(app: string, qty: number) {
 }
 
 export function calculateAEEstimate(inputs: AEInputData) {
+  const sanitizedAgents = Math.max(1, inputs.agents || 0);
+  const sanitizedBrands = Math.max(1, inputs.brands || 0);
+  const sanitizedAreas = Math.max(1, inputs.areas || 0);
+  const sanitizedSelectedChannels = inputs.selectedChannels.length > 0 ? inputs.selectedChannels : ['web_form'];
+  const sanitizedSelectedModules = inputs.selectedModules.length > 0 ? inputs.selectedModules : ['Support'];
+  const sanitizedChannelQuantities = Object.fromEntries(
+    Object.entries(inputs.channelQuantities || {}).map(([key, value]) => [key, Math.max(1, value || 0)])
+  );
+  const sanitizedAppQuantities = Object.fromEntries(
+    Object.entries(inputs.appQuantities || {}).map(([key, value]) => [key, Math.max(1, value || 0)])
+  );
+  const sanitizedConnectionQuantities = Object.fromEntries(
+    Object.entries(inputs.connectionQuantities || {}).map(([key, value]) => [key, Math.max(1, value || 0)])
+  );
+  const sanitizedKnowledgeArticles = Math.max(0, inputs.knowledgeArticles || 0);
+  const sanitizedOperationLanguages = Math.max(1, inputs.operationLanguages || 0);
+
   const {
-    agents,
-    brands,
-    areas,
-    selectedChannels,
-    channelQuantities,
-    selectedModules,
     operationTypes,
     skuType,
     zendeskPlan,
-    knowledgeArticles,
     hasCommunity,
     hasHCCustomization,
     hasQA,
@@ -179,16 +189,24 @@ export function calculateAEEstimate(inputs: AEInputData) {
     hasAIAgents,
     hasAppsMarketplace,
     selectedApps,
-    appQuantities,
     selectedNativeConnections,
-    connectionQuantities,
     selectedActionFlows = [],
     analyticsTrainingType,
     hasSSO,
     hasTeamsSideConv,
-    hasSlackSideConv,
-    operationLanguages
+    hasSlackSideConv
   } = inputs;
+
+  const agents = sanitizedAgents;
+  const brands = sanitizedBrands;
+  const areas = sanitizedAreas;
+  const selectedChannels = sanitizedSelectedChannels;
+  const channelQuantities = sanitizedChannelQuantities;
+  const selectedModules = sanitizedSelectedModules;
+  const knowledgeArticles = sanitizedKnowledgeArticles;
+  const appQuantities = sanitizedAppQuantities;
+  const connectionQuantities = sanitizedConnectionQuantities;
+  const operationLanguages = sanitizedOperationLanguages;
 
   const qtdOperacoes = operationTypes.length || 1;
   const somaTotalCanais = Object.values(channelQuantities).reduce((acc, value) => acc + (value || 0), 0);
