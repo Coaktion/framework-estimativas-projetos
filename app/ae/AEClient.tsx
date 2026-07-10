@@ -637,8 +637,8 @@ ${estimation.total > 60 ? `\n${estimation.escalationMessage}` : ''}
                           onClick={() => toggleOperationType(t)}
                           className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
                             operationTypes.includes(t)
-                              ? 'bg-brand-dark border-brand-dark text-white shadow-lg'
-                              : 'bg-white border-slate-200 text-slate-400'
+                              ? 'bg-brand-primary border-brand-primary text-white shadow-lg shadow-brand-primary/20'
+                              : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                           }`}
                         >
                           {t}
