@@ -16,6 +16,10 @@ import {
   addSkillAction,
   deleteSkillAction,
   deleteCategoryAction,
+  updateCategoryAction,
+  setCategoryOrderAction,
+  bulkMovePackagesAction,
+  mergeCategoryAction,
   updatePackageAction,
   deletePackageAction,
   updateUserAdminStatusAction,
@@ -35,6 +39,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [filterSkill, setFilterSkill] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [showAllConditional, setShowAllConditional] = useState(false);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [categoryOrderIds, setCategoryOrderIds] = useState<number[]>(() => (categories || []).map((c: any) => c.id));
+  const [dragCategoryId, setDragCategoryId] = useState<number | null>(null);
+  const [categoryEditValues, setCategoryEditValues] = useState<any>({});
+  const [bulkSelectedPackageIds, setBulkSelectedPackageIds] = useState<number[]>([]);
+  const [bulkTargetCategoryName, setBulkTargetCategoryName] = useState('');
+  const [mergeTargetCategoryName, setMergeTargetCategoryName] = useState('');
 
   // Form States for new items
   const [newItemName, setNewItemName] = useState('');
@@ -127,6 +138,68 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const handleAddSkill = () => {
     const name = prompt("Nome da nova skill:");
     if (name) startTransition(() => addSkillAction(name));
+  };
+
+  useEffect(() => {
+    const next = (categories || []).map((c: any) => c.id);
+    setCategoryOrderIds(next);
+  }, [categories]);
+
+  const orderedCategories = useMemo(() => {
+    const byId = new Map((categories || []).map((c: any) => [c.id, c]));
+    const ordered = categoryOrderIds.map((id) => byId.get(id)).filter(Boolean);
+    const missing = (categories || []).filter((c: any) => !categoryOrderIds.includes(c.id));
+    return [...ordered, ...missing];
+  }, [categories, categoryOrderIds]);
+
+  const selectedCategory = useMemo(() => {
+    return (categories || []).find((c: any) => c.id === selectedCategoryId) || null;
+  }, [categories, selectedCategoryId]);
+
+  const packagesInSelectedCategory = useMemo(() => {
+    if (!selectedCategory) return [];
+    return (packages || []).filter((p: any) => p.categoryName === selectedCategory.name);
+  }, [packages, selectedCategory]);
+
+  useEffect(() => {
+    if (!selectedCategory) return;
+    setCategoryEditValues({
+      displayName: selectedCategory.displayName || '',
+      parentName: selectedCategory.parentName || ''
+    });
+    setBulkSelectedPackageIds([]);
+    setBulkTargetCategoryName('');
+    setMergeTargetCategoryName('');
+  }, [selectedCategoryId]);
+
+  const handleDropCategory = (targetId: number) => {
+    if (!dragCategoryId || dragCategoryId === targetId) return;
+
+    const fromIndex = categoryOrderIds.indexOf(dragCategoryId);
+    const toIndex = categoryOrderIds.indexOf(targetId);
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    const next = [...categoryOrderIds];
+    next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, dragCategoryId);
+    setCategoryOrderIds(next);
+    setDragCategoryId(null);
+
+    startTransition(async () => {
+      await setCategoryOrderAction(next);
+    });
+  };
+
+  const toggleBulkPackage = (id: number) => {
+    setBulkSelectedPackageIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const selectAllBulkPackages = () => {
+    setBulkSelectedPackageIds(packagesInSelectedCategory.map((p: any) => p.id));
+  };
+
+  const clearBulkPackages = () => {
+    setBulkSelectedPackageIds([]);
   };
 
   const handleCreateSnapshot = async () => {
@@ -566,15 +639,254 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <span>Nova Categoria</span>
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {categories.map((c: any) => (
-                    <div key={c.id} className="group bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center hover:border-brand-primary transition-all">
-                      <span className="text-sm font-black text-brand-dark uppercase tracking-tight">{c.name}</span>
-                      <button onClick={() => startTransition(() => deleteCategoryAction(c.id))} className="text-slate-300 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  <div className="lg:col-span-1 space-y-4">
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ordem Padrão (Arraste)</div>
+                    <div className="space-y-2">
+                      {orderedCategories.map((c: any) => (
+                        <div
+                          key={c.id}
+                          draggable
+                          onDragStart={() => setDragCategoryId(c.id)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleDropCategory(c.id)}
+                          onClick={() => setSelectedCategoryId(c.id)}
+                          className={`p-4 rounded-2xl border cursor-pointer transition-all ${
+                            selectedCategoryId === c.id
+                              ? 'bg-brand-primary/10 border-brand-primary text-brand-primary'
+                              : 'bg-slate-50 border-slate-100 hover:border-brand-primary'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <div className="text-xs font-black uppercase tracking-tight truncate">{c.displayName || c.name}</div>
+                              <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">
+                                {c.name}{c.parentName ? ` → ${(categories.find((x: any) => x.name === c.parentName)?.displayName || c.parentName)}` : ''}
+                              </div>
+                            </div>
+                            <ChevronRight className="w-4 h-4 text-slate-300" />
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+
+                  <div className="lg:col-span-2 space-y-6">
+                    {!selectedCategory ? (
+                      <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-10 text-center">
+                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Selecione uma categoria para editar
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-xl space-y-8">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                          <div className="space-y-1">
+                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Categoria</div>
+                            <div className="text-xl font-black text-brand-dark uppercase tracking-tight">{selectedCategory.displayName || selectedCategory.name}</div>
+                            <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">{selectedCategory.name}</div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                startTransition(async () => {
+                                  await updateCategoryAction(selectedCategory.id, categoryEditValues);
+                                });
+                              }}
+                              className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-lg"
+                              disabled={isPending}
+                            >
+                              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                              <span>Salvar</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (confirm(`Deseja desativar a categoria "${selectedCategory.displayName || selectedCategory.name}"?`)) {
+                                  startTransition(async () => {
+                                    await deleteCategoryAction(selectedCategory.id);
+                                  });
+                                }
+                              }}
+                              className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all flex items-center gap-2"
+                              disabled={isPending}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span>Desativar</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome (Exibição)</label>
+                            <input
+                              type="text"
+                              value={categoryEditValues.displayName || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayName: e.target.value })}
+                              placeholder={selectedCategory.name}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria Pai (Subcategoria)</label>
+                            <select
+                              value={categoryEditValues.parentName || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, parentName: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                            >
+                              <option value="">Nenhuma (Categoria raiz)</option>
+                              {categories
+                                .filter((c: any) => c.id !== selectedCategory.id)
+                                .map((c: any) => (
+                                  <option key={c.id} value={c.name}>
+                                    {c.displayName || c.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 space-y-4">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="space-y-1">
+                              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Gestão em massa</div>
+                              <div className="text-xs font-black uppercase tracking-tight text-brand-dark">{packagesInSelectedCategory.length} item(ns) nesta categoria</div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={selectAllBulkPackages}
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
+                              >
+                                Selecionar todos
+                              </button>
+                              <button
+                                type="button"
+                                onClick={clearBulkPackages}
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
+                              >
+                                Limpar
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-2xl">
+                            {packagesInSelectedCategory.length === 0 ? (
+                              <div className="p-8 text-center text-[9px] font-black uppercase tracking-widest text-slate-300">
+                                Nenhum item nesta categoria.
+                              </div>
+                            ) : (
+                              <div className="divide-y divide-slate-100">
+                                {packagesInSelectedCategory.map((pkg: any) => (
+                                  <label key={pkg.id} className="flex items-center gap-3 p-4 hover:bg-slate-50 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={bulkSelectedPackageIds.includes(pkg.id)}
+                                      onChange={() => toggleBulkPackage(pkg.id)}
+                                      className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="text-[10px] font-black uppercase tracking-tight text-brand-dark truncate">{pkg.name}</div>
+                                      <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">{pkg.skillName}</div>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Mover selecionados para</label>
+                              <select
+                                value={bulkTargetCategoryName}
+                                onChange={(e) => setBulkTargetCategoryName(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                              >
+                                <option value="">Selecionar...</option>
+                                {categories
+                                  .filter((c: any) => c.name !== selectedCategory.name)
+                                  .map((c: any) => (
+                                    <option key={c.id} value={c.name}>
+                                      {c.displayName || c.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div className="flex items-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!bulkTargetCategoryName) return;
+                                  if (bulkSelectedPackageIds.length === 0) return;
+                                  startTransition(async () => {
+                                    await bulkMovePackagesAction(bulkSelectedPackageIds, bulkTargetCategoryName);
+                                  });
+                                }}
+                                className="flex-1 bg-brand-dark text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50"
+                                disabled={isPending || !bulkTargetCategoryName || bulkSelectedPackageIds.length === 0}
+                              >
+                                Mover
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (bulkSelectedPackageIds.length === 0) return;
+                                  const name = prompt("Nome da nova categoria para mover os itens selecionados:");
+                                  if (!name) return;
+                                  startTransition(async () => {
+                                    await addCategoryAction(name);
+                                    await bulkMovePackagesAction(bulkSelectedPackageIds, name);
+                                  });
+                                }}
+                                className="px-6 py-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all disabled:opacity-50"
+                                disabled={isPending || bulkSelectedPackageIds.length === 0}
+                              >
+                                Nova
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
+                            <div className="space-y-2">
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Fundir categoria em</label>
+                              <select
+                                value={mergeTargetCategoryName}
+                                onChange={(e) => setMergeTargetCategoryName(e.target.value)}
+                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                              >
+                                <option value="">Selecionar...</option>
+                                {categories
+                                  .filter((c: any) => c.name !== selectedCategory.name)
+                                  .map((c: any) => (
+                                    <option key={c.id} value={c.name}>
+                                      {c.displayName || c.name}
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            <div className="flex items-end">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!mergeTargetCategoryName) return;
+                                  if (confirm(`Deseja fundir "${selectedCategory.displayName || selectedCategory.name}" em "${(categories.find((c: any) => c.name === mergeTargetCategoryName)?.displayName || mergeTargetCategoryName)}"?`)) {
+                                    startTransition(async () => {
+                                      await mergeCategoryAction(selectedCategory.id, mergeTargetCategoryName);
+                                    });
+                                  }
+                                }}
+                                className="w-full bg-red-50 text-red-600 border border-red-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all disabled:opacity-50"
+                                disabled={isPending || !mergeTargetCategoryName}
+                              >
+                                Fundir e desativar
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}

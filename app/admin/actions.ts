@@ -120,11 +120,87 @@ export async function addCategoryAction(name: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
 
+  const maxOrder = await prisma.category.aggregate({
+    where: { isActive: true },
+    _max: { displayOrder: true }
+  });
+
+  const nextOrder = (maxOrder._max.displayOrder ?? 0) + 1;
+
   await prisma.category.upsert({
     where: { name },
     update: { isActive: true },
-    create: { name }
+    create: { name, displayOrder: nextOrder }
   });
+
+  revalidatePath("/admin");
+}
+
+export async function updateCategoryAction(id: number, data: any) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+
+  const displayOrder = data.displayOrder !== undefined ? parseInt(data.displayOrder) : undefined;
+  const displayName = data.displayName !== undefined ? String(data.displayName) : undefined;
+  const parentName = data.parentName !== undefined ? (data.parentName ? String(data.parentName) : null) : undefined;
+
+  await prisma.category.update({
+    where: { id },
+    data: {
+      displayName,
+      displayOrder: displayOrder !== undefined && !isNaN(displayOrder) ? displayOrder : undefined,
+      parentName
+    }
+  });
+
+  revalidatePath("/admin");
+}
+
+export async function setCategoryOrderAction(categoryIds: number[]) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+
+  await prisma.$transaction(
+    categoryIds.map((id, index) =>
+      prisma.category.update({
+        where: { id },
+        data: { displayOrder: index + 1 }
+      })
+    )
+  );
+
+  revalidatePath("/admin");
+}
+
+export async function bulkMovePackagesAction(packageIds: number[], targetCategoryName: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+
+  await prisma.package.updateMany({
+    where: { id: { in: packageIds } },
+    data: { categoryName: targetCategoryName }
+  });
+
+  revalidatePath("/admin");
+}
+
+export async function mergeCategoryAction(sourceCategoryId: number, targetCategoryName: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+
+  const source = await prisma.category.findUnique({ where: { id: sourceCategoryId } });
+  if (!source) return;
+
+  await prisma.$transaction([
+    prisma.package.updateMany({
+      where: { categoryName: source.name },
+      data: { categoryName: targetCategoryName }
+    }),
+    prisma.category.update({
+      where: { id: sourceCategoryId },
+      data: { isActive: false }
+    })
+  ]);
 
   revalidatePath("/admin");
 }

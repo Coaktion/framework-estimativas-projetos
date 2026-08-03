@@ -44,7 +44,7 @@ export default async function Home() {
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Minhas Estimativas</h2>
+              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Calculadora AE</h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Histórico & Check de Viabilidade</p>
             </div>
           </Link>

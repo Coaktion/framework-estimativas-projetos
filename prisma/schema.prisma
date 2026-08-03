@@ -50,10 +50,15 @@ model AEEstimate {
 }
 
 model Category {
-  id        Int       @id @default(autoincrement())
-  name      String    @unique
-  isActive  Boolean   @default(true)
-  packages  Package[]
+  id           Int       @id @default(autoincrement())
+  name         String    @unique
+  displayName  String    @default("")
+  displayOrder Int       @default(0)
+  parentName   String?
+  parent       Category? @relation("CategoryHierarchy", fields: [parentName], references: [name])
+  children     Category[] @relation("CategoryHierarchy")
+  isActive     Boolean   @default(true)
+  packages     Package[]
 }
 
 model Skill {

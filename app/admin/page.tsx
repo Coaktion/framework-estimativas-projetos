@@ -19,7 +19,7 @@ export default async function AdminPage() {
 
   const categories = await prisma.category.findMany({
     where: { isActive: true },
-    orderBy: { name: 'asc' }
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
   });
 
   const skills = await prisma.skill.findMany({

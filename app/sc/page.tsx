@@ -25,6 +25,6 @@ export default async function ProjectDashboard() {
   });
 
   return (
-    <ProjectDashboardClient projects={projects} />
+    <ProjectDashboardClient projects={projects} currentUserId={userId} />
   );
 }

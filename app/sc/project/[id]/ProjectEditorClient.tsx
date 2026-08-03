@@ -38,11 +38,28 @@ function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
+function roundHalfUp(value: number, decimals: number) {
+  const factor = Math.pow(10, decimals);
+  return Math.round((value + Number.EPSILON) * factor) / factor;
+}
+
+function getVariableNumber(variables: any[] | null | undefined, keys: string[], fallback: number) {
+  const hit = variables?.find((v: any) => keys.includes(v.key));
+  const parsed = parseFloat(hit?.value ?? '');
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function domSafeId(value: string) {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
+}
+
 function subcategoryKey(category: string, subcategory: string) {
   return `${category}::${subcategory}`;
 }
 
 function inferDefaultSubcategory(category: string, pkg: any) {
+  if (pkg?.__defaultSubcategory) return pkg.__defaultSubcategory;
+
   const haystack = `${category} ${pkg?.name || ''} ${pkg?.tooltip || ''}`.toLowerCase();
 
   if (/(email|whatsapp|voice|sms|facebook|instagram|teams|slack|web widget|web form|canal|channel|messaging)/.test(haystack)) {
@@ -119,13 +136,15 @@ function normalizeLayoutConfig(
   };
 }
 
-export default function ProjectEditorClient({ project, categories, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
+export default function ProjectEditorClient({ project, categories, categoryLabels, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [hiddenItems, setHiddenItems] = useState<number[]>(safeJsonParse(preferences?.hiddenItems, []));
   const [presetName, setPresetName] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [showHiddenTab, setShowHiddenTab] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() =>
     normalizeLayoutConfig(safeJsonParse(preferences?.layoutConfig, {}), categories, packagesByCategory)
   );
@@ -182,11 +201,11 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
   const [techLink, setTechLink] = useState(currentVersion?.technicalScopeLink || '');
   const [zohoLink, setZohoLink] = useState(currentVersion?.zohoLink || '');
   
-  const [percents, setPercents] = useState({
-    gp: currentVersion?.gpPercent ?? 25,
-    discovery: currentVersion?.discoveryPercent ?? 0,
-    validation: currentVersion?.validationPercent ?? 0,
-  });
+  const [percents, setPercents] = useState(() => ({
+    gp: currentVersion?.gpPercent ?? getVariableNumber(variables, ['GP_STANDARD', 'GP_PERCENTAGE'], 25),
+    discovery: currentVersion?.discoveryPercent ?? getVariableNumber(variables, ['DISCOVERY_STANDARD'], 0),
+    validation: currentVersion?.validationPercent ?? getVariableNumber(variables, ['VALIDATION_STANDARD'], 0),
+  }));
 
   const [overrides, setOverrides] = useState({
     gp: currentVersion?.gpOverride ?? null,
@@ -201,6 +220,129 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
   const allPackages = useMemo<any[]>(() => {
     return Object.values(packagesByCategory).flat() as any[];
   }, [packagesByCategory]);
+
+  const packageRootCategoryById = useMemo<Record<string, string>>(() => {
+    const map: Record<string, string> = {};
+    Object.entries(packagesByCategory || {}).forEach(([rootCat, pkgs]) => {
+      (pkgs || []).forEach((p: any) => {
+        map[String(p.id)] = rootCat;
+      });
+    });
+    return map;
+  }, [packagesByCategory]);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+
+    const results: any[] = [];
+    const pushUnique = (key: string, item: any) => {
+      if (results.some((r) => r.__key === key)) return;
+      results.push({ ...item, __key: key });
+    };
+
+    orderedCategories.forEach((cat: string) => {
+      const label = String(categoryLabels?.[cat] || cat);
+      if (`${cat} ${label}`.toLowerCase().includes(q)) {
+        pushUnique(`cat:${cat}`, { type: 'category', cat, label });
+      }
+
+      const subcats = layoutConfig.subcategoryOrder?.[cat] || [];
+      subcats.forEach((subcategory: string) => {
+        if (String(subcategory).toLowerCase().includes(q)) {
+          pushUnique(`subcat:${cat}:${subcategory}`, {
+            type: 'subcategory',
+            cat,
+            subcategory,
+            label: subcategory,
+            subtitle: label
+          });
+        }
+      });
+    });
+
+    allPackages.forEach((p: any) => {
+      const haystack = `${p?.name || ''} ${p?.tooltip || ''}`.toLowerCase();
+      if (!haystack.includes(q)) return;
+
+      const itemId = String(p.id);
+      const cat = packageRootCategoryById[itemId] || p.categoryName;
+      if (!cat) return;
+
+      const catLabel = String(categoryLabels?.[cat] || cat);
+      const subcategory = layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, p);
+
+      pushUnique(`item:${itemId}`, {
+        type: 'item',
+        cat,
+        subcategory,
+        itemId,
+        label: p.name,
+        subtitle: `${catLabel} • ${subcategory}`,
+        isHidden: hiddenItems.includes(p.id)
+      });
+    });
+
+    return results.slice(0, 20);
+  }, [
+    searchQuery,
+    orderedCategories,
+    categoryLabels,
+    layoutConfig.subcategoryOrder,
+    layoutConfig.itemSubcategories,
+    allPackages,
+    packageRootCategoryById,
+    hiddenItems
+  ]);
+
+  const goToSearchResult = async (result: any) => {
+    const cat = result?.cat;
+    if (!cat) return;
+
+    setShowHiddenTab(false);
+    setFormData((prev: any) => ({
+      ...prev,
+      [`check_area_${cat}`]: 'on'
+    }));
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [cat]: false
+    }));
+
+    if (result?.type === 'item' && result?.isHidden) {
+      await toggleHideItem(parseInt(result.itemId));
+    }
+
+    const targetId =
+      result?.type === 'subcategory'
+        ? `subcat_${domSafeId(cat)}_${domSafeId(result.subcategory)}`
+        : `cat_section_${domSafeId(cat)}`;
+
+    requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      if (result?.type === 'item' && result?.itemId) {
+        const qtyKey = `item_${result.itemId}_qty`;
+        setFormData((prev: any) => {
+          const currentQty = parseFloat(prev?.[qtyKey] || 0);
+          if (currentQty > 0) return prev;
+          return { ...prev, [qtyKey]: 1 };
+        });
+
+        requestAnimationFrame(() => {
+          const input = document.querySelector(`input[name="item_${result.itemId}_qty"]`) as HTMLInputElement | null;
+          if (input) {
+            input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            input.focus();
+            input.select();
+          }
+        });
+      }
+    });
+
+    setSearchQuery('');
+    setIsSearchOpen(false);
+  };
 
   useEffect(() => {
     setLayoutConfig((current) => normalizeLayoutConfig(current, categories, packagesByCategory));
@@ -543,9 +685,9 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       return result;
     };
 
-    const gpVal = calculateVariable('GP_STANDARD', percents.gp, overrides.gp);
-    const discVal = calculateVariable('DISCOVERY_STANDARD', percents.discovery, overrides.discovery);
-    const validVal = calculateVariable('VALIDATION_STANDARD', percents.validation, overrides.validation);
+    const gpValRaw = calculateVariable('GP_STANDARD', percents.gp, overrides.gp);
+    const discValRaw = calculateVariable('DISCOVERY_STANDARD', percents.discovery, overrides.discovery);
+    const validValRaw = calculateVariable('VALIDATION_STANDARD', percents.validation, overrides.validation);
 
     // Add safety hours to skill totals
     Object.entries(safetyHours).forEach(([skill, hours]) => {
@@ -554,23 +696,31 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
       }
     });
 
-    const totalSafety = Object.values(safetyHours).reduce((a, b) => a + (b || 0), 0);
+    const totalSafetyRaw = Object.values(safetyHours).reduce((a, b) => a + (b || 0), 0);
 
     // Add calculated GP to skill totals for UI display
-    skillTotals['GP'] = (skillTotals['GP'] || 0) + gpVal;
+    skillTotals['GP'] = (skillTotals['GP'] || 0) + gpValRaw;
     
     // Add Marketplace FLAT hours to Implantação for skill breakdown but not to subtotal for GP calc
     skillTotals['Implantação'] = (skillTotals['Implantação'] || 0) + flatHoursMarketplace;
 
+    const subtotalRounded = roundHalfUp(subtotal, 1);
+    const gpVal = roundHalfUp(gpValRaw, 1);
+    const discVal = roundHalfUp(discValRaw, 1);
+    const validVal = roundHalfUp(validValRaw, 1);
+    const totalSafety = roundHalfUp(totalSafetyRaw, 1);
+    const consolidatedBase = subtotalRounded + gpVal + discVal + validVal + flatHoursMarketplace + totalSafety;
+    const grandTotal = roundHalfUp(consolidatedBase, 0);
+
     return {
-      subtotal,
+      subtotal: subtotalRounded,
       skillTotals,
       gpVal,
       discVal,
       validVal,
       flatHoursMarketplace,
       totalSafety,
-      grandTotal: Math.ceil(subtotal + gpVal + discVal + validVal + flatHoursMarketplace + totalSafety)
+      grandTotal
     };
   }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages]);
 
@@ -1161,7 +1311,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                 </div>
                 <span className={`text-[10px] font-black uppercase tracking-widest text-center transition-colors ${
                   isChecked ? 'text-white' : 'text-slate-500'
-                }`}>{cat}</span>
+                }`}>{categoryLabels?.[cat] || cat}</span>
               </div>
             );
           })}
@@ -1189,6 +1339,72 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
               }`}>{hiddenItems.length} Itens</span>
             </div>
           </div>
+        </div>
+
+        <div className="mt-6 relative">
+          <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+            <Search className="w-4 h-4 text-slate-300" />
+            <input
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setIsSearchOpen(true);
+              }}
+              onFocus={() => setIsSearchOpen(true)}
+              onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
+              placeholder="Buscar categoria, subcategoria ou item..."
+              className="w-full bg-transparent outline-none text-[11px] font-bold text-brand-dark placeholder:text-slate-300"
+            />
+          </div>
+
+          {isSearchOpen && searchQuery.trim() && (
+            <div className="absolute z-50 mt-2 w-full bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden">
+              {searchResults.length === 0 ? (
+                <div className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-300">
+                  Nenhum resultado
+                </div>
+              ) : (
+                <div className="max-h-[360px] overflow-auto divide-y divide-slate-50">
+                  {searchResults.map((r: any) => (
+                    <button
+                      key={r.__key}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => void goToSearchResult(r)}
+                      className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex flex-col">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark">
+                            {r.label}
+                          </div>
+                          {r.subtitle && (
+                            <div className="text-[8px] font-bold uppercase tracking-widest text-slate-300 mt-0.5">
+                              {r.subtitle}
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {r.type === 'category' && (
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300">Categoria</span>
+                          )}
+                          {r.type === 'subcategory' && (
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300">Subcategoria</span>
+                          )}
+                          {r.type === 'item' && (
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300">Item</span>
+                          )}
+                          {r.isHidden && (
+                            <span className="text-[7px] font-black uppercase tracking-widest text-red-400">Oculto</span>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1243,7 +1459,9 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                               <div className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">{p.skillName || p.skill}</div>
                             </td>
                             <td className="py-4">
-                              <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">{p.categoryName}</span>
+                    <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">
+                      {categoryLabels?.[p.categoryName] || p.categoryName}
+                    </span>
                             </td>
                             <td className="py-4 text-right">
                               <button 
@@ -1267,7 +1485,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
         {orderedCategories.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
-            <div key={cat} className="bg-white rounded-[2rem] border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
+            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="bg-white rounded-[2rem] border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
               <div 
                 className="bg-white px-8 py-5 border-b border-slate-50 flex justify-between items-center cursor-pointer select-none group"
                 onClick={() => toggleSection(cat)}
@@ -1276,7 +1494,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
                     <Box className="w-4 h-4" />
                   </div>
-                  <h3 className="text-base font-black text-brand-dark font-heading uppercase tracking-tight">{cat}</h3>
+                  <h3 className="text-base font-black text-brand-dark font-heading uppercase tracking-tight">{categoryLabels?.[cat] || cat}</h3>
                 </div>
                 <div className="flex items-center space-x-2 text-slate-400 group-hover:text-brand-primary transition-colors">
                   <button
@@ -1301,7 +1519,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                     <table className="min-w-full">
                       <thead>
                         <tr className="border-b border-slate-300">
-                          <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Pacote Sugerido</th>
+                          <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Itens</th>
                           <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Hrs Unit.</th>
                           <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] w-32">Quantidade</th>
                           <th className="pb-3 text-center text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Organização</th>
@@ -1315,7 +1533,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
 
                           return (
                             <Fragment key={`${cat}_${subcategory}`}>
-                              <tr key={`${cat}_${subcategory}_header`} className="bg-slate-50/70 border-y border-slate-200">
+                              <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-50/70 border-y border-slate-200">
                                 <td colSpan={6} className="py-3 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="flex items-center gap-2">
@@ -1638,7 +1856,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                       <div className="w-5 h-5 bg-brand-primary/20 rounded-lg flex items-center justify-center mr-2 group-hover:scale-105 transition-transform">
                         <Plus className="w-3 h-3 text-brand-primary" />
                       </div>
-                      Novo Pacote Personalizado
+                      Novo item
                     </button>
                   </div>
 
@@ -1774,8 +1992,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   <button 
                     type="button"
                     onClick={() => {
-                      const def = variables?.find((v:any) => v.key === 'GP_STANDARD' || v.key === 'GP_PERCENTAGE')?.value || 25;
-                      setPercents(p => ({ ...p, gp: parseFloat(def) }));
+                      setPercents(p => ({ ...p, gp: getVariableNumber(variables, ['GP_STANDARD', 'GP_PERCENTAGE'], 25) }));
                     }}
                     className="p-1 text-slate-300 hover:text-brand-primary transition-colors"
                     title="Resetar para padrão"
@@ -1828,7 +2045,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   </div>
                   <button 
                     type="button"
-                    onClick={() => setPercents(p => ({ ...p, discovery: 0 }))}
+                    onClick={() => setPercents(p => ({ ...p, discovery: getVariableNumber(variables, ['DISCOVERY_STANDARD'], 0) }))}
                     className="p-1 text-slate-300 hover:text-brand-primary transition-colors"
                     title="Resetar para padrão"
                   >
@@ -1880,7 +2097,7 @@ export default function ProjectEditorClient({ project, categories, packagesByCat
                   </div>
                   <button 
                     type="button"
-                    onClick={() => setPercents(p => ({ ...p, validation: 0 }))}
+                    onClick={() => setPercents(p => ({ ...p, validation: getVariableNumber(variables, ['VALIDATION_STANDARD'], 0) }))}
                     className="p-1 text-slate-300 hover:text-brand-primary transition-colors"
                     title="Resetar para padrão"
                   >

@@ -34,7 +34,7 @@ export default async function ProjectEditorPage({
 
   const categoriesData = await prisma.category.findMany({
     where: { isActive: true },
-    orderBy: { name: 'asc' },
+    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
   });
 
   const packages = await prisma.package.findMany({
@@ -46,9 +46,40 @@ export default async function ProjectEditorPage({
     where: { isActive: true },
   });
 
-  const categories = categoriesData.map(c => c.name);
-  const packagesByCategory = categories.reduce((acc: any, cat) => {
-    acc[cat] = packages.filter(p => p.categoryName === cat);
+  const categoryLabels = categoriesData.reduce((acc: Record<string, string>, c) => {
+    acc[c.name] = c.displayName || c.name;
+    return acc;
+  }, {});
+
+  const rootCategories = categoriesData.filter(c => !c.parentName);
+  const categories = rootCategories.map(c => c.name);
+
+  const childCategoriesByParent = categoriesData.reduce((acc: Record<string, any[]>, c: any) => {
+    if (!c.parentName) return acc;
+    acc[c.parentName] = acc[c.parentName] || [];
+    acc[c.parentName].push(c);
+    return acc;
+  }, {});
+
+  const packagesByCategory = categories.reduce((acc: any, parentCat) => {
+    const children = ([...(childCategoriesByParent[parentCat] || [])] as any[]).sort((a: any, b: any) => {
+      const orderA = a.displayOrder ?? 0;
+      const orderB = b.displayOrder ?? 0;
+      if (orderA !== orderB) return orderA - orderB;
+      return String(a.name).localeCompare(String(b.name));
+    });
+    const allowedNames = [parentCat, ...children.map(c => c.name)];
+
+    acc[parentCat] = packages
+      .filter(p => p.categoryName && allowedNames.includes(p.categoryName))
+      .map((p: any) => {
+        const sourceCat = p.categoryName;
+        const isChild = sourceCat !== parentCat;
+        return isChild
+          ? { ...p, __defaultSubcategory: categoryLabels[sourceCat] || sourceCat }
+          : p;
+      });
+
     return acc;
   }, {});
 
@@ -65,6 +96,7 @@ export default async function ProjectEditorPage({
     <ProjectEditorClient 
       project={project}
       categories={categories}
+      categoryLabels={categoryLabels}
       packagesByCategory={packagesByCategory}
       currentVersion={currentVersion}
       allVersions={allVersions}

@@ -5,18 +5,23 @@ import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search } from
 import Link from 'next/link';
 import { createProjectAction, deleteProjectAction } from './actions';
 
-export default function ProjectDashboardClient({ projects }: any) {
+export default function ProjectDashboardClient({ projects, currentUserId }: any) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
+  const [projectScope, setProjectScope] = useState<'mine' | 'all'>('mine');
 
   const filteredProjects = useMemo(() => {
-    if (!searchQuery) return projects;
+    const scoped = projectScope === 'mine'
+      ? projects.filter((p: any) => p.ownerId === currentUserId)
+      : projects;
+
+    if (!searchQuery) return scoped;
     const query = searchQuery.toLowerCase();
-    return projects.filter((p: any) => 
+    return scoped.filter((p: any) =>
       p.name.toLowerCase().includes(query)
     );
-  }, [projects, searchQuery]);
+  }, [projects, currentUserId, projectScope, searchQuery]);
 
   const handleDelete = async (id: number, name: string) => {
     if (confirm(`Deseja realmente excluir o projeto "${name}"?`)) {
@@ -30,10 +35,34 @@ export default function ProjectDashboardClient({ projects }: any) {
     <div className="space-y-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
         <div>
-          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">Meus Projetos</h1>
+          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">Projetos</h1>
           <p className="text-slate-400 text-xs mt-3 font-bold uppercase tracking-[0.2em]">Gestão de escopos e estimativas técnicas.</p>
         </div>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+          <div className="flex items-center bg-white border border-slate-300 rounded-[1.5rem] p-1 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => setProjectScope('mine')}
+              className={`px-6 py-3 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex-1 md:flex-none ${
+                projectScope === 'mine'
+                  ? 'bg-brand-primary text-white shadow-lg shadow-green-900/10'
+                  : 'text-slate-400 hover:text-brand-primary'
+              }`}
+            >
+              Meus
+            </button>
+            <button
+              type="button"
+              onClick={() => setProjectScope('all')}
+              className={`px-6 py-3 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex-1 md:flex-none ${
+                projectScope === 'all'
+                  ? 'bg-brand-primary text-white shadow-lg shadow-green-900/10'
+                  : 'text-slate-400 hover:text-brand-primary'
+              }`}
+            >
+              Todos
+            </button>
+          </div>
           <div className="relative w-full md:w-80 group">
             <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-primary transition-colors" />
             <input 
