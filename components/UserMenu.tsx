@@ -25,12 +25,12 @@ export default function UserMenu() {
     return (
       <Link 
         href="/login"
-        className="flex items-center space-x-3 bg-slate-100 p-1.5 rounded-2xl pr-5 hover:bg-slate-200 transition-all group border border-transparent hover:border-slate-300"
+        className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl hover:border-brand-primary transition-all duration-500 group border border-slate-300 shadow-sm hover:shadow-xl"
       >
-        <div className="w-8 h-8 rounded-xl bg-slate-200 flex items-center justify-center text-slate-400 group-hover:scale-110 transition-all">
+        <div className="w-8 h-8 rounded-xl brand-bg-primary flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-all">
           <LogIn className="w-4 h-4" />
         </div>
-        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Entrar no Perfil</span>
+        <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest">Entrar no Perfil</span>
       </Link>
     );
   }
@@ -43,7 +43,7 @@ export default function UserMenu() {
     <div className="relative" ref={menuRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-3 bg-slate-100 p-1.5 rounded-2xl pr-4 hover:bg-slate-200 transition-all group border border-transparent hover:border-slate-300"
+        className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl hover:border-brand-primary transition-all duration-500 group border border-slate-300 shadow-sm hover:shadow-xl"
       >
         <div className="w-8 h-8 rounded-xl brand-bg-primary flex items-center justify-center text-xs font-black text-white shadow-lg group-hover:scale-105 transition-all">
           {initials}
@@ -60,7 +60,7 @@ export default function UserMenu() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl border border-slate-200 shadow-2xl p-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+        <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl border border-slate-300 shadow-2xl p-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
           <div className="px-4 py-3 border-b border-slate-50 mb-1">
             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Conectado como</p>
             <p className="text-[10px] font-bold text-brand-dark truncate mt-1">{session.user.email}</p>

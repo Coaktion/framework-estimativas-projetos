@@ -3,7 +3,7 @@
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "./ThemeProvider";
 
-export default function Providers({ children, initialTheme = 'light', initialIsCompact = false }: { 
+export default function Providers({ children, initialTheme = 'dark', initialIsCompact = false }: { 
   children: React.ReactNode,
   initialTheme?: any,
   initialIsCompact?: any

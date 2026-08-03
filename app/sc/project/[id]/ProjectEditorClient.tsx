@@ -367,84 +367,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
   };
 
-  const addSubcategory = async (category: string) => {
-    const input = prompt(`Nome da nova subcategoria para ${category}:`, '');
-    const name = input?.trim();
-    if (!name) return;
-
-    const nextOrder = uniqueStrings([...(layoutConfig.subcategoryOrder[category] || []), name]);
-    await persistLayoutConfig({
-      ...layoutConfig,
-      subcategoryOrder: {
-        ...layoutConfig.subcategoryOrder,
-        [category]: nextOrder
-      }
-    });
-  };
-
-  const renameSubcategory = async (category: string, currentName: string) => {
-    const input = prompt(`Novo nome para a subcategoria "${currentName}":`, currentName);
-    const nextName = input?.trim();
-    if (!nextName || nextName === currentName) return;
-
-    const nextItemSubcategories = { ...layoutConfig.itemSubcategories };
-    Object.entries(nextItemSubcategories).forEach(([itemId, subcategory]) => {
-      const pkg: any = allPackages.find((candidate: any) => String(candidate.id) === itemId);
-      if (pkg?.categoryName === category && subcategory === currentName) {
-        nextItemSubcategories[itemId] = nextName;
-      }
-    });
-
-    const nextLayout = {
-      ...layoutConfig,
-      subcategoryOrder: {
-        ...layoutConfig.subcategoryOrder,
-        [category]: (layoutConfig.subcategoryOrder[category] || []).map((name) => name === currentName ? nextName : name)
-      },
-      itemSubcategories: nextItemSubcategories,
-      itemOrder: { ...layoutConfig.itemOrder }
-    };
-
-    const currentKey = subcategoryKey(category, currentName);
-    const nextKey = subcategoryKey(category, nextName);
-    nextLayout.itemOrder[nextKey] = uniqueStrings([
-      ...(nextLayout.itemOrder[nextKey] || []),
-      ...(nextLayout.itemOrder[currentKey] || [])
-    ]);
-    delete nextLayout.itemOrder[currentKey];
-
-    await persistLayoutConfig(nextLayout);
-  };
-
-  const removeSubcategory = async (category: string, subcategory: string) => {
-    if (subcategory === DEFAULT_SUBCATEGORY) return;
-    if (!confirm(`Remover a subcategoria "${subcategory}"? Os itens serão movidos para "${DEFAULT_SUBCATEGORY}".`)) return;
-
-    const nextItemSubcategories = { ...layoutConfig.itemSubcategories };
-    Object.entries(nextItemSubcategories).forEach(([itemId, currentSubcategory]) => {
-      const pkg: any = allPackages.find((candidate: any) => String(candidate.id) === itemId);
-      if (pkg?.categoryName === category && currentSubcategory === subcategory) {
-        nextItemSubcategories[itemId] = DEFAULT_SUBCATEGORY;
-      }
-    });
-
-    const nextLayout = {
-      ...layoutConfig,
-      subcategoryOrder: {
-        ...layoutConfig.subcategoryOrder,
-        [category]: uniqueStrings([
-          ...(layoutConfig.subcategoryOrder[category] || []).filter((name) => name !== subcategory),
-          DEFAULT_SUBCATEGORY
-        ])
-      },
-      itemSubcategories: nextItemSubcategories,
-      itemOrder: { ...layoutConfig.itemOrder }
-    };
-
-    delete nextLayout.itemOrder[subcategoryKey(category, subcategory)];
-    await persistLayoutConfig(nextLayout);
-  };
-
   const reorderSubcategory = async (category: string, subcategory: string, direction: 'up' | 'down') => {
     const currentOrder = layoutConfig.subcategoryOrder[category] || [DEFAULT_SUBCATEGORY];
     const currentIndex = currentOrder.indexOf(subcategory);
@@ -1497,17 +1419,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <h3 className="text-base font-black text-brand-dark font-heading uppercase tracking-tight">{categoryLabels?.[cat] || cat}</h3>
                 </div>
                 <div className="flex items-center space-x-2 text-slate-400 group-hover:text-brand-primary transition-colors">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      void addSubcategory(cat);
-                    }}
-                    className="inline-flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-50 text-slate-500 hover:text-brand-primary border border-slate-200 text-[8px] font-black uppercase tracking-widest"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <span>Subcategoria</span>
-                  </button>
                   <span className="text-[9px] font-black uppercase tracking-[0.15em]">Configurar Itens</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
@@ -1533,14 +1444,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                           return (
                             <Fragment key={`${cat}_${subcategory}`}>
-                              <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-50/70 border-y border-slate-200">
+                              <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-100/80 border-y border-slate-200">
                                 <td colSpan={6} className="py-3 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="flex items-center gap-2">
-                                      <span className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-[8px] font-black uppercase tracking-widest text-brand-dark">
+                                      <span className="px-3 py-1 rounded-lg bg-white border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-700">
                                         {subcategory}
                                       </span>
-                                      <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">
+                                      <span className="text-[7px] font-black uppercase tracking-widest text-slate-500">
                                         {orderedPackages.length} item(ns)
                                       </span>
                                     </div>
@@ -1563,22 +1474,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       >
                                         <ChevronDown className="w-3 h-3" />
                                       </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => void renameSubcategory(cat, subcategory)}
-                                        className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary"
-                                      >
-                                        Renomear
-                                      </button>
-                                      {subcategory !== DEFAULT_SUBCATEGORY && (
-                                        <button
-                                          type="button"
-                                          onClick={() => void removeSubcategory(cat, subcategory)}
-                                          className="px-3 py-1.5 rounded-lg bg-red-50 border border-red-100 text-[8px] font-black uppercase tracking-widest text-red-500 hover:bg-red-100"
-                                        >
-                                          Remover
-                                        </button>
-                                      )}
                                     </div>
                                   </div>
                                 </td>

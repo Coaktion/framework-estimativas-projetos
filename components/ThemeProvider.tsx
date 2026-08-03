@@ -15,7 +15,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-export function ThemeProvider({ children, initialTheme = 'light', initialIsCompact = false }: { 
+export function ThemeProvider({ children, initialTheme = 'dark', initialIsCompact = false }: { 
   children: React.ReactNode;
   initialTheme?: Theme;
   initialIsCompact?: boolean;

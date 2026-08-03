@@ -3,28 +3,31 @@
 @tailwind utilities;
 
 :root {
-  --primary: #065F46;
-  --secondary: #10B981;
-  --accent: #8B5CF6;
-  --dark: #0F172A;
-  --bg-main: #F8FAFC;
-  --text-main: #0F172A;
-  --text-muted: #64748b;
-  --border-main: #E2E8F0;
+  --primary: #2BDD66;
+  --secondary: #0FBF5A;
+  --accent: #7CFF6E;
+  --dark: #04170C;
+  --bg-main: #F7FBF8;
+  --text-main: #04170C;
+  --text-muted: #476257;
+  --border-main: #D6E5DA;
   --bg-card: #FFFFFF;
-  --bg-input: #F1F5F9;
-  --bg-navbar: #FFFFFF;
+  --bg-input: #F0F7F3;
+  --bg-navbar: rgba(255, 255, 255, 0.75);
 }
 
 .dark {
-  --bg-main: #020617;
-  --text-main: #10B981; /* Verde principal da paleta */
-  --text-muted: #10B981; /* Forçando tudo para verde no dark mode */
-  --border-main: #065F46;
-  --bg-card: #0F172A;
-  --dark: #10B981;
-  --bg-input: #020617;
-  --bg-navbar: #0F172A;
+  --primary: #6BFF7A;
+  --secondary: #2BDD66;
+  --accent: #9BFF57;
+  --dark: #E9F7ED;
+  --bg-main: #050A06;
+  --text-main: #E9F7ED;
+  --text-muted: #9FB3A6;
+  --border-main: rgba(107, 255, 122, 0.18);
+  --bg-card: rgba(10, 18, 12, 0.65);
+  --bg-input: rgba(10, 18, 12, 0.55);
+  --bg-navbar: rgba(7, 12, 8, 0.55);
 }
 
 body {
@@ -33,34 +36,14 @@ body {
   color: var(--text-main);
 }
 
-.dark {
-  * {
-    color: var(--text-main) !important;
-    border-color: var(--border-main) !important;
-  }
-
-  svg {
-    color: var(--text-main) !important;
-    stroke: var(--text-main) !important;
-  }
-  
-  .text-white, 
-  .bg-brand-primary .text-white, 
-  button.bg-brand-primary span,
-  .brand-bg-primary *,
-  .bg-brand-dark .text-white,
-  .bg-purple-600 * {
-    color: white !important; /* Exceções para botões e áreas de destaque */
-  }
-
-  .bg-brand-primary svg, .brand-bg-primary svg {
-    stroke: white !important;
-    color: white !important;
-  }
-
-  .text-slate-400, .text-slate-500, .text-slate-300, .text-slate-600, .text-brand-dark {
-    color: var(--text-main) !important;
-  }
+.dark body {
+  background-image:
+    radial-gradient(circle at 70% 35%, rgba(107, 255, 122, 0.18), transparent 55%),
+    radial-gradient(circle at 18% 0%, rgba(107, 255, 122, 0.10), transparent 50%),
+    linear-gradient(rgba(107, 255, 122, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(107, 255, 122, 0.06) 1px, transparent 1px);
+  background-size: auto, auto, 56px 56px, 56px 56px;
+  background-position: center;
 }
 
 .compact {
@@ -109,6 +92,7 @@ body {
     background-color: var(--bg-navbar) !important;
     border-color: var(--border-main) !important;
     backdrop-filter: blur(16px);
+    box-shadow: 0 20px 50px -35px rgba(0, 0, 0, 0.7);
   }
   
   .dark {
@@ -116,7 +100,7 @@ body {
       color: var(--text-muted);
     }
     .shadow-xl, .shadow-2xl, .shadow-sm {
-      box-shadow: none !important;
+      box-shadow: 0 22px 55px -45px rgba(0, 0, 0, 0.9) !important;
       border: 1px solid var(--border-main);
     }
     input, select, textarea {
@@ -141,6 +125,7 @@ body {
     nav {
       background-color: var(--bg-navbar) !important;
       border-color: var(--border-main) !important;
+      box-shadow: 0 22px 55px -40px rgba(0, 0, 0, 0.95) !important;
     }
   }
 
@@ -152,10 +137,10 @@ body {
   }
   .btn-premium {
     @apply transition-all duration-300 hover:scale-[1.02] active:scale-[0.98];
-    box-shadow: 0 20px 40px -15px rgba(6, 95, 70, 0.25);
+    box-shadow: 0 22px 55px -25px rgba(107, 255, 122, 0.20);
   }
   .btn-premium:hover {
-    box-shadow: 0 25px 50px -12px rgba(6, 95, 70, 0.35);
+    box-shadow: 0 26px 65px -18px rgba(107, 255, 122, 0.28);
   }
 }
 
