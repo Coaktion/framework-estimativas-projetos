@@ -520,8 +520,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       'Implantação': 0, 'GP': 0, 'Solution Design': 0, 'Desenvolvimento': 0, 'Design': 0
     };
     let hasSdDiscoveryOnAnyItem = false;
-    let routedSdDiscoveryFromLib = 0; // sdDiscovery marcados (exclui os de skill Desenvolvimento) → vão para sd_discovery
-    let routedSdDRNFromLib = 0;       // sdDiscovery marcados + skill=Desenvolvimento → vão para sd_desenvolvimento (DRN)
+    let hasAnyDesenvolvimento = false;
+    let routedSdDiscoveryFromLib = 0;
+    let routedSdDRNFromLib = 0;
     const implantationBreakdown: Record<string, number> = {
       implantacao_workshop: 0,
       implantacao_discovery: 0,
@@ -593,23 +594,34 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           const skillKey = pkg.skillName || pkg.skill;
           const sdDisc = Boolean(pkg.sdDiscovery || false);
 
-          if (sdDisc) {
-            hasSdDiscoveryOnAnyItem = true;
-            // REGRA SD Discovery:
-            //  - Se item foi marcado sdDiscovery:
-            //    * Se skill === Desenvolvimento → vai para sd_desenvolvimento (DRN)
-            //    * Qualquer outra skill (Implantação, SD, Design...) → vai para sd_discovery
-            // Remove a contribuição do skill original e creditamos no skill Solution Design abaixo (após buckets).
-            if (skillKey === 'Desenvolvimento') {
-              routedSdDRNFromLib += rowTotal;
-            } else {
-              routedSdDiscoveryFromLib += rowTotal;
-            }
-            // Não aplicamos assignImplantBucket (mesmo que skill seja Implantação)
-          } else {
-            if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += rowTotal;
-            if (skillKey === 'Implantação') assignImplantBucket(cat, rowTotal);
+          if (sdDisc) hasSdDiscoveryOnAnyItem = true;
+          if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
+
+          // REGRA 1: item skill Desenvolvimento (COM ou SEM SD marcado)
+          //  - Horas cheias do item CREDITADAS no skill Desenvolvimento (container próprio, card DEV normal)
+          //  - Horas cheias do item TAMBÉM entram em Setup (implantação) PARA BASE DE CÁLCULO de % Validação
+          //    (não aparecem como linha no card de Implantação visual — só compõem setupBaseParaVariaveis)
+          //  - No container SD > DRN - Desenvolvimento entra APENAS o %Discovery aplicado sobre as horas do item
+          if (skillKey === 'Desenvolvimento') {
+            const drnPct = Number(percents.discovery) || 0;
+            routedSdDRNFromLib += rowTotal * (drnPct / 100);
+            // Horas cheias seguem seu fluxo padrão de DEV:
+            skillTotals['Desenvolvimento'] += rowTotal;
+            // Contabilizamos também no bucket de Setup para cálculo de validação% sobre DEV
+            assignImplantBucket(cat, rowTotal);
+            return;
           }
+
+          // REGRA 2: item sdDiscovery marcado + skill != Desenvolvimento (ex: Implantação)
+          //  - Horas da linha CONTAM em Setup (Implantação) → assignImplantBucket normal (base de cálculo geral)
+          //  - No container SD > Discovery entra APENAS o %Discovery (percents.discovery) aplicado sobre as horas do item
+          if (sdDisc) {
+            const discPct = Number(percents.discovery) || 0;
+            routedSdDiscoveryFromLib += rowTotal * (discPct / 100);
+          }
+
+          if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += rowTotal;
+          if (skillKey === 'Implantação') assignImplantBucket(cat, rowTotal);
         }
       });
     });
@@ -630,6 +642,22 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       subtotal += total;
       catTotals[pkg.category] = (catTotals[pkg.category] || 0) + total;
       const skillKey = pkg.skillName || pkg.skill;
+      const sdDisc = Boolean((pkg as any).sdDiscovery || false);
+
+      if (sdDisc) hasSdDiscoveryOnAnyItem = true;
+      if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
+
+      if (skillKey === 'Desenvolvimento') {
+        const drnPct = Number(percents.discovery) || 0;
+        routedSdDRNFromLib += total * (drnPct / 100);
+        skillTotals['Desenvolvimento'] += total;
+        assignImplantBucket(pkg.category, total);
+        return;
+      }
+      if (sdDisc) {
+        const discPct = Number(percents.discovery) || 0;
+        routedSdDiscoveryFromLib += total * (discPct / 100);
+      }
       if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += total;
       if (skillKey === 'Implantação') assignImplantBucket(pkg.category, total);
     });
@@ -743,6 +771,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // NÃO HÁ MAIS linha genérica "Implantação" → tudo é distribuído nos 6 buckets
     const safetyImplantacao = Number((safetyHours || {})['Implantação']) || 0;
 
+    // Para a base de cálculo de Validação% e Discovery%, queremos também considerar as horas
+    // de itens DEV (acumuladas em devHorasSetupContribuicao). Essas horas NÃO aparecem no
+    // card de Implantação; entram APENAS em setupBaseParaVariaveis.
+    let devHorasSetupContribuicao = 0;
+
     const implantacaoBuckets: Record<string, number> = {
       implantacao_workshop: implantationBreakdown.implantacao_workshop || 0,
       implantacao_discovery: implantationBreakdown.implantacao_discovery || 0,
@@ -752,10 +785,25 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       implantacao_golive: implantationBreakdown.implantacao_golive || 0,
     };
 
-    // Garantir que a soma de implantação líquida (antes de safety/variaveis/marketplace)
-    // é totalmente re-distribuída pelos 6 buckets. Como assignImplantBucket sempre
-    // joga em SETUP o que não for Workshop/Treinamento/Go-Live, raramente haverá
-    // sobra; mas se houver (arrendondamentos, etc), tudo vai para SETUP.
+    // Remove das horas de setup a contribuição de itens DEV que foram injetados via assignImplantBucket
+    // (não queremos que apareçam no card de Implantação, só na base de cálculo de %).
+    {
+      // Recalcula somente a parte de implantação líquida de setup para o fechamento abaixo:
+      // Como assignImplantBucket já distribuiu tudo, calculamos sobraDeDev =
+      //   valorJaAplicadoBruto - implantacaoTotalLiquido
+      const valorJaAplicadoBruto = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
+      const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
+      if (valorJaAplicadoBruto > implantacaoTotalLiquido + 0.0001) {
+        devHorasSetupContribuicao = roundHalfUp(Math.max(0, valorJaAplicadoBruto - implantacaoTotalLiquido), 1);
+        // Subtrai do bucket que recebeu as horas de DEV (Setup):
+        implantacaoBuckets['implantacao_setup'] = roundHalfUp(
+          Math.max(0, (implantacaoBuckets['implantacao_setup'] || 0) - devHorasSetupContribuicao),
+          1
+        );
+      }
+    }
+
+    // Fechamento normal (agora buckets só contém Implantação líquida, sem DEV)
     const valorJaAplicado = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
     const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
     if (valorJaAplicado < implantacaoTotalLiquido - 0.0001) {
@@ -768,7 +816,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     implantacaoBuckets['implantacao_setup'] = roundHalfUp((implantacaoBuckets['implantacao_setup'] || 0) + (flatHoursMarketplace || 0), 1);
 
     // Discovery e Validação variáveis incidem APENAS sobre o valor de SETUP
-    const setupBaseParaVariaveis = Math.max(0, implantacaoBuckets['implantacao_setup'] || 0);
+    // + horas de DEV que também entram na base de cálculo de Validação/Discovery (mas não no display)
+    const setupBaseParaVariaveis = Math.max(0,
+      (implantacaoBuckets['implantacao_setup'] || 0) + (devHorasSetupContribuicao || 0)
+    );
     // Recalcular discValRaw e validVal (mantendo overrides manuais se existirem)
     let discValRawFinal = 0;
     let validValRawFinal = 0;
@@ -802,15 +853,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       }
     }
 
-    // 2) Discovery e Validação (variáveis %) entram nos buckets específicos
-    // REGRA: Se há pelo menos 1 item com sdDiscovery marcado → Discovery variável vai para SD, não para Implantação
-    if (hasSdDiscoveryOnAnyItem) {
-      // Discovery % → vai para SD > Discovery
-      // Validação % permanece em Implantação > Validação (o usuário não falou em mover validação, apenas discovery)
-    }
-    if (hasSdDiscoveryOnAnyItem) {
-      // Discovery variável sai de implantação e vai para Solution Design
-    } else {
+    const discoveryGoesToSd = hasAnyDesenvolvimento || hasSdDiscoveryOnAnyItem;
+    if (!discoveryGoesToSd) {
       implantacaoBuckets['implantacao_discovery'] = roundHalfUp((implantacaoBuckets['implantacao_discovery'] || 0) + discValRawFinal, 1);
     }
     implantacaoBuckets['implantacao_validacao'] = roundHalfUp((implantacaoBuckets['implantacao_validacao'] || 0) + validValRawFinal, 1);
@@ -843,14 +887,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       if (sd_desenvolvimento < 0) sd_desenvolvimento = 0;
     }
 
-    // Agora adiciona os itens roteados de SD Discovery (via checkbox sdDiscovery)
     sd_discovery = roundHalfUp(sd_discovery + routedSdDiscoveryFromLib, 1);
     sd_desenvolvimento = roundHalfUp(sd_desenvolvimento + routedSdDRNFromLib, 1);
 
-    // E se tem sdDiscovery ligado → o % de Discovery variavel também entra no SD (Discovery)
-    if (hasSdDiscoveryOnAnyItem) {
-      sd_discovery = roundHalfUp(sd_discovery + discValRawFinal, 1);
-    }
+    // NOTA: NÃO somamos discValRawFinal no sd_discovery para evitar DUPLICAÇÃO.
+    // A soma de sdDiscovery (1,3h no exemplo 5h × 25%) já vem de routedSdDiscoveryFromLib.
+    // discValRawFinal = (% Discovery calculado sobre TODO Setup — é apenas usado para decidir se
+    // discoveryGoesToSd manda mostrar em qual container ele aparece (como discovery do
+    // Implantação se discoveryGoesToSd=false; se discoveryGoesToSd=true, ele não é
+    // creditado em lugar nenhum a mais (fica apenas como base de cálculo, sem duplicar
+    // o valor já creditado via itens sdDiscovery marcados).
     if (sd_discovery < 0) sd_discovery = 0;
     if (sd_desenvolvimento < 0) sd_desenvolvimento = 0;
 
@@ -885,15 +931,22 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // Add Marketplace FLAT hours to Implantação for skill breakdown but not to subtotal for GP calc
     skillTotals['Implantação'] = (skillTotals['Implantação'] || 0) + flatHoursMarketplace;
 
-    // O total agregado mostrado no card de Implantação deve bater com a soma dos subitens (inclui Discovery/Validação variáveis + Marketplace + Safety)
+    // O total agregado mostrado no card deve bater com a soma dos subitens (inclui variáveis, marketplace, safety).
     const implantacaoSomaSubitens = Object.values(skillBreakdownBySkill['Implantação']).reduce((a, b) => a + (b || 0), 0);
     skillTotals['Implantação'] = implantacaoSomaSubitens;
 
     const sdSomaSubitens = Object.values(skillBreakdownBySkill['Solution Design']).reduce((a, b) => a + (b || 0), 0);
     skillTotals['Solution Design'] = sdSomaSubitens;
 
-    // Base do GP: TUDO (Implantação + SD + DEV + DESIGN) já com safety/marketplace/discovery/validação inclusos.
-    // Excluímos o próprio GP (skillTotals['GP']) para não haver circularidade
+    // Cards DEV e DESIGN não têm subitens (breakdown vazio), então o total mostrado é apenas skillTotals[skill]
+    // (já composto por horas cheias dos itens + safety adicionado acima). Mantemos.
+
+    // GP = x% sobre TODO o projeto (TOTAIS consolidados de cada um dos 4 containers):
+    //  - Implantação (soma subitens: Setup + Workshop/Treinamento/GoLive + Discovery + Validação + Marketplace + Safety)
+    //  - Solution Design (soma subitens: Discovery SD + DRN Desenvolvimento, já com routed + liquido 60/40)
+    //  - Desenvolvimento (horas cheias itens dev + safety)
+    //  - Design (horas cheias itens design + safety)
+    // Excluímos o próprio GP (skillTotals['GP']) para não haver circularidade.
     const totalBaseGP = Math.max(0,
       Number(skillTotals['Implantação'] || 0)
       + Number(skillTotals['Solution Design'] || 0)
@@ -1883,7 +1936,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                           {p.scopeIncluded}
                                         </div>
                                       </td>
-                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] tracking-tighter">{p.hours}</td>
+                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 dark:text-[#e8e8e8] tracking-tighter">{p.hours}</td>
                                       <td className="py-4 px-4">
                                         <div className="flex justify-center">
                                           <input
@@ -1893,7 +1946,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             value={formData[`item_${p.id}_qty`] || ''}
                                             onChange={handleInputChange}
                                             onKeyDown={handleKeyDown}
-                                            className="w-16 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all"
+                                            className="w-16 bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[#0a0a0a] outline-none transition-all"
                                           />
                                         </div>
                                       </td>
@@ -2016,7 +2069,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   />
                                 </div>
                               </td>
-                              <td className="py-4 text-xs align-top text-center pt-6 font-black text-slate-400">
+                              <td className="py-4 text-xs align-top text-center pt-6 font-black text-slate-400 dark:text-[#e8e8e8]">
                                 <input 
                                   type="number" 
                                   min="0"
@@ -2024,7 +2077,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   value={pkg.hours || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'hours', e.target.value)}
                                   placeholder="0.0" 
-                                  className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary outline-none"
+                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none"
                                 />
                               </td>
                               <td className="py-4 text-xs align-top text-center pt-6">
@@ -2033,7 +2086,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   min="0"
                                   value={pkg.qty || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'qty', e.target.value)}
-                                  className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary outline-none"
+                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none"
                                 />
                               </td>
                               <td className="py-4 text-center align-top pt-6">

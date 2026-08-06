@@ -23,7 +23,8 @@ import {
   updatePackageAction,
   deletePackageAction,
   updateUserAdminStatusAction,
-  reseedFrameworkAction
+  reseedFrameworkAction,
+  createUserAction,
 } from './actions';
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
 
@@ -55,6 +56,22 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [newItemTooltip, setNewItemTooltip] = useState('');
   const [newItemDependsOn, setNewItemDependsOn] = useState('');
   const [newItemSdDiscovery, setNewItemSdDiscovery] = useState(false);
+
+  // Forms for new user creation
+  const [showNewUser, setShowNewUser] = useState(false);
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
+  const [newUserRole, setNewUserRole] = useState('USER');
+  const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
+
+  const resetNewUserForm = () => {
+    setNewUserEmail('');
+    setNewUserName('');
+    setNewUserPassword('');
+    setNewUserRole('USER');
+    setNewUserIsAdmin(false);
+  };
 
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg: any) => {
@@ -401,38 +418,38 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   <form onSubmit={handleAddPackage} className="space-y-4">
                     <div>
                       <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Nome</label>
-                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none" required />
+                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" required />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Horas</label>
-                        <input type="number" step="0.01" min="0" value={newItemHours} onChange={(e) => setNewItemHours(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-black focus:ring-2 focus:ring-brand-primary outline-none text-center" required />
+                        <input type="number" step="0.01" min="0" value={newItemHours} onChange={(e) => setNewItemHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all text-center" required />
                       </div>
                       <div>
                         <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Skill</label>
-                        <select value={newItemSkill} onChange={(e) => setNewItemSkill(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer uppercase">
+                        <select value={newItemSkill} onChange={(e) => setNewItemSkill(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
                           {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
                       <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Categoria</label>
-                      <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer uppercase" required>
+                      <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase" required>
                         <option value="">Selecionar...</option>
                         {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                       </select>
                     </div>
                     <div>
                       <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Depende de (Opcional)</label>
-                      <select value={newItemDependsOn} onChange={(e) => setNewItemDependsOn(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer uppercase">
+                      <select value={newItemDependsOn} onChange={(e) => setNewItemDependsOn(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
                         <option value="">Nenhum</option>
                         {packages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
-                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
                       <div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark">SD Discovery</div>
-                        <div className="text-[8px] uppercase tracking-widest text-slate-400">Ativa regra SD no cálculo do projeto</div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">SD Discovery</div>
+                        <div className="text-[8px] uppercase tracking-widest text-slate-400 dark:text-[#8a8a8a]">Ativa regra SD no cálculo do projeto</div>
                       </div>
                       <label className="inline-flex items-center cursor-pointer">
                         <input
@@ -441,12 +458,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           onChange={(e) => setNewItemSdDiscovery(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary"></div>
+                        <div className="relative w-11 h-6 bg-slate-200 dark:bg-[#1f1f1f] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[#0a0a0a] after:border-slate-300 dark:after:border-[#1f1f1f] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
                       </label>
                     </div>
                     <div>
                       <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Tooltip (Opcional)</label>
-                      <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary outline-none h-20 resize-none" />
+                      <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all h-20 resize-none" />
                     </div>
                     <button type="submit" disabled={isPending} className="w-full brand-bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest hover:opacity-90 shadow-xl text-[10px] disabled:opacity-50">
                       {isPending ? 'Processando...' : 'Adicionar Item'}
@@ -505,19 +522,19 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   </div>
 
                   {/* Tabela com Edição Inline */}
-                  <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden">
+                  <div className="bg-white dark:bg-[#0a0a0a] dark:border-[#1f1f1f] rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden">
                     <table className="min-w-full">
-                      <thead className="bg-slate-50/50 border-b border-slate-100">
+                      <thead className="bg-slate-50/50 dark:bg-[#141414]/70 border-b border-slate-100 dark:border-[#1f1f1f]">
                         <tr>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Item</th>
-                          <th className="px-8 py-5 text-center text-[9px] font-black text-slate-400 uppercase tracking-widest w-24">Horas</th>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 uppercase tracking-widest">Organização</th>
-                          <th className="px-8 py-5 text-right text-[9px] font-black text-slate-400 uppercase tracking-widest">Ações</th>
+                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Item</th>
+                          <th className="px-8 py-5 text-center text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest w-24">Horas</th>
+                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Organização</th>
+                          <th className="px-8 py-5 text-right text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Ações</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50">
+                      <tbody className="divide-y divide-slate-50 dark:divide-[#141414]">
                         {filteredPackages.map((pkg: any) => (
-                          <tr key={pkg.id} className={`hover:bg-slate-50/30 transition-all group ${editingId === pkg.id ? 'bg-brand-primary/5' : ''}`}>
+                          <tr key={pkg.id} className={`hover:bg-slate-50/30 dark:hover:bg-[#141414]/50 transition-all group ${editingId === pkg.id ? 'bg-brand-primary/5 dark:bg-brand-primary/10' : ''}`}>
                             <td className="px-8 py-6">
                               {editingId === pkg.id ? (
                                 <div className="space-y-2">
@@ -525,23 +542,23 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     type="text" 
                                     value={editValues.name} 
                                     onChange={(e) => setEditValues({ ...editValues, name: e.target.value })}
-                                    className="w-full bg-white border border-brand-primary/30 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary/20"
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                                   />
                                   <input 
                                     type="text" 
                                     placeholder="Tooltip..."
                                     value={editValues.tooltip} 
                                     onChange={(e) => setEditValues({ ...editValues, tooltip: e.target.value })}
-                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none"
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none transition-all"
                                   />
                                 </div>
                               ) : (
                                 <div className="flex items-center space-x-2">
-                                  <div className="text-sm font-black text-brand-dark uppercase tracking-tight">{pkg.name}</div>
+                                  <div className="text-sm font-black text-brand-dark dark:text-[#ffffff] uppercase tracking-tight">{pkg.name}</div>
                                   {pkg.tooltip && (
                                     <div className="group/tooltip relative cursor-help">
                                       <Info className="w-3 h-3 text-slate-300 hover:text-brand-primary transition-colors" />
-                                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-white text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
+                                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark dark:bg-[#141414] text-white dark:text-[#ffffff] dark:border dark:border-[#1f1f1f] text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
                                         {pkg.tooltip}
                                       </div>
                                     </div>
@@ -556,10 +573,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   step="0.01"
                                   value={editValues.hours} 
                                   onChange={(e) => setEditValues({ ...editValues, hours: e.target.value })}
-                                  className="w-16 bg-white border border-brand-primary/30 rounded-lg px-2 py-1.5 text-xs font-black text-center outline-none"
+                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1.5 text-xs font-black text-center outline-none transition-all"
                                 />
                               ) : (
-                                <span className="bg-brand-dark text-white px-3 py-1 rounded-lg text-[10px] font-black tracking-tighter">{pkg.hours}H</span>
+                                <span className="bg-brand-dark dark:bg-[#141414] dark:border dark:border-[#1f1f1f] text-white dark:text-[#ffffff] px-3 py-1 rounded-lg text-[10px] font-black tracking-tighter">{pkg.hours}H</span>
                               )}
                             </td>
                             <td className="px-8 py-6">
@@ -568,28 +585,28 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   <select 
                                     value={editValues.categoryName} 
                                     onChange={(e) => setEditValues({ ...editValues, categoryName: e.target.value })}
-                                    className="w-full bg-white border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
                                   >
                                     {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                                   </select>
                                   <select 
                                     value={editValues.skillName} 
                                     onChange={(e) => setEditValues({ ...editValues, skillName: e.target.value })}
-                                    className="w-full bg-white border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
                                   >
                                     {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                                   </select>
                                   <select 
                                     value={editValues.dependsOnItemId} 
                                     onChange={(e) => setEditValues({ ...editValues, dependsOnItemId: e.target.value })}
-                                    className="w-full bg-white border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
                                   >
                                     <option value="">Sem Dependência</option>
                                     {packages.filter((p: any) => p.id !== pkg.id).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
                                   
                                   <div className="space-y-1.5 pt-1">
-                                    <label className="block text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Excluir do % de:</label>
+                                    <label className="block text-[7px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest ml-1">Excluir do % de:</label>
                                     <div className="flex flex-wrap gap-1.5">
                                       {variables.filter((v: any) => v.type === 'PERCENT' || v.type === 'MIXED').map((v: any) => (
                                         <button
@@ -604,8 +621,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                           }}
                                           className={`px-2 py-0.5 rounded text-[7px] font-black uppercase transition-all border ${
                                             (editValues.excludedFromVariables || []).includes(v.key)
-                                              ? 'bg-red-50 text-red-500 border-red-200'
-                                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:border-slate-300'
+                                              ? 'bg-red-50 dark:bg-[#3b1414] text-red-500 dark:text-[#ff7676] border-red-200 dark:border-[#5a1e1e]'
+                                              : 'bg-slate-50 dark:bg-[#141414] text-slate-400 dark:text-[#8a8a8a] border-slate-200 dark:border-[#1f1f1f] hover:border-slate-300'
                                           }`}
                                         >
                                           {v.key.replace('_STANDARD', '')}
@@ -614,9 +631,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark">SD Discovery</span>
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">SD Discovery</span>
                                     </div>
                                     <label className="inline-flex items-center cursor-pointer">
                                       <input
@@ -625,16 +642,16 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                         onChange={(e) => setEditValues({ ...editValues, sdDiscovery: e.target.checked })}
                                         className="sr-only peer"
                                       />
-                                      <div className="relative w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary"></div>
+                                      <div className="relative w-9 h-5 bg-slate-200 dark:bg-[#1f1f1f] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[#0a0a0a] after:border-slate-300 dark:after:border-[#1f1f1f] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
                                     </label>
                                   </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
-                                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{pkg.categoryName}</span>
-                                  <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit">{pkg.skillName}</span>
+                                  <span className="text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{pkg.categoryName}</span>
+                                  <span className="text-[8px] bg-slate-100 dark:bg-[#141414] dark:text-[#e8e8e8] text-slate-500 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit">{pkg.skillName}</span>
                                   {pkg.sdDiscovery && (
-                                    <span className="text-[8px] bg-brand-primary/10 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
+                                    <span className="text-[8px] bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
                                       SD Discovery
                                     </span>
                                   )}
@@ -1207,10 +1224,136 @@ export default function AdminClient({ packages, categories, skills, variables, v
                 </div>
                 <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">Gestão de Equipe</h2>
               </div>
-              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                {users.length} Membros da Equipe
+              <div className="flex items-center space-x-4">
+                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                  {users.length} Membros da Equipe
+                </div>
+                <button
+                  onClick={() => { resetNewUserForm(); setShowNewUser(true); }}
+                  className="flex items-center space-x-2 px-5 py-2.5 brand-bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Criar Usuário</span>
+                </button>
               </div>
             </div>
+
+            {showNewUser && (
+              <div className="px-12 py-8 border-b border-slate-50 bg-brand-primary/[0.02]">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <div className="text-sm font-black uppercase tracking-tight text-brand-dark">Novo Usuário</div>
+                    <div className="text-[10px] font-bold text-slate-400 mt-1">Preencha os campos abaixo para criar uma nova conta de acesso</div>
+                  </div>
+                  <button
+                    onClick={() => { setShowNewUser(false); resetNewUserForm(); }}
+                    className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition-all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">E-mail *</label>
+                    <input
+                      type="email"
+                      value={newUserEmail}
+                      onChange={(e) => setNewUserEmail(e.target.value)}
+                      placeholder="ex.: nome@aktienow.com"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Nome de exibição</label>
+                    <input
+                      type="text"
+                      value={newUserName}
+                      onChange={(e) => setNewUserName(e.target.value)}
+                      placeholder="Nome Sobrenome"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Senha *</label>
+                    <input
+                      type="password"
+                      value={newUserPassword}
+                      onChange={(e) => setNewUserPassword(e.target.value)}
+                      placeholder="Mínimo 6 caracteres"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Cargo / Role</label>
+                    <select
+                      value={newUserRole}
+                      onChange={(e) => setNewUserRole(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                    >
+                      <option value="USER">User (Padrão)</option>
+                      <option value="SC">SC (Admin)</option>
+                      <option value="AE">AE (Consulting)</option>
+                      <option value="DEV">Desenvolvimento</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <label className="inline-flex items-center space-x-3 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-brand-primary/30 bg-white cursor-pointer transition-all">
+                    <input
+                      type="checkbox"
+                      checked={newUserIsAdmin}
+                      onChange={(e) => setNewUserIsAdmin(e.target.checked)}
+                      className="w-4 h-4 accent-brand-primary"
+                    />
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark">Privilégio Admin</div>
+                      <div className="text-[9px] font-bold text-slate-400">Pode gerenciar equipe, framework e configurações</div>
+                    </div>
+                    <ShieldCheck className={`w-4 h-4 ml-2 ${newUserIsAdmin ? 'text-brand-primary' : 'text-slate-300'}`} />
+                  </label>
+
+                  <div className="flex items-center space-x-3">
+                    <button
+                      onClick={() => { setShowNewUser(false); resetNewUserForm(); }}
+                      disabled={isPending}
+                      className="px-5 py-3 border border-slate-200 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-60"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!newUserEmail || !newUserPassword) {
+                          alert('E-mail e senha são obrigatórios');
+                          return;
+                        }
+                        startTransition(async () => {
+                          const result = await createUserAction({
+                            email: newUserEmail,
+                            name: newUserName || undefined,
+                            password: newUserPassword,
+                            role: newUserRole,
+                            isAdmin: newUserIsAdmin,
+                          });
+                          if (result?.success) {
+                            setShowNewUser(false);
+                            resetNewUserForm();
+                          } else if (result?.error) {
+                            alert(result.error);
+                          }
+                        });
+                      }}
+                      disabled={isPending}
+                      className="px-5 py-3 brand-bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-60 flex items-center space-x-2"
+                    >
+                      {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCog className="w-4 h-4" />}
+                      <span>Criar Usuário</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             
             <div className="overflow-x-auto">
               <table className="min-w-full">

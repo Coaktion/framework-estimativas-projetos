@@ -51,10 +51,10 @@ export default function LoginPage() {
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.4em]">Acesso restrito ao time Aktie Now</p>
       </div>
 
-      <div className="w-full max-w-md bg-white p-10 rounded-[3rem] border border-slate-200 shadow-2xl space-y-8">
+      <div className="w-full max-w-md bg-white dark:bg-[#0a0a0a] p-10 rounded-[3rem] border border-slate-200 dark:border-[#1f1f1f] shadow-2xl space-y-8">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-50 border border-red-100 text-red-600 p-4 rounded-2xl flex items-center space-x-3 animate-in shake duration-300">
+            <div className="bg-red-50 dark:bg-[#3b1414] border border-red-100 dark:border-[#5a1e1e] text-red-600 dark:text-[#ff7676] p-4 rounded-2xl flex items-center space-x-3 animate-in shake duration-300">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span className="text-[10px] font-black uppercase tracking-widest leading-tight">{error}</span>
             </div>
@@ -71,7 +71,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu.email@aktienow.com"
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300"
+              className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] focus:bg-white outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[#5e5e5e]"
             />
           </div>
 
@@ -86,14 +86,14 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300"
+              className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] focus:bg-white outline-none transition-all placeholder:text-slate-300 dark:placeholder:text-[#5e5e5e]"
             />
           </div>
 
           <button 
             type="submit"
             disabled={loading}
-            className="w-full bg-brand-dark text-white p-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] shadow-xl hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center space-x-4 disabled:opacity-50 disabled:scale-100"
+            className="w-full bg-brand-dark dark:bg-[#141414] text-white dark:text-[#ffffff] p-6 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] shadow-xl dark:shadow-black/50 dark:border dark:border-[#1f1f1f] hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center space-x-4 disabled:opacity-50 disabled:scale-100"
           >
             {loading ? (
               <>
@@ -109,7 +109,7 @@ export default function LoginPage() {
           </button>
         </form>
         
-        <div className="pt-4 flex items-center justify-center space-x-2 text-slate-300">
+        <div className="pt-4 flex items-center justify-center space-x-2 text-slate-300 dark:text-[#5e5e5e]">
           <Shield className="w-3 h-3" />
           <span className="text-[8px] font-black uppercase tracking-widest">Proteção de Dados Coaktion</span>
         </div>

@@ -102,6 +102,51 @@ export async function deleteUserAction(userId: number) {
   revalidatePath("/admin");
 }
 
+export async function createUserAction(data: {
+  email: string;
+  name?: string;
+  password?: string;
+  role?: string;
+  isAdmin?: boolean;
+}) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+
+  const email = String(data.email || '').trim().toLowerCase();
+  if (!email) return { success: false, error: "E-mail obrigatório" };
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) return { success: false, error: "Já existe usuário com este e-mail" };
+
+  const password = String(data.password || '').trim();
+  if (!password) return { success: false, error: "Senha obrigatória" };
+
+  let hashedPassword: string | undefined = undefined;
+  try {
+    const bcrypt = (await import('bcryptjs')).default;
+    hashedPassword = await bcrypt.hash(password, 10);
+  } catch {
+    return { success: false, error: "Erro ao gerar hash da senha" };
+  }
+
+  try {
+    await prisma.user.create({
+      data: {
+        email,
+        name: String(data.name || '').trim() || null,
+        password: hashedPassword,
+        role: String(data.role || 'USER').toUpperCase(),
+        isAdmin: Boolean(data.isAdmin),
+      },
+    });
+    revalidatePath("/admin");
+    return { success: true };
+  } catch (err: any) {
+    if (err?.code === 'P2002') return { success: false, error: "Já existe usuário com este e-mail" };
+    return { success: false, error: err?.message || "Erro ao criar usuário" };
+  }
+}
+
 export async function updateUserRoleAction(userId: number, role: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
