@@ -14,10 +14,12 @@
   --bg-card: #FFFFFF;
   --bg-input: #F0F7F3;
   --bg-navbar: rgba(255, 255, 255, 0.75);
+  --bg-card-solid: #FFFFFF;
+  --bg-input-solid: #F0F7F3;
 }
 
 .dark {
-  --primary: #6BFF7A;
+  --primary: #2BDD66;
   --secondary: #2BDD66;
   --accent: #9BFF57;
   --dark: #E9F7ED;
@@ -28,6 +30,8 @@
   --bg-card: rgba(10, 18, 12, 0.65);
   --bg-input: rgba(10, 18, 12, 0.55);
   --bg-navbar: rgba(7, 12, 8, 0.55);
+  --bg-card-solid: #0A120C;
+  --bg-input-solid: #0F1E14;
 }
 
 body {
@@ -120,6 +124,38 @@ body {
 
     .bg-slate-50, .bg-slate-50\/50, .bg-slate-50\/30 {
       background-color: var(--bg-input) !important;
+    }
+
+    .bg-slate-100 {
+      background-color: color-mix(in srgb, var(--bg-input) 70%, var(--bg-card) 30%) !important;
+    }
+
+    .prose,
+    .prose-slate,
+    .prose * {
+      color: var(--text-main) !important;
+    }
+    .prose table th,
+    .prose table td {
+      background-color: var(--bg-card) !important;
+      border-color: var(--border-main) !important;
+      color: var(--text-main) !important;
+    }
+    .prose h1,
+    .prose h2,
+    .prose h3,
+    .prose h4 {
+      color: var(--text-main) !important;
+    }
+    .prose strong {
+      color: var(--accent) !important;
+    }
+    .prose code,
+    .prose pre,
+    .prose blockquote {
+      background-color: var(--bg-input) !important;
+      color: var(--text-main) !important;
+      border-color: var(--border-main) !important;
     }
 
     nav {

@@ -50,11 +50,35 @@ export async function restoreFrameworkSnapshotAction(snapshotId: number) {
   await prisma.variable.updateMany({ data: { isActive: false } });
 
   for (const pkg of packages) {
-    const { id, createdAt, ...pkgData } = pkg;
+    const {
+      id, createdAt,
+      categoryName, skillName, category, skill,
+      dependsOnItemId,
+      ...pkgData
+    } = pkg;
+    const updateData: any = { ...pkgData, isActive: true };
+    const createData: any = { name: pkgData.name, ...pkgData, isActive: true };
+    if (categoryName) {
+      const nestedCat = { connectOrCreate: { where: { name: categoryName }, create: { name: categoryName } } };
+      updateData.category = nestedCat;
+      createData.category = nestedCat;
+    }
+    if (skillName) {
+      const nestedSkill = { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } };
+      updateData.skill = nestedSkill;
+      createData.skill = nestedSkill;
+    }
+    if (dependsOnItemId) {
+      const nestedDep = { connect: { id: Number(dependsOnItemId) } };
+      updateData.dependsOnItem = nestedDep;
+      createData.dependsOnItem = nestedDep;
+    }
+    if (category && !categoryName) delete updateData.category;
+    if (skill && !skillName) delete updateData.skill;
     await prisma.package.upsert({
       where: { name: pkgData.name },
-      update: { ...pkgData, isActive: true },
-      create: { ...pkgData, isActive: true }
+      update: updateData,
+      create: createData,
     });
   }
 
@@ -93,17 +117,33 @@ export async function updatePackageAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
 
-  const { hours, dependsOnItemId, excludedFromVariables, ...rest } = data;
+  const { hours, dependsOnItemId, excludedFromVariables, sdDiscovery, categoryName, skillName, ...rest } = data;
   
   try {
+    const updateData: any = {
+      ...rest,
+      hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
+      excludedFromVariables: excludedFromVariables !== undefined ? JSON.stringify(excludedFromVariables) : undefined,
+      sdDiscovery: sdDiscovery !== undefined ? Boolean(sdDiscovery) : undefined,
+    };
+    if (dependsOnItemId !== undefined) {
+      const parsedId = parseInt(dependsOnItemId);
+      if (parsedId && !isNaN(parsedId)) {
+        updateData.dependsOnItem = { connect: { id: parsedId } };
+      } else {
+        updateData.dependsOnItem = { disconnect: true };
+      }
+    }
+    if (categoryName) {
+      updateData.category = { connectOrCreate: { where: { name: categoryName }, create: { name: categoryName } } };
+    }
+    if (skillName) {
+      updateData.skill = { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } };
+    }
+
     await prisma.package.update({
       where: { id },
-      data: {
-        ...rest,
-        hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
-        dependsOnItemId: dependsOnItemId !== undefined ? (parseInt(dependsOnItemId) || null) : undefined,
-        excludedFromVariables: excludedFromVariables !== undefined ? JSON.stringify(excludedFromVariables) : undefined
-      }
+      data: updateData,
     });
 
     revalidatePath("/admin");
@@ -252,12 +292,31 @@ export async function addPackageAction(formData: FormData) {
   const categoryName = formData.get("categoryName") as string;
   const tooltip = formData.get("tooltip") as string;
   const link = formData.get("link") as string;
-  const dependsOnItemId = formData.get("dependsOnItemId") ? parseInt(formData.get("dependsOnItemId") as string) : null;
+  const sdDiscovery = formData.get("sdDiscovery") === "on";
+  const dependsOnItemIdRaw = formData.get("dependsOnItemId");
+  const dependsOnItemId = dependsOnItemIdRaw ? parseInt(dependsOnItemIdRaw as string) : null;
+
+  const common: any = {
+    hours,
+    tooltip,
+    link,
+    isActive: true,
+    sdDiscovery,
+    category: categoryName
+      ? { connectOrCreate: { where: { name: categoryName }, create: { name: categoryName } } }
+      : undefined,
+    skill: skillName
+      ? { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } }
+      : undefined,
+  };
+  if (dependsOnItemId) {
+    common.dependsOnItem = { connect: { id: dependsOnItemId } };
+  }
 
   await prisma.package.upsert({
     where: { name },
-    update: { hours, skillName, categoryName, tooltip, link, dependsOnItemId, isActive: true },
-    create: { name, hours, skillName, categoryName, tooltip, link, dependsOnItemId, isActive: true }
+    update: common,
+    create: { name, ...common }
   });
 
   revalidatePath("/admin");
@@ -335,10 +394,15 @@ export async function reseedFrameworkAction() {
   ];
 
   for (const pkg of packages) {
+    const { categoryName, skillName, dependsOnItemId, ...rest } = pkg as any;
+    const nested: any = {};
+    if (categoryName) nested.category = { connectOrCreate: { where: { name: categoryName }, create: { name: categoryName } } };
+    if (skillName) nested.skill = { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } };
+    if (dependsOnItemId) nested.dependsOnItem = { connect: { id: Number(dependsOnItemId) } };
     await prisma.package.upsert({
       where: { name: pkg.name },
-      update: { ...pkg, isActive: true },
-      create: { ...pkg, isActive: true }
+      update: { ...rest, isActive: true, ...nested },
+      create: { name: pkg.name, ...rest, isActive: true, ...nested }
     });
   }
 

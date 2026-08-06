@@ -44,6 +44,10 @@ model AEEstimate {
   data          String   // JSON string with selected options
   resultHours   Float
   needsSC       Boolean
+  version       Int      @default(1)
+  parentId      Int?
+  parent        AEEstimate? @relation("VersionHistory", fields: [parentId], references: [id])
+  children      AEEstimate[] @relation("VersionHistory")
   createdAt     DateTime @default(now())
   createdBy     Int
   creator       User     @relation(fields: [createdBy], references: [id])
@@ -81,6 +85,7 @@ model Package {
   skill           Skill?    @relation(fields: [skillName], references: [name])
   link            String?
   isActive        Boolean  @default(true)
+  sdDiscovery     Boolean  @default(false)
   
   // Lógica Condicional
   dependsOnItemId Int?

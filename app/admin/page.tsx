@@ -3,6 +3,7 @@ import AdminClient from "./AdminClient";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);
@@ -17,10 +18,16 @@ export default async function AdminPage() {
     include: { category: true, skill: true }
   });
 
-  const categories = await prisma.category.findMany({
-    where: { isActive: true },
-    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }]
-  });
+  let categories: any[];
+  try {
+    categories = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: buildCategoryOrderBy() as any,
+    });
+  } catch {
+    const rows = await prisma.category.findMany({ where: { isActive: true } });
+    categories = sortCategories(rows as any);
+  }
 
   const skills = await prisma.skill.findMany({
     where: { isActive: true },

@@ -54,6 +54,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [newItemCategory, setNewItemCategory] = useState('');
   const [newItemTooltip, setNewItemTooltip] = useState('');
   const [newItemDependsOn, setNewItemDependsOn] = useState('');
+  const [newItemSdDiscovery, setNewItemSdDiscovery] = useState(false);
 
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg: any) => {
@@ -73,6 +74,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
       categoryName: pkg.categoryName,
       tooltip: pkg.tooltip || '',
       dependsOnItemId: pkg.dependsOnItemId || '',
+      sdDiscovery: Boolean(pkg.sdDiscovery || false),
       excludedFromVariables: JSON.parse(pkg.excludedFromVariables || '[]')
     });
   };
@@ -120,6 +122,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
     formData.append('categoryName', newItemCategory);
     formData.append('tooltip', newItemTooltip);
     formData.append('dependsOnItemId', newItemDependsOn);
+    if (newItemSdDiscovery) formData.append('sdDiscovery', 'on');
 
     startTransition(async () => {
       await addPackageAction(formData);
@@ -127,6 +130,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
       setNewItemHours('');
       setNewItemTooltip('');
       setNewItemDependsOn('');
+      setNewItemSdDiscovery(false);
     });
   };
 
@@ -425,6 +429,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         {packages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
+                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 border border-slate-200">
+                      <div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark">SD Discovery</div>
+                        <div className="text-[8px] uppercase tracking-widest text-slate-400">Ativa regra SD no cálculo do projeto</div>
+                      </div>
+                      <label className="inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={newItemSdDiscovery}
+                          onChange={(e) => setNewItemSdDiscovery(e.target.checked)}
+                          className="sr-only peer"
+                        />
+                        <div className="relative w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary"></div>
+                      </label>
+                    </div>
                     <div>
                       <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Tooltip (Opcional)</label>
                       <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary outline-none h-20 resize-none" />
@@ -594,11 +613,31 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       ))}
                                     </div>
                                   </div>
+
+                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 border border-slate-200">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark">SD Discovery</span>
+                                    </div>
+                                    <label className="inline-flex items-center cursor-pointer">
+                                      <input
+                                        type="checkbox"
+                                        checked={Boolean(editValues.sdDiscovery || false)}
+                                        onChange={(e) => setEditValues({ ...editValues, sdDiscovery: e.target.checked })}
+                                        className="sr-only peer"
+                                      />
+                                      <div className="relative w-9 h-5 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary"></div>
+                                    </label>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
                                   <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{pkg.categoryName}</span>
                                   <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit">{pkg.skillName}</span>
+                                  {pkg.sdDiscovery && (
+                                    <span className="text-[8px] bg-brand-primary/10 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
+                                      SD Discovery
+                                    </span>
+                                  )}
                                   {pkg.dependsOnItemId && (
                                     <span className="text-[8px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
                                       <Settings className="w-2 h-2" />

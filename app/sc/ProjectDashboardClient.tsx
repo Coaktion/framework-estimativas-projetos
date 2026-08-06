@@ -139,7 +139,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
       {/* Modal de Novo Projeto */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
+          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
             <div className="brand-bg-primary p-10 flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black text-white font-heading uppercase tracking-tight">Novo Projeto</h3>
@@ -152,23 +152,23 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
             
             <form action={createProjectAction} className="p-10 space-y-8">
               <div className="space-y-4">
-                <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Projeto</label>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1">Nome do Projeto</label>
                 <input 
                   type="text" 
                   name="name" 
                   placeholder="Ex: Implantação Zendesk - Cliente X" 
-                  className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
+                  className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
                   required 
                 />
               </div>
 
-              <div className="flex items-center space-x-4 bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <div className="flex items-center space-x-4 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:border-[color:var(--border-main)] p-6 rounded-2xl border border-slate-100">
                 <div className="flex-1">
-                  <label htmlFor="isPrivate" className="block text-sm font-black text-brand-dark tracking-tight">Privacidade</label>
-                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">Apenas você terá acesso</p>
+                  <label htmlFor="isPrivate" className="block text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">Privacidade</label>
+                  <p className="text-[10px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">Apenas você terá acesso</p>
                 </div>
-                <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full bg-slate-200">
-                  <input type="checkbox" name="isPrivate" id="isPrivate" className="absolute w-6 h-6 transition duration-200 ease-in-out transform bg-white border-4 border-slate-200 rounded-full appearance-none cursor-pointer checked:translate-x-6 checked:border-brand-primary outline-none" />
+                <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full bg-slate-200 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)]">
+                  <input type="checkbox" name="isPrivate" id="isPrivate" className="absolute w-6 h-6 transition duration-200 ease-in-out transform bg-white dark:bg-[color:var(--bg-card)] border-4 border-slate-200 dark:border-[color:var(--border-main)] rounded-full appearance-none cursor-pointer checked:translate-x-6 checked:border-brand-primary outline-none" />
                 </div>
               </div>
 
@@ -185,7 +185,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   type="button" 
                   onClick={() => setIsModalOpen(false)}
                   disabled={isPending}
-                  className="w-full py-4 text-[10px] font-black text-slate-400 hover:text-brand-dark transition-colors uppercase tracking-[0.2em] disabled:opacity-50"
+                  className="w-full py-4 text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors uppercase tracking-[0.2em] disabled:opacity-50"
                 >
                   Cancelar
                 </button>

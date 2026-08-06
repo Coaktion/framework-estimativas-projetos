@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "next-auth/react";
 import { ThemeProvider } from "./ThemeProvider";
+import { AppLoadingProvider } from "./AppBlockingLoader";
 
 export default function Providers({ children, initialTheme = 'dark', initialIsCompact = false }: { 
   children: React.ReactNode,
@@ -11,7 +12,9 @@ export default function Providers({ children, initialTheme = 'dark', initialIsCo
   return (
     <SessionProvider>
       <ThemeProvider initialTheme={initialTheme} initialIsCompact={initialIsCompact}>
-        {children}
+        <AppLoadingProvider>
+          {children}
+        </AppLoadingProvider>
       </ThemeProvider>
     </SessionProvider>
   );

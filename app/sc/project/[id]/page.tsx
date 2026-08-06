@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserPreferencesAction } from "@/lib/preferences";
+import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
 
 export default async function ProjectEditorPage({ 
   params,
@@ -32,10 +33,16 @@ export default async function ProjectEditorPage({
 
   const preferences = await getUserPreferencesAction();
 
-  const categoriesData = await prisma.category.findMany({
-    where: { isActive: true },
-    orderBy: [{ displayOrder: 'asc' }, { name: 'asc' }],
-  });
+  let categoriesData: any[];
+  try {
+    categoriesData = await prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: buildCategoryOrderBy() as any,
+    });
+  } catch {
+    const rows = await prisma.category.findMany({ where: { isActive: true } });
+    categoriesData = sortCategories(rows as any);
+  }
 
   const packages = await prisma.package.findMany({
     where: { isActive: true },
