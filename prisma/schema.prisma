@@ -15,7 +15,7 @@ model User {
   password      String?           // New field for custom login
   name          String?
   picture       String?
-  role          String            @default("USER") // SC, DEV, CONSULTING, USER
+  role          String            @default("IMPL") // Segmento: ADMIN, SC, AE, PM, IMPL
   isAdmin       Boolean           @default(false)
   createdAt     DateTime          @default(now())
   projects      Project[]
@@ -31,6 +31,7 @@ model UserPreference {
   user            User     @relation(fields: [userId], references: [id])
   theme           String   @default("light") // light, dark
   isCompact       Boolean  @default(false)
+  language        String   @default("pt") // pt, en
   hiddenItems     String   @default("[]") // JSON array of package IDs
   layoutConfig    String   @default("{}") // JSON object com ordem e subcategorias personalizadas
   presets         String   @default("[]") // JSON array of preset objects
@@ -57,6 +58,7 @@ model Category {
   id           Int       @id @default(autoincrement())
   name         String    @unique
   displayName  String    @default("")
+  displayNameEn String   @default("") // Nome exibido em inglês (vazio = usa displayName)
   displayOrder Int       @default(0)
   parentName   String?
   parent       Category? @relation("CategoryHierarchy", fields: [parentName], references: [name])
@@ -68,6 +70,7 @@ model Category {
 model Skill {
   id        Int       @id @default(autoincrement())
   name      String    @unique
+  nameEn    String    @default("") // Nome exibido em inglês (vazio = usa name)
   isActive  Boolean   @default(true)
   packages  Package[]
 }
@@ -75,8 +78,10 @@ model Skill {
 model Package {
   id              Int      @id @default(autoincrement())
   name            String   @unique
+  nameEn          String   @default("") // Nome exibido em inglês (vazio = usa name)
   hours           Float
   tooltip         String?  @default("")
+  tooltipEn       String?  @default("") // Tooltip em inglês (vazio = usa tooltip)
   scopeIncluded   String   @default("")
   scopeExcluded   String   @default("")
   categoryName    String?
@@ -86,6 +91,9 @@ model Package {
   link            String?
   isActive        Boolean  @default(true)
   sdDiscovery     Boolean  @default(false)
+  // Plano Zendesk mínimo por SKU. Vazio = sem restrição (vale em todos os planos).
+  minPlanCS       String   @default("") // team, growth, professional, enterprise
+  minPlanES       String   @default("") // team, growth, professional, enterprise
   
   // Lógica Condicional
   dependsOnItemId Int?
@@ -99,6 +107,8 @@ model Package {
 model Variable {
   id             Int      @id @default(autoincrement())
   key            String   @unique
+  label          String   @default("") // Rótulo em português (vazio = usa key)
+  labelEn        String   @default("") // Rótulo em inglês (vazio = usa label/key)
   value          String   // Valor base (ex: 25 ou 0.5)
   type           String   @default("PERCENT") // PERCENT, FLAT, MIXED
   flatValue      Float?   @default(0)

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { getServerT } from "@/app/i18n/server";
 
 export async function GET(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const t = getServerT();
   const projectId = parseInt(params.id);
   const { searchParams } = new URL(req.url);
   const versionId = searchParams.get("version_id");
@@ -25,13 +27,13 @@ export async function GET(
   const data = JSON.parse(version.data);
   
   // Create a simple CSV content
-  let csv = "Categoria,Pacote,Skill,Horas,Qtd,Total\n";
+  let csv = t('export.csvHeader') + "\n";
   
   // This is a simplified export. In a real scenario, you'd process 
   // all items from 'data' and 'packages' like in the editor.
-  csv += `Resumo de Projeto: ${project.name}\n`;
-  csv += `Versao: ${version.versionName}\n`;
-  csv += `Total Geral: ${version.gpOverride || 'N/A'}H\n`;
+  csv += `${t('export.projectSummary')}: ${project.name}\n`;
+  csv += `${t('export.version')}: ${version.versionName}\n`;
+  csv += `${t('export.grandTotal')}: ${version.gpOverride || 'N/A'}H\n`;
 
   return new NextResponse(csv, {
     headers: {

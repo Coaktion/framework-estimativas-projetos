@@ -5,14 +5,20 @@ import Link from "next/link";
 import Providers from "@/components/Providers";
 import UserMenu from "@/components/UserMenu";
 import Navbar from "@/components/Navbar";
+import FeedbackButton from "@/components/FeedbackButton";
 import { getUserPreferencesAction } from "@/lib/preferences";
+import { getServerLanguage, getServerT } from "@/app/i18n/server";
+import { HTML_LANG, normalizeLanguage } from "@/app/i18n/settings";
 
 const inter = Inter({ subsets: ["latin"] });
 
-export const metadata: Metadata = {
-  title: "PRE-SALES.AI | Smart Scoping",
-  description: "Framework para o time de pré-vendas",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = getServerT();
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+  };
+}
 
 export default async function RootLayout({
   children,
@@ -22,12 +28,16 @@ export default async function RootLayout({
   const prefs = await getUserPreferencesAction();
   const initialTheme = (prefs?.theme as any) || 'dark';
   const initialIsCompact = Boolean(prefs?.isCompact);
+  // O cookie tem prioridade: é o que o usuário acabou de escolher neste browser.
+  // Se não houver cookie, usamos a preferência salva no banco.
+  const cookieLanguage = getServerLanguage();
+  const initialLanguage = normalizeLanguage(cookieLanguage || (prefs as any)?.language);
   const htmlClassName = `${initialTheme === 'dark' ? 'dark' : ''}${initialIsCompact ? ' compact' : ''}`.trim();
 
   return (
-    <html lang="pt-BR" className={htmlClassName}>
+    <html lang={HTML_LANG[initialLanguage]} className={htmlClassName}>
       <body className={inter.className}>
-        <Providers initialTheme={initialTheme} initialIsCompact={initialIsCompact}>
+        <Providers initialTheme={initialTheme} initialIsCompact={initialIsCompact} initialLanguage={initialLanguage}>
           <nav className="bg-white border-b border-slate-300 py-6 px-4 sm:px-8 flex items-center justify-between shadow-sm sticky top-0 z-50 transition-all duration-500">
             <Link href="/" className="flex items-center space-x-3 group">
               <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-xl rotate-3 group-hover:rotate-0 transition-all duration-500">
@@ -42,7 +52,8 @@ export default async function RootLayout({
 
             <Navbar />
 
-            <div className="flex items-center space-x-6">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+               <FeedbackButton />
                <UserMenu />
             </div>
           </nav>

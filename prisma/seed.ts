@@ -79,6 +79,7 @@ async function main() {
     { name: "Ticket: Formulários/Catálogos (por form)", hours: 0.5, categoryName: "Canais - Ticket", skillName: "Implantação" },
     { name: "Ticket: Condicionais (por condição)", hours: 0.03, categoryName: "Canais - Ticket", skillName: "Implantação" },
     { name: "Ticket: Facebook Page (Timeline)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
+    { name: "Ticket: Instagram Page (Feed)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
     { name: "Ticket: X (Mensagens Públicas)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
     { name: "Ticket: Microsoft Teams integration", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
 
@@ -89,6 +90,7 @@ async function main() {
     { name: "Messaging: Android SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
     { name: "Messaging: iOS SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
     { name: "Messaging: Unity SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
+    { name: "Messaging: WhatsApp", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
     { name: "Messaging: LINE", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
     { name: "Messaging: Apple Messages for Business", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
     { name: "Messaging: Slack", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
@@ -163,9 +165,9 @@ async function main() {
     { name: "Knowledge: Central de ajuda completa", hours: 80.0, categoryName: "Zendesk Knowledge", skillName: "Desenvolvimento" },
 
     // Analytics
-    { name: "Analytics: Configuração básica", hours: 2.0, categoryName: "Zendesk Analytics", skillName: "Implantação" },
-    { name: "Analytics: Relatórios personalizados (cada)", hours: 1.0, categoryName: "Zendesk Analytics", skillName: "Implantação" },
-    { name: "Analytics: Painéis personalizados (cada)", hours: 1.0, categoryName: "Zendesk Analytics", skillName: "Implantação" },
+    { name: "Analytics: Configuração básica", hours: 2.0, categoryName: "Zendesk Analytics", skillName: "Implantação" , minPlanCS: "professional", minPlanES: "professional" },
+    { name: "Analytics: Relatórios personalizados (cada)", hours: 1.0, categoryName: "Zendesk Analytics", skillName: "Implantação" , minPlanCS: "professional", minPlanES: "professional" },
+    { name: "Analytics: Painéis personalizados (cada)", hours: 1.0, categoryName: "Zendesk Analytics", skillName: "Implantação" , minPlanCS: "professional", minPlanES: "professional" },
 
     // Copilot
     { name: "Copilot: Configuração básica", hours: 0.37, categoryName: "Zendesk Copilot", skillName: "Solution Design" },
@@ -195,14 +197,48 @@ async function main() {
     { name: "CallWe: Configurações gerais", hours: 0.25, categoryName: "CallWe", skillName: "Implantação" },
   ]
 
+
+  // Nomes em inglês das categorias e skills padrão.
+  // O nome em português é a CHAVE no banco; estes valores são só exibição.
+  // Itens individuais podem receber o nome em inglês pelo painel Admin.
+  const CATEGORY_EN: Record<string, string> = {
+    "AI Agents Advanced": "AI Agents Advanced",
+    "AI Agents Essential": "AI Agents Essential",
+    "Aplicativos AktieNow": "AktieNow Apps",
+    "Asset Management": "Asset Management",
+    "Automação": "Automation",
+    "CallWe": "CallWe",
+    "Canais - Messaging": "Channels - Messaging",
+    "Canais - Ticket": "Channels - Ticket",
+    "Canais - Voz": "Channels - Voice",
+    "DROZ": "DROZ",
+    "Integrações Nativas": "Native Integrations",
+    "Marketplace": "Marketplace",
+    "Produtividade": "Productivity",
+    "Zendesk Analytics": "Zendesk Analytics",
+    "Zendesk Copilot": "Zendesk Copilot",
+    "Zendesk Knowledge": "Zendesk Knowledge",
+    "Zendesk QA": "Zendesk QA",
+    "Zendesk Support": "Zendesk Support",
+    "Zendesk WFM": "Zendesk WFM",
+  }
+
+  const SKILL_EN: Record<string, string> = {
+    "Implantação": "Implementation",
+    "Solution Design": "Solution Design",
+    "Desenvolvimento": "Development",
+    "Design": "Design",
+  }
+
   // 1. Extract and Upsert Categories
   const uniqueCategories = Array.from(new Set(packagesData.map(p => p.categoryName)))
   console.log(`Upserting ${uniqueCategories.length} categories...`)
   for (const catName of uniqueCategories) {
+    const catNameEn = CATEGORY_EN[catName] || ""
     await prisma.category.upsert({
       where: { name: catName },
-      update: { isActive: true },
-      create: { name: catName, isActive: true }
+      update: { isActive: true, displayNameEn: catNameEn },
+      create: { name: catName, isActive: true, displayNameEn: catNameEn }
     })
   }
 
@@ -210,10 +246,11 @@ async function main() {
   const uniqueSkills = Array.from(new Set(packagesData.map(p => p.skillName)))
   console.log(`Upserting ${uniqueSkills.length} skills...`)
   for (const skillName of uniqueSkills) {
+    const skillNameEn = SKILL_EN[skillName] || ""
     await prisma.skill.upsert({
       where: { name: skillName },
-      update: { isActive: true },
-      create: { name: skillName, isActive: true }
+      update: { isActive: true, nameEn: skillNameEn },
+      create: { name: skillName, isActive: true, nameEn: skillNameEn }
     })
   }
 
@@ -222,10 +259,14 @@ async function main() {
   for (const pkg of packagesData) {
     await prisma.package.upsert({
       where: { name: pkg.name },
-      update: { 
-        hours: pkg.hours, 
-        categoryName: pkg.categoryName, 
-        skillName: pkg.skillName 
+      update: {
+        hours: pkg.hours,
+        categoryName: pkg.categoryName,
+        skillName: pkg.skillName,
+        // Só sobrescreve o plano mínimo quando o seed define um, para não apagar
+        // restrições que um admin tenha configurado à mão em outros itens.
+        ...((pkg as any).minPlanCS !== undefined ? { minPlanCS: (pkg as any).minPlanCS } : {}),
+        ...((pkg as any).minPlanES !== undefined ? { minPlanES: (pkg as any).minPlanES } : {}),
       },
       create: {
         ...pkg,

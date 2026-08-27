@@ -4,10 +4,12 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
+import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autorizado");
+  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
 
   // Capture current packages and variables as JSON
   const packages = await prisma.package.findMany({ where: { isActive: true } });
@@ -33,7 +35,7 @@ export async function createFrameworkSnapshotAction(versionName: string, type: s
 
 export async function restoreFrameworkSnapshotAction(snapshotId: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const snapshot = await prisma.frameworkVersion.findUnique({
     where: { id: snapshotId }
@@ -96,7 +98,7 @@ export async function restoreFrameworkSnapshotAction(snapshotId: number) {
 
 export async function deleteUserAction(userId: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/admin");
@@ -110,23 +112,26 @@ export async function createUserAction(data: {
   isAdmin?: boolean;
 }) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const email = String(data.email || '').trim().toLowerCase();
-  if (!email) return { success: false, error: "E-mail obrigatório" };
+  if (!email) return { success: false, error: getServerT()('errors.emailRequired') };
 
   const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) return { success: false, error: "Já existe usuário com este e-mail" };
+  if (existing) return { success: false, error: getServerT()('errors.emailTaken') };
 
   const password = String(data.password || '').trim();
-  if (!password) return { success: false, error: "Senha obrigatória" };
+  if (!password) return { success: false, error: getServerT()('errors.passwordRequired') };
+
+  // O segmento é a única fonte da verdade: ADMIN implica privilégio de admin.
+  const segment = normalizeSegment(data.role);
 
   let hashedPassword: string | undefined = undefined;
   try {
     const bcrypt = (await import('bcryptjs')).default;
     hashedPassword = await bcrypt.hash(password, 10);
   } catch {
-    return { success: false, error: "Erro ao gerar hash da senha" };
+    return { success: false, error: getServerT()('errors.hashFailed') };
   }
 
   try {
@@ -135,32 +140,62 @@ export async function createUserAction(data: {
         email,
         name: String(data.name || '').trim() || null,
         password: hashedPassword,
-        role: String(data.role || 'USER').toUpperCase(),
-        isAdmin: Boolean(data.isAdmin),
+        role: segment,
+        isAdmin: syncIsAdmin(segment),
       },
     });
     revalidatePath("/admin");
     return { success: true };
   } catch (err: any) {
-    if (err?.code === 'P2002') return { success: false, error: "Já existe usuário com este e-mail" };
-    return { success: false, error: err?.message || "Erro ao criar usuário" };
+    if (err?.code === 'P2002') return { success: false, error: getServerT()('errors.emailTaken') };
+    return { success: false, error: err?.message || getServerT()('errors.createUserFailed') };
   }
 }
 
-export async function updateUserRoleAction(userId: number, role: string) {
+/**
+ * Altera o SEGMENTO de um usuário. Somente administradores podem chamar isto.
+ * `isAdmin` é derivado do segmento, então os dois nunca saem de sincronia.
+ */
+export async function updateUserSegmentAction(userId: number, segment: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!canManageSegments(session?.user as any)) {
+    return { success: false, error: getServerT()('errors.cannotChangeSegment') };
+  }
+
+  if (!isSegment(segment)) {
+    return { success: false, error: getServerT()('errors.invalidSegment') };
+  }
+
+  const next = normalizeSegment(segment);
+  const nextIsAdmin = syncIsAdmin(next);
+
+  // Impede que o sistema fique sem nenhum administrador.
+  if (!nextIsAdmin) {
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (target?.isAdmin) {
+      const adminCount = await prisma.user.count({ where: { isAdmin: true } });
+      if (adminCount <= 1) {
+        return { success: false, error: getServerT()('errors.lastAdmin') };
+      }
+    }
+  }
 
   await prisma.user.update({
     where: { id: userId },
-    data: { role }
+    data: { role: next, isAdmin: nextIsAdmin },
   });
   revalidatePath("/admin");
+  return { success: true };
+}
+
+/** @deprecated Use updateUserSegmentAction. Mantido para chamadas antigas. */
+export async function updateUserRoleAction(userId: number, role: string) {
+  return updateUserSegmentAction(userId, role);
 }
 
 export async function updatePackageAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const { hours, dependsOnItemId, excludedFromVariables, sdDiscovery, categoryName, skillName, ...rest } = data;
   
@@ -195,15 +230,15 @@ export async function updatePackageAction(id: number, data: any) {
     return { success: true };
   } catch (error: any) {
     if (error.code === 'P2002') {
-      return { success: false, error: "Já existe um pacote cadastrado com este nome. Por favor, utilize um nome exclusivo." };
+      return { success: false, error: getServerT()('errors.packageNameTaken') };
     }
-    return { success: false, error: "Erro ao atualizar o pacote. Tente novamente." };
+    return { success: false, error: getServerT()('errors.packageUpdateFailed') };
   }
 }
 
-export async function addCategoryAction(name: string) {
+export async function addCategoryAction(name: string, displayNameEn?: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const maxOrder = await prisma.category.aggregate({
     where: { isActive: true },
@@ -212,10 +247,12 @@ export async function addCategoryAction(name: string) {
 
   const nextOrder = (maxOrder._max.displayOrder ?? 0) + 1;
 
+  const nameEn = String(displayNameEn || "").trim();
+
   await prisma.category.upsert({
     where: { name },
-    update: { isActive: true },
-    create: { name, displayOrder: nextOrder }
+    update: { isActive: true, ...(nameEn ? { displayNameEn: nameEn } : {}) },
+    create: { name, displayOrder: nextOrder, displayNameEn: nameEn }
   });
 
   revalidatePath("/admin");
@@ -223,16 +260,18 @@ export async function addCategoryAction(name: string) {
 
 export async function updateCategoryAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const displayOrder = data.displayOrder !== undefined ? parseInt(data.displayOrder) : undefined;
   const displayName = data.displayName !== undefined ? String(data.displayName) : undefined;
+  const displayNameEn = data.displayNameEn !== undefined ? String(data.displayNameEn) : undefined;
   const parentName = data.parentName !== undefined ? (data.parentName ? String(data.parentName) : null) : undefined;
 
   await prisma.category.update({
     where: { id },
     data: {
       displayName,
+      displayNameEn,
       displayOrder: displayOrder !== undefined && !isNaN(displayOrder) ? displayOrder : undefined,
       parentName
     }
@@ -243,7 +282,7 @@ export async function updateCategoryAction(id: number, data: any) {
 
 export async function setCategoryOrderAction(categoryIds: number[]) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.$transaction(
     categoryIds.map((id, index) =>
@@ -259,7 +298,7 @@ export async function setCategoryOrderAction(categoryIds: number[]) {
 
 export async function bulkMovePackagesAction(packageIds: number[], targetCategoryName: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.package.updateMany({
     where: { id: { in: packageIds } },
@@ -271,7 +310,7 @@ export async function bulkMovePackagesAction(packageIds: number[], targetCategor
 
 export async function mergeCategoryAction(sourceCategoryId: number, targetCategoryName: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const source = await prisma.category.findUnique({ where: { id: sourceCategoryId } });
   if (!source) return;
@@ -292,7 +331,7 @@ export async function mergeCategoryAction(sourceCategoryId: number, targetCatego
 
 export async function deleteCategoryAction(id: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.category.update({
     where: { id },
@@ -302,14 +341,29 @@ export async function deleteCategoryAction(id: number) {
   revalidatePath("/admin");
 }
 
-export async function addSkillAction(name: string) {
+/** Atualiza o nome em inglês de uma skill (o nome PT é a chave e não muda). */
+export async function updateSkillAction(id: number, nameEn: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
+
+  await prisma.skill.update({
+    where: { id },
+    data: { nameEn: String(nameEn || "").trim() },
+  });
+
+  revalidatePath("/admin");
+}
+
+export async function addSkillAction(name: string, nameEnInput?: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
+
+  const nameEn = String(nameEnInput || "").trim();
 
   await prisma.skill.upsert({
     where: { name },
-    update: { isActive: true },
-    create: { name }
+    update: { isActive: true, ...(nameEn ? { nameEn } : {}) },
+    create: { name, nameEn }
   });
 
   revalidatePath("/admin");
@@ -317,7 +371,7 @@ export async function addSkillAction(name: string) {
 
 export async function deleteSkillAction(id: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.skill.update({
     where: { id },
@@ -329,9 +383,14 @@ export async function deleteSkillAction(id: number) {
 
 export async function addPackageAction(formData: FormData) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const name = formData.get("name") as string;
+  // O nome em português é a chave canônica; o inglês é só exibição.
+  const nameEn = String(formData.get("nameEn") || "").trim();
+  const minPlanCS = String(formData.get("minPlanCS") || "").trim();
+  const minPlanES = String(formData.get("minPlanES") || "").trim();
+  const tooltipEn = String(formData.get("tooltipEn") || "").trim();
   const hours = Math.max(0, parseFloat(formData.get("hours") as string) || 0);
   const skillName = formData.get("skillName") as string;
   const categoryName = formData.get("categoryName") as string;
@@ -343,7 +402,11 @@ export async function addPackageAction(formData: FormData) {
 
   const common: any = {
     hours,
+    nameEn,
+    minPlanCS,
+    minPlanES,
     tooltip,
+    tooltipEn,
     link,
     isActive: true,
     sdDiscovery,
@@ -369,7 +432,7 @@ export async function addPackageAction(formData: FormData) {
 
 export async function reseedFrameworkAction() {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   // Create Skills
   const skills = ["Implantação", "GP", "Solution Design", "Desenvolvimento", "Design"];
@@ -474,7 +537,7 @@ export async function reseedFrameworkAction() {
 
 export async function deletePackageAction(id: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.package.update({
     where: { id },
@@ -483,13 +546,11 @@ export async function deletePackageAction(id: number) {
   revalidatePath("/admin");
 }
 
+/**
+ * Privilégio de admin agora é consequência do segmento: promover alguém a
+ * administrador significa movê-lo para o segmento ADMIN. Esta função foi
+ * mantida para não quebrar chamadas antigas e apenas delega o trabalho.
+ */
 export async function updateUserAdminStatusAction(userId: number, isAdmin: boolean) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
-
-  await prisma.user.update({
-    where: { id: userId },
-    data: { isAdmin }
-  });
-  revalidatePath("/admin");
+  return updateUserSegmentAction(userId, isAdmin ? 'ADMIN' : 'IMPL');
 }

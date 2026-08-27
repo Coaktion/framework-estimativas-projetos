@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getUserPreferencesAction } from "@/lib/preferences";
 import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
+import { canAccessScopes } from "@/lib/segments";
 
 export default async function ProjectEditorPage({ 
   params,
@@ -15,7 +16,7 @@ export default async function ProjectEditorPage({
 }) {
   const session = await getServerSession(authOptions);
   
-  if (!session?.user || (session.user.role !== 'SC' && !session.user.isAdmin)) {
+  if (!canAccessScopes(session?.user as any)) {
     redirect('/');
   }
 
@@ -53,8 +54,19 @@ export default async function ProjectEditorPage({
     where: { isActive: true },
   });
 
+  // Rótulos PT (compatibilidade) e o registro completo por categoria, para que
+  // o cliente possa exibir no idioma ativo e buscar nos dois idiomas.
   const categoryLabels = categoriesData.reduce((acc: Record<string, string>, c) => {
     acc[c.name] = c.displayName || c.name;
+    return acc;
+  }, {});
+
+  const categoryRecords = categoriesData.reduce((acc: Record<string, any>, c: any) => {
+    acc[c.name] = {
+      name: c.name,
+      displayName: c.displayName || '',
+      displayNameEn: c.displayNameEn || '',
+    };
     return acc;
   }, {});
 
@@ -104,6 +116,7 @@ export default async function ProjectEditorPage({
       project={project}
       categories={categories}
       categoryLabels={categoryLabels}
+      categoryRecords={categoryRecords}
       packagesByCategory={packagesByCategory}
       currentVersion={currentVersion}
       allVersions={allVersions}

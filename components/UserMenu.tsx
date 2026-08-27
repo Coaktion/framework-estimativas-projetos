@@ -4,11 +4,13 @@ import { useSession, signOut, signIn } from "next-auth/react";
 import { LogOut, User as UserIcon, ChevronDown, LogIn } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useTranslation } from "react-i18next";
 
 export default function UserMenu() {
   const { data: session, status } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -30,7 +32,7 @@ export default function UserMenu() {
         <div className="w-8 h-8 rounded-xl brand-bg-primary flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-all">
           <LogIn className="w-4 h-4" />
         </div>
-        <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest">Entrar no Perfil</span>
+        <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest">{t('userMenu.signIn')}</span>
       </Link>
     );
   }
@@ -50,10 +52,10 @@ export default function UserMenu() {
         </div>
         <div className="flex flex-col items-start">
           <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest leading-none">
-            {session.user.name?.split(' ')[0] || 'Usuário'}
+            {session.user.name?.split(' ')[0] || t('userMenu.user')}
           </span>
           <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">
-            {session.user.role || 'Membro'}
+            {session.user.role || t('userMenu.member')}
           </span>
         </div>
         <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -62,7 +64,7 @@ export default function UserMenu() {
       {isOpen && (
         <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl border border-slate-300 shadow-2xl p-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
           <div className="px-4 py-3 border-b border-slate-50 mb-1">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Conectado como</p>
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('userMenu.signedInAs')}</p>
             <p className="text-[10px] font-bold text-brand-dark truncate mt-1">{session.user.email}</p>
           </div>
           
@@ -71,7 +73,7 @@ export default function UserMenu() {
             className="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 transition-all group"
           >
             <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">Sair do Perfil</span>
+            <span className="text-[10px] font-black uppercase tracking-widest">{t('userMenu.signOut')}</span>
           </button>
         </div>
       )}

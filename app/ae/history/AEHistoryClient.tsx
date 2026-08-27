@@ -1,4 +1,6 @@
 'use client';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
 
 import { useState, useMemo } from 'react';
 import Link from "next/link";
@@ -22,6 +24,7 @@ type HistoryGroup = {
 };
 
 export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) {
+  const { t } = useTranslation();
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredGroups = useMemo(() => {
@@ -36,10 +39,10 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
           <h1 className="text-6xl font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tighter font-heading uppercase leading-none">
-            Histórico <span className="text-brand-primary dark:text-[color:var(--primary)]">AE</span>
+            {t('aeHistory.title')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('aeHistory.titleAccent')}</span>
           </h1>
           <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-xs mt-4 font-bold uppercase tracking-[0.2em]">
-            Projetos ({filteredGroups.length} cliente{filteredGroups.length === 1 ? '' : 's'}{filteredGroups.length ? ` · ${filteredGroups.reduce((s, g) => s + Number(g.count || 0), 0)} versões` : ''})
+            {t('aeHistory.projectsLabel')} ({t('aeHistory.clientCount', { count: filteredGroups.length })}{filteredGroups.length ? ` · ${t('aeHistory.versionCount', { count: filteredGroups.reduce((s, g) => s + Number(g.count || 0), 0) })}` : ''})
           </p>
         </div>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
@@ -49,7 +52,7 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar cliente..."
+              placeholder={t('aeHistory.searchPlaceholder')}
               className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
             />
           </div>
@@ -57,7 +60,7 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
             href="/ae"
             className="w-full md:w-auto bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
           >
-            <span>Nova Estimativa</span>
+            <span>{t('aeHistory.newEstimate')}</span>
           </Link>
         </div>
       </div>
@@ -69,7 +72,7 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
               {searchQuery ? <Search className="w-10 h-10 text-white" /> : <Zap className="w-10 h-10 text-white" />}
             </div>
             <p className="text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-widest">
-              {searchQuery ? 'Nenhum cliente encontrado.' : 'Nenhuma estimativa encontrada.'}
+              {searchQuery ? t('aeHistory.emptySearch') : t('aeHistory.emptyState')}
             </p>
           </div>
         ) : (
@@ -83,6 +86,8 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
 }
 
 function ProjectCard({ group }: { group: HistoryGroup }) {
+  const { t } = useTranslation();
+  const { dateLocale } = useLanguage();
   const orderedVersions = useMemo(
     () => [...(group.versions || [])].sort((a, b) => b.version - a.version),
     [group.versions],
@@ -96,7 +101,7 @@ function ProjectCard({ group }: { group: HistoryGroup }) {
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <span className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-100 dark:border-purple-500/30 flex items-center space-x-2">
               <Clock className="w-2 h-2" />
-              <span>{new Date(group.latestCreatedAt).toLocaleDateString('pt-BR')}</span>
+              <span>{new Date(group.latestCreatedAt).toLocaleDateString(dateLocale)}</span>
             </span>
 
             <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-600 dark:text-[color:var(--text-main)] border-slate-200 dark:border-[color:var(--border-main)]">
@@ -119,13 +124,13 @@ function ProjectCard({ group }: { group: HistoryGroup }) {
               : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300 border-emerald-100 dark:border-emerald-500/30'
           }`}>
             {group.latestNeedsSC ? (<AlertTriangle className="w-2 h-2" />) : (<CheckCircle2 className="w-2 h-2" />)}
-            <span>{group.latestNeedsSC ? 'Needs SC' : 'AE Estimate'}</span>
+            <span>{group.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}</span>
           </span>
 
           {/* Lista resumida das versões (chips clicáveis) */}
           <div className="pt-4 mt-4 border-t border-slate-100 dark:border-[color:var(--border-main)]">
             <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400 dark:text-[color:var(--text-muted)] mb-2.5">
-              Versões
+              {t('common.versions')}
             </p>
             <div className="flex flex-wrap gap-2">
               {orderedVersions.map((v) => {

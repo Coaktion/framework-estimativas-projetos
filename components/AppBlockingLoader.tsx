@@ -1,4 +1,5 @@
 'use client';
+import { useTranslation } from 'react-i18next';
 
 import React, {
   createContext,
@@ -25,7 +26,7 @@ export type AppLoadingContextValue = {
   navigationPending: boolean;
 };
 
-const DEFAULT_MSG = 'Carregando…';
+const DEFAULT_MSG = '__loading__'; // sentinel: traduzido no render via t('common.loading')
 
 const AppLoadingContext = createContext<AppLoadingContextValue | null>(null);
 
@@ -302,6 +303,7 @@ export function useAppRouter() {
 /*                         Blocking overlay + spinner                         */
 /* -------------------------------------------------------------------------- */
 function AppBlockingOverlay({ loading, message }: { loading: boolean; message: string | null }) {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [isDark, setIsDark] = useState(false);
 
@@ -316,8 +318,8 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
       try {
         document.body.style.pointerEvents = '';
       } catch (_) {}
-      const t = setTimeout(() => setVisible(false), 120);
-      return () => clearTimeout(t);
+      const hideTimer = setTimeout(() => setVisible(false), 120);
+      return () => clearTimeout(hideTimer);
     }
   }, [loading]);
 
@@ -380,7 +382,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
               ${isDark ? 'text-[color:var(--text-muted,#8ca092)]' : 'text-slate-400'}
             `}
           >
-            PreSales AI
+            {t('loader.brand')}
           </span>
           <span
             className={`
@@ -388,7 +390,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
               ${isDark ? 'text-[color:var(--text-main,#E6F0EA)]' : 'text-brand-dark'}
             `}
           >
-            {message || DEFAULT_MSG}
+            {!message || message === DEFAULT_MSG ? t('common.loading') : message}
           </span>
         </div>
       </div>

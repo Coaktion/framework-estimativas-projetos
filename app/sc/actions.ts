@@ -5,10 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
+import { canAccessScopes } from "@/lib/segments";
 
 export async function createProjectAction(formData: FormData) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autorizado");
+  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
 
   const name = formData.get("name") as string;
   const isPrivate = formData.get("isPrivate") === "on";
@@ -29,8 +31,8 @@ export async function createProjectAction(formData: FormData) {
 
 export async function deleteProjectAction(projectId: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'SC' && session.user.role !== 'ADMIN')) {
-    throw new Error("Não autorizado");
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
   }
 
   await prisma.projectVersion.deleteMany({

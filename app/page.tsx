@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
+import { canAccessScopes, canAccessAE } from "@/lib/segments";
 
 export default async function Home() {
+  const t = getServerT();
   const session = await getServerSession(authOptions);
-  const role = session?.user?.role || 'USER';
-  const isAdmin = session?.user?.isAdmin || false;
+  const user = session?.user as any;
+  const isAdmin = user?.isAdmin || false;
 
-  const isAE = role === 'AE';
-  const isSC = role === 'SC';
+  const showScopes = canAccessScopes(user);
+  const showAE = canAccessAE(user);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] space-y-12">
@@ -16,13 +19,13 @@ export default async function Home() {
         <h1 className="text-6xl font-black text-brand-dark tracking-tighter uppercase font-heading leading-tight">
           PRE-SALES<span className="text-brand-accent">.AI</span>
         </h1>
-        <p className="text-slate-400 text-xs font-black uppercase tracking-[0.3em]">Smart Scoping & Time Estimation Framework</p>
+        <p className="text-slate-400 text-xs font-black uppercase tracking-[0.3em]">{t('home.tagline')}</p>
       </div>
 
       <div className={`grid grid-cols-1 gap-8 w-full max-w-5xl ${
-        isAdmin ? 'md:grid-cols-3' : (isSC ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md')
+        isAdmin ? 'md:grid-cols-3' : (showScopes ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-md')
       }`}>
-        {(isSC || isAdmin) && (
+        {showScopes && (
           <Link href="/sc" className="group bg-white p-12 rounded-[3rem] border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-xl hover:shadow-2xl flex flex-col items-center space-y-8">
             <div className="w-16 h-16 brand-bg-primary rounded-[2rem] flex items-center justify-center text-white shadow-2xl group-hover:scale-110 transition-all">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -30,13 +33,13 @@ export default async function Home() {
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Novo Projeto</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">SC + Implantação</p>
+              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('home.newProject')}</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">{t('home.newProjectSubtitle')}</p>
             </div>
           </Link>
         )}
 
-        {(isAE || isSC || isAdmin) && (
+        {showAE && (
           <Link href="/ae/history" className="group bg-white p-12 rounded-[3rem] border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-xl hover:shadow-2xl flex flex-col items-center space-y-8">
             <div className="w-16 h-16 brand-bg-primary rounded-[2rem] flex items-center justify-center text-white shadow-2xl group-hover:scale-110 transition-all">
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -44,8 +47,8 @@ export default async function Home() {
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Calculadora AE</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Histórico & Check de Viabilidade</p>
+              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('home.aeCalculator')}</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">{t('home.aeCalculatorSubtitle')}</p>
             </div>
           </Link>
         )}
@@ -58,8 +61,8 @@ export default async function Home() {
               </svg>
             </div>
             <div className="text-center">
-              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Admin</h2>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">Gestão de Framework</p>
+              <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('home.admin')}</h2>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-2">{t('home.adminSubtitle')}</p>
             </div>
           </Link>
         )}

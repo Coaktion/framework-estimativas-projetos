@@ -4,8 +4,12 @@ import { useState, useTransition, useMemo } from 'react';
 import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search } from 'lucide-react';
 import Link from 'next/link';
 import { createProjectAction, deleteProjectAction } from './actions';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
 
 export default function ProjectDashboardClient({ projects, currentUserId }: any) {
+  const { t } = useTranslation();
+  const { dateLocale } = useLanguage();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
@@ -24,7 +28,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
   }, [projects, currentUserId, projectScope, searchQuery]);
 
   const handleDelete = async (id: number, name: string) => {
-    if (confirm(`Deseja realmente excluir o projeto "${name}"?`)) {
+    if (confirm(t('sc.confirmDelete', { name }))) {
       startTransition(async () => {
         await deleteProjectAction(id);
       });
@@ -35,8 +39,8 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
     <div className="space-y-12">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
         <div>
-          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">Projetos</h1>
-          <p className="text-slate-400 text-xs mt-3 font-bold uppercase tracking-[0.2em]">Gestão de escopos e estimativas técnicas.</p>
+          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">{t('sc.title')}</h1>
+          <p className="text-slate-400 text-xs mt-3 font-bold uppercase tracking-[0.2em]">{t('sc.subtitle')}</p>
         </div>
         <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
           <div className="flex items-center bg-white border border-slate-300 rounded-[1.5rem] p-1 w-full md:w-auto">
@@ -49,7 +53,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   : 'text-slate-400 hover:text-brand-primary'
               }`}
             >
-              Meus
+              {t('common.mine')}
             </button>
             <button
               type="button"
@@ -60,7 +64,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   : 'text-slate-400 hover:text-brand-primary'
               }`}
             >
-              Todos
+              {t('common.all')}
             </button>
           </div>
           <div className="relative w-full md:w-80 group">
@@ -69,7 +73,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Buscar projeto..."
+              placeholder={t('sc.searchPlaceholder')}
               className="w-full bg-white border border-slate-500 rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all placeholder:text-slate-500"
             />
           </div>
@@ -78,7 +82,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
             className="w-full md:w-auto brand-bg-primary text-white px-10 py-5 rounded-[2rem] font-black hover:opacity-90 shadow-2xl btn-premium transition-all flex items-center justify-center space-x-4 text-xs uppercase tracking-[0.2em]"
           >
             <Plus className="w-5 h-5" />
-            <span>Novo Projeto</span>
+            <span>{t('sc.newProject')}</span>
           </button>
         </div>
       </div>
@@ -88,7 +92,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
           <div className="brand-bg-primary w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
             <Search className="w-10 h-10 text-white" />
           </div>
-          <p className="text-slate-400 font-bold uppercase tracking-widest">Nenhum projeto encontrado.</p>
+          <p className="text-slate-400 font-bold uppercase tracking-widest">{t('sc.emptyState')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -101,16 +105,16 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                       project.isPrivate ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
                       {project.isPrivate ? <Lock className="w-2 h-2" /> : <Globe className="w-2 h-2" />}
-                      <span>{project.isPrivate ? 'Privado' : 'Público'}</span>
+                      <span>{project.isPrivate ? t('common.private') : t('common.public')}</span>
                     </span>
                     {project.status === 'AE_ESTIMATE' && (
                       <span className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-purple-50 text-purple-600 border-purple-100 flex items-center space-x-2">
                         <Zap className="w-2 h-2" />
-                        <span>Legacy AE</span>
+                        <span>{t('sc.legacyAE')}</span>
                       </span>
                     )}
                   </div>
-                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{new Date(project.updatedAt).toLocaleDateString('pt-BR')}</span>
+                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{new Date(project.updatedAt).toLocaleDateString(dateLocale)}</span>
                 </div>
                 
                 <h3 className="text-2xl font-black text-brand-dark group-hover:text-brand-primary transition-colors uppercase tracking-tight leading-tight">
@@ -120,7 +124,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
 
               <div className="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
                 <Link href={`/sc/project/${project.id}`} className="text-[10px] font-black text-brand-dark hover:text-brand-primary uppercase tracking-widest flex items-center space-x-2 transition-all">
-                    <span>Editar Escopo</span>
+                    <span>{t('sc.editScope')}</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>
                 <button 
@@ -142,8 +146,8 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
           <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
             <div className="brand-bg-primary p-10 flex justify-between items-center">
               <div>
-                <h3 className="text-2xl font-black text-white font-heading uppercase tracking-tight">Novo Projeto</h3>
-                <p className="text-white/60 text-xs mt-2 font-bold uppercase tracking-widest">Inicie um novo escopo técnico.</p>
+                <h3 className="text-2xl font-black text-white font-heading uppercase tracking-tight">{t('sc.newProject')}</h3>
+                <p className="text-white/60 text-xs mt-2 font-bold uppercase tracking-widest">{t('sc.modalSubtitle')}</p>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="text-white/60 hover:text-white transition-colors">
                 <X className="w-6 h-6" />
@@ -152,11 +156,11 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
             
             <form action={createProjectAction} className="p-10 space-y-8">
               <div className="space-y-4">
-                <label className="block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1">Nome do Projeto</label>
+                <label className="block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1">{t('sc.projectName')}</label>
                 <input 
                   type="text" 
                   name="name" 
-                  placeholder="Ex: Implantação Zendesk - Cliente X" 
+                  placeholder={t('sc.projectNamePlaceholder')} 
                   className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
                   required 
                 />
@@ -164,8 +168,8 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
 
               <div className="flex items-center space-x-4 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:border-[color:var(--border-main)] p-6 rounded-2xl border border-slate-100">
                 <div className="flex-1">
-                  <label htmlFor="isPrivate" className="block text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">Privacidade</label>
-                  <p className="text-[10px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">Apenas você terá acesso</p>
+                  <label htmlFor="isPrivate" className="block text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{t('sc.privacy')}</label>
+                  <p className="text-[10px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">{t('sc.privacyHint')}</p>
                 </div>
                 <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full bg-slate-200 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)]">
                   <input type="checkbox" name="isPrivate" id="isPrivate" className="absolute w-6 h-6 transition duration-200 ease-in-out transform bg-white dark:bg-[color:var(--bg-card)] border-4 border-slate-200 dark:border-[color:var(--border-main)] rounded-full appearance-none cursor-pointer checked:translate-x-6 checked:border-brand-primary outline-none" />
@@ -179,7 +183,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   className="w-full brand-bg-primary text-white py-5 rounded-2xl text-xs font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase tracking-[0.2em] disabled:opacity-50 flex items-center justify-center space-x-2"
                 >
                   {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Criar Projeto</span>
+                  <span>{t('sc.createProject')}</span>
                 </button>
                 <button 
                   type="button" 
@@ -187,7 +191,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   disabled={isPending}
                   className="w-full py-4 text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors uppercase tracking-[0.2em] disabled:opacity-50"
                 >
-                  Cancelar
+                  {t('common.cancel')}
                 </button>
               </div>
             </form>

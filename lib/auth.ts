@@ -3,6 +3,8 @@ import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
+import { getServerT } from "@/app/i18n/server";
+import { normalizeSegment, syncIsAdmin } from "@/lib/segments";
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma),
@@ -15,7 +17,7 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Email e senha são obrigatórios");
+          throw new Error(getServerT()('errors.emailPasswordRequired'));
         }
 
         const user = await prisma.user.findUnique({
@@ -23,13 +25,13 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user || !user.password) {
-          throw new Error("Usuário não encontrado ou senha não definida");
+          throw new Error(getServerT()('errors.userNotFound'));
         }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isValid) {
-          throw new Error("Senha incorreta");
+          throw new Error(getServerT()('errors.wrongPassword'));
         }
 
         return {
@@ -54,8 +56,12 @@ export const authOptions: NextAuthOptions = {
 
         if (dbUser) {
           session.user.id = dbUser.id.toString();
-          session.user.role = dbUser.role;
-          session.user.isAdmin = dbUser.isAdmin;
+          // Normaliza valores legados ("USER", "DEV", "CONSULTING"...) para um segmento válido.
+          const segment = normalizeSegment(dbUser.role);
+          session.user.role = segment;
+          // ADMIN é o segmento que concede privilégio; respeitamos também o flag
+          // gravado no banco para não rebaixar administradores existentes.
+          session.user.isAdmin = dbUser.isAdmin || syncIsAdmin(segment);
           session.user.name = dbUser.name;
         }
       }
@@ -64,8 +70,8 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }: any) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
-        token.isAdmin = user.isAdmin;
+        token.role = normalizeSegment(user.role);
+        token.isAdmin = user.isAdmin || syncIsAdmin(normalizeSegment(user.role));
       }
       return token;
     }

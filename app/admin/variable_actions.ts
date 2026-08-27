@@ -4,12 +4,15 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
 
 export async function addVariableAction(formData: FormData) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const key = formData.get("key") as string;
+  const label = String(formData.get("label") || "").trim();
+  const labelEn = String(formData.get("labelEn") || "").trim();
   const value = formData.get("value") as string;
   const category = formData.get("category") as string;
   const type = (formData.get("type") as string) || "PERCENT";
@@ -17,8 +20,8 @@ export async function addVariableAction(formData: FormData) {
 
   await prisma.variable.upsert({
     where: { key },
-    update: { value, category, type, flatValue, isActive: true },
-    create: { key, value, category, type, flatValue, isActive: true }
+    update: { label, labelEn, value, category, type, flatValue, isActive: true },
+    create: { key, label, labelEn, value, category, type, flatValue, isActive: true }
   });
 
   revalidatePath("/admin");
@@ -26,7 +29,7 @@ export async function addVariableAction(formData: FormData) {
 
 export async function updateVariableAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   const { targetItems, targetCategories, excludedItems, flatValue, ...rest } = data;
 
@@ -46,7 +49,7 @@ export async function updateVariableAction(id: number, data: any) {
 
 export async function deleteVariableAction(id: number) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error("Não autorizado");
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.variable.update({
     where: { id },

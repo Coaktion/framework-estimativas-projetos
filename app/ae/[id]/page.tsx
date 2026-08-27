@@ -2,14 +2,16 @@ import prisma from "@/lib/prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AEViewClient from "./AEViewClient";
+import { getServerT } from "@/app/i18n/server";
 
 export const dynamic = 'force-dynamic';
 
 export default async function AEViewPage({ params }: { params: { id: string } }) {
+  const t = getServerT();
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">Sessão expirada. Por favor, faça login novamente.</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('common.sessionExpired')}</p>
     </div>
   );
 
@@ -17,7 +19,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const id = parseInt(rawId);
   if (Number.isNaN(id) || id <= 0) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">Estimativa não encontrada.</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('aeView.notFound')}</p>
     </div>
   );
 
@@ -25,7 +27,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const estimate = await prisma.aEEstimate.findUnique({ where: { id } });
   if (!estimate || estimate.createdBy !== userId) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">Estimativa não encontrada ou sem permissão.</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('aeView.notFoundOrNoPermission')}</p>
     </div>
   );
 

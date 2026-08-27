@@ -4,6 +4,7 @@ import prisma from "./prisma";
 import { getServerSession } from "next-auth";
 import { authOptions } from "./auth";
 import { revalidatePath } from "next/cache";
+import { getServerT } from "@/app/i18n/server";
 
 export async function getUserPreferencesAction() {
   const session = await getServerSession(authOptions);
@@ -26,7 +27,7 @@ export async function getUserPreferencesAction() {
 
 export async function updateUserPreferenceAction(data: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autorizado");
+  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
 
   const userId = parseInt(session.user.id);
 
@@ -42,7 +43,7 @@ export async function updateUserPreferenceAction(data: any) {
 
 export async function savePresetAction(name: string, hiddenItems: string[], layoutConfig: any = {}) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autorizado");
+  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
 
   const userId = parseInt(session.user.id);
   
@@ -63,7 +64,7 @@ export async function savePresetAction(name: string, hiddenItems: string[], layo
 
 export async function deletePresetAction(presetName: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error("Não autorizado");
+  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
 
   const userId = parseInt(session.user.id);
   

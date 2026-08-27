@@ -5,11 +5,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
+import { canAccessScopes } from "@/lib/segments";
 
 export async function saveProjectVersionAction(projectId: number, formData: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'SC' && session.user.role !== 'ADMIN')) {
-    throw new Error("Não autorizado");
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
   }
 
   const {
@@ -46,8 +48,8 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
 
 export async function cloneProjectVersionAction(projectId: number, sourceVersionId: number, newVersionName: string, newTechLink: string) {
   const session = await getServerSession(authOptions);
-  if (!session?.user || (session.user.role !== 'SC' && session.user.role !== 'ADMIN')) {
-    throw new Error("Não autorizado");
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
   }
 
   const source = await prisma.projectVersion.findUnique({

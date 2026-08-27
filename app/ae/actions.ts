@@ -4,12 +4,13 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { getServerT } from "@/app/i18n/server";
 
 export async function saveAEEstimateAction(formData: any) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error("Usuário não autenticado");
+    throw new Error(getServerT()('errors.notAuthenticated'));
   }
 
   const {

@@ -1,9 +1,21 @@
 'use client';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
+import { formatHoursMinutes } from '@/lib/format-hours';
+import {
+  ZENDESK_PLANS, PLAN_LABEL, PLAN_RANK as ZD_PLAN_RANK, DEFAULT_PLAN, DEFAULT_SKU,
+  normalizePlanTier, normalizeSkuType, isPackageAvailable, minPlanBadge,
+  type ZendeskPlanTier, type ZendeskSku,
+} from '@/lib/zendesk-plans';
+import {
+  packageName, packageTooltip, categoryName as categoryNameOf,
+  packageHaystack, categoryHaystack, matchesQuery,
+} from '@/lib/localized-names';
 
-import { Fragment, useState, useMemo, useEffect, useTransition, useRef } from 'react';
+import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
-  CheckSquare, Bot, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X
+  CheckSquare, Bot, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -66,6 +78,59 @@ const SKILL_BREAKDOWN_SUBITEMS: Record<string, { key: string; label: string; sou
   'Desenvolvimento': [],
   'Design': [],
 };
+
+
+type TFunc = (key: string, params?: Record<string, any>) => string;
+
+/**
+ * Os nomes de subcategoria e de subitem ficam GRAVADOS no banco (layoutConfig),
+ * portanto o valor armazenado continua sempre em português — só a exibição muda.
+ * Subcategorias criadas pelo usuário caem no fallback e aparecem como foram digitadas.
+ */
+const SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
+  'Geral': 'editor.subcatGeneral',
+  'Canais': 'editor.subcatChannels',
+  'Integrações': 'editor.subcatIntegrations',
+  'Campos e Formulários': 'editor.subcatFields',
+  'Automações e Regras': 'editor.subcatAutomations',
+  'Conteúdo e Help Center': 'editor.subcatContent',
+  'Relatórios': 'editor.subcatReports',
+};
+
+function subcategoryLabel(t: TFunc, name: string): string {
+  const key = SUBCATEGORY_LABEL_KEYS[name];
+  return key ? t(key) : name;
+}
+
+const SUBITEM_LABEL_KEYS: Record<string, string> = {
+  'implantacao.workshop': 'editor.subitemWorkshop',
+  'implantacao.discovery': 'editor.subitemDiscovery',
+  'implantacao.setup': 'editor.subitemSetup',
+  'implantacao.validacao': 'editor.subitemValidation',
+  'implantacao.treinamento': 'editor.subitemTraining',
+  'implantacao.golive': 'editor.subitemGoLive',
+  'sd.discovery': 'editor.subitemDiscovery',
+  'sd.desenvolvimento': 'editor.subitemDev',
+};
+
+function subitemLabel(t: TFunc, subitemKey: string, fallback: string): string {
+  const key = SUBITEM_LABEL_KEYS[subitemKey];
+  return key ? t(key) : fallback;
+}
+
+/** Nomes de skill vêm do banco; traduzimos apenas os cinco padrão. */
+const SKILL_LABEL_KEYS: Record<string, string> = {
+  'Implantação': 'editor.skillImplementation',
+  'GP': 'editor.skillGP',
+  'Solution Design': 'editor.skillSolutionDesign',
+  'Desenvolvimento': 'editor.skillDevelopment',
+  'Design': 'editor.skillDesign',
+};
+
+function skillLabel(t: TFunc, name: string): string {
+  const key = SKILL_LABEL_KEYS[name];
+  return key ? t(key) : name;
+}
 
 function domSafeId(value: string) {
   return String(value).replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -154,7 +219,18 @@ function normalizeLayoutConfig(
   };
 }
 
-export default function ProjectEditorClient({ project, categories, categoryLabels, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
+export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
+  const { t } = useTranslation();
+  const { language } = useLanguage();
+
+  // Rótulo de categoria no idioma ativo, caindo no rótulo PT se não houver tradução.
+  const catLabelOf = useCallback(
+    (cat: string) => {
+      const record = categoryRecords?.[cat];
+      return record ? categoryNameOf(record, language) : String(categoryLabels?.[cat] || cat);
+    },
+    [categoryRecords, categoryLabels, language],
+  );
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [hiddenItems, setHiddenItems] = useState<number[]>(safeJsonParse(preferences?.hiddenItems, []));
@@ -179,7 +255,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     if (!presetName) return;
     await savePresetAction(presetName, hiddenItems.map(String), layoutConfig);
     setPresetName('');
-    alert('Preset salvo com sucesso! Este preset agora está disponível apenas para você.');
+    alert(t('editor.presetSaved'));
   };
 
   const applyPreset = async (preset: any) => {
@@ -194,9 +270,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   const handleDeletePreset = async (name: string) => {
-    if (confirm(`Deseja realmente excluir o perfil "${name}"?`)) {
+    if (confirm(t('editor.confirmDeletePreset', { name }))) {
       await deletePresetAction(name);
-      alert('Perfil excluído com sucesso!');
+      alert(t('editor.presetDeleted'));
     }
   };
 
@@ -247,6 +323,27 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   // UI States
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  // Detalhamento por categoria: começa recolhido para não empurrar o resumo para baixo.
+  const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
+  // SKU e tier do Zendesk: definem quais itens da biblioteca estão disponíveis.
+  // Persistidos dentro do JSON `data` da versão, então não exigem coluna nova.
+  const [skuType, setSkuType] = useState<ZendeskSku>(() => {
+    try {
+      const saved = currentVersion?.data ? JSON.parse(currentVersion.data) : {};
+      return normalizeSkuType(saved.__skuType ?? DEFAULT_SKU);
+    } catch {
+      return DEFAULT_SKU;
+    }
+  });
+  const [planTier, setPlanTier] = useState<ZendeskPlanTier>(() => {
+    try {
+      const saved = currentVersion?.data ? JSON.parse(currentVersion.data) : {};
+      return normalizePlanTier(saved.__planTier ?? DEFAULT_PLAN);
+    } catch {
+      return DEFAULT_PLAN;
+    }
+  });
+  const [openBreakdownCats, setOpenBreakdownCats] = useState<Record<string, boolean>>({});
 
   // Flatten packages for easy lookup
   const allPackages = useMemo<any[]>(() => {
@@ -263,6 +360,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return map;
   }, [packagesByCategory]);
 
+  /** Um item está no escopo apenas se o plano selecionado atender ao mínimo dele. */
+  const isAvailable = useCallback(
+    (pkg: any) => isPackageAvailable(pkg, skuType, planTier),
+    [skuType, planTier],
+  );
+
+  /** Quantos itens da biblioteca o filtro de plano está excluindo agora. */
+  const planExcludedCount = useMemo(() => {
+    return (allPackages || []).filter((pkg: any) => !isAvailable(pkg)).length;
+  }, [allPackages, isAvailable]);
+
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
@@ -274,14 +382,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     };
 
     orderedCategories.forEach((cat: string) => {
-      const label = String(categoryLabels?.[cat] || cat);
-      if (`${cat} ${label}`.toLowerCase().includes(q)) {
+      const label = catLabelOf(cat);
+      // Busca nos dois idiomas: um usuário em PT encontra digitando em EN e vice-versa.
+      const catHay = categoryHaystack(categoryRecords?.[cat] || { name: cat, displayName: categoryLabels?.[cat] });
+      if (matchesQuery(catHay, q)) {
         pushUnique(`cat:${cat}`, { type: 'category', cat, label });
       }
 
       const subcats = layoutConfig.subcategoryOrder?.[cat] || [];
       subcats.forEach((subcategory: string) => {
-        if (String(subcategory).toLowerCase().includes(q)) {
+        const subHay = `${String(subcategory).toLowerCase()} ${subcategoryLabel(t, subcategory).toLowerCase()}`;
+        if (matchesQuery(subHay, q)) {
           pushUnique(`subcat:${cat}:${subcategory}`, {
             type: 'subcategory',
             cat,
@@ -294,14 +405,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
 
     allPackages.forEach((p: any) => {
-      const haystack = `${p?.name || ''} ${p?.tooltip || ''}`.toLowerCase();
-      if (!haystack.includes(q)) return;
+      // packageHaystack cobre name + nameEn + tooltip + tooltipEn.
+      if (!matchesQuery(packageHaystack(p), q)) return;
 
       const itemId = String(p.id);
       const cat = packageRootCategoryById[itemId] || p.categoryName;
       if (!cat) return;
 
-      const catLabel = String(categoryLabels?.[cat] || cat);
+      const catLabel = catLabelOf(cat);
       const subcategory = layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, p);
 
       pushUnique(`item:${itemId}`, {
@@ -309,8 +420,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         cat,
         subcategory,
         itemId,
-        label: p.name,
-        subtitle: `${catLabel} • ${subcategory}`,
+        label: packageName(p, language),
+        subtitle: `${catLabel} • ${subcategoryLabel(t, subcategory)}`,
         isHidden: hiddenItems.includes(p.id)
       });
     });
@@ -320,11 +431,77 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     searchQuery,
     orderedCategories,
     categoryLabels,
+    categoryRecords,
+    catLabelOf,
+    language,
+    t,
     layoutConfig.subcategoryOrder,
     layoutConfig.itemSubcategories,
     allPackages,
     packageRootCategoryById,
     hiddenItems
+  ]);
+
+
+  /**
+   * Detalhamento por categoria e, dentro dela, por subcategoria.
+   * Reaproveita `totals.itemTotals`, então reflete exatamente o que está sendo
+   * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
+   */
+  const categoryBreakdown = useMemo(() => {
+    const byCategory = new Map<string, { total: number; subs: Map<string, number> }>();
+
+    const bump = (cat: string, sub: string, hours: number) => {
+      if (!hours) return;
+      if (!byCategory.has(cat)) byCategory.set(cat, { total: 0, subs: new Map() });
+      const entry = byCategory.get(cat)!;
+      entry.total += hours;
+      entry.subs.set(sub, (entry.subs.get(sub) || 0) + hours);
+    };
+
+    // Itens da biblioteca
+    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
+      (pkgs as any[]).forEach((pkg: any) => {
+        const hours = totals.itemTotals?.[pkg.id];
+        if (!hours) return;
+        const itemId = String(pkg.id);
+        const sub =
+          layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
+        bump(cat, sub, hours);
+      });
+    });
+
+    // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
+    customPackages.forEach((pkg: any) => {
+      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
+      if (!hours) return;
+      bump(pkg.category || t('common.custom'), t('common.manual'), hours);
+    });
+
+    // Apps de marketplace entram como bloco FLAT próprio.
+    if (totals.flatHoursMarketplace) {
+      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace);
+    }
+
+    const rows = Array.from(byCategory.entries())
+      .map(([cat, entry]) => ({
+        cat,
+        total: entry.total,
+        subs: Array.from(entry.subs.entries())
+          .map(([sub, hours]) => ({ sub, hours }))
+          .sort((a, b) => b.hours - a.hours),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const grand = rows.reduce((acc, r) => acc + r.total, 0);
+    return { rows, grand };
+  }, [
+    totals.itemTotals,
+    totals.flatHoursMarketplace,
+    packagesByCategory,
+    layoutConfig.itemSubcategories,
+    customPackages,
+    t,
   ]);
 
   const goToSearchResult = async (result: any) => {
@@ -581,7 +758,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
       packagesByCategory[cat].forEach((pkg: any) => {
         const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
-        if (qty > 0 && isChecked) {
+        // Itens acima do plano selecionado não entram no total, mesmo que a
+        // quantidade tenha sido digitada antes de trocar o plano.
+        if (qty > 0 && isChecked && isPackageAvailable(pkg, skuType, planTier)) {
           let rowTotal = qty * pkg.hours;
           const isOverride = formData[`item_override_check_${pkg.id}`] === 'on';
           if (isOverride) {
@@ -985,6 +1164,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       subtotal: subtotalRounded,
       skillTotals,
       skillBreakdownBySkill,
+      // Expostos para o detalhamento por categoria/subcategoria.
+      itemTotals,
+      catTotals,
       gpVal,
       discVal,
       validVal,
@@ -992,7 +1174,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       totalSafety,
       grandTotal
     };
-  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages]);
+  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages, skuType, planTier]);
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
@@ -1036,7 +1218,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   const handleSave = async () => {
     if (!versionName || !techLink) {
-      alert("Nome da versão e Link do Escopo Técnico são obrigatórios.");
+      alert(t('editor.versionFieldsRequired'));
       return;
     }
 
@@ -1055,31 +1237,33 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           safetyHours: JSON.stringify(safetyHours),
           data: {
             ...formData,
-            marketplace_apps: JSON.stringify(marketplaceApps)
+            marketplace_apps: JSON.stringify(marketplaceApps),
+            __skuType: skuType,
+            __planTier: planTier
           }
         });
         
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
-        alert("Versão salva com sucesso!");
+        alert(t('editor.versionSaved'));
       } catch (e) {
         console.error(e);
-        alert("Erro ao salvar versão.");
+        alert(t('editor.versionSaveError'));
       }
     });
   };
 
   const handleClone = async () => {
     if (!currentVersion) {
-      alert("Selecione uma versão existente para clonar.");
+      alert(t('editor.selectVersionToClone'));
       return;
     }
 
-    const newName = prompt("Nome para a nova versão (Cópia):", "Cópia de " + versionName);
+    const newName = prompt(t('editor.promptCloneName'), t('editor.copyOf', { name: versionName }));
     if (!newName) return;
     
-    const newLink = prompt("Insira o Link do Escopo Técnico para a nova versão (Obrigatório):", "");
+    const newLink = prompt(t('editor.promptCloneLink'), "");
     if (!newLink) {
-      alert("O link do Escopo Técnico é obrigatório. A operação foi cancelada.");
+      alert(t('editor.cloneLinkRequired'));
       return;
     }
 
@@ -1087,10 +1271,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       try {
         const result = await cloneProjectVersionAction(project.id, currentVersion.id, newName, newLink);
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
-        alert("Versão clonada com sucesso!");
+        alert(t('editor.versionCloned'));
       } catch (e) {
         console.error(e);
-        alert("Erro ao clonar versão.");
+        alert(t('editor.versionCloneError'));
       }
     });
   };
@@ -1193,12 +1377,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </div>
                 <div>
                   <h1 className="text-2xl font-black text-brand-dark tracking-tighter font-heading uppercase">{project.name}</h1>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pasta de Cliente - Estimativa AE</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('editor.clientFolder')}</p>
                 </div>
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">Simulação Selecionada</span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">{t('editor.selectedSimulation')}</span>
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
@@ -1220,7 +1404,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 className="flex-1 lg:flex-none bg-brand-primary text-white px-8 py-4 rounded-2xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center space-x-3 text-[11px] uppercase tracking-widest"
               >
                 <Plus className="w-4 h-4" />
-                <span>Nova Estimativa</span>
+                <span>{t('editor.newEstimate')}</span>
               </Link>
             </div>
           </div>
@@ -1234,32 +1418,32 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="bg-slate-100 p-3 rounded-2xl text-slate-400">
                   <Layout className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">Resumo da Configuração</h3>
+                <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('editor.configSummary')}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Agentes</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.agents')}</span>
                   <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.agents || 0}</div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Marcas</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.brands')}</span>
                   <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.brands || 0}</div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Áreas do Cliente</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.clientAreas')}</span>
                   <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.areas || 0}</div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Canais Ativos</span>
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.activeChannels')}</span>
                 <div className="flex flex-wrap gap-2">
                   {aeData.channels?.length > 0 ? aeData.channels.map((c: string) => (
                     <span key={c} className="bg-brand-primary/10 text-brand-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-brand-primary/20">
                       {c}
                     </span>
-                  )) : <span className="text-slate-300 italic text-xs">Nenhum canal selecionado</span>}
+                  )) : <span className="text-slate-300 italic text-xs">{t('editor.noChannelSelected')}</span>}
                 </div>
               </div>
 
@@ -1284,9 +1468,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <MessageSquare className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest block">Zendesk Copilot</span>
+                      <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest block">{t('editor.zendeskCopilot')}</span>
                       <span className="text-xs font-black text-purple-700 uppercase tracking-widest">
-                        {aeData.copilotType === 'with_api' ? 'Com Conexão Externa' : 'Sem Conexão Externa'}
+                        {aeData.copilotType === 'with_api' ? t('editor.withExternalConnection') : t('editor.withoutExternalConnection')}
                       </span>
                     </div>
                   </div>
@@ -1312,16 +1496,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     {formData.needsSC ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
                   </div>
                   <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
-                    Esforço Calculado
+                    {t('editor.calculatedEffort')}
                   </h3>
                 </div>
 
                 <div className="space-y-1">
                   <div className={`text-6xl font-black tracking-tighter ${formData.needsSC ? 'text-amber-700' : 'text-brand-accent'}`}>
-                    {formData.needsSC ? 'CONSULTAR SC' : `${(formData.resultHours || 0).toFixed(0)}H`}
+                    {formData.needsSC ? t('editor.consultSC') : `${(formData.resultHours || 0).toFixed(0)}H`}
                   </div>
                   <p className={`text-xs font-bold uppercase tracking-widest ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
-                    {formData.needsSC ? 'Necessita de Apoio SC' : 'Total Estimado'}
+                    {formData.needsSC ? t('editor.needsSCSupport') : t('editor.totalEstimated')}
                   </p>
                 </div>
 
@@ -1353,14 +1537,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">Versão Ativa</span>
+                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">{t('editor.activeVersion')}</span>
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
                     onChange={(e) => router.push(`/sc/project/${project.id}?version_id=${e.target.value}`)}
                     className="bg-white border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
-                    {!currentVersion && !allVersions.length && <option value="">Rascunho Inicial</option>}
+                    {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
                     {allVersions.map((v: any) => (
                       <option key={v.id} value={v.id}>{v.versionName}</option>
                     ))}
@@ -1378,7 +1562,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 className="flex-1 lg:flex-none bg-brand-primary text-white px-6 py-3.5 rounded-xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50"
               >
                 {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>Salvar</span>
+                <span>{t('common.save')}</span>
               </button>
               <button 
                 type="button" 
@@ -1387,30 +1571,66 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 className="flex-1 lg:flex-none border-2 border-brand-primary text-brand-primary px-6 py-3.5 rounded-xl font-black hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50"
               >
                 <Copy className="w-3.5 h-3.5" />
-                <span>Clonar</span>
+                <span>{t('editor.clone')}</span>
               </button>
               {currentVersion && (
                 <Link href={`/sc/project/${project.id}/export?version_id=${currentVersion.id}`} className="flex-1 lg:flex-none bg-brand-dark text-white px-6 py-3.5 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest text-center">
                   <Download className="w-3.5 h-3.5" />
-                  <span>Exportar</span>
+                  <span>{t('editor.export')}</span>
                 </Link>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 pt-8 border-t border-slate-200 dark:border-[color:var(--border-main)]">
+            <div className="space-y-2">
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('plans.sku')}</label>
+              <select
+                value={skuType}
+                onChange={(e) => setSkuType(normalizeSkuType(e.target.value))}
+                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-black uppercase tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+              >
+                <option value="CS">{t('plans.customerService')}</option>
+                <option value="ES">{t('plans.employeeService')}</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('plans.tier')}</label>
+              <select
+                value={planTier}
+                onChange={(e) => setPlanTier(normalizePlanTier(e.target.value))}
+                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-black uppercase tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+              >
+                {ZENDESK_PLANS.map((plan) => (
+                  <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
+                ))}
+              </select>
+            </div>
+            <div className="md:col-span-2 flex flex-wrap items-center gap-3">
+              <p className="text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+                {t('plans.filterHint')}
+              </p>
+              {planExcludedCount > 0 && (
+                <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-black uppercase tracking-widest">
+                  {t('plans.excludedCount', { count: planExcludedCount })}
+                </span>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Identificação da Versão</label>
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.versionIdentification')}</label>
               <input 
                 type="text" 
                 value={versionName}
                 onChange={(e) => setVersionName(e.target.value)}
-                placeholder="Ex: Proposta Final" 
+                placeholder={t('editor.versionNamePlaceholder')} 
                 className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Link do Escopo Técnico (Externo)</label>
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.techScopeLink')}</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                   <LinkIcon className="w-4 h-4" />
@@ -1425,7 +1645,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </div>
             </div>
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">Link da Solicitação (Zoho)</label>
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.requestLink')}</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                   <Search className="w-4 h-4" />
@@ -1451,8 +1671,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <Layout className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-2xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading tracking-tight uppercase">Módulos do Projeto</h3>
-              <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">Selecione as áreas que compõem este escopo.</p>
+              <h3 className="text-2xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading tracking-tight uppercase">{t('editor.projectModules')}</h3>
+              <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">{t('editor.projectModulesHint')}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -1461,21 +1681,21 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 type="button"
                 onClick={() => setShowPresets(!showPresets)}
                 className="p-2 rounded-xl bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] text-slate-400 border border-slate-200 hover:text-brand-primary transition-all"
-                title="Presets de Visualização"
+                title={t('editor.viewPresets')}
               >
                 <Settings className="w-4 h-4" />
               </button>
               {showPresets && (
                 <div className="absolute right-0 mt-2 w-72 bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-2xl p-6 z-[60] space-y-4 animate-in fade-in slide-in-from-top-2 backdrop-blur-none">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">Meus Perfis (Presets)</h4>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">{t('editor.myPresets')}</h4>
                     <Users className="w-3 h-3 text-slate-300 dark:text-[color:var(--text-muted)]" />
                   </div>
                   
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {presets.length === 0 ? (
                       <div className="py-6 text-center">
-                        <p className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] uppercase leading-relaxed">Nenhum perfil salvo para seu usuário</p>
+                        <p className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] uppercase leading-relaxed">{t('editor.noPresets')}</p>
                       </div>
                     ) : (
                       presets.map((p: any, i: number) => (
@@ -1485,7 +1705,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             className="flex-1 text-left p-3 rounded-xl hover:bg-[#F0F7F3] dark:hover:bg-[color:var(--bg-input-solid)] border border-transparent hover:border-slate-100 dark:hover:border-[color:var(--border-main)] text-[10px] font-bold text-brand-dark dark:text-[color:var(--text-main)] uppercase transition-all flex items-center justify-between"
                           >
                             <div className="flex flex-col">
-                              <span>{p.name}</span>
+                              <span>{packageName(p, language)}</span>
                               <span className="text-[7px] text-slate-300 dark:text-[color:var(--text-muted)] font-black">{Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0} itens ocultos</span>
                             </div>
                             <Check className="w-3 h-3 text-emerald-500 opacity-0 group-hover/preset:opacity-100 transition-opacity" />
@@ -1493,7 +1713,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           <button 
                             onClick={() => handleDeletePreset(p.name)}
                             className="p-2 text-slate-300 dark:text-[color:var(--text-muted)] hover:text-red-500 transition-colors opacity-0 group-hover/preset:opacity-100"
-                            title="Excluir Perfil"
+                            title={t('editor.deletePreset')}
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1504,12 +1724,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                   <div className="pt-4 border-t border-slate-100 dark:border-[color:var(--border-main)] space-y-3">
                     <div>
-                      <label className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest mb-1.5 block ml-1">Salvar configuração atual</label>
+                      <label className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest mb-1.5 block ml-1">{t('editor.saveCurrentConfig')}</label>
                       <input 
                         type="text" 
                         value={presetName}
                         onChange={(e) => setPresetName(e.target.value)}
-                        placeholder="Nome do seu perfil (ex: Padrão Matheus)"
+                        placeholder={t('editor.presetNamePlaceholder')}
                         className="w-full bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)]! dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                       />
                     </div>
@@ -1518,9 +1738,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       className="w-full bg-brand-primary text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-green-900/10 hover:opacity-90 transition-all flex items-center justify-center space-x-2"
                     >
                       <Save className="w-3 h-3" />
-                      <span>Salvar Perfil</span>
+                      <span>{t('editor.savePreset')}</span>
                     </button>
-                    <p className="text-[7px] text-slate-400 dark:text-[color:var(--text-muted)] text-center font-bold uppercase tracking-widest">Estes perfis são privados e vinculados ao seu usuário.</p>
+                    <p className="text-[7px] text-slate-400 dark:text-[color:var(--text-muted)] text-center font-bold uppercase tracking-widest">{t('editor.presetsPrivateNote')}</p>
                   </div>
                 </div>
               )}
@@ -1537,9 +1757,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] px-5 py-4 rounded-3xl border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-sm hover:shadow-xl flex items-center justify-between gap-4"
               >
                 <div className="flex flex-col items-start">
-                  <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">Módulos do Projeto</span>
+                  <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">{t('editor.projectModules')}</span>
                   <span className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight mt-1">
-                    Selecionar módulos
+                    {t('editor.selectModules')}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
@@ -1575,10 +1795,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             </div>
                             <div className="flex flex-col items-start">
                               <span className="text-[10px] font-black uppercase tracking-widest text-brand-dark dark:text-[color:var(--text-main)]">
-                                {categoryLabels?.[cat] || cat}
+                                {catLabelOf(cat)}
                               </span>
                               <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)] mt-0.5">
-                                {isChecked ? 'Selecionado' : 'Não selecionado'}
+                                {isChecked ? t('common.selected') : t('common.notSelected')}
                               </span>
                             </div>
                           </div>
@@ -1592,7 +1812,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               }}
                               disabled={index === 0}
                               className="p-2 rounded-2xl bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                              title="Mover categoria para cima"
+                              title={t('editor.moveCategoryUp')}
                             >
                               <ChevronDown className="w-3 h-3 rotate-180" />
                             </button>
@@ -1604,7 +1824,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               }}
                               disabled={index === orderedCategories.length - 1}
                               className="p-2 rounded-2xl bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                              title="Mover categoria para baixo"
+                              title={t('editor.moveCategoryDown')}
                             >
                               <ChevronDown className="w-3 h-3" />
                             </button>
@@ -1632,8 +1852,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <EyeOff className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">Visibilidade</span>
-                <span className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight mt-1">Itens ocultos</span>
+                <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">{t('editor.visibility')}</span>
+                <span className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight mt-1">{t('editor.hiddenItemsShort')}</span>
               </div>
               <span className={`ml-auto sm:ml-0 text-[9px] font-black uppercase tracking-widest ${
                 showHiddenTab ? 'text-red-500' : 'text-slate-400 dark:text-[color:var(--text-muted)]'
@@ -1646,7 +1866,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           <div className="flex flex-wrap gap-2">
             {orderedCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
               <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
-                Nenhum módulo selecionado.
+                {t('editor.noModuleSelected')}
               </div>
             ) : (
               orderedCategories
@@ -1657,9 +1877,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     type="button"
                     onClick={() => setCategoryChecked(cat, false)}
                     className="inline-flex items-center gap-2 bg-brand-primary text-white px-3 py-1.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-all"
-                    title="Remover módulo"
+                    title={t('editor.removeModule')}
                   >
-                    <span>{categoryLabels?.[cat] || cat}</span>
+                    <span>{catLabelOf(cat)}</span>
                     <X className="w-3 h-3" />
                   </button>
                 ))
@@ -1678,7 +1898,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               }}
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
-              placeholder="Buscar categoria, subcategoria ou item..."
+              placeholder={t('editor.searchPlaceholder')}
               className="w-full bg-transparent outline-none text-[11px] font-bold text-brand-dark dark:text-[color:var(--text-main)] placeholder:text-slate-300 dark:placeholder:text-[color:var(--text-muted)]"
             />
           </div>
@@ -1687,7 +1907,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-xl overflow-hidden backdrop-blur-none">
               {searchResults.length === 0 ? (
                 <div className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">
-                  Nenhum resultado
+                  {t('editor.noResults')}
                 </div>
               ) : (
                 <div className="max-h-[360px] overflow-auto divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
@@ -1712,16 +1932,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                         </div>
                         <div className="flex items-center gap-2">
                           {r.type === 'category' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">Categoria</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.category')}</span>
                           )}
                           {r.type === 'subcategory' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">Subcategoria</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('editor.subcategory')}</span>
                           )}
                           {r.type === 'item' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">Item</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.item')}</span>
                           )}
                           {r.isHidden && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-red-400">Oculto</span>
+                            <span className="text-[7px] font-black uppercase tracking-widest text-red-400">{t('common.hidden')}</span>
                           )}
                         </div>
                       </div>
@@ -1745,8 +1965,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <EyeOff className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-red-700 font-heading uppercase tracking-tight">Itens Ocultos</h3>
-                  <p className="text-[8px] font-bold text-red-400 uppercase tracking-widest">Estes itens não aparecerão na exportação final.</p>
+                  <h3 className="text-base font-black text-red-700 font-heading uppercase tracking-tight">{t('editor.hiddenItems')}</h3>
+                  <p className="text-[8px] font-bold text-red-400 uppercase tracking-widest">{t('editor.hiddenItemsHint')}</p>
                 </div>
               </div>
               <button 
@@ -1763,16 +1983,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-200">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Nenhum item oculto no momento.</p>
+                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{t('editor.noHiddenItems')}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Item</th>
-                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Categoria</th>
-                        <th className="pb-3 text-right text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">Ações</th>
+                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.item')}</th>
+                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.category')}</th>
+                        <th className="pb-3 text-right text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.actions')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -1781,12 +2001,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                         .map((p: any) => (
                           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
                             <td className="py-4">
-                              <div className="font-black text-brand-dark text-xs tracking-tight uppercase">{p.name}</div>
+                              <div className="font-black text-brand-dark text-xs tracking-tight uppercase">{packageName(p, language)}</div>
                               <div className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">{p.skillName || p.skill}</div>
                             </td>
                             <td className="py-4">
                     <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">
-                      {categoryLabels?.[p.categoryName] || p.categoryName}
+                      {catLabelOf(p.categoryName)}
                     </span>
                             </td>
                             <td className="py-4 text-right">
@@ -1796,7 +2016,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 className="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"
                               >
                                 <Eye className="w-3 h-3" />
-                                <span>Reexibir</span>
+                                <span>{t('editor.unhide')}</span>
                               </button>
                             </td>
                           </tr>
@@ -1820,10 +2040,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
                     <Box className="w-4 h-4" />
                   </div>
-                  <h3 className="text-base font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tight">{categoryLabels?.[cat] || cat}</h3>
+                  <h3 className="text-base font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tight">{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center space-x-2 text-slate-400 dark:text-[color:var(--text-muted)] group-hover:text-brand-primary transition-colors">
-                  <span className="text-[9px] font-black uppercase tracking-[0.15em]">Configurar Itens</span>
+                  <span className="text-[9px] font-black uppercase tracking-[0.15em]">{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
               </div>
@@ -1834,17 +2054,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     <table className="min-w-full">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-[color:var(--border-main)]">
-                          <th className="pb-3 text-left text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">Itens</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">Hrs Unit.</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em] w-32">Quantidade</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">Organização</th>
-                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">Ajuste Manual</th>
-                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">Subtotal</th>
+                          <th className="pb-3 text-left text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.items')}</th>
+                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('editor.unitHours')}</th>
+                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em] w-32">{t('common.quantity')}</th>
+                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.organization')}</th>
+                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('editor.manualAdjustment')}</th>
+                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.subtotal')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
                         {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((subcategory, subcategoryIndex, allSubcategories) => {
-                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory);
+                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory).filter(isAvailable);
 
                           return (
                             <Fragment key={`${cat}_${subcategory}`}>
@@ -1853,7 +2073,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="flex items-center gap-2">
                                       <span className="px-3 py-1 rounded-lg bg-white dark:bg-[color:var(--bg-card)] border border-slate-200 dark:border-[color:var(--border-main)] text-[8px] font-black uppercase tracking-widest text-slate-700 dark:text-[color:var(--text-main)]">
-                                        {subcategory}
+                                        {subcategoryLabel(t, subcategory)}
                                       </span>
                                       <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-[color:var(--text-muted)]">
                                         {orderedPackages.length} item(ns)
@@ -1865,7 +2085,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         onClick={() => void reorderSubcategory(cat, subcategory, 'up')}
                                         disabled={subcategoryIndex === 0}
                                         className="p-1.5 rounded-lg bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-muted)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                        title="Mover subcategoria para cima"
+                                        title={t('editor.moveSubcategoryUp')}
                                       >
                                         <ChevronDown className="w-3 h-3 rotate-180" />
                                       </button>
@@ -1874,7 +2094,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         onClick={() => void reorderSubcategory(cat, subcategory, 'down')}
                                         disabled={subcategoryIndex === allSubcategories.length - 1}
                                         className="p-1.5 rounded-lg bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-muted)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                        title="Mover subcategoria para baixo"
+                                        title={t('editor.moveSubcategoryDown')}
                                       >
                                         <ChevronDown className="w-3 h-3" />
                                       </button>
@@ -1886,7 +2106,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               {orderedPackages.length === 0 ? (
                                 <tr key={`${cat}_${subcategory}_empty`} className="bg-white dark:bg-[color:var(--bg-card)]">
                                   <td colSpan={6} className="py-4 px-4 text-[9px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)] text-center">
-                                    Nenhum item nesta subcategoria.
+                                    {t('editor.noItemsInSubcategory')}
                                   </td>
                                 </tr>
                               ) : (
@@ -1908,20 +2128,20 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     <tr key={p.id} className="hover:bg-slate-50/20 dark:hover:bg-[color:var(--bg-input)] transition-colors group">
                                       <td className="py-4 pr-4">
                                         <div className="flex items-center space-x-2">
-                                          <div className="font-black text-brand-dark dark:text-[color:var(--text-main)] text-xs mb-0.5 tracking-tight uppercase">{p.name}</div>
+                                          <div className="font-black text-brand-dark dark:text-[color:var(--text-main)] text-xs mb-0.5 tracking-tight uppercase">{packageName(p, language)}</div>
                                           <button
                                             type="button"
                                             onClick={() => toggleHideItem(p.id)}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 dark:text-[color:var(--text-muted)] hover:text-red-500 transition-all"
-                                            title="Ocultar Item"
+                                            className="p-1 text-slate-300 dark:text-[color:var(--text-muted)] hover:text-red-500 transition-all"
+                                            title={t('editor.hideItem')}
                                           >
                                             <EyeOff className="w-3 h-3" />
                                           </button>
-                                          {p.tooltip && (
+                                          {packageTooltip(p, language) && (
                                             <div className="group/tooltip relative cursor-help">
                                               <div className="w-3 h-3 bg-slate-100 dark:bg-[color:var(--bg-input)] text-slate-400 dark:text-[color:var(--text-muted)] rounded-full flex items-center justify-center text-[8px] font-black group-hover/tooltip:bg-brand-primary group-hover/tooltip:text-white transition-colors">?</div>
                                               <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)] text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
-                                                {p.tooltip}
+                                                {packageTooltip(p, language)}
                                               </div>
                                             </div>
                                           )}
@@ -1936,7 +2156,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                           {p.scopeIncluded}
                                         </div>
                                       </td>
-                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 dark:text-[#e8e8e8] tracking-tighter">{p.hours}</td>
+                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 dark:text-[#e8e8e8] tracking-tighter">
+                                        <div>{p.hours}</div>
+                                        <div className="text-[8px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
+                                          {formatHoursMinutes(p.hours)}
+                                        </div>
+                                      </td>
                                       <td className="py-4 px-4">
                                         <div className="flex justify-center">
                                           <input
@@ -1966,7 +2191,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
                                             disabled={itemIndex <= 0}
                                             className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title="Mover item para cima"
+                                            title={t('editor.moveItemUp')}
                                           >
                                             <ChevronDown className="w-3 h-3 rotate-180" />
                                           </button>
@@ -1975,7 +2200,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
                                             disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
                                             className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title="Mover item para baixo"
+                                            title={t('editor.moveItemDown')}
                                           >
                                             <ChevronDown className="w-3 h-3" />
                                           </button>
@@ -1998,7 +2223,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                                 formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
                                               }`} />
                                             </div>
-                                            <span className="ml-1.5 text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors uppercase tracking-widest">Manual</span>
+                                            <span className="ml-1.5 text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors uppercase tracking-widest">{t('common.manual')}</span>
                                           </label>
                                           {formData[`item_override_check_${p.id}`] === 'on' && (
                                             <input
@@ -2015,7 +2240,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         </div>
                                       </td>
                                       <td className="py-4 text-right font-black text-brand-dark dark:text-[color:var(--text-main)] text-xs tracking-tighter">
-                                        {rowTotal.toFixed(1)}
+                                        <div>{rowTotal.toFixed(1)}</div>
+                                        <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
+                                          {formatHoursMinutes(rowTotal)}
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -2038,7 +2266,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   type="text" 
                                   value={pkg.name}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'name', e.target.value)}
-                                  placeholder="Nome do Pacote Personalizado" 
+                                  placeholder={t('editor.customPackageName')} 
                                   className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs mb-2 font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                                 />
                                 <div className="flex items-center space-x-2 mb-2">
@@ -2047,24 +2275,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     onChange={(e) => updateCustomPackage(pkg.id, 'skill', e.target.value)}
                                     className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-[9px] font-black uppercase tracking-tight outline-none focus:ring-1 focus:ring-brand-primary"
                                   >
-                                    <option value="Implantação">Implantação</option>
-                                    <option value="GP">GP</option>
-                                    <option value="Solution Design">Solution Design</option>
-                                    <option value="Desenvolvimento">Desenvolvimento</option>
-                                    <option value="Design">Design</option>
+                                    <option value="Implantação">{t('editor.skillImplementation')}</option>
+                                    <option value="GP">{t('editor.skillGP')}</option>
+                                    <option value="Solution Design">{t('editor.skillSolutionDesign')}</option>
+                                    <option value="Desenvolvimento">{t('editor.skillDevelopment')}</option>
+                                    <option value="Design">{t('editor.skillDesign')}</option>
                                   </select>
                                 </div>
                                 <div className="flex space-x-2">
                                   <textarea 
                                     value={pkg.scopeIn}
                                     onChange={(e) => updateCustomPackage(pkg.id, 'scopeIn', e.target.value)}
-                                    placeholder="Incluso" rows={1} 
+                                    placeholder={t('editor.included')} rows={1} 
                                     className="text-[9px] font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
                                   />
                                   <textarea 
                                     value={pkg.scopeOut}
                                     onChange={(e) => updateCustomPackage(pkg.id, 'scopeOut', e.target.value)}
-                                    placeholder="Não incluso" rows={1} 
+                                    placeholder={t('editor.notIncluded')} rows={1} 
                                     className="text-[9px] font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
                                   />
                                 </div>
@@ -2091,7 +2319,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               </td>
                               <td className="py-4 text-center align-top pt-6">
                                 <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-400">
-                                  Personalizado
+                                  {t('common.custom')}
                                 </span>
                               </td>
                               <td className="py-4 text-xs align-top text-right pt-6">
@@ -2110,7 +2338,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         pkg.overrideCheck ? 'translate-x-3.5' : ''
                                       }`} />
                                     </div>
-                                    <span className="ml-2 text-[8px] font-black text-slate-400 group-hover/toggle:text-brand-secondary transition-colors uppercase tracking-widest">Manual</span>
+                                    <span className="ml-2 text-[8px] font-black text-slate-400 group-hover/toggle:text-brand-secondary transition-colors uppercase tracking-widest">{t('common.manual')}</span>
                                   </label>
                                   {pkg.overrideCheck && (
                                     <input 
@@ -2119,14 +2347,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       step="0.1"
                                       value={pkg.overrideVal || ''}
                                       onChange={(e) => updateCustomPackage(pkg.id, 'overrideVal', e.target.value)}
-                                      placeholder="Total" 
+                                      placeholder={t('common.total')} 
                                       className="w-16 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1.5 text-[10px] font-black text-right focus:ring-2 focus:ring-brand-secondary outline-none"
                                     />
                                   )}
                                   <button 
                                     type="button" 
                                     onClick={() => {
-                                      if(confirm('Remover?')) {
+                                      if(confirm(t('editor.confirmRemove'))) {
                                         setCustomPackages(prev => prev.filter(p => p.id !== pkg.id));
                                       }
                                     }}
@@ -2155,7 +2383,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <div className="w-5 h-5 bg-brand-primary/20 dark:bg-white/20 rounded-lg flex items-center justify-center mr-2 group-hover:scale-105 transition-transform">
                         <Plus className="w-3 h-3 text-brand-primary dark:text-white" />
                       </div>
-                      Novo item
+                      {t('editor.newItem')}
                     </button>
                   </div>
 
@@ -2167,8 +2395,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             <Plus className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-dark">Apps do Marketplace</h4>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">Custo FLAT: 5h por App (Não incide GP/Disco/Validação)</p>
+                            <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-dark">{t('editor.marketplaceApps')}</h4>
+                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">{t('editor.marketplaceFlatNote')}</p>
                           </div>
                         </div>
                         <button 
@@ -2177,7 +2405,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           className="bg-brand-primary text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg shadow-green-900/10"
                         >
                           <Plus className="w-3 h-3" />
-                          <span>Adicionar Outro App</span>
+                          <span>{t('editor.addAnotherApp')}</span>
                         </button>
                       </div>
 
@@ -2186,17 +2414,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           <div key={app.id} className="bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex items-start space-x-4 relative group">
                             <div className="flex-1 space-y-3">
                               <div className="space-y-1">
-                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do App</label>
+                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('editor.appName')}</label>
                                 <input 
                                   type="text"
                                   value={app.name}
                                   onChange={(e) => updateMarketplaceApp(app.id, 'name', e.target.value)}
-                                  placeholder="Ex: Zendesk Advanced Search"
+                                  placeholder={t('editor.appNamePlaceholder')}
                                   className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">Link do Marketplace</label>
+                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('editor.marketplaceLink')}</label>
                                 <input 
                                   type="url"
                                   value={app.link}
@@ -2214,7 +2442,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                             <div className="absolute top-4 right-14 bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded text-[8px] font-black uppercase">
-                              5H FLAT
+                              {t('editor.flat5h')}
                             </div>
                           </div>
                         ))}
@@ -2223,7 +2451,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       {marketplaceApps.length > 0 && (
                         <div className="flex justify-end pt-2">
                           <div className="bg-brand-dark text-white px-4 py-2 rounded-xl flex items-center space-x-3">
-                            <span className="text-[8px] font-black uppercase tracking-widest">Total FLAT Marketplace:</span>
+                            <span className="text-[8px] font-black uppercase tracking-widest">{t('editor.marketplaceFlatTotal')}</span>
                             <span className="text-sm font-black text-brand-accent">{marketplaceApps.length * 5}H</span>
                           </div>
                         </div>
@@ -2237,12 +2465,133 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         ))}
       </div>
 
+      {/* ---------------- Detalhamento por Categoria / Subcategoria ---------------- */}
+      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-[2rem] shadow-lg mt-12 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setCategoryBreakdownOpen((v) => !v)}
+          aria-expanded={categoryBreakdownOpen}
+          className="w-full flex items-center justify-between gap-4 px-6 md:px-8 py-6 text-left hover:bg-slate-50/60 dark:hover:bg-[color:var(--bg-input)] transition-colors"
+        >
+          <div className="min-w-0">
+            <h2 className="text-lg md:text-xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
+              {t('editor.categoryBreakdown')}
+            </h2>
+            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)] mt-1.5">
+              {t('editor.categoryBreakdownHint')}
+            </p>
+          </div>
+          <div className="flex items-center gap-4 shrink-0">
+            <div className="text-right">
+              <div className="text-xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter tabular-nums leading-none">
+                {categoryBreakdown.grand.toFixed(1)}<span className="text-[10px] ml-0.5">h</span>
+              </div>
+              <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+                {formatHoursMinutes(categoryBreakdown.grand)}
+              </div>
+            </div>
+            <ChevronRight
+              className={`w-5 h-5 text-slate-400 transition-transform ${categoryBreakdownOpen ? 'rotate-90' : ''}`}
+            />
+          </div>
+        </button>
+
+        {categoryBreakdownOpen && (
+          <div className="px-6 md:px-8 pb-8 animate-in fade-in slide-in-from-top-2 duration-300">
+            {categoryBreakdown.rows.length === 0 ? (
+              <div className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+                {t('editor.categoryBreakdownEmpty')}
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-end gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setOpenBreakdownCats(Object.fromEntries(categoryBreakdown.rows.map((r) => [r.cat, true])))}
+                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors"
+                  >
+                    {t('editor.expandAll')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setOpenBreakdownCats({})}
+                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors"
+                  >
+                    {t('editor.collapseAll')}
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {categoryBreakdown.rows.map((row) => {
+                    const isOpen = Boolean(openBreakdownCats[row.cat]);
+                    const share = categoryBreakdown.grand > 0 ? (row.total / categoryBreakdown.grand) * 100 : 0;
+                    return (
+                      <div key={row.cat} className="rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setOpenBreakdownCats((prev) => ({ ...prev, [row.cat]: !prev[row.cat] }))}
+                          aria-expanded={isOpen}
+                          className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 dark:bg-[#0f0f0f] hover:bg-slate-100/70 dark:hover:bg-[#141414] transition-colors text-left"
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+                            <span className="text-[11px] font-black uppercase tracking-tight text-brand-dark dark:text-[color:var(--text-main)] truncate">
+                              {catLabelOf(row.cat)}
+                            </span>
+                            <span className="shrink-0 text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+                              {row.subs.length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 shrink-0">
+                            <span className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] tabular-nums">
+                              {share.toFixed(0)}%
+                            </span>
+                            <div className="text-right">
+                              <div className="text-xs font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
+                                {row.total.toFixed(1)}h
+                              </div>
+                              <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+                                {formatHoursMinutes(row.total)}
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+
+                        {isOpen && (
+                          <div className="divide-y divide-slate-100 dark:divide-[color:var(--border-main)]">
+                            {row.subs.map(({ sub, hours }) => (
+                              <div key={sub} className="flex items-center justify-between gap-3 px-4 py-2.5 pl-10">
+                                <span className="text-[10px] font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
+                                  {subcategoryLabel(t, sub)}
+                                </span>
+                                <div className="text-right shrink-0">
+                                  <div className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
+                                    {hours.toFixed(1)}h
+                                  </div>
+                                  <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+                                    {formatHoursMinutes(hours)}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Totals & Calculations Summary */}
       <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-[2rem] shadow-xl mt-12">
         <div className="max-w-7xl mx-auto flex flex-col space-y-8">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-2xl md:text-3xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
-              Resumo <span className="text-brand-primary dark:text-[color:var(--primary)]">de Horas</span>
+              {t('editor.summaryOf')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('editor.summaryOfHours')}</span>
             </h2>
           </div>
 
@@ -2272,13 +2621,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 flex items-center justify-between gap-4
               `}>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-primary dark:text-[color:var(--primary)] mb-1">Total Geral</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('editor.grandTotal')}</p>
                 </div>
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl md:text-6xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter leading-none tabular-nums">
                     {Math.round(totals.grandTotal).toFixed(0)}
                   </span>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)] mb-1">Horas</span>
+                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('common.hours')}</span>
                 </div>
               </div>
             </div>
@@ -2308,6 +2657,7 @@ function SkillCard({
   setOverrides: React.Dispatch<React.SetStateAction<{ gp: number | null; discovery: number | null; validation: number | null }>>;
   compact?: boolean;
 }) {
+  const { t } = useTranslation();
   const subitems = SKILL_BREAKDOWN_SUBITEMS[skill] || [];
   const breakBy = (totals.skillBreakdownBySkill as any)?.[skill] || {};
   const totalValue = totals.skillTotals[skill] || 0;
@@ -2333,26 +2683,31 @@ function SkillCard({
       `}>
         <div className="flex items-baseline justify-between gap-2">
           <span className="text-[9px] font-black text-slate-500 dark:text-[#bfbfbf] uppercase tracking-[0.22em]">
-            {skill}
+            {skillLabel(t, skill)}
           </span>
-          <div className="flex items-baseline gap-1">
-            <span className="text-2xl md:text-[1.75rem] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
-              {totalValue.toFixed(1)}
+          <div className="flex flex-col items-end">
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl md:text-[1.75rem] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
+                {totalValue.toFixed(1)}
+              </span>
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf] mb-0.5">h</span>
+            </div>
+            <span className="text-[8px] font-bold text-slate-400 dark:text-[#bfbfbf] tracking-normal mt-0.5">
+              {formatHoursMinutes(totalValue)}
             </span>
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf] mb-0.5">h</span>
           </div>
         </div>
 
         {isImpl && (
           <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
             <InlinePercentCtrl
-              label="Discovery"
+              label={t('ae.discovery')}
               value={percents.discovery}
               onChange={(n) => setPercents(p => ({ ...p, discovery: Math.max(0, n) }))}
               onReset={() => setPercents(p => ({ ...p, discovery: getVariableNumber(variables, ['DISCOVERY_STANDARD'], 0) }))}
             />
             <InlinePercentCtrl
-              label="Validação"
+              label={t('ae.validation')}
               value={percents.validation}
               onChange={(n) => setPercents(p => ({ ...p, validation: Math.max(0, n) }))}
               onReset={() => setPercents(p => ({ ...p, validation: getVariableNumber(variables, ['VALIDATION_STANDARD'], 0) }))}
@@ -2392,7 +2747,7 @@ function SkillCard({
                         'bg-slate-400 dark:bg-slate-400'
                   }`} />
                   <span className="text-[8px] font-black uppercase tracking-widest text-slate-600 dark:text-[#e8e8e8] truncate">
-                    {sub.label}
+                    {subitemLabel(t, sub.key, sub.label)}
                   </span>
                   {hasOverride && (
                     <span className={`shrink-0 text-[6px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border ${
@@ -2424,7 +2779,7 @@ function SkillCard({
                           ? 'bg-cyan-500 border-cyan-500 shadow shadow-cyan-900/20'
                           : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
                       `}
-                      title={overrides.discovery !== null ? 'Voltar para % padrão' : 'Travar valor absoluto'}
+                      title={overrides.discovery !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
                     >
                       <span className={`
                         absolute top-[1px] left-[1px] h-[12px] w-[12px] rounded-full transition-all shadow
@@ -2443,7 +2798,7 @@ function SkillCard({
                           ? 'bg-indigo-500 border-indigo-500 shadow shadow-indigo-900/20'
                           : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
                       `}
-                      title={overrides.validation !== null ? 'Voltar para % padrão' : 'Travar valor absoluto'}
+                      title={overrides.validation !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
                     >
                       <span className={`
                         absolute top-[1px] left-[1px] h-[12px] w-[12px] rounded-full transition-all shadow
@@ -2507,7 +2862,7 @@ function SkillCard({
         `}>
           <div className="flex items-center gap-2">
             <span className={`text-[7px] font-black uppercase tracking-widest transition-colors ${overrides.gp !== null ? 'text-brand-primary dark:text-[color:var(--primary)]' : 'text-slate-500 dark:text-[#bfbfbf]'}`}>
-              {overrides.gp !== null ? 'Manual' : 'Padrão'}
+              {overrides.gp !== null ? t('common.manual') : t('common.default')}
             </span>
             <button
               type="button"
@@ -2518,7 +2873,7 @@ function SkillCard({
                   ? 'bg-brand-primary border-brand-primary shadow shadow-green-900/20'
                   : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
               `}
-              title={overrides.gp !== null ? 'Voltar para % padrão' : 'Travar valor absoluto'}
+              title={overrides.gp !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
             >
               <span className={`
                 absolute top-[1px] left-[1px] h-[14px] w-[14px] rounded-full transition-all shadow
@@ -2565,6 +2920,7 @@ function InlinePercentCtrl({
   onReset: () => void;
   full?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <div className={`flex items-center gap-1.5 rounded-xl border-2 px-2 py-1.5 bg-[#F0F7F3] dark:bg-[#141414] border-slate-300 dark:border-[#1f1f1f] ${full ? 'w-full justify-between' : ''}`}>
       <span className="shrink-0 text-[7px] font-black uppercase tracking-widest text-slate-600 dark:text-[#cfcfcf] whitespace-nowrap">
@@ -2584,7 +2940,7 @@ function InlinePercentCtrl({
         type="button"
         onClick={onReset}
         className="p-1 rounded-md text-slate-400 dark:text-[#cfcfcf] hover:text-brand-primary dark:hover:text-[color:var(--primary)] hover:bg-slate-100 dark:hover:bg-[#1f1f1f] transition-all shrink-0"
-        title={`Resetar ${label}`}
+        title={t('editor.resetLabel', { label })}
       >
         <RotateCcw className="w-2.5 h-2.5" />
       </button>

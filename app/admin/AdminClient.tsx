@@ -1,4 +1,13 @@
 'use client';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
+import { useSession } from 'next-auth/react';
+import {
+  packageName, packageTooltip, categoryName as categoryLabelOf, skillName as skillLabelOf,
+  variableLabel, packageHaystack, categoryHaystack, skillHaystack, variableHaystack, matchesQuery,
+} from '@/lib/localized-names';
+import { SEGMENTS, SEGMENT_LABEL_KEYS, DEFAULT_SEGMENT, normalizeSegment, canManageSegments as canManageSegmentsFor } from '@/lib/segments';
+import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge } from '@/lib/zendesk-plans';
 
 import { useState, useTransition, useMemo, useEffect } from 'react';
 import { 
@@ -10,7 +19,8 @@ import {
   createFrameworkSnapshotAction, 
   restoreFrameworkSnapshotAction, 
   deleteUserAction, 
-  updateUserRoleAction,
+  updateUserSegmentAction,
+  updateSkillAction,
   addPackageAction,
   addCategoryAction,
   addSkillAction,
@@ -29,6 +39,12 @@ import {
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
 
 export default function AdminClient({ packages, categories, skills, variables, versions, users }: any) {
+  const { t } = useTranslation();
+  const { language, dateLocale } = useLanguage();
+  const { data: session } = useSession();
+  // Somente administradores podem alterar segmentos (a verificação real é no servidor).
+  const canManageSegments = canManageSegmentsFor(session?.user as any);
+  const currentUserEmail = session?.user?.email || '';
   const [activeTab, setActiveTab] = useState('packages');
   const [activeLibraryTab, setActiveLibraryTab] = useState('items');
   const [isPending, startTransition] = useTransition();
@@ -53,7 +69,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [newItemHours, setNewItemHours] = useState('');
   const [newItemSkill, setNewItemSkill] = useState('Implantação');
   const [newItemCategory, setNewItemCategory] = useState('');
+  const [newItemNameEn, setNewItemNameEn] = useState('');
+  const [newItemMinPlanCS, setNewItemMinPlanCS] = useState('');
+  const [newItemMinPlanES, setNewItemMinPlanES] = useState('');
   const [newItemTooltip, setNewItemTooltip] = useState('');
+  const [newItemTooltipEn, setNewItemTooltipEn] = useState('');
   const [newItemDependsOn, setNewItemDependsOn] = useState('');
   const [newItemSdDiscovery, setNewItemSdDiscovery] = useState(false);
 
@@ -62,20 +82,19 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState('USER');
-  const [newUserIsAdmin, setNewUserIsAdmin] = useState(false);
+  const [newUserRole, setNewUserRole] = useState<string>(DEFAULT_SEGMENT);
 
   const resetNewUserForm = () => {
     setNewUserEmail('');
     setNewUserName('');
     setNewUserPassword('');
-    setNewUserRole('USER');
-    setNewUserIsAdmin(false);
+    setNewUserRole(DEFAULT_SEGMENT);
   };
 
   const filteredPackages = useMemo(() => {
     return packages.filter((pkg: any) => {
-      const matchesSearch = pkg.name.toLowerCase().includes(searchQuery.toLowerCase());
+      // Busca sempre nos dois idiomas, independente do idioma exibido.
+      const matchesSearch = matchesQuery(packageHaystack(pkg), searchQuery);
       const matchesSkill = !filterSkill || pkg.skillName === filterSkill;
       const matchesCategory = !filterCategory || pkg.categoryName === filterCategory;
       return matchesSearch && matchesSkill && matchesCategory;
@@ -86,10 +105,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setEditingId(pkg.id);
     setEditValues({
       name: pkg.name,
+      nameEn: pkg.nameEn || '',
+      minPlanCS: pkg.minPlanCS || '',
+      minPlanES: pkg.minPlanES || '',
       hours: pkg.hours,
       skillName: pkg.skillName,
       categoryName: pkg.categoryName,
       tooltip: pkg.tooltip || '',
+      tooltipEn: pkg.tooltipEn || '',
       dependsOnItemId: pkg.dependsOnItemId || '',
       sdDiscovery: Boolean(pkg.sdDiscovery || false),
       excludedFromVariables: JSON.parse(pkg.excludedFromVariables || '[]')
@@ -112,6 +135,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setEditingVariableId(v.id);
     setEditVariableValues({
       key: v.key,
+      label: v.label || '',
+      labelEn: v.labelEn || '',
       value: v.value,
       category: v.category,
       type: v.type,
@@ -134,31 +159,43 @@ export default function AdminClient({ packages, categories, skills, variables, v
     e.preventDefault();
     const formData = new FormData();
     formData.append('name', newItemName);
+    formData.append('nameEn', newItemNameEn);
+    formData.append('minPlanCS', newItemMinPlanCS);
+    formData.append('minPlanES', newItemMinPlanES);
     formData.append('hours', newItemHours);
     formData.append('skillName', newItemSkill);
     formData.append('categoryName', newItemCategory);
     formData.append('tooltip', newItemTooltip);
+    formData.append('tooltipEn', newItemTooltipEn);
     formData.append('dependsOnItemId', newItemDependsOn);
     if (newItemSdDiscovery) formData.append('sdDiscovery', 'on');
 
     startTransition(async () => {
       await addPackageAction(formData);
       setNewItemName('');
+      setNewItemNameEn('');
+      setNewItemMinPlanCS('');
+      setNewItemMinPlanES('');
       setNewItemHours('');
       setNewItemTooltip('');
+      setNewItemTooltipEn('');
       setNewItemDependsOn('');
       setNewItemSdDiscovery(false);
     });
   };
 
   const handleAddCategory = () => {
-    const name = prompt("Nome da nova categoria:");
-    if (name) startTransition(() => addCategoryAction(name));
+    const name = prompt(t('admin.promptNewCategory'));
+    if (!name) return;
+    const nameEn = prompt(t('admin.promptNewCategoryEn')) || '';
+    startTransition(() => addCategoryAction(name, nameEn));
   };
 
   const handleAddSkill = () => {
-    const name = prompt("Nome da nova skill:");
-    if (name) startTransition(() => addSkillAction(name));
+    const name = prompt(t('admin.promptNewSkill'));
+    if (!name) return;
+    const nameEn = prompt(t('admin.promptNewSkillEn')) || '';
+    startTransition(() => addSkillAction(name, nameEn));
   };
 
   useEffect(() => {
@@ -186,6 +223,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
     if (!selectedCategory) return;
     setCategoryEditValues({
       displayName: selectedCategory.displayName || '',
+      displayNameEn: selectedCategory.displayNameEn || '',
       parentName: selectedCategory.parentName || ''
     });
     setBulkSelectedPackageIds([]);
@@ -224,21 +262,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleCreateSnapshot = async () => {
-    const name = prompt("Nome para este snapshot (ex: Framework v2.0):", "Snapshot " + new Date().toLocaleDateString());
+    const name = prompt(t('admin.promptSnapshotName'), t('admin.snapshotDefaultName') + ' ' + new Date().toLocaleDateString(dateLocale));
     if (!name) return;
 
     startTransition(async () => {
       try {
         await createFrameworkSnapshotAction(name);
-        alert("Snapshot criado com sucesso!");
+        alert(t('admin.snapshotCreated'));
       } catch (e) {
-        alert("Erro ao criar snapshot.");
+        alert(t('admin.snapshotError'));
       }
     });
   };
 
   const handleRestore = (id: number, name: string) => {
-    if (confirm(`Deseja restaurar o snapshot "${name}"? Isso substituirá as configurações atuais.`)) {
+    if (confirm(t('admin.confirmRestoreSnapshot', { name }))) {
       startTransition(async () => {
         await restoreFrameworkSnapshotAction(id);
       });
@@ -246,7 +284,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleDeletePackage = (id: number, name: string) => {
-    if (confirm(`Deseja remover o pacote "${name}"?`)) {
+    if (confirm(t('admin.confirmRemovePackage', { name }))) {
       startTransition(async () => {
         await deletePackageAction(id);
       });
@@ -254,7 +292,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleDeleteVariable = (id: number, key: string) => {
-    if (confirm(`Deseja remover a variável "${key}"?`)) {
+    if (confirm(t('admin.confirmRemoveVariable', { key }))) {
       startTransition(async () => {
         await deleteVariableAction(id);
       });
@@ -262,21 +300,30 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleDeleteUser = (id: number, email: string) => {
-    if (confirm(`Tem certeza que deseja excluir o usuário ${email}?`)) {
+    if (confirm(t('admin.confirmDeleteUser', { email }))) {
       startTransition(async () => {
         await deleteUserAction(id);
       });
     }
   };
 
-  const handleUpdateRole = async (id: number, role: string) => {
+  const handleUpdateSegment = async (user: any, segment: string) => {
+    const current = normalizeSegment(user.role);
+    if (current === segment) return;
+
+    // Aviso extra ao sair do segmento ADMIN sendo o próprio usuário logado.
+    if (current === 'ADMIN' && segment !== 'ADMIN' && user.email === currentUserEmail) {
+      if (!confirm(t('segment.selfDemotionWarning'))) return;
+    }
+
     startTransition(async () => {
-      await updateUserRoleAction(id, role);
+      const result = await updateUserSegmentAction(user.id, segment);
+      if (result && result.success === false && result.error) alert(result.error);
     });
   };
 
   const handleReseed = () => {
-    if (confirm("Deseja restaurar a biblioteca para o padrão de fábrica? Isso recuperará todos os pacotes excluídos e não afetará os snapshots salvos.")) {
+    if (confirm(t('admin.confirmFactoryReset'))) {
       startTransition(async () => {
         await reseedFrameworkAction();
       });
@@ -287,18 +334,18 @@ export default function AdminClient({ packages, categories, skills, variables, v
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-brand-dark tracking-tighter font-heading uppercase">Central de Comando</h1>
-          <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">Gestão de pacotes, variáveis globais e controle de versões.</p>
+          <h1 className="text-4xl font-black text-brand-dark tracking-tighter font-heading uppercase">{t('admin.title')}</h1>
+          <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">{t('admin.subtitle')}</p>
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
           <button 
             onClick={handleReseed}
             disabled={isPending}
             className="flex-1 md:flex-none bg-amber-50 text-amber-600 border border-amber-200 px-6 py-4 rounded-2xl font-black hover:bg-amber-100 transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest disabled:opacity-50"
-            title="Restaurar Biblioteca Padrão"
+            title={t('admin.restoreLibrary')}
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span>Reset Factory</span>
+            <span>{t('admin.resetFactory')}</span>
           </button>
           <button 
             onClick={handleCreateSnapshot}
@@ -306,11 +353,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
             className="flex-1 md:flex-none brand-bg-primary text-white px-8 py-4 rounded-2xl font-black hover:opacity-90 shadow-xl btn-premium transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest disabled:opacity-50"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-            <span>Novo Snapshot</span>
+            <span>{t('admin.newSnapshot')}</span>
           </button>
           <button className="flex-1 md:flex-none bg-brand-dark text-white px-8 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest shadow-xl">
             <Download className="w-4 h-4" />
-            <span>Exportar Dados</span>
+            <span>{t('admin.exportData')}</span>
           </button>
         </div>
       </div>
@@ -318,10 +365,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
       <div className="bg-slate-50/50 p-2 rounded-[2rem] border border-slate-300 w-fit mx-auto md:mx-0 shadow-sm">
         <nav className="flex space-x-1">
           {[
-            { id: 'versions', label: 'Versões & Rollback', icon: History },
-            { id: 'packages', label: 'Biblioteca', icon: Box },
-            { id: 'variables', label: 'Variáveis', icon: Settings },
-            { id: 'users', label: 'Usuários', icon: Users },
+            { id: 'versions', label: t('admin.tabVersions'), icon: History },
+            { id: 'packages', label: t('admin.tabLibrary'), icon: Box },
+            { id: 'variables', label: t('admin.tabVariables'), icon: Settings },
+            { id: 'users', label: t('admin.tabUsers'), icon: Users },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -346,7 +393,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
                 <History className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">Histórico de Snapshots</h2>
+              <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.snapshotHistory')}</h2>
             </div>
             <ul className="divide-y divide-slate-50">
               {versions.map((version: any) => (
@@ -358,21 +405,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       </div>
                       <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
                         <span className="bg-brand-dark text-white px-3 py-1 rounded-lg mr-4">{version.type}</span>
-                        <span>{new Date(version.createdAt).toLocaleString('pt-BR')}</span>
+                        <span>{new Date(version.createdAt).toLocaleString(dateLocale)}</span>
                       </div>
                     </div>
                     <button 
                       onClick={() => handleRestore(version.id, version.versionName)}
                       className="bg-white text-brand-primary px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 hover:bg-brand-primary hover:text-white transition-all shadow-sm"
                     >
-                      Restaurar
+                      {t('admin.restore')}
                     </button>
                   </div>
                 </li>
               ))}
               {versions.length === 0 && (
                 <li className="px-12 py-24 text-center">
-                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest italic">Nenhum registro encontrado</p>
+                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest italic">{t('admin.noRecords')}</p>
                 </li>
               )}
             </ul>
@@ -384,9 +431,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
             {/* Sub-abas da Biblioteca */}
             <div className="flex items-center space-x-4 border-b border-slate-200">
               {[
-                { id: 'items', label: 'Itens', icon: Box },
-                { id: 'categories', label: 'Categorias', icon: Layout },
-                { id: 'skills', label: 'Skills', icon: Activity },
+                { id: 'items', label: t('admin.subTabItems'), icon: Box },
+                { id: 'categories', label: t('admin.subTabCategories'), icon: Layout },
+                { id: 'skills', label: t('admin.subTabSkills'), icon: Activity },
               ].map((sub) => (
                 <button
                   key={sub.id}
@@ -413,43 +460,47 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
                       <Plus className="w-4 h-4" />
                     </div>
-                    <h3 className="text-lg font-black text-brand-dark font-heading uppercase tracking-tight">Novo Item</h3>
+                    <h3 className="text-lg font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.newItem')}</h3>
                   </div>
                   <form onSubmit={handleAddPackage} className="space-y-4">
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Nome</label>
-                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" required />
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.namePt')}</label>
+                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" required />
+                    </div>
+                    <div>
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.nameEn')}</label>
+                      <input type="text" value={newItemNameEn} onChange={(e) => setNewItemNameEn(e.target.value)} placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Horas</label>
+                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('common.hours')}</label>
                         <input type="number" step="0.01" min="0" value={newItemHours} onChange={(e) => setNewItemHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all text-center" required />
                       </div>
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Skill</label>
+                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.skill')}</label>
                         <select value={newItemSkill} onChange={(e) => setNewItemSkill(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
                           {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Categoria</label>
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('common.category')}</label>
                       <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase" required>
-                        <option value="">Selecionar...</option>
+                        <option value="">{t('common.select')}</option>
                         {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Depende de (Opcional)</label>
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.dependsOn')}</label>
                       <select value={newItemDependsOn} onChange={(e) => setNewItemDependsOn(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
-                        <option value="">Nenhum</option>
+                        <option value="">{t('common.none')}</option>
                         {packages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
                     <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
                       <div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">SD Discovery</div>
-                        <div className="text-[8px] uppercase tracking-widest text-slate-400 dark:text-[#8a8a8a]">Ativa regra SD no cálculo do projeto</div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">{t('admin.sdDiscovery')}</div>
+                        <div className="text-[8px] uppercase tracking-widest text-slate-400 dark:text-[#8a8a8a]">{t('admin.sdDiscoveryHint')}</div>
                       </div>
                       <label className="inline-flex items-center cursor-pointer">
                         <input
@@ -461,12 +512,36 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         <div className="relative w-11 h-6 bg-slate-200 dark:bg-[#1f1f1f] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[#0a0a0a] after:border-slate-300 dark:after:border-[#1f1f1f] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
                       </label>
                     </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('plans.minPlanCS')}</label>
+                        <select value={newItemMinPlanCS} onChange={(e) => setNewItemMinPlanCS(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
+                          <option value="">{t('plans.noRestriction')}</option>
+                          {ZENDESK_PLANS.map((plan) => (
+                            <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('plans.minPlanES')}</label>
+                        <select value={newItemMinPlanES} onChange={(e) => setNewItemMinPlanES(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
+                          <option value="">{t('plans.noRestriction')}</option>
+                          {ZENDESK_PLANS.map((plan) => (
+                            <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Tooltip (Opcional)</label>
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.tooltipPt')}</label>
                       <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all h-20 resize-none" />
                     </div>
+                    <div>
+                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.tooltipEn')}</label>
+                      <textarea value={newItemTooltipEn} onChange={(e) => setNewItemTooltipEn(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all h-20 resize-none" />
+                    </div>
                     <button type="submit" disabled={isPending} className="w-full brand-bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest hover:opacity-90 shadow-xl text-[10px] disabled:opacity-50">
-                      {isPending ? 'Processando...' : 'Adicionar Item'}
+                      {isPending ? t('common.processing') : t('admin.addItem')}
                     </button>
                   </form>
                 </div>
@@ -480,7 +555,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         filterCategory === '' ? 'brand-bg-primary text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'
                       }`}
                     >
-                      Todos
+                      {t('common.all')}
                     </button>
                     {categories.map((c: any) => (
                       <button
@@ -503,12 +578,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         type="text" 
                         value={searchQuery} 
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Buscar por nome..." 
+                        placeholder={t('admin.searchAllLanguages')} 
                         className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                       />
                     </div>
                     <select value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none">
-                      <option value="">Todas as Skills</option>
+                      <option value="">{t('admin.allSkills')}</option>
                       {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                     <button 
@@ -526,10 +601,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <table className="min-w-full">
                       <thead className="bg-slate-50/50 dark:bg-[#141414]/70 border-b border-slate-100 dark:border-[#1f1f1f]">
                         <tr>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Item</th>
-                          <th className="px-8 py-5 text-center text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest w-24">Horas</th>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Organização</th>
-                          <th className="px-8 py-5 text-right text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">Ações</th>
+                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.item')}</th>
+                          <th className="px-8 py-5 text-center text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest w-24">{t('common.hours')}</th>
+                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.organization')}</th>
+                          <th className="px-8 py-5 text-right text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.actions')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-[#141414]">
@@ -546,20 +621,73 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   />
                                   <input 
                                     type="text" 
-                                    placeholder="Tooltip..."
+                                    placeholder={t('admin.nameEnPlaceholder')}
+                                    value={editValues.nameEn || ''} 
+                                    onChange={(e) => setEditValues({ ...editValues, nameEn: e.target.value })}
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                                  />
+                                  <input 
+                                    type="text" 
+                                    placeholder={t('admin.tooltipPt')}
                                     value={editValues.tooltip} 
                                     onChange={(e) => setEditValues({ ...editValues, tooltip: e.target.value })}
                                     className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none transition-all"
                                   />
+                                  <input 
+                                    type="text" 
+                                    placeholder={t('admin.tooltipEn')}
+                                    value={editValues.tooltipEn || ''} 
+                                    onChange={(e) => setEditValues({ ...editValues, tooltipEn: e.target.value })}
+                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none transition-all"
+                                  />
+                                  <div className="grid grid-cols-2 gap-2 pt-1">
+                                    <select
+                                      value={editValues.minPlanCS || ''}
+                                      onChange={(e) => setEditValues({ ...editValues, minPlanCS: e.target.value })}
+                                      title={t('plans.minPlanCS')}
+                                      className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none"
+                                    >
+                                      <option value="">CS · {t('plans.noRestriction')}</option>
+                                      {ZENDESK_PLANS.map((plan) => (
+                                        <option key={plan} value={plan}>CS · {PLAN_LABEL[plan]}</option>
+                                      ))}
+                                    </select>
+                                    <select
+                                      value={editValues.minPlanES || ''}
+                                      onChange={(e) => setEditValues({ ...editValues, minPlanES: e.target.value })}
+                                      title={t('plans.minPlanES')}
+                                      className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none"
+                                    >
+                                      <option value="">ES · {t('plans.noRestriction')}</option>
+                                      {ZENDESK_PLANS.map((plan) => (
+                                        <option key={plan} value={plan}>ES · {PLAN_LABEL[plan]}</option>
+                                      ))}
+                                    </select>
+                                  </div>
                                 </div>
                               ) : (
                                 <div className="flex items-center space-x-2">
-                                  <div className="text-sm font-black text-brand-dark dark:text-[#ffffff] uppercase tracking-tight">{pkg.name}</div>
-                                  {pkg.tooltip && (
+                                  <div className="text-sm font-black text-brand-dark dark:text-[#ffffff] uppercase tracking-tight">{packageName(pkg, language)}</div>
+                                  {minPlanBadge(pkg, 'CS') && (
+                                    <span title={t('plans.minPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 border border-sky-100 text-[7px] font-black uppercase tracking-widest">
+                                      CS {minPlanBadge(pkg, 'CS')}
+                                    </span>
+                                  )}
+                                  {minPlanBadge(pkg, 'ES') && (
+                                    <span title={t('plans.minPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[7px] font-black uppercase tracking-widest">
+                                      ES {minPlanBadge(pkg, 'ES')}
+                                    </span>
+                                  )}
+                                  {!String(pkg.nameEn || '').trim() && (
+                                    <span title={t('admin.missingTranslationHint')} className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-[7px] font-black uppercase tracking-widest">
+                                      {t('admin.missingTranslation')}
+                                    </span>
+                                  )}
+                                  {packageTooltip(pkg, language) && (
                                     <div className="group/tooltip relative cursor-help">
                                       <Info className="w-3 h-3 text-slate-300 hover:text-brand-primary transition-colors" />
                                       <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark dark:bg-[#141414] text-white dark:text-[#ffffff] dark:border dark:border-[#1f1f1f] text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
-                                        {pkg.tooltip}
+                                        {packageTooltip(pkg, language)}
                                       </div>
                                     </div>
                                   )}
@@ -601,12 +729,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     onChange={(e) => setEditValues({ ...editValues, dependsOnItemId: e.target.value })}
                                     className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
                                   >
-                                    <option value="">Sem Dependência</option>
+                                    <option value="">{t('admin.noDependency')}</option>
                                     {packages.filter((p: any) => p.id !== pkg.id).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
                                   
                                   <div className="space-y-1.5 pt-1">
-                                    <label className="block text-[7px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest ml-1">Excluir do % de:</label>
+                                    <label className="block text-[7px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest ml-1">{t('admin.excludeFromPct')}</label>
                                     <div className="flex flex-wrap gap-1.5">
                                       {variables.filter((v: any) => v.type === 'PERCENT' || v.type === 'MIXED').map((v: any) => (
                                         <button
@@ -633,7 +761,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                                   <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">SD Discovery</span>
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">{t('admin.sdDiscovery')}</span>
                                     </div>
                                     <label className="inline-flex items-center cursor-pointer">
                                       <input
@@ -652,7 +780,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   <span className="text-[8px] bg-slate-100 dark:bg-[#141414] dark:text-[#e8e8e8] text-slate-500 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit">{pkg.skillName}</span>
                                   {pkg.sdDiscovery && (
                                     <span className="text-[8px] bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
-                                      SD Discovery
+                                      {t('admin.sdDiscovery')}
                                     </span>
                                   )}
                                   {pkg.dependsOnItemId && (
@@ -689,15 +817,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
             {activeLibraryTab === 'categories' && (
               <div className="bg-white rounded-[2.5rem] border border-slate-50 shadow-2xl p-10">
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">Gestão de Categorias</h3>
+                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('admin.categoryManagement')}</h3>
                   <button onClick={handleAddCategory} className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
                     <Plus className="w-4 h-4" />
-                    <span>Nova Categoria</span>
+                    <span>{t('admin.newCategory')}</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-1 space-y-4">
-                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ordem Padrão (Arraste)</div>
+                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('admin.defaultOrderDrag')}</div>
                     <div className="space-y-2">
                       {orderedCategories.map((c: any) => (
                         <div
@@ -715,7 +843,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0">
-                              <div className="text-xs font-black uppercase tracking-tight truncate">{c.displayName || c.name}</div>
+                              <div className="text-xs font-black uppercase tracking-tight truncate">{categoryLabelOf(c, language)}</div>
                               <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">
                                 {c.name}{c.parentName ? ` → ${(categories.find((x: any) => x.name === c.parentName)?.displayName || c.parentName)}` : ''}
                               </div>
@@ -731,15 +859,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     {!selectedCategory ? (
                       <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-10 text-center">
                         <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          Selecione uma categoria para editar
+                          {t('admin.selectCategoryToEdit')}
                         </div>
                       </div>
                     ) : (
                       <div className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-xl space-y-8">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                           <div className="space-y-1">
-                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">Categoria</div>
-                            <div className="text-xl font-black text-brand-dark uppercase tracking-tight">{selectedCategory.displayName || selectedCategory.name}</div>
+                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">{t('common.category')}</div>
+                            <div className="text-xl font-black text-brand-dark uppercase tracking-tight">{categoryLabelOf(selectedCategory, language)}</div>
                             <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">{selectedCategory.name}</div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -753,11 +881,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               disabled={isPending}
                             >
                               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                              <span>Salvar</span>
+                              <span>{t('common.save')}</span>
                             </button>
                             <button
                               onClick={() => {
-                                if (confirm(`Deseja desativar a categoria "${selectedCategory.displayName || selectedCategory.name}"?`)) {
+                                if (confirm(t('admin.confirmDeactivateCategory', { name: selectedCategory.displayName || selectedCategory.name }))) {
                                   startTransition(async () => {
                                     await deleteCategoryAction(selectedCategory.id);
                                   });
@@ -767,14 +895,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               disabled={isPending}
                             >
                               <Trash2 className="w-4 h-4" />
-                              <span>Desativar</span>
+                              <span>{t('admin.deactivate')}</span>
                             </button>
                           </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome (Exibição)</label>
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.displayNamePt')}</label>
                             <input
                               type="text"
                               value={categoryEditValues.displayName || ''}
@@ -784,13 +912,23 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Categoria Pai (Subcategoria)</label>
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.displayNameEn')}</label>
+                            <input
+                              type="text"
+                              value={categoryEditValues.displayNameEn || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayNameEn: e.target.value })}
+                              placeholder={t('admin.nameEnPlaceholder')}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.parentCategory')}</label>
                             <select
                               value={categoryEditValues.parentName || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, parentName: e.target.value })}
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
                             >
-                              <option value="">Nenhuma (Categoria raiz)</option>
+                              <option value="">{t('admin.noneRootCategory')}</option>
                               {categories
                                 .filter((c: any) => c.id !== selectedCategory.id)
                                 .map((c: any) => (
@@ -805,7 +943,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 space-y-4">
                           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="space-y-1">
-                              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">Gestão em massa</div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('admin.bulkManagement')}</div>
                               <div className="text-xs font-black uppercase tracking-tight text-brand-dark">{packagesInSelectedCategory.length} item(ns) nesta categoria</div>
                             </div>
                             <div className="flex items-center gap-2">
@@ -814,14 +952,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 onClick={selectAllBulkPackages}
                                 className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
                               >
-                                Selecionar todos
+                                {t('admin.selectAll')}
                               </button>
                               <button
                                 type="button"
                                 onClick={clearBulkPackages}
                                 className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
                               >
-                                Limpar
+                                {t('admin.clear')}
                               </button>
                             </div>
                           </div>
@@ -829,7 +967,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           <div className="max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-2xl">
                             {packagesInSelectedCategory.length === 0 ? (
                               <div className="p-8 text-center text-[9px] font-black uppercase tracking-widest text-slate-300">
-                                Nenhum item nesta categoria.
+                                {t('admin.noItemsInCategory')}
                               </div>
                             ) : (
                               <div className="divide-y divide-slate-100">
@@ -853,13 +991,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Mover selecionados para</label>
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.moveSelectedTo')}</label>
                               <select
                                 value={bulkTargetCategoryName}
                                 onChange={(e) => setBulkTargetCategoryName(e.target.value)}
                                 className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
                               >
-                                <option value="">Selecionar...</option>
+                                <option value="">{t('common.select')}</option>
                                 {categories
                                   .filter((c: any) => c.name !== selectedCategory.name)
                                   .map((c: any) => (
@@ -882,13 +1020,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 className="flex-1 bg-brand-dark text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50"
                                 disabled={isPending || !bulkTargetCategoryName || bulkSelectedPackageIds.length === 0}
                               >
-                                Mover
+                                {t('admin.move')}
                               </button>
                               <button
                                 type="button"
                                 onClick={() => {
                                   if (bulkSelectedPackageIds.length === 0) return;
-                                  const name = prompt("Nome da nova categoria para mover os itens selecionados:");
+                                  const name = prompt(t('admin.promptMoveCategory'));
                                   if (!name) return;
                                   startTransition(async () => {
                                     await addCategoryAction(name);
@@ -898,20 +1036,20 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 className="px-6 py-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all disabled:opacity-50"
                                 disabled={isPending || bulkSelectedPackageIds.length === 0}
                               >
-                                Nova
+                                {t('common.new')}
                               </button>
                             </div>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">Fundir categoria em</label>
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.mergeCategoryInto')}</label>
                               <select
                                 value={mergeTargetCategoryName}
                                 onChange={(e) => setMergeTargetCategoryName(e.target.value)}
                                 className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
                               >
-                                <option value="">Selecionar...</option>
+                                <option value="">{t('common.select')}</option>
                                 {categories
                                   .filter((c: any) => c.name !== selectedCategory.name)
                                   .map((c: any) => (
@@ -926,7 +1064,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 type="button"
                                 onClick={() => {
                                   if (!mergeTargetCategoryName) return;
-                                  if (confirm(`Deseja fundir "${selectedCategory.displayName || selectedCategory.name}" em "${(categories.find((c: any) => c.name === mergeTargetCategoryName)?.displayName || mergeTargetCategoryName)}"?`)) {
+                                  if (confirm(t('admin.confirmMergeCategory', { source: selectedCategory.displayName || selectedCategory.name, target: categories.find((c: any) => c.name === mergeTargetCategoryName)?.displayName || mergeTargetCategoryName }))) {
                                     startTransition(async () => {
                                       await mergeCategoryAction(selectedCategory.id, mergeTargetCategoryName);
                                     });
@@ -935,7 +1073,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 className="w-full bg-red-50 text-red-600 border border-red-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all disabled:opacity-50"
                                 disabled={isPending || !mergeTargetCategoryName}
                               >
-                                Fundir e desativar
+                                {t('admin.mergeAndDeactivate')}
                               </button>
                             </div>
                           </div>
@@ -950,16 +1088,30 @@ export default function AdminClient({ packages, categories, skills, variables, v
             {activeLibraryTab === 'skills' && (
               <div className="bg-white rounded-[2.5rem] border border-slate-50 shadow-2xl p-10">
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">Gestão de Skills</h3>
+                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('admin.skillManagement')}</h3>
                   <button onClick={handleAddSkill} className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
                     <Plus className="w-4 h-4" />
-                    <span>Nova Skill</span>
+                    <span>{t('admin.newSkill')}</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {skills.map((s: any) => (
                     <div key={s.id} className="group bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center hover:border-brand-primary transition-all">
-                      <span className="text-sm font-black text-brand-dark uppercase tracking-tight">{s.name}</span>
+                      <div className="min-w-0 flex-1 mr-3">
+                        <div className="text-sm font-black text-brand-dark uppercase tracking-tight truncate">{skillLabelOf(s, language)}</div>
+                        <input
+                          type="text"
+                          defaultValue={s.nameEn || ''}
+                          placeholder={t('admin.skillNameEn')}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            if (next !== String(s.nameEn || '')) {
+                              startTransition(() => updateSkillAction(s.id, next));
+                            }
+                          }}
+                          className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                        />
+                      </div>
                       <button onClick={() => startTransition(() => deleteSkillAction(s.id))} className="text-slate-300 hover:text-red-500 transition-colors">
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -978,33 +1130,43 @@ export default function AdminClient({ packages, categories, skills, variables, v
                 <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
                   <Plus className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">Nova Variável</h3>
+                <h3 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.newVariable')}</h3>
               </div>
               <form action={addVariableAction} className="space-y-6">
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Chave (Key)</label>
-                  <input type="text" name="key" placeholder="Ex: VALOR_HORA_GP" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all uppercase" required />
-                </div>
-                <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Valor / Porcentagem</label>
-                  <input type="text" name="value" placeholder="Ex: 25 ou 0.5" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableKey')}</label>
+                  <input type="text" name="key" placeholder={t('admin.variableKeyPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all uppercase" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Tipo</label>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableLabelPt')}</label>
+                    <input type="text" name="label" placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableLabelEn')}</label>
+                    <input type="text" name="labelEn" placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.valuePercentage')}</label>
+                  <input type="text" name="value" placeholder={t('admin.valuePlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('common.type')}</label>
                     <select name="type" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-black uppercase tracking-widest outline-none">
-                      <option value="PERCENT">% Porcentagem</option>
-                      <option value="FLAT">Valor Fixo (H)</option>
-                      <option value="MIXED">Misto (% + H)</option>
+                      <option value="PERCENT">{t('admin.typePercent')}</option>
+                      <option value="FLAT">{t('admin.typeFlat')}</option>
+                      <option value="MIXED">{t('admin.typeMixed')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Valor Fixo (H)</label>
+                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.typeFlat')}</label>
                     <input type="number" step="0.01" name="flatValue" placeholder="0.00" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">Categoria</label>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('common.category')}</label>
                   <input type="text" name="category" list="var-categories" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
                   <datalist id="var-categories">
                     <option value="Preços" />
@@ -1013,7 +1175,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   </datalist>
                 </div>
                 <button type="submit" className="w-full brand-bg-primary text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] hover:opacity-90 shadow-xl btn-premium text-xs">
-                  Salvar Variável
+                  {t('admin.saveVariable')}
                 </button>
               </form>
             </div>
@@ -1022,9 +1184,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <table className="min-w-full">
                 <thead className="bg-slate-50/30 border-b border-slate-50">
                   <tr>
-                    <th className="px-10 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Chave / Categoria</th>
-                    <th className="px-10 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Valor</th>
-                    <th className="px-10 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Ações</th>
+                    <th className="px-10 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.keyCategory')}</th>
+                    <th className="px-10 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.value')}</th>
+                    <th className="px-10 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1041,14 +1203,28 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             />
                             <input 
                               type="text" 
+                              value={editVariableValues.label || ''} 
+                              onChange={(e) => setEditVariableValues({ ...editVariableValues, label: e.target.value })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none"
+                              placeholder={t('admin.variableLabelPt')}
+                            />
+                            <input 
+                              type="text" 
+                              value={editVariableValues.labelEn || ''} 
+                              onChange={(e) => setEditVariableValues({ ...editVariableValues, labelEn: e.target.value })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none"
+                              placeholder={t('admin.variableLabelEn')}
+                            />
+                            <input 
+                              type="text" 
                               value={editVariableValues.category} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, category: e.target.value })}
                               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1 text-[10px] font-bold outline-none"
-                              placeholder="Categoria..."
+                              placeholder={t('admin.categoryPlaceholder')}
                             />
                             
                             <div className="space-y-2 border-t pt-4">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Incidência (Itens)</label>
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.incidenceItems')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {packages.map((pkg: any) => (
                                   <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1070,7 +1246,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             </div>
 
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Incidência (Categorias)</label>
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.incidenceCategories')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {categories.map((cat: any) => (
                                   <label key={cat.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1091,7 +1267,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">Itens Excluídos</label>
+                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.excludedItems')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {packages.map((pkg: any) => (
                                   <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1114,7 +1290,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           </div>
                         ) : (
                           <>
-                            <div className="text-sm font-black text-brand-dark group-hover:text-brand-primary transition-all uppercase tracking-tight">{v.key}</div>
+                            <div className="text-sm font-black text-brand-dark group-hover:text-brand-primary transition-all uppercase tracking-tight">{variableLabel(v, language)}</div>
+                            <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-0.5">{v.key}</div>
                             <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{v.category}</div>
                             <div className="mt-3 flex flex-wrap gap-1">
                               {JSON.parse(v.targetItems || '[]').length > 0 && (
@@ -1222,7 +1399,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                 <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
                   <Users className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">Gestão de Equipe</h2>
+                <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.teamManagement')}</h2>
               </div>
               <div className="flex items-center space-x-4">
                 <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
@@ -1233,7 +1410,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   className="flex items-center space-x-2 px-5 py-2.5 brand-bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Criar Usuário</span>
+                  <span>{t('admin.createUser')}</span>
                 </button>
               </div>
             </div>
@@ -1242,8 +1419,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <div className="px-12 py-8 border-b border-slate-50 bg-brand-primary/[0.02]">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <div className="text-sm font-black uppercase tracking-tight text-brand-dark">Novo Usuário</div>
-                    <div className="text-[10px] font-bold text-slate-400 mt-1">Preencha os campos abaixo para criar uma nova conta de acesso</div>
+                    <div className="text-sm font-black uppercase tracking-tight text-brand-dark">{t('admin.newUser')}</div>
+                    <div className="text-[10px] font-bold text-slate-400 mt-1">{t('admin.newUserSubtitle')}</div>
                   </div>
                   <button
                     onClick={() => { setShowNewUser(false); resetNewUserForm(); }}
@@ -1255,64 +1432,60 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">E-mail *</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.emailRequired')}</label>
                     <input
                       type="email"
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
-                      placeholder="ex.: nome@aktienow.com"
+                      placeholder={t('admin.emailPlaceholder')}
                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Nome de exibição</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.displayNameField')}</label>
                     <input
                       type="text"
                       value={newUserName}
                       onChange={(e) => setNewUserName(e.target.value)}
-                      placeholder="Nome Sobrenome"
+                      placeholder={t('admin.fullNamePlaceholder')}
                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Senha *</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.passwordRequired')}</label>
                     <input
                       type="password"
                       value={newUserPassword}
                       onChange={(e) => setNewUserPassword(e.target.value)}
-                      placeholder="Mínimo 6 caracteres"
+                      placeholder={t('admin.passwordPlaceholder')}
                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">Cargo / Role</label>
+                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('segment.label')}</label>
                     <select
                       value={newUserRole}
                       onChange={(e) => setNewUserRole(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     >
-                      <option value="USER">User (Padrão)</option>
-                      <option value="SC">SC (Admin)</option>
-                      <option value="AE">AE (Consulting)</option>
-                      <option value="DEV">Desenvolvimento</option>
+                      {SEGMENTS.map((seg) => (
+                        <option key={seg} value={seg}>{t(SEGMENT_LABEL_KEYS[seg])}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <label className="inline-flex items-center space-x-3 px-4 py-2.5 rounded-xl border border-slate-200 hover:border-brand-primary/30 bg-white cursor-pointer transition-all">
-                    <input
-                      type="checkbox"
-                      checked={newUserIsAdmin}
-                      onChange={(e) => setNewUserIsAdmin(e.target.checked)}
-                      className="w-4 h-4 accent-brand-primary"
-                    />
+                  {/* Privilégio de admin não é mais um campo: ele decorre do segmento ADMIN. */}
+                  <div className={`inline-flex items-center space-x-3 px-4 py-2.5 rounded-xl border bg-white transition-all ${
+                    newUserRole === 'ADMIN' ? 'border-brand-primary' : 'border-slate-200'
+                  }`}>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark">Privilégio Admin</div>
-                      <div className="text-[9px] font-bold text-slate-400">Pode gerenciar equipe, framework e configurações</div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark">{t('admin.adminPrivilege')}</div>
+                      <div className="text-[9px] font-bold text-slate-400">{t('segment.adminHint')}</div>
                     </div>
-                    <ShieldCheck className={`w-4 h-4 ml-2 ${newUserIsAdmin ? 'text-brand-primary' : 'text-slate-300'}`} />
-                  </label>
+                    <ShieldCheck className={`w-4 h-4 ml-2 ${newUserRole === 'ADMIN' ? 'text-brand-primary' : 'text-slate-300'}`} />
+                  </div>
 
                   <div className="flex items-center space-x-3">
                     <button
@@ -1320,12 +1493,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       disabled={isPending}
                       className="px-5 py-3 border border-slate-200 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-60"
                     >
-                      Cancelar
+                      {t('common.cancel')}
                     </button>
                     <button
                       onClick={() => {
                         if (!newUserEmail || !newUserPassword) {
-                          alert('E-mail e senha são obrigatórios');
+                          alert(t('admin.emailPasswordRequired'));
                           return;
                         }
                         startTransition(async () => {
@@ -1334,7 +1507,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             name: newUserName || undefined,
                             password: newUserPassword,
                             role: newUserRole,
-                            isAdmin: newUserIsAdmin,
                           });
                           if (result?.success) {
                             setShowNewUser(false);
@@ -1348,7 +1520,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       className="px-5 py-3 brand-bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-60 flex items-center space-x-2"
                     >
                       {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCog className="w-4 h-4" />}
-                      <span>Criar Usuário</span>
+                      <span>{t('admin.createUser')}</span>
                     </button>
                   </div>
                 </div>
@@ -1359,10 +1531,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <table className="min-w-full">
                 <thead className="bg-slate-50/10 border-b border-slate-50">
                   <tr>
-                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Membro</th>
-                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Cargo / Role</th>
-                    <th className="px-12 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Acesso</th>
-                    <th className="px-12 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Ações</th>
+                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.member')}</th>
+                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('segment.label')}</th>
+                    <th className="px-12 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.access')}</th>
+                    <th className="px-12 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1374,7 +1546,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             {user.name?.[0] || user.email[0]}
                           </div>
                           <div>
-                            <div className="text-sm font-black text-brand-dark uppercase tracking-tight">{user.name || 'Sem Nome'}</div>
+                            <div className="text-sm font-black text-brand-dark uppercase tracking-tight">{user.name || t('admin.noName')}</div>
                             <div className="flex items-center text-[10px] font-bold text-slate-400 mt-1">
                               <Mail className="w-3 h-3 mr-1.5" />
                               {user.email}
@@ -1384,42 +1556,39 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       </td>
                       <td className="px-12 py-8">
                         <select 
-                          value={user.role}
-                          onChange={(e) => handleUpdateRole(user.id, e.target.value)}
-                          className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary transition-all cursor-pointer"
+                          value={normalizeSegment(user.role)}
+                          onChange={(e) => handleUpdateSegment(user, e.target.value)}
+                          disabled={!canManageSegments || isPending}
+                          title={canManageSegments ? undefined : t('segment.onlyAdminsCanChange')}
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <option value="USER">User</option>
-                          <option value="SC">SC (Admin)</option>
-                          <option value="AE">AE (Consulting)</option>
-                          <option value="DEV">Desenvolvimento</option>
+                          {SEGMENTS.map((seg) => (
+                            <option key={seg} value={seg}>{t(SEGMENT_LABEL_KEYS[seg])}</option>
+                          ))}
                         </select>
                       </td>
                       <td className="px-12 py-8 text-center">
                         <div className="flex flex-col items-center">
                           <div className="flex items-center text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
                             <Calendar className="w-3 h-3 mr-1.5" />
-                            Desde {new Date(user.createdAt).toLocaleDateString('pt-BR')}
+                            {t('admin.memberSince', { date: new Date(user.createdAt).toLocaleDateString(dateLocale) })}
                           </div>
                         </div>
                       </td>
                       <td className="px-12 py-8 text-right">
                         <div className="flex items-center justify-end space-x-3">
-                          <button
-                            onClick={() => {
-                              startTransition(async () => {
-                                await updateUserAdminStatusAction(user.id, !user.isAdmin);
-                              });
-                            }}
-                            disabled={isPending}
-                            className={`p-2 rounded-xl border transition-all ${
+                          {/* O privilégio de admin decorre do segmento ADMIN — por isso este
+                              indicador é apenas informativo, não um botão. */}
+                          <span
+                            title={t('segment.adminHint')}
+                            className={`p-2 rounded-xl border transition-all inline-flex ${
                               user.isAdmin 
                                 ? 'bg-brand-primary/10 border-brand-primary text-brand-primary' 
-                                : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                                : 'bg-slate-50 border-slate-200 text-slate-300'
                             }`}
-                            title={user.isAdmin ? 'Remover privilégio Admin' : 'Tornar Admin'}
                           >
                             {user.isAdmin ? <ShieldCheck className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
-                          </button>
+                          </span>
                           <button 
                             onClick={() => handleDeleteUser(user.id, user.email)}
                             disabled={isPending}

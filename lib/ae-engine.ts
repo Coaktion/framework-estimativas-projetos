@@ -404,6 +404,31 @@ export interface AEEstimateResult {
 // Engine
 // ---------------------------------------------------------------------------
 
+/**
+ * Plano mínimo de cada módulo. Antes essa regra vivia só nos clientes, o que
+ * deixava o engine incoerente consigo mesmo: com Analytics em Team, o
+ * treinamento de Suite era cobrado mas o workshop não (`workshopSuite` exigia
+ * Professional+). Aplicando o filtro aqui, engine e UI concordam sempre — e
+ * estimativas antigas com módulos acima do plano recalculam sem eles.
+ */
+const MODULE_MIN_PLAN: Partial<Record<ModuleKey, ZendeskPlan>> = {
+  Analytics: 'professional',
+  Community: 'professional',
+  Copilot: 'professional',
+  QA: 'professional',
+  WFM: 'professional',
+  ADPP: 'enterprise',
+};
+
+function modulesAllowedOnPlan(selected: ModuleKey[], plan: ZendeskPlan): Set<string> {
+  const allowed = new Set<string>();
+  for (const mod of selected) {
+    const min = MODULE_MIN_PLAN[mod];
+    if (!min || PLAN_RANK[plan] >= PLAN_RANK[min]) allowed.add(mod);
+  }
+  return allowed;
+}
+
 export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const validation = validateAEInputs(inputs);
   if (!validation.valid) {
@@ -428,7 +453,8 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const sku = normalizeSku(inputs.skuType);
 
   // --- Modules -------------------------------------------------------------
-  const modules = new Set<string>(inputs.selectedModules);
+  // Módulos acima do plano contratado são descartados aqui, não só na UI.
+  const modules = modulesAllowedOnPlan(inputs.selectedModules, plan);
   const hasSupport = modules.has('Support');
   const hasKnowledge = modules.has('Knowledge');
   const hasCommunity = modules.has('Community');

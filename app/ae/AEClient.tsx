@@ -1,4 +1,8 @@
 'use client';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
+import { packageName } from '@/lib/localized-names';
+import AEResultTable from '@/components/AEResultTable';
 
 import { useState, useMemo, useEffect } from 'react';
 import { 
@@ -78,7 +82,7 @@ const CHANNEL_LEGACY_TO_KEY: Record<string, ChannelKey> = {
   teams: 'microsoft_teams',
   microsoft_teams: 'microsoft_teams',
   slack: 'slack',
-  x: 'x_dm',
+  x: 'x_dm', // legado: estimativas salvas antes da separação DM / público
   x_dm: 'x_dm',
   x_pages: 'x_pages',
   sms: 'sms',
@@ -125,7 +129,7 @@ function buildEngineInputs(formState: any): AEInputData {
   const planRank = PLAN_RANK[zendeskPlan] ?? PLAN_RANK.team;
 
   const selectedModules = (formState.selectedModules || ['Support']).filter((m: string) => {
-    if (['Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
+    if (['Analytics', 'Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
     if (m === 'ADPP') return planRank >= PLAN_RANK.enterprise;
     return true;
   }) as ModuleKey[];
@@ -158,9 +162,14 @@ function buildEngineInputs(formState: any): AEInputData {
 }
 
 export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null }: any) {
+  const { t } = useTranslation();
+  const { language, dateLocale } = useLanguage();
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [markdownReport, setMarkdownReport] = useState('');
+  // Guardados para montar a tabela de resultado (a tabela é derivada, não gravada).
+  const [engineResult, setEngineResult] = useState<any>(null);
+  const [engineInputsState, setEngineInputsState] = useState<any>(null);
 
   const [clientName, setClientName] = useState(initialClientName);
   const [zohoLink, setZohoLink] = useState('');
@@ -310,10 +319,12 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   );
 
   const availableModules = useMemo(() => {
-    const baseModules: string[] = ['Support', 'Knowledge', 'Analytics', 'AI Agents'];
+    const baseModules: string[] = ['Support', 'Knowledge', 'Voice', 'AI Agents'];
 
+    // Analytics exige Professional+ — antes era oferecido em qualquer plano, o que
+    // fazia o treinamento contar e o workshop não (regras discordantes no engine).
     if (planRank >= PLAN_RANK.professional) {
-      baseModules.push('Community', 'QA', 'WFM', 'Copilot');
+      baseModules.push('Analytics', 'Community', 'QA', 'WFM', 'Copilot');
     }
 
     if (planRank >= PLAN_RANK.enterprise) {
@@ -343,6 +354,19 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     });
   }, [availableModules]);
 
+  /**
+   * O canal Voice e o módulo Voice são interdependentes no engine: a quantidade de
+   * IVR vem de channelQuantities.voice, mas as horas só são faturadas quando o
+   * módulo Voice está selecionado. Marcar apenas um dos dois produzia silenciosamente
+   * ~0 hora de voz, então ligamos o módulo automaticamente ao escolher o canal.
+   */
+  useEffect(() => {
+    const voiceChannelOn = selectedChannels.includes('voice') && (channelQuantities.voice ?? 1) > 0;
+    if (voiceChannelOn && availableModules.includes('Voice')) {
+      setSelectedModules(prev => (prev.includes('Voice') ? prev : [...prev, 'Voice']));
+    }
+  }, [selectedChannels, channelQuantities, availableModules]);
+
   const handleNewSimulation = () => {
     resetForm();
     // Recarrega a URL sem parâmetros
@@ -354,13 +378,14 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     { id: 'web_form', label: 'Web Form', package: 'Ticket: Formulários/Catálogos (por form)' },
     { id: 'email', label: 'Email', package: 'Ticket: Email (por endereço)' },
     { id: 'web_widget', label: 'Web Widget', package: 'Messaging: Web Widget (por widget)' },
-    { id: 'whatsapp', label: 'WhatsApp', package: 'Messaging: LINE' },
+    { id: 'whatsapp', label: 'WhatsApp', package: 'Messaging: WhatsApp' },
     { id: 'facebook', label: 'Facebook', package: 'Messaging: Facebook Messenger (por página)' },
     { id: 'instagram', label: 'Instagram', package: 'Messaging: Instagram Direct (por página)' },
     { id: 'voice', label: 'Voice (Zendesk)', package: 'Voz: Configurações gerais (Fila, Espera)' },
     { id: 'teams', label: 'MS Teams', package: 'Ticket: Microsoft Teams integration' },
     { id: 'slack', label: 'Slack', package: 'Messaging: Slack' },
-    { id: 'x', label: 'X (Twitter)', package: 'Ticket: X (Mensagens Públicas)' },
+    { id: 'x_dm', label: 'X DMs', package: 'Messaging: X Corp DM (por página)' },
+    { id: 'x_pages', label: t('channel.xPublic'), package: 'Ticket: X (Mensagens Públicas)' },
     { id: 'sms', label: 'SMS/Text', package: 'Messaging: Text/SMS (por número)' }
   ];
 
@@ -368,24 +393,37 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     { id: 'ios', label: 'iOS', package: 'Messaging: iOS SDK' },
     { id: 'unity', label: 'Unity', package: 'Messaging: Unity SDK' },
     { id: 'line', label: 'LINE', package: 'Messaging: LINE' },
-    { id: 'apple_business', label: 'Apple Messages for Business', package: 'Messaging: Apple Messages' },
+    { id: 'apple_business', label: 'Apple Messages for Business', package: 'Messaging: Apple Messages for Business' },
     { id: 'wechat', label: 'WeChat', package: 'Messaging: WeChat' },
     { id: 'google_rcs', label: 'Google RCS', package: 'Messaging: Google RCS' },
-    { id: 'google_business', label: 'Business Messages do Google', package: 'Messaging: Google Business' },
-    { id: 'kakaotalk', label: 'KakaoTalk', package: 'Messaging: KakaoTalk' }
+    { id: 'google_business', label: t('channel.googleBusiness'), package: 'Messaging: Google Business Messages' },
+    { id: 'kakaotalk', label: 'KakaoTalk', package: 'Messaging: KakaoTalk' },
+    { id: 'facebook_pages', label: t('channel.facebookPage'), package: 'Ticket: Facebook Page (Timeline)' },
+    { id: 'instagram_page', label: t('channel.instagramPage'), package: 'Ticket: Instagram Page (Feed)' },
+    { id: 'telegram', label: 'Telegram', package: 'Messaging: Telegram' }
   ];
 
+  // `value` é o nome canônico em português — é ele que vai para o banco e para o
+  // engine de cálculo. `label` é só exibição e segue o idioma ativo.
   const nativeConnectionOptions = useMemo(() => {
     return packages
       .filter((p: any) => p.categoryName === 'Integrações Nativas')
-      .map((p: any) => p.name);
-  }, [packages]);
+      .map((p: any) => ({ value: p.name as string, label: packageName(p, language) }));
+  }, [packages, language]);
 
-  const marketplaceOptions = useMemo(() => {
-    return packages
-      .filter((p: any) => p.categoryName === 'Marketplace')
-      .map((p: any) => p.name);
-  }, [packages]);
+  const marketplaceOptions = useMemo(
+    () => [
+      { value: 'WooCommerce', label: 'WooCommerce' },
+      { value: 'Dialpad', label: 'Dialpad' },
+      { value: 'Aircall', label: 'Aircall' },
+      { value: 'VTEX', label: 'VTEX' },
+      { value: 'Stripe', label: 'Stripe' },
+      { value: 'Pipedrive', label: 'Pipedrive' },
+      { value: 'SweetHawk', label: 'SweetHawk' },
+      { value: 'Outros', label: t('ae.otherMarketplace') },
+    ],
+    [t],
+  );
 
   const toggleChannel = (id: string) => {
     setSelectedChannels(prev => {
@@ -428,14 +466,14 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       const isSelected = prev.includes(id);
       if (isSelected) {
         const newApps = prev.filter(i => i !== id);
-        if (id === 'SweetHawk' || id === 'Outros' || id === 'App Marketplace') {
+        if (id === 'SweetHawk' || id === 'Outros') {
           const newQuantities = { ...appQuantities };
           delete newQuantities[id];
           setAppQuantities(newQuantities);
         }
         return newApps;
       } else {
-        if (id === 'SweetHawk' || id === 'Outros' || id === 'App Marketplace') {
+        if (id === 'SweetHawk' || id === 'Outros') {
           setAppQuantities(prev => ({ ...prev, [id]: 1 }));
         }
         return [...prev, id];
@@ -499,13 +537,17 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       hasAppTicketManager,
     };
     const inputs = buildEngineInputs(formState);
+    setEngineInputsState(inputs);
 
     const validation = validateAEInputs(inputs);
     let result: ReturnType<typeof calculateAEEstimate> | null = null;
     if (validation.valid) {
       try {
         result = calculateAEEstimate(inputs);
-      } catch {
+      } catch (err) {
+        // Antes o erro era engolido em silêncio e a estimativa saía zerada, o que
+        // parecia um resultado válido. Agora fica registrado no console.
+        console.error('AE engine failed:', err);
         result = null;
       }
     }
@@ -522,6 +564,8 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       breakdown: {},
       quantities: {},
     };
+
+    setEngineResult(result);
 
     const totalHours =
       db.lineItemHours +
@@ -540,7 +584,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
         needsSC: db.requiresSalesEngineer,
         escalationRequired: db.requiresSalesEngineer,
         escalationMessage:
-          'Esta estimativa excedeu 60h ou contém módulos/dados que requerem a participação de um Sales Engineer (SC) para validação.',
+          t('ae.escalationDefault'),
         breakdown: db.breakdown || {},
         quantities: db.quantities || {},
         lineItemHours: db.lineItemHours,
@@ -694,136 +738,136 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       (String(zendeskPlan || 'professional').toLowerCase() !== 'team' ? 1 : 0)) * (opLangs - 1);
 
     const supportItems: Array<[string, number, number]> = [
-      ['Funções', Number(q.funcoes || 0), 0.25],
-      ['Grupos', Number(q.grupos || 0), 0.05],
-      ['Campos de Ticket', Number(q.campos_ticket || 0), 0.08],
-      ['Condicionais de Campos', Number(q.condicionais_campos || 0), 0.02],
-      ['Campos de Usuário', Number(q.campos_usuario || 0), 0.05],
-      ['Campos de Organização', Number(q.campos_organizacao || 0), 0.05],
-      ['Visualizações', Number(q.visualizacoes || 0), 0.08],
-      ['Macros', Number(q.macros || 0), 0.08],
-      ['Gatilhos Simples', Number(q.gatilhos_simples || 0), 0.08],
-      ['Gatilhos Complexos', Number(q.gatilhos_complexos || 0), 0.33],
-      ['Automações Simples', Number(q.automacoes_simples || 0), 0.08],
-      ['Automações Complexas', Number(q.automacoes_complexas || 0), 0.33],
-      ['Políticas de SLA', Number(q.politicas_sla || 0), 0.17],
+      [t('cfg.roles'), Number(q.funcoes || 0), 0.25],
+      [t('cfg.groups'), Number(q.grupos || 0), 0.05],
+      [t('cfg.ticketFields'), Number(q.campos_ticket || 0), 0.08],
+      [t('cfg.fieldConditions'), Number(q.condicionais_campos || 0), 0.02],
+      [t('cfg.userFields'), Number(q.campos_usuario || 0), 0.05],
+      [t('cfg.orgFields'), Number(q.campos_organizacao || 0), 0.05],
+      [t('cfg.views'), Number(q.visualizacoes || 0), 0.08],
+      [t('cfg.macros'), Number(q.macros || 0), 0.08],
+      [t('cfg.simpleTriggers'), Number(q.gatilhos_simples || 0), 0.08],
+      [t('cfg.complexTriggers'), Number(q.gatilhos_complexos || 0), 0.33],
+      [t('cfg.simpleAutomations'), Number(q.automacoes_simples || 0), 0.08],
+      [t('cfg.complexAutomations'), Number(q.automacoes_complexas || 0), 0.33],
+      [t('cfg.slaPolicies'), Number(q.politicas_sla || 0), 0.17],
     ];
 
     const voiceItems: Array<[string, number, number]> = [
       ['IVR', Number(q.ivr || 0), 0.59],
-      ['Saudações', Number(q.saudacoes || 0), 0.05],
+      [t('cfg.greetings'), Number(q.saudacoes || 0), 0.05],
     ];
 
     const copilotItems: Array<[string, number, number]> = [
-      ['Intenções', Number(q.intencoes || 0), 0.25],
-      ['Entidades', Number(q.entidades || 0), 0.33],
-      ['Procedimentos', Number(q.procedimentos || 0), 0.67],
+      [t('cfg.intents'), Number(q.intencoes || 0), 0.25],
+      [t('cfg.entities'), Number(q.entidades || 0), 0.33],
+      [t('cfg.procedures'), Number(q.procedimentos || 0), 0.67],
     ];
 
     const wfmItems: Array<[string, number, number]> = [
-      ['Localizações', Number(q.wfm_localizacoes || 0), 0.25],
-      ['Turnos', Number(q.wfm_turnos || 0), 0.25],
-      ['Grupos de Trabalho', Number(q.wfm_grupos_trabalho || 0), 0.08],
-      ['Equipes', Number(q.wfm_equipes || 0), 0.08],
-      ['Motivos de Folga', Number(q.wfm_motivos_folga || 0), 0.08],
-      ['Tarefas Gerais', Number(q.wfm_tarefas_gerais || 0), 0.08],
-      ['Automações WFM', Number(q.wfm_automacoes || 0), 0.25],
-      ['Funções WFM', Number(q.wfm_funcoes || 0), 0.17],
+      [t('cfg.locations'), Number(q.wfm_localizacoes || 0), 0.25],
+      [t('cfg.shifts'), Number(q.wfm_turnos || 0), 0.25],
+      [t('cfg.workGroups'), Number(q.wfm_grupos_trabalho || 0), 0.08],
+      [t('cfg.teams'), Number(q.wfm_equipes || 0), 0.08],
+      [t('cfg.timeOffReasons'), Number(q.wfm_motivos_folga || 0), 0.08],
+      [t('cfg.generalTasks'), Number(q.wfm_tarefas_gerais || 0), 0.08],
+      [t('cfg.wfmAutomations'), Number(q.wfm_automacoes || 0), 0.25],
+      [t('cfg.wfmRoles'), Number(q.wfm_funcoes || 0), 0.17],
     ];
 
     const qaItems: Array<[string, number, number]> = [
-      ['Destaques', Number(q.qa_destaques || 0), 0.75],
-      ['Quizzes', Number(q.qa_quizzes || 0), 0.5],
-      ['Filtros', Number(q.qa_filtros || 0), 0.5],
-      ['Tabelas de Desempenho', Number(q.qa_tabelas_desempenho || 0), 0.5],
-      ['Categorias Manuais', Number(q.qa_categorias_manuais || 0), 0.17],
-      ['Categorias IA', Number(q.qa_categorias_ia || 0), 0.5],
-      ['Usuários', Number(q.qa_usuarios || 0), 0.05],
-      ['Bots', Number(q.qa_bots || 0), 0.17],
-      ['Espaço de Trabalho', Number(q.qa_espaco_trabalho || 0), 0.25],
-      ['Atribuições', Number(q.qa_atribuicoes || 0), 0.5],
-      ['Grupos QA', Number(q.qa_grupos || 0), 0.08],
-      ['Hashtags', Number(q.qa_hashtags || 0), 0.05],
+      [t('cfg.highlights'), Number(q.qa_destaques || 0), 0.75],
+      [t('cfg.quizzes'), Number(q.qa_quizzes || 0), 0.5],
+      [t('cfg.filters'), Number(q.qa_filtros || 0), 0.5],
+      [t('cfg.scorecards'), Number(q.qa_tabelas_desempenho || 0), 0.5],
+      [t('cfg.manualCategories'), Number(q.qa_categorias_manuais || 0), 0.17],
+      [t('cfg.aiCategories'), Number(q.qa_categorias_ia || 0), 0.5],
+      [t('cfg.users'), Number(q.qa_usuarios || 0), 0.05],
+      [t('cfg.bots'), Number(q.qa_bots || 0), 0.17],
+      [t('cfg.workspace'), Number(q.qa_espaco_trabalho || 0), 0.25],
+      [t('cfg.assignments'), Number(q.qa_atribuicoes || 0), 0.5],
+      [t('cfg.qaGroups'), Number(q.qa_grupos || 0), 0.08],
+      [t('cfg.hashtags'), Number(q.qa_hashtags || 0), 0.05],
     ];
 
     const renderQtyTable = (rows: Array<[string, number, number]>, totalHoras: number) => {
       const lines = rows.map(([label, qtd, uh]) =>
         `| ${label} | ${num(qtd, 2)} | ${uh.toFixed(2)}h | ${num(qtd * uh, 2)}h |`
       ).join('\n');
-      return `| Item | Qtd | H/Unid | Total |
+      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | ---: | ---: | ---: |
 ${lines}
-| **Subtotal do bloco** | — | — | **${num(totalHoras, 2)}h** |`;
+| **${t('aeReport.blockSubtotal')}** | — | — | **${num(totalHoras, 2)}h** |`;
     };
 
     // Generate Markdown Report
     const report = `
-# Relatório Executivo de Estimativa AE — ${clientName}
+# ${t('aeReport.title')} — ${clientName}
 
-## 1. Escopo e premissas
+## ${t('report.section1')}
 
-- **Cliente:** ${clientName}
-${zohoLink ? `- **Deal (Zoho):** ${zohoLink}` : ''}
-- **SKU:** ${skuType === 'employee_service' ? 'Employee Service (ES)' : 'Customer Service (CS)'}
-- **Tipo de implantação:** ${deploymentType === 'new' ? 'Nova implantação' : 'Otimização de ambiente existente'}
-- **Plano Zendesk:** ${String(zendeskPlan || 'professional').toUpperCase()}
-- **Módulos selecionados:** ${modulesList.length ? modulesList.join(', ') : '—'}
-- **Operações:** ${(operationTypes || []).filter(Boolean).join(', ') || '—'}
-- **Idiomas em operação:** ${opLangs}
-- **Agentes:** ${agents}
-- **Marcas (Brands):** ${brands}
-- **Áreas:** ${areas}
-- **Artigos (Knowledge):** ${knowledgeArticles}
+- **${t('report.client')}:** ${clientName}
+${zohoLink ? `- **${t('report.deal')}:** ${zohoLink}` : ''}
+- **${t('ae.sku')}:** ${skuType === 'employee_service' ? t('report.employeeService') : t('report.customerService')}
+- **${t('aeReport.deploymentType')}:** ${deploymentType === 'new' ? t('report.newDeployment') : t('report.optimizationExisting')}
+- **${t('report.zendeskPlan')}:** ${String(zendeskPlan || 'professional').toUpperCase()}
+- **${t('report.selectedModules')}:** ${modulesList.length ? modulesList.join(', ') : '—'}
+- **${t('aeReport.operations')}:** ${(operationTypes || []).filter(Boolean).join(', ') || '—'}
+- **${t('aeReport.operationLanguages')}:** ${opLangs}
+- **${t('report.agents')}:** ${agents}
+- **${t('aeReport.brandsLabel')}:** ${brands}
+- **${t('ae.areas')}:** ${areas}
+- **${t('aeReport.knowledgeArticles')}:** ${knowledgeArticles}
 
 ---
 
-## 2. Blocos de esforço (hours by line-item group)
+## ${t('aeReport.section2')}
 
-| Grupo | Horas | Observação |
+| ${t('report.group')} | ${t('report.hours')} | ${t('aeReport.note')} |
 | :--- | ---: | :--- |
-| 2.1 Configuração de Support | ${num(breakdown.supportConfig, 2)}h | Módulo Support |
-| 2.2 Configuração de Voice | ${num(breakdown.voiceConfig, 2)}h | Módulo Voice |
-| 2.3 Configuração de Copilot | ${num(breakdown.copilotConfig, 2)}h | Módulo Copilot |
-| 2.4 Configuração de WFM | ${num(breakdown.wfmConfig, 2)}h | Módulo WFM |
-| 2.5 Configuração de QA | ${num(breakdown.qaConfig, 2)}h | Módulo QA |
-| 2.6 Setup base (Agentes / Marcas / Canais) | ${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h | Agentes + Marcas + Canais |
-| 2.7 Apps da Aktie Now | ${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h | Condicionais Avançadas + Ticket Manager |
-| 2.8 SSO | ${num(breakdown.sso, 2)}h | SAML/JWT/OIDC, se habilitado |
-| 2.9 Configurações Gerais por módulo | ${num(breakdown.generalConfig, 2)}h | Config base de cada módulo |
-| 2.10 Treinamentos | ${num(breakdown.training, 2)}h | Suite + módulos + Analytics avançado |
-| 2.11 Pacotes fixos | ${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h | Itens fixos Support/WFM/ADPP |
-| 2.12 Integrações nativas | ${num(breakdown.nativeConnections, 2)}h | Flat 2h cada |
-| 2.13 Knowledge | ${num(breakdown.knowledge, 2)}h | Artigos |
-| 2.14 Side Conversations | ${num(breakdown.sideConversations, 2)}h | Teams/Slack, se elegível por plano |
-| 2.15 Apps de terceiros / Marketplace | ${num(breakdown.thirdPartyApps, 2)}h | One-offs + SweetHawk + Outros |
-| 2.16 Workshops | ${num(breakdown.workshops, 2)}h | Por módulo habilitado |
-| 2.17 Conteúdo dinâmico / múltiplos idiomas | ${num(breakdown.operationLanguages, 2)}h | Base de conteúdo dinâmico × (idiomas - 1) |
-| 2.18 Action Flows | ${num(breakdown.actionFlows, 2)}h | Serviços externos |
+| ${t('aeReport.supportConfig')} | ${num(breakdown.supportConfig, 2)}h | ${t('aeReport.module')} Support |
+| ${t('aeReport.voiceConfig')} | ${num(breakdown.voiceConfig, 2)}h | ${t('aeReport.module')} Voice |
+| ${t('aeReport.copilotConfig')} | ${num(breakdown.copilotConfig, 2)}h | ${t('aeReport.module')} Copilot |
+| ${t('aeReport.wfmConfig')} | ${num(breakdown.wfmConfig, 2)}h | ${t('aeReport.module')} WFM |
+| ${t('aeReport.qaConfig')} | ${num(breakdown.qaConfig, 2)}h | ${t('aeReport.module')} QA |
+| ${t('aeReport.baseSetupRow')} | ${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h | ${t('aeReport.baseSetupNote')} |
+| ${t('aeReport.aktieAppsRow')} | ${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h | ${t('aeReport.aktieAppsNote')} |
+| 2.8 SSO | ${num(breakdown.sso, 2)}h | ${t('aeReport.ssoNote')} |
+| ${t('aeReport.generalConfigRow')} | ${num(breakdown.generalConfig, 2)}h | ${t('aeReport.generalConfigNote')} |
+| ${t('aeReport.trainingRow')} | ${num(breakdown.training, 2)}h | ${t('aeReport.trainingNote')} |
+| ${t('aeReport.fixedPackagesRow')} | ${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h | ${t('aeReport.fixedPackagesNote')} |
+| ${t('aeReport.nativeRow')} | ${num(breakdown.nativeConnections, 2)}h | ${t('aeReport.flat2hEach')} |
+| ${t('aeReport.knowledgeRow')} | ${num(breakdown.knowledge, 2)}h | ${t('aeReport.articles')} |
+| ${t('aeReport.sideConvRow')} | ${num(breakdown.sideConversations, 2)}h | ${t('aeReport.sideConvNote')} |
+| ${t('aeReport.thirdPartyRow')} | ${num(breakdown.thirdPartyApps, 2)}h | ${t('aeReport.thirdPartyNote')} |
+| ${t('aeReport.workshopsRow')} | ${num(breakdown.workshops, 2)}h | ${t('aeReport.workshopsNote')} |
+| ${t('aeReport.langRow')} | ${num(breakdown.operationLanguages, 2)}h | ${t('aeReport.langNote')} |
+| ${t('aeReport.actionFlowsRow')} | ${num(breakdown.actionFlows, 2)}h | ${t('aeReport.externalServices')} |
 | | | |
-| **Total de line-items** | | **${num(estimation.lineItemHours, 2)}h** |
+| **${t('aeReport.totalLineItems')}** | | **${num(estimation.lineItemHours, 2)}h** |
 
 ---
 
-## 3. Detalhamento por módulo / item
+## ${t('aeReport.section3')}
 
 ### 3.1 Support (${num(breakdown.supportConfig, 2)}h)
 ${renderQtyTable(supportItems, Number(breakdown.supportConfig || 0))}
 
 ### 3.2 Voice (${num(breakdown.voiceConfig, 2)}h)
-${modulesList.includes('Voice') || breakdown.voiceConfig ? renderQtyTable(voiceItems, Number(breakdown.voiceConfig || 0)) : '_Módulo Voice não selecionado._'}
+${modulesList.includes('Voice') || breakdown.voiceConfig ? renderQtyTable(voiceItems, Number(breakdown.voiceConfig || 0)) : t('report.moduleNotSelected', { module: 'Voice' })}
 
 ### 3.3 Copilot (${num(breakdown.copilotConfig, 2)}h)
-${modulesList.includes('Copilot') || breakdown.copilotConfig ? renderQtyTable(copilotItems, Number(breakdown.copilotConfig || 0)) : '_Módulo Copilot não selecionado._'}
+${modulesList.includes('Copilot') || breakdown.copilotConfig ? renderQtyTable(copilotItems, Number(breakdown.copilotConfig || 0)) : t('report.moduleNotSelected', { module: 'Copilot' })}
 
 ### 3.4 WFM (${num(breakdown.wfmConfig, 2)}h)
-${modulesList.includes('WFM') || breakdown.wfmConfig ? renderQtyTable(wfmItems, Number(breakdown.wfmConfig || 0)) : '_Módulo WFM não selecionado._'}
+${modulesList.includes('WFM') || breakdown.wfmConfig ? renderQtyTable(wfmItems, Number(breakdown.wfmConfig || 0)) : t('report.moduleNotSelected', { module: 'WFM' })}
 
 ### 3.5 QA (${num(breakdown.qaConfig, 2)}h)
-${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Number(breakdown.qaConfig || 0)) : '_Módulo QA não selecionado._'}
+${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Number(breakdown.qaConfig || 0)) : t('report.moduleNotSelected', { module: 'QA' })}
 
 ---
 
-## 4. Setup base
+## ${t('aeReport.section4')}
     ${(() => {
       const chQty = (id: ChannelKey | string) => {
         const k: ChannelKey = (CHANNEL_LEGACY_TO_KEY[id] || id) as ChannelKey;
@@ -838,54 +882,54 @@ ${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Num
         if (!active) return 0;
         return v > 0 ? v : 1;
       };
-      return `| Item | Qtd | H/Unid | Total |
+      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | ---: | ---: | ---: |
-| Agentes (membros de equipe / setup por agente) | ${agents} | 0.05h | ${num(Number(breakdown.agentSetup || 0), 2)}h |
-| Marcas | ${brands} | 0.25h | ${num(Number(breakdown.brandSetup || 0), 2)}h |
-| Canais — Email | ${chQty('email')} | 0.17h | ${num(chQty('email') * 0.17, 2)}h |
-| Canais — Web Form | ${chQty('web_form')} | 0.08h | ${num(chQty('web_form') * 0.08, 2)}h |
-| Canais — Web Widget | ${chQty('web_widget')} | 0.42h | ${num(chQty('web_widget') * 0.42, 2)}h |
-| Demais canais (reunião por canal) | ${extraChannelsQty} | 0.17h (min 0.5h se >0) | ${num(Number(breakdown.channelSetup || 0) -
+| ${t('aeReport.agentSetupRow')} | ${agents} | 0.05h | ${num(Number(breakdown.agentSetup || 0), 2)}h |
+| ${t('report.brands')} | ${brands} | 0.25h | ${num(Number(breakdown.brandSetup || 0), 2)}h |
+| ${t('aeReport.channelsEmail')} | ${chQty('email')} | 0.17h | ${num(chQty('email') * 0.17, 2)}h |
+| ${t('aeReport.channelsWebForm')} | ${chQty('web_form')} | 0.08h | ${num(chQty('web_form') * 0.08, 2)}h |
+| ${t('aeReport.channelsWebWidget')} | ${chQty('web_widget')} | 0.42h | ${num(chQty('web_widget') * 0.42, 2)}h |
+| ${t('aeReport.otherChannelsRow')} | ${extraChannelsQty} | ${t('aeReport.minIfOver')} | ${num(Number(breakdown.channelSetup || 0) -
   chQty('email') * 0.17 -
   chQty('web_form') * 0.08 -
   chQty('web_widget') * 0.42, 2)}h |
-| **Subtotal** | — | — | **${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h** |`;
+| **${t('common.subtotal')}** | — | — | **${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h** |`;
     })()}
 
-### Canais selecionados e quantidades
-| Canal | Qtd |
+### ${t('aeReport.selectedChannels')}
+| ${t('aeReport.channel')} | ${t('aeReport.qty')} |
 | :--- | ---: |
 ${channelsList.length ? channelsList.map((c) => {
   const qtd = Math.max(0, Number(channelQuantities[c as any] || 1)) || 0;
   return `| ${c} | ${qtd} |`;
-}).join('\n') : '| _(nenhum)_ | — |'}
+}).join('\n') : `| ${t('report.emptyMasc')} | — |`}
 
 ---
 
-## 5. Apps Aktie Now / Marketplace / Integrações / SideConv / Action Flows
+## ${t('aeReport.section5')}
 
-### 5.1 Apps Aktie Now
-| App | Horas |
+### ${t('aeReport.section51')}
+| App | ${t('report.hours')} |
 | :--- | ---: |
-| Condicionais Avançadas ${hasAppCondicionais ? '(✓)' : '(✗)'} | ${num(breakdown.appCondicionais, 2)}h |
+| ${t('aeReport.advancedConditionals')} ${hasAppCondicionais ? '(✓)' : '(✗)'} | ${num(breakdown.appCondicionais, 2)}h |
 | Ticket Manager ${hasAppTicketManager ? '(✓)' : '(✗)'} | ${num(breakdown.appTicketManager, 2)}h |
-| **Subtotal Apps Aktie Now** | **${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h** |
+| **${t('aeReport.subtotalAktieApps')}** | **${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h** |
 
-### 5.2 Integrações nativas (flat 2h cada)
-| Integração | Total |
+### ${t('aeReport.section52')}
+| ${t('aeReport.integration')} | ${t('common.total')} |
 | :--- | ---: |
-${nativeList.length ? nativeList.map((n) => `| ${n} | 2.00h |`).join('\n') : '| _(nenhuma)_ | — |'}
-| **Subtotal integrações nativas** | **${num(breakdown.nativeConnections, 2)}h** |
+${nativeList.length ? nativeList.map((n) => `| ${n} | 2.00h |`).join('\n') : `| ${t('report.emptyFem')} | — |`}
+| **${t('aeReport.subtotalNative')}** | **${num(breakdown.nativeConnections, 2)}h** |
 
-### 5.3 Side Conversations (se elegível por plano)
-| Item | Qtd | H/Unid | Total |
+### ${t('aeReport.section53')}
+| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | ---: | ---: | ---: |
-| Microsoft Teams Side Conv | ${hasTeamsSideConv ? 1 : 0} | 0.50h | ${num(hasTeamsSideConv ? 0.5 : 0, 2)}h |
-| Slack Side Conv | ${hasSlackSideConv ? 1 : 0} | 0.50h | ${num(hasSlackSideConv ? 0.5 : 0, 2)}h |
-| **Subtotal Side Conversations** | — | — | **${num(breakdown.sideConversations, 2)}h** |
+| ${t('aeReport.teamsSideConv')} | ${hasTeamsSideConv ? 1 : 0} | 0.50h | ${num(hasTeamsSideConv ? 0.5 : 0, 2)}h |
+| ${t('aeReport.slackSideConv')} | ${hasSlackSideConv ? 1 : 0} | 0.50h | ${num(hasSlackSideConv ? 0.5 : 0, 2)}h |
+| **${t('aeReport.subtotalSideConv')}** | — | — | **${num(breakdown.sideConversations, 2)}h** |
 
-### 5.4 Apps de terceiros / Marketplace
-| App | Tipo | Qtd | H/Unid | Total |
+### ${t('aeReport.section54')}
+| App | ${t('common.type')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | :--- | ---: | ---: | ---: |
 ${oneOffAppLabels.length ? oneOffAppLabels.map((label) => {
   const key = MARKETPLACE_APP_LABEL_TO_KEY[label] as any;
@@ -897,27 +941,27 @@ ${oneOffAppLabels.length ? oneOffAppLabels.map((label) => {
     stripe: 1.0,
     pipedrive: 1.0,
   }[key] || 0;
-  return `| ${label} | One-off | 1 | ${uh.toFixed(2)}h | ${num(uh, 2)}h |`;
+  return `| ${label} | ${t('report.oneOff')} | 1 | ${uh.toFixed(2)}h | ${num(uh, 2)}h |`;
 }).join('\n') : ''}
 ${(sweethawkQty || 0) > 0 || (otherQty || 0) > 0 ? [
-  (sweethawkQty > 0 ? `| SweetHawk | Contagem | ${sweethawkQty} | 2.00h | ${num(sweethawkQty * 2, 2)}h |` : ''),
-  (otherQty > 0 ? `| Outros Marketplace | Contagem | ${otherQty} | 5.00h | ${num(otherQty * 5, 2)}h |` : ''),
+  (sweethawkQty > 0 ? `| SweetHawk | ${t('report.count')} | ${sweethawkQty} | 2.00h | ${num(sweethawkQty * 2, 2)}h |` : ''),
+  (otherQty > 0 ? `| ${t('report.otherMarketplace')} | ${t('report.count')} | ${otherQty} | 5.00h | ${num(otherQty * 5, 2)}h |` : ''),
 ].filter(Boolean).join('\n') : ''}
-${!(oneOffAppLabels.length || sweethawkQty || otherQty) ? '| _(nenhum)_ | — | — | — | — |' : ''}
-| **Subtotal apps / marketplace** | — | — | — | **${num(breakdown.thirdPartyApps, 2)}h** |
+${!(oneOffAppLabels.length || sweethawkQty || otherQty) ? `| ${t('report.emptyMasc')} | — | — | — | — |` : ''}
+| **${t('aeReport.subtotalMarketplace')}** | — | — | — | **${num(breakdown.thirdPartyApps, 2)}h** |
 
-### 5.5 Action Flows (integrações externas com serviço)
-| Serviço | H/Unid | Total |
+### ${t('aeReport.section55')}
+| ${t('aeReport.service')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | ---: | ---: |
-${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${ACTION_FLOW_OPTIONS.find((o) => o.value === name)?.label || String(name)} | 4.50h | 4.50h |`).join('\n') : '| _(nenhum)_ | — | — |'}
-| **Subtotal Action Flows (${actionFlowsQty})** | — | **${num(breakdown.actionFlows, 2)}h** |
+${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${ACTION_FLOW_OPTIONS.find((o) => o.value === name)?.label || String(name)} | 4.50h | 4.50h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — |`}
+| **${t('aeReport.subtotalActionFlows')} (${actionFlowsQty})** | — | **${num(breakdown.actionFlows, 2)}h** |
 
 ---
 
-## 6. Configurações Gerais / Treinamentos / Itens Fixos / Workshops / Idiomas / SSO / Knowledge
+## ${t('aeReport.section6')}
 
-### 6.1 Configurações gerais por módulo (row 52)
-| Módulo | H |
+### ${t('aeReport.section61')}
+| ${t('aeReport.module')} | H |
 | :--- | ---: |
 | Support | ${modulesList.includes('Support') ? '1.00h' : '0.00h'} |
 | Knowledge (Guide) | ${modulesList.includes('Knowledge') ? '0.10h' : '0.00h'} |
@@ -929,11 +973,11 @@ ${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: an
 | WFM | ${modulesList.includes('WFM') ? '0.33h' : '0.00h'} |
 | AI Agents | ${modulesList.includes('AI Agents') ? '0.75h' : '0.00h'} |
 | ADPP | ${modulesList.includes('ADPP') ? '1.50h' : '0.00h'} |
-| **Subtotal** | **${num(breakdown.generalConfig, 2)}h** |
+| **${t('common.subtotal')}** | **${num(breakdown.generalConfig, 2)}h** |
 
-### 6.2 Treinamentos (row 53)
+### ${t('aeReport.section62')}
 - Suite (Support / Knowledge / Analytics): ${num(Number(breakdown.training || 0) > 0 ? 3.0 : 0, 2)}h
-- Analytics avançado (treinamento ${analyticsTrainingType === 'advanced' ? 'completo' : 'padrão'}): ${num(analyticsTrainingType === 'advanced' && modulesList.includes('Analytics') ? 6.0 : 0, 2)}h
+- ${t('aeReport.advancedAnalyticsTraining', { mode: analyticsTrainingType === 'advanced' ? t('aeReport.trainingFull') : t('aeReport.trainingStandard') })}: ${num(analyticsTrainingType === 'advanced' && modulesList.includes('Analytics') ? 6.0 : 0, 2)}h
 - Community: ${num(modulesList.includes('Community') ? 1.5 : 0, 2)}h
 - Voice: ${num(modulesList.includes('Voice') ? 2.5 : 0, 2)}h
 - Copilot: ${num(modulesList.includes('Copilot') ? 2.5 : 0, 2)}h
@@ -941,86 +985,86 @@ ${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: an
 - WFM: ${num(modulesList.includes('WFM') ? 3.0 : 0, 2)}h
 - AI Agents: ${num(modulesList.includes('AI Agents') ? 4.0 : 0, 2)}h
 - ADPP: ${num(modulesList.includes('ADPP') ? 1.0 : 0, 2)}h
-- **Subtotal treinamentos:** **${num(breakdown.training, 2)}h**
+- ${t('aeReport.subtotalTraining')} **${num(breakdown.training, 2)}h**
 
-### 6.3 Itens fixos (rows 54-63)
-| Bloco | Qtd × H | Total |
+### ${t('aeReport.section63')}
+| ${t('aeReport.block')} | ${t('aeReport.qty')} × H | ${t('common.total')} |
 | :--- | :--- | ---: |
-| Support fixo (Enc. Omnichannel 1×1.00h; Webhook inst. 1×0.50h; Webhooks 1×0.33h) | 1.83h | 1.83h |
-| Support (plano ≠ Team) — Satisfação + Feriados (0.25+0.25) | ${String(zendeskPlan || 'professional').toLowerCase() !== 'team' ? '0.50h' : '0.00h'} | ${num(Number(breakdown.supportFixed || 0) - 1.83, 2)}h |
-| WFM fixo (2×0.75 + 1×0.75 + 10×0.05) | — | ${num(breakdown.wfmFixed, 2)}h |
-| ADPP fixo (2×0.25 + 5×0.08) | — | ${num(breakdown.adppFixed, 2)}h |
-| **Subtotal itens fixos** | — | **${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h** |
+| ${t('aeReport.supportFixedRow')} | 1.83h | 1.83h |
+| ${t('aeReport.supportNonTeamRow')} | ${String(zendeskPlan || 'professional').toLowerCase() !== 'team' ? '0.50h' : '0.00h'} | ${num(Number(breakdown.supportFixed || 0) - 1.83, 2)}h |
+| ${t('aeReport.wfmFixedRow')} | — | ${num(breakdown.wfmFixed, 2)}h |
+| ${t('aeReport.adppFixedRow')} | — | ${num(breakdown.adppFixed, 2)}h |
+| **${t('aeReport.subtotalFixed')}** | — | **${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h** |
 
-### 6.4 Workshops
-| Módulo | H |
+### ${t('aeReport.section64')}
+| ${t('aeReport.module')} | H |
 | :--- | ---: |
-| Suite (habilita se tem Support/Knowledge/Analytics) | ${(modulesList.includes('Support') || modulesList.includes('Knowledge') || modulesList.includes('Analytics')) ? '1.00h' : '0.00h'} |
+| ${t('aeReport.suiteWorkshopRow')} | ${(modulesList.includes('Support') || modulesList.includes('Knowledge') || modulesList.includes('Analytics')) ? '1.00h' : '0.00h'} |
 | Voice | ${modulesList.includes('Voice') ? '0.50h' : '0.00h'} |
 | Copilot | ${modulesList.includes('Copilot') ? '0.50h' : '0.00h'} |
 | AI Agents | ${modulesList.includes('AI Agents') ? '0.50h' : '0.00h'} |
 | QA | ${modulesList.includes('QA') ? '0.50h' : '0.00h'} |
 | WFM | ${modulesList.includes('WFM') ? '0.50h' : '0.00h'} |
-| **Subtotal Workshops** | **${num(breakdown.workshops, 2)}h** |
+| **${t('aeReport.subtotalWorkshops')}** | **${num(breakdown.workshops, 2)}h** |
 
-### 6.5 Idiomas / Conteúdo dinâmico
-| Item | Valor | H |
+### ${t('aeReport.section65')}
+| ${t('common.item')} | ${t('common.value')} | H |
 | :--- | :--- | ---: |
-| Idiomas em operação | ${opLangs} | — |
-| Base “conteúdo dinâmico” | ~${num(dynamicContentBase, 2)} itens | 0.08h/item |
-| **Subtotal** | — | **${num(breakdown.operationLanguages, 2)}h** |
+| ${t('aeReport.operationLanguages')} | ${opLangs} | — |
+| ${t('aeReport.dynamicContentBase')} | ~${num(dynamicContentBase, 2)} ${t('aeReport.itemsUnit')} | 0.08h/item |
+| **${t('common.subtotal')}** | — | **${num(breakdown.operationLanguages, 2)}h** |
 
-### 6.6 SSO
-- SSO ${hasSSO ? 'habilitado' : 'não habilitado'}: **${num(breakdown.sso, 2)}h** (flat 2h se selecionado).
+### ${t('aeReport.section66')}
+- SSO ${hasSSO ? t('aeReport.ssoEnabled') : t('aeReport.ssoDisabled')}: **${num(breakdown.sso, 2)}h** ${t('aeReport.ssoFlatNote')}
 
-### 6.7 Knowledge (artigos)
-- Artigos: ${knowledgeArticles}
-- H por artigo: 0.10h (mínimo 2h se Guide habilitado)
-- **Subtotal Knowledge:** **${num(breakdown.knowledge, 2)}h**
+### ${t('aeReport.section67')}
+- ${t('aeReport.articles')}: ${knowledgeArticles}
+- ${t('aeReport.hoursPerArticle')}
+- ${t('aeReport.subtotalKnowledge')} **${num(breakdown.knowledge, 2)}h**
 
 ---
 
-## 7. Variáveis / camadas adicionais (% calculadas sobre a base correta)
+## ${t('aeReport.section7')}
 
-Base de percentual (line-items, subtraindo Treinamentos + Integrações nativas + Apps/Marketplace): **${num(Math.max(0, Number(estimation.lineItemHours || 0) - Number(breakdown.training || 0) - Number(breakdown.nativeConnections || 0) - Number(breakdown.thirdPartyApps || 0)), 2)}h**
+${t('aeReport.pctBaseNote')} **${num(Math.max(0, Number(estimation.lineItemHours || 0) - Number(breakdown.training || 0) - Number(breakdown.nativeConnections || 0) - Number(breakdown.thirdPartyApps || 0)), 2)}h**
 
-| Variável | Regra | Horas |
+| ${t('report.variable')} | ${t('report.rule')} | ${t('report.hours')} |
 | :--- | :--- | ---: |
-| Discovery | 20% sobre a base acima | **${num(estimation.discoveryHours, 2)}h** |
-| Validação | 15% sobre a base acima | **${num(estimation.validationHours, 2)}h** |
-| Comunicação Técnica | 10% sobre a base acima | **${num(estimation.commTechHours, 2)}h** |
-| Go-live | 5% sobre a base acima | **${num(estimation.goLiveHours, 2)}h** |
-| Gestão de Projeto (GP) | 17.647% se (line-items + Comm. Técnica + Discovery + Validação + Go-live) > 30h (sobre base sem Comm. Técnica e sem treinamentos/nativos/apps, incluindo as 4 camadas acima) | **${num(estimation.gpHours, 2)}h** ${Number(estimation.gpHours || 0) === 0 ? '_(abaixo do limite de 30h do gatilho de GP)_' : ''} |
-| **Subtotal variáveis** | | **${num(Number(estimation.discoveryHours || 0) + Number(estimation.validationHours || 0) + Number(estimation.commTechHours || 0) + Number(estimation.goLiveHours || 0) + Number(estimation.gpHours || 0), 2)}h** |
+| ${t('ae.discovery')} | 20% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.discoveryHours, 2)}h** |
+| ${t('ae.validation')} | 15% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.validationHours, 2)}h** |
+| ${t('report.techComm')} | 10% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.commTechHours, 2)}h** |
+| ${t('ae.goLive')} | 5% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.goLiveHours, 2)}h** |
+| ${t('report.projectMgmt')} | ${t('aeReport.gpRule')} | **${num(estimation.gpHours, 2)}h** ${Number(estimation.gpHours || 0) === 0 ? t('report.belowGpThreshold') : ''} |
+| **${t('report.variablesSubtotal')}** | | **${num(Number(estimation.discoveryHours || 0) + Number(estimation.validationHours || 0) + Number(estimation.commTechHours || 0) + Number(estimation.goLiveHours || 0) + Number(estimation.gpHours || 0), 2)}h** |
 
 ---
 
-## 8. Consolidação total
+## ${t('aeReport.section8')}
 
-| Item | Horas |
+| ${t('common.item')} | ${t('report.hours')} |
 | :--- | ---: |
-| Line-items (todos os grupos 2.1–2.18) | ${num(estimation.lineItemHours, 2)}h |
-| + Discovery | ${num(estimation.discoveryHours, 2)}h |
-| + Validação | ${num(estimation.validationHours, 2)}h |
-| + Go-live | ${num(estimation.goLiveHours, 2)}h |
-| + Comunicação Técnica | ${num(estimation.commTechHours, 2)}h |
-| + Gestão de Projeto (GP) | ${num(estimation.gpHours, 2)}h |
-| **Esforço Total Estimado** | **${num(estimation.total, 2)}h** |
+| ${t('aeReport.allGroups')} | ${num(estimation.lineItemHours, 2)}h |
+| + ${t('ae.discovery')} | ${num(estimation.discoveryHours, 2)}h |
+| + ${t('ae.validation')} | ${num(estimation.validationHours, 2)}h |
+| + ${t('ae.goLive')} | ${num(estimation.goLiveHours, 2)}h |
+| + ${t('report.techComm')} | ${num(estimation.commTechHours, 2)}h |
+| + ${t('report.projectMgmt')} | ${num(estimation.gpHours, 2)}h |
+| **${t('report.totalEstimatedEffort')}** | **${num(estimation.total, 2)}h** |
 
 ---
 
-## 9. Sinalização para pré-vendas / Sales Engineer
+## ${t('aeReport.section9')}
 
 ${estimation.needsSC ? [
-  '- ⚠️ **Requer envolvimento de Sales Engineer (SC).**',
+  t('report.requiresSC'),
   estimation.escalationMessage ? `- ${String(estimation.escalationMessage)}` : '',
-  '- Critérios de trigger (engine): total > 60h OU artigos > 100 OU agentes > 100 OU marcas > 3 OU canais > 10 OU módulo AI Agents selecionado.',
+  t('report.triggerCriteria'),
 ].filter(Boolean).join('\n') : [
-  '- ✅ Estimativa dentro dos limites para AE conduzir sem SC obrigatório.',
-  '- Ainda assim, recomendamos revisão se houver ADPP, AI Agents ou integrações complexas não capturadas no escopo acima.',
+  t('report.withinLimits'),
+  t('report.reviewAnyway'),
 ].join('\n')}
 
-${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h) ultrapassou 60h; portanto o gatilho de SC ficou ativo.` : ''}
+${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.total, 2) }) : ''}
 `;
     
     setMarkdownReport(report.trim());
@@ -1072,14 +1116,14 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-4">
             <h1 className="text-6xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">
-              Calculadora <span className="text-brand-primary">AE</span>
+              {t('ae.titleCalculator')} <span className="text-brand-primary">{t('ae.titleAE')}</span>
             </h1>
-            <p className="text-slate-400 text-xs mt-4 font-bold uppercase tracking-[0.2em]">Estimativa rápida de esforço técnico para vendas.</p>
+            <p className="text-slate-400 text-xs mt-4 font-bold uppercase tracking-[0.2em]">{t('ae.subtitle')}</p>
             {initialVersion != null && (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl">
                 <BookOpen className="w-3.5 h-3.5 text-brand-primary" />
                 <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary">
-                  {cloneFromId ? `Nova versão a partir da V${initialVersion}` : `Versão ${initialVersion}`}
+                  {cloneFromId ? t('ae.newVersionFrom', { version: initialVersion }) : t('ae.versionBadge', { version: initialVersion })}
                 </span>
               </div>
             )}
@@ -1090,7 +1134,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
               className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
             >
               <Clock className="w-4 h-4" />
-              <span>Meu Histórico</span>
+              <span>{t('ae.myHistory')}</span>
             </Link>
             {showResult && (
               <button 
@@ -1098,7 +1142,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 className="text-brand-primary font-black text-[10px] uppercase tracking-widest flex items-center space-x-2 hover:opacity-70 transition-all"
               >
                 <Plus className="w-4 h-4 rotate-45" />
-                <span>Nova Simulação</span>
+                <span>{t('ae.newSimulation')}</span>
               </button>
             )}
           </div>
@@ -1113,22 +1157,22 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Informações Estratégicas</h2>
+                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.strategicInfo')}</h2>
               </div>
               
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome do Cliente</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.clientName')}</label>
                   <input 
                     type="text" 
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
-                    placeholder="Ex: Aktie Now"
+                    placeholder={t('ae.clientNamePlaceholder')}
                     className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Link do Deal (Zoho)</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.dealLink')}</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                       <Search className="w-4 h-4" />
@@ -1143,7 +1187,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Objetivos e dores do cliente</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.clientObjectives')}</label>
                   <textarea 
                     value={clientObjectives}
                     onChange={(e) => setClientObjectives(e.target.value)}
@@ -1151,7 +1195,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Indicadores de sucesso</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.successIndicators')}</label>
                   <textarea 
                     value={successIndicators}
                     onChange={(e) => setSuccessIndicators(e.target.value)}
@@ -1166,12 +1210,12 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
                   <Layers className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Módulos, Operação e Serviços</h2>
+                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.modulesSection')}</h2>
               </div>
 
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Módulos</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.modules')}</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {availableModules.map(m => (
                       <button
@@ -1191,19 +1235,19 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
 
                 {selectedModules.includes('Analytics') && (
                   <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">Tipo de Treinamento</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">{t('ae.trainingType')}</label>
                     <div className="flex bg-white p-1 rounded-xl border border-slate-200">
                       <button 
                         onClick={() => setAnalyticsTrainingType('standard')} 
                         className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'standard' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                       >
-                        Treinamento Padrão
+                        {t('ae.standardTraining')}
                       </button>
                       <button 
                         onClick={() => setAnalyticsTrainingType('advanced')} 
                         className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'advanced' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                       >
-                        Treinamento Avançado
+                        {t('ae.advancedTraining')}
                       </button>
                     </div>
                   </div>
@@ -1211,7 +1255,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tipo de Operação</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.operationType')}</label>
                     <div className="flex flex-wrap gap-2">
                       {['B2C', 'B2B', 'B2E'].map(t => (
                         <button
@@ -1229,35 +1273,35 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">SKU</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.sku')}</label>
                     <div className="flex bg-slate-100 p-1 rounded-xl">
-                      <button onClick={() => setSkuType('customer_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'customer_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>Customer</button>
-                      <button onClick={() => setSkuType('employee_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'employee_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>Employee</button>
+                      <button onClick={() => setSkuType('customer_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'customer_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuCustomer')}</button>
+                      <button onClick={() => setSkuType('employee_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'employee_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuEmployee')}</button>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Implantação</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.deployment')}</label>
                   <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setDeploymentType('new')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'new' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>Nova</button>
-                    <button onClick={() => setDeploymentType('optimization')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'optimization' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>Otimização</button>
+                    <button onClick={() => setDeploymentType('new')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'new' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentNew')}</button>
+                    <button onClick={() => setDeploymentType('optimization')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'optimization' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentOptimization')}</button>
                   </div>
                 </div>
 
                 <div className="space-y-6 pt-6 border-t border-slate-100">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Serviços Adicionais</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.additionalServices')}</label>
                   
                   {/* Support Additional Services */}
                   {selectedModules.includes('Support') && (
                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {[
-                          { id: 'sso', label: 'Single Sign On', state: hasSSO, setter: setHasSSO, icon: ShieldCheck },
+                          { id: 'sso', label: t('ae.singleSignOn'), state: hasSSO, setter: setHasSSO, icon: ShieldCheck },
                           ...(canUseSideConversations
                             ? [
-                                { id: 'teams', label: 'Conversas paralelas via Teams', state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
-                                { id: 'slack', label: 'Conversas paralelas via Slack', state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash }
+                                { id: 'teams', label: t('ae.sideConvTeams'), state: hasTeamsSideConv, setter: setHasTeamsSideConv, icon: MessageSquare },
+                                { id: 'slack', label: t('ae.sideConvSlack'), state: hasSlackSideConv, setter: setHasSlackSideConv, icon: Hash }
                               ]
                             : []),
                         ].map(item => (
@@ -1273,7 +1317,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <Globe className="w-4 h-4 text-slate-400" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Idiomas da Operação</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{t('ae.operationLanguages')}</span>
                         </div>
                         <input 
                           type="number" 
@@ -1285,7 +1329,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                       </div>
                       {!canUseSideConversations && (
                         <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
-                          Side conversations disponiveis apenas para ES Growth+ ou CS Professional+.
+                          {t('ae.sideConvNotice')}
                         </p>
                       )}
                     </div>
@@ -1297,7 +1341,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <BookOpen className="w-4 h-4 text-slate-400" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">Quantidade de Artigos</span>
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{t('ae.articleCount')}</span>
                         </div>
                         <input 
                           type="number" 
@@ -1312,7 +1356,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
 
                   {!selectedModules.includes('Support') && !selectedModules.includes('Knowledge') && (
                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center py-4 italic">
-                      Selecione Support ou Knowledge para ver serviços adicionais
+                      {t('ae.selectSupportHint')}
                     </p>
                   )}
                 </div>
@@ -1327,26 +1371,26 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 <div className="bg-brand-dark p-3 rounded-2xl text-white">
                   <Users className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Volume e Canais</h2>
+                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.volumeAndChannels')}</h2>
               </div>
 
               <div className="grid grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Agentes</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.agents')}</label>
                   <input type="number" min="1" value={agents} onChange={(e) => setAgents(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Marcas</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.brands')}</label>
                   <input type="number" min="1" value={brands} onChange={(e) => setBrands(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Áreas</label>
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.areas')}</label>
                   <input type="number" min="1" value={areas} onChange={(e) => setAreas(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
               </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Canais Ativos</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.activeChannels')}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {channelOptions.map((opt) => (
                       <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
@@ -1360,7 +1404,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                         </button>
                         {selectedChannels.includes(opt.id) && (
                           <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                            <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                            <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
                             <input 
                               type="number" 
                               min="0"
@@ -1381,7 +1425,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                       className="text-[9px] font-black text-brand-primary uppercase tracking-widest flex items-center space-x-2 hover:opacity-70 transition-all ml-1"
                     >
                       <Plus className={`w-3 h-3 transition-transform duration-300 ${showExtraChannels ? 'rotate-45' : ''}`} />
-                      <span>{showExtraChannels ? 'Ver menos canais' : 'Ver mais canais nativos'}</span>
+                      <span>{showExtraChannels ? t('ae.showFewerChannels') : t('ae.showMoreChannels')}</span>
                     </button>
 
                     {showExtraChannels && (
@@ -1398,7 +1442,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                             </button>
                             {selectedChannels.includes(opt.id) && (
                               <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                                <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                                <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
                                 <input 
                                   type="number" 
                                   min="0"
@@ -1421,22 +1465,22 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 <div className="bg-brand-secondary/10 p-3 rounded-2xl text-brand-secondary">
                   <Settings className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">Zendesk & Ecossistema</h2>
+                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.zendeskEcosystem')}</h2>
               </div>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Plano Zendesk</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.zendeskPlan')}</label>
                   <select value={zendeskPlan} onChange={(e) => setZendeskPlan(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black uppercase outline-none focus:ring-2 focus:ring-brand-primary transition-all">
-                    <option value="team">Suite Team</option>
-                    <option value="growth">Suite Growth</option>
-                    <option value="professional">Suite Professional</option>
-                    <option value="enterprise">Suite Enterprise</option>
+                    <option value="team">{t('ae.planTeam')}</option>
+                    <option value="growth">{t('ae.planGrowth')}</option>
+                    <option value="professional">{t('ae.planProfessional')}</option>
+                    <option value="enterprise">{t('ae.planEnterprise')}</option>
                   </select>
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Action Flow</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.actionFlow')}</label>
                   <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
                     <select
                       value=""
@@ -1444,7 +1488,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                       className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     >
                       <option value="" disabled>
-                        Selecione uma integração do Action Flow
+                        {t('ae.selectActionFlow')}
                       </option>
                       {ACTION_FLOW_OPTIONS.map(flow => (
                         <option key={flow} value={flow} disabled={selectedActionFlows.includes(flow)}>
@@ -1472,19 +1516,19 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apps da Aktie Now</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.aktieApps')}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${hasAppCondicionais ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60 hover:border-brand-primary/30'}`}>
                       <div className="flex items-center space-x-3">
                         <Box className={`w-4 h-4 ${hasAppCondicionais ? 'text-brand-primary' : 'text-slate-400'}`} />
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppCondicionais ? 'text-brand-dark' : 'text-slate-500'}`}>Condicionais Avançadas</span>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppCondicionais ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.advancedConditionals')}</span>
                       </div>
                       <input type="checkbox" checked={hasAppCondicionais} onChange={(e) => setHasAppCondicionais(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                     </label>
                     <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${hasAppTicketManager ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60 hover:border-brand-primary/30'}`}>
                       <div className="flex items-center space-x-3">
                         <Box className={`w-4 h-4 ${hasAppTicketManager ? 'text-brand-primary' : 'text-slate-400'}`} />
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppTicketManager ? 'text-brand-dark' : 'text-slate-500'}`}>Ticket Manager</span>
+                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppTicketManager ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.ticketManager')}</span>
                       </div>
                       <input type="checkbox" checked={hasAppTicketManager} onChange={(e) => setHasAppTicketManager(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                     </label>
@@ -1493,21 +1537,21 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Apps Marketplace</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.marketplaceApps')}</label>
                     {!hasAppsMarketplace && (
                       <button
                         type="button"
                         onClick={() => setHasAppsMarketplace(true)}
                         className="text-[9px] font-black text-brand-primary uppercase tracking-widest hover:opacity-70 transition-all"
                       >
-                        + Habilitar seleção
+                        {t('ae.enableSelection')}
                       </button>
                     )}
                   </div>
                   {hasAppsMarketplace && (
                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex flex-wrap gap-2">
-                        {marketplaceOptions.map(app => (
+                        {marketplaceOptions.map(({ value: app, label: appLabel }) => (
                           <div key={app} className="flex items-center space-x-2">
                             <button
                               onClick={() => toggleApp(app)}
@@ -1515,11 +1559,11 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                                 selectedApps.includes(app) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                               }`}
                             >
-                              {app}
+                              {appLabel}
                             </button>
-                            {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros' || app === 'App Marketplace') && (
+                            {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros') && (
                               <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                                <span className="text-[8px] font-black text-slate-300 uppercase">Qtd:</span>
+                                <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
                                 <input 
                                   type="number" 
                                   min="0"
@@ -1533,7 +1577,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                         ))}
                       </div>
                       {selectedApps.includes('Outros') && (
-                        <input type="text" value={otherApp} onChange={(e) => setOtherApp(e.target.value)} placeholder="Quais outros apps?" className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold" />
+                        <input type="text" value={otherApp} onChange={(e) => setOtherApp(e.target.value)} placeholder={t('ae.otherAppsPlaceholder')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold" />
                       )}
                     </div>
                   )}
@@ -1541,21 +1585,21 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Conexões Nativas</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.nativeConnections')}</label>
                     {!hasNativeConnections && (
                       <button
                         type="button"
                         onClick={() => setHasNativeConnections(true)}
                         className="text-[9px] font-black text-brand-primary uppercase tracking-widest hover:opacity-70 transition-all"
                       >
-                        + Habilitar seleção
+                        {t('ae.enableSelection')}
                       </button>
                     )}
                   </div>
                   {hasNativeConnections && (
                     <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex flex-wrap gap-2">
-                        {nativeConnectionOptions.map(conn => (
+                        {nativeConnectionOptions.map(({ value: conn, label: connLabel }) => (
                           <button
                             key={conn}
                             onClick={() => toggleNativeConnection(conn)}
@@ -1563,7 +1607,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                               selectedNativeConnections.includes(conn) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                             }`}
                           >
-                            {conn}
+                            {connLabel}
                           </button>
                         ))}
                       </div>
@@ -1578,12 +1622,12 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 <div className="brand-bg-primary p-3 rounded-2xl text-white">
                   <Zap className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black uppercase tracking-tight dark:text-[color:var(--text-main)]">Finalizar Estimativa</h2>
+                <h2 className="text-xl font-black uppercase tracking-tight dark:text-[color:var(--text-main)]">{t('ae.finishEstimate')}</h2>
               </div>
 
               {!validation.valid && validation.errors.length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Antes de calcular:</p>
+                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">{t('ae.beforeCalculating')}</p>
                   <ul className="space-y-1">
                     {validation.errors.map((err, i) => (
                       <li key={i} className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">
@@ -1595,7 +1639,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
               )}
               
               <p className="text-[10px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest leading-relaxed">
-                Revise os campos acima. A estimativa considera esforço técnico padrão e margem de GP configurada.
+                {t('ae.reviewNotice')}
               </p>
 
               <button
@@ -1604,7 +1648,7 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 className="w-full brand-bg-primary text-white p-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-xl hover:opacity-90 active:scale-95 transition-all flex items-center justify-center space-x-4 disabled:opacity-50 disabled:active:scale-100"
               >
                 {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
-                <span>Gerar Estimativa</span>
+                <span>{t('ae.generateEstimate')}</span>
               </button>
             </div>
           </div>
@@ -1646,41 +1690,41 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                     ? 'text-amber-700 dark:text-[color:var(--accent)]'
                     : 'text-brand-accent dark:text-[color:var(--accent)]'
                 }`}>
-                  {estimation.needsSC ? 'CONSULTAR SC' : `${estimation.total.toFixed(0)}H`}
+                  {estimation.needsSC ? t('ae.consultSC') : `${estimation.total.toFixed(0)}H`}
                 </div>
                 <p className={`text-lg font-bold uppercase tracking-widest ${
                   estimation.needsSC
                     ? 'text-amber-600 dark:text-[color:var(--accent)]'
                     : 'text-slate-400 dark:text-[color:var(--text-muted)]'
                 }`}>
-                  {estimation.needsSC ? 'Esforço Necessita de SC' : 'Esforço Estimado'}
+                  {estimation.needsSC ? t('ae.effortNeedsSC') : t('ae.estimatedEffort')}
                 </p>
               </div>
 
               {!estimation.needsSC && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto pt-8 border-t border-white/10 dark:border-[color:var(--border-main)]">
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">Implantação</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('editor.skillImplementation')}</span>
                     <span className="text-xl font-black tracking-tight dark:text-[color:var(--text-main)]">{estimation.techHours.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">GP</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.gp')}</span>
                     <span className="text-xl font-black tracking-tight text-brand-secondary dark:text-[color:var(--secondary)]">{estimation.calculatedResults.variables.gp.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">Discovery</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.discovery')}</span>
                     <span className="text-xl font-black tracking-tight text-amber-500 dark:text-[color:var(--accent)]">{estimation.calculatedResults.variables.discovery.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">Validação</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.validation')}</span>
                     <span className="text-xl font-black tracking-tight text-blue-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.validation.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">Com. Técnica</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.techComm')}</span>
                     <span className="text-xl font-black tracking-tight text-purple-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.comunicacao_tecnica.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">Go-live</span>
+                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.goLive')}</span>
                     <span className="text-xl font-black tracking-tight text-green-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.go_live.toFixed(1)}H</span>
                   </div>
                 </div>
@@ -1692,15 +1736,22 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                 {isPending ? (
                   <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Salvando Registro...</span>
+                    <span>{t('ae.savingRecord')}</span>
                   </div>
                 ) : (
                   <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)]">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Registro Salvo com Sucesso</span>
+                    <span>{t('ae.recordSaved')}</span>
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Tabela de itens considerados — detalhe conforme o segmento do LEITOR */}
+          <div className="mt-12">
+            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] border border-slate-200 p-8 md:p-10 shadow-xl">
+              <AEResultTable estimation={engineResult} inputs={engineInputsState} />
             </div>
           </div>
 
@@ -1712,17 +1763,17 @@ ${estimation.total > 60 ? `\n> Observação: total (${num(estimation.total, 2)}h
                   <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary dark:bg-[color:var(--primary)]/15 dark:text-[color:var(--primary)]">
                     <MessageSquare className="w-6 h-6" />
                   </div>
-                  <h2 className="text-xl font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight">Relatório Executivo</h2>
+                  <h2 className="text-xl font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight">{t('ae.executiveReport')}</h2>
                 </div>
                 <button 
                   onClick={() => {
                     navigator.clipboard.writeText(markdownReport);
-                    alert('Relatório copiado!');
+                    alert(t('ae.reportCopied'));
                   }}
                   className="bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:hover:opacity-90 dark:border dark:border-[color:var(--border-main)] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center space-x-2"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar Markdown</span>
+                  <span>{t('ae.copyMarkdown')}</span>
                 </button>
               </div>
               <div className="prose prose-slate max-w-none text-xs font-medium leading-relaxed whitespace-pre-wrap dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)]">
