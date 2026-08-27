@@ -443,66 +443,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   ]);
 
 
-  /**
-   * Detalhamento por categoria e, dentro dela, por subcategoria.
-   * Reaproveita `totals.itemTotals`, então reflete exatamente o que está sendo
-   * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
-   */
-  const categoryBreakdown = useMemo(() => {
-    const byCategory = new Map<string, { total: number; subs: Map<string, number> }>();
 
-    const bump = (cat: string, sub: string, hours: number) => {
-      if (!hours) return;
-      if (!byCategory.has(cat)) byCategory.set(cat, { total: 0, subs: new Map() });
-      const entry = byCategory.get(cat)!;
-      entry.total += hours;
-      entry.subs.set(sub, (entry.subs.get(sub) || 0) + hours);
-    };
-
-    // Itens da biblioteca
-    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
-      (pkgs as any[]).forEach((pkg: any) => {
-        const hours = totals.itemTotals?.[pkg.id];
-        if (!hours) return;
-        const itemId = String(pkg.id);
-        const sub =
-          layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
-        bump(cat, sub, hours);
-      });
-    });
-
-    // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
-    customPackages.forEach((pkg: any) => {
-      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
-      if (!hours) return;
-      bump(pkg.category || t('common.custom'), t('common.manual'), hours);
-    });
-
-    // Apps de marketplace entram como bloco FLAT próprio.
-    if (totals.flatHoursMarketplace) {
-      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace);
-    }
-
-    const rows = Array.from(byCategory.entries())
-      .map(([cat, entry]) => ({
-        cat,
-        total: entry.total,
-        subs: Array.from(entry.subs.entries())
-          .map(([sub, hours]) => ({ sub, hours }))
-          .sort((a, b) => b.hours - a.hours),
-      }))
-      .sort((a, b) => b.total - a.total);
-
-    const grand = rows.reduce((acc, r) => acc + r.total, 0);
-    return { rows, grand };
-  }, [
-    totals.itemTotals,
-    totals.flatHoursMarketplace,
-    packagesByCategory,
-    layoutConfig.itemSubcategories,
-    customPackages,
-    t,
-  ]);
 
   const goToSearchResult = async (result: any) => {
     const cat = result?.cat;
@@ -1175,6 +1116,67 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       grandTotal
     };
   }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages, skuType, planTier]);
+
+  /**
+   * Detalhamento por categoria e, dentro dela, por subcategoria.
+   * Reaproveita `totals.itemTotals`, então reflete exatamente o que está sendo
+   * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
+   */
+  const categoryBreakdown = useMemo(() => {
+    const byCategory = new Map<string, { total: number; subs: Map<string, number> }>();
+
+    const bump = (cat: string, sub: string, hours: number) => {
+      if (!hours) return;
+      if (!byCategory.has(cat)) byCategory.set(cat, { total: 0, subs: new Map() });
+      const entry = byCategory.get(cat)!;
+      entry.total += hours;
+      entry.subs.set(sub, (entry.subs.get(sub) || 0) + hours);
+    };
+
+    // Itens da biblioteca
+    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
+      (pkgs as any[]).forEach((pkg: any) => {
+        const hours = totals.itemTotals?.[pkg.id];
+        if (!hours) return;
+        const itemId = String(pkg.id);
+        const sub =
+          layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
+        bump(cat, sub, hours);
+      });
+    });
+
+    // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
+    customPackages.forEach((pkg: any) => {
+      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
+      if (!hours) return;
+      bump(pkg.category || t('common.custom'), t('common.manual'), hours);
+    });
+
+    // Apps de marketplace entram como bloco FLAT próprio.
+    if (totals.flatHoursMarketplace) {
+      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace);
+    }
+
+    const rows = Array.from(byCategory.entries())
+      .map(([cat, entry]) => ({
+        cat,
+        total: entry.total,
+        subs: Array.from(entry.subs.entries())
+          .map(([sub, hours]) => ({ sub, hours }))
+          .sort((a, b) => b.hours - a.hours),
+      }))
+      .sort((a, b) => b.total - a.total);
+
+    const grand = rows.reduce((acc, r) => acc + r.total, 0);
+    return { rows, grand };
+  }, [
+    totals.itemTotals,
+    totals.flatHoursMarketplace,
+    packagesByCategory,
+    layoutConfig.itemSubcategories,
+    customPackages,
+    t,
+  ]);
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
