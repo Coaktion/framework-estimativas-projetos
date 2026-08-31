@@ -61,12 +61,19 @@ export default async function AEHistoryPage() {
       latestVersion: latest.version,
       latestCreatedAt: latest.createdAt,
       latestNeedsSC: Boolean(latest.needsSC),
+      // Horas da ÚLTIMA versão, para o card mostrar o número corrente sem que o
+      // usuário precise abrir a estimativa.
+      latestHours: Number((latest as any).resultHours) || 0,
       count: withVersion.length,
       versions: withVersion.map((r: any) => ({
         id: r.id,
         version: r.version,
         createdAt: r.createdAt,
         needsSC: Boolean(r.needsSC),
+        // Total gravado no momento em que a versão foi calculada. Vem do banco,
+        // e não de um recálculo: o histórico deve mostrar o que foi acordado
+        // naquela versão, ainda que a tabela de preços tenha mudado depois.
+        hours: Number(r.resultHours) || 0,
       })),
     };
   });

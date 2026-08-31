@@ -64,6 +64,12 @@ model Category {
   parent       Category? @relation("CategoryHierarchy", fields: [parentName], references: [name])
   children     Category[] @relation("CategoryHierarchy")
   isActive     Boolean   @default(true)
+  // Plano Zendesk mínimo da CATEGORIA, por SKU. Vazio = sem restrição.
+  // Funciona como porteira INDEPENDENTE da restrição dos itens: abaixo do
+  // mínimo a categoria inteira desaparece do framework (ex.: ADPP só em
+  // Suite Enterprise), mesmo que algum item dela não tenha restrição própria.
+  minPlanCS    String    @default("") // team, growth, professional, enterprise
+  minPlanES    String    @default("") // team, growth, professional, enterprise
   packages     Package[]
 }
 

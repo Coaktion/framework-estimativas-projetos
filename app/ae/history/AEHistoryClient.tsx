@@ -6,9 +6,19 @@ import { useState, useMemo } from 'react';
 import Link from "next/link";
 import { Zap, Clock, Search, CheckCircle2, AlertTriangle } from "lucide-react";
 
+/** Horas em formato curto: 148h, 47,5h. Evita "47.66h" na listagem. */
+function formatHours(value: number): string {
+  const rounded = Math.round((Number(value) || 0) * 10) / 10;
+  const text = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(1).replace('.', ',');
+  return `${text}h`;
+}
+
 type HistoryVersion = {
   id: number;
   version: number;
+  hours: number;
   createdAt: Date;
   needsSC: boolean;
 };
@@ -17,6 +27,7 @@ type HistoryGroup = {
   clientName: string;
   latestId: number;
   latestVersion: number;
+  latestHours: number;
   latestCreatedAt: Date;
   latestNeedsSC: boolean;
   count: number;
@@ -124,7 +135,14 @@ function ProjectCard({ group }: { group: HistoryGroup }) {
               : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300 border-emerald-100 dark:border-emerald-500/30'
           }`}>
             {group.latestNeedsSC ? (<AlertTriangle className="w-2 h-2" />) : (<CheckCircle2 className="w-2 h-2" />)}
-            <span>{group.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}</span>
+            <span>
+              {group.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
+              {/* Estimativa que exige SE não tem número fechado — mostrar horas
+                  ali passaria a ideia de um valor acordado que não existe. */}
+              {!group.latestNeedsSC && group.latestHours > 0
+                ? ` · ${formatHours(group.latestHours)}`
+                : ''}
+            </span>
           </span>
 
           {/* Lista resumida das versões (chips clicáveis) */}
@@ -152,7 +170,12 @@ function ProjectCard({ group }: { group: HistoryGroup }) {
                     {v.needsSC
                       ? <AlertTriangle className="w-1.5 h-1.5" />
                       : <CheckCircle2 className="w-1.5 h-1.5" />}
-                    <span>V{v.version}</span>
+                    <span>
+                      V{v.version}
+                      {v.needsSC
+                        ? ` · ${t('aeHistory.scShort')}`
+                        : v.hours > 0 ? ` · ${formatHours(v.hours)}` : ''}
+                    </span>
                   </Link>
                 );
               })}

@@ -94,3 +94,43 @@ export function minPlanBadge(pkg: any, sku: ZendeskSku): string {
   if (!min) return '';
   return `${PLAN_LABEL[min].replace(/^Suite\s+/, '')}+`;
 }
+
+/* -------------------------------------------------------------------------- */
+/*                      RESTRIÇÃO DE PLANO POR CATEGORIA                       */
+/*                                                                            */
+/* A categoria tem a sua própria porteira, INDEPENDENTE da dos itens: abaixo   */
+/* do mínimo dela a categoria não aparece no framework, mesmo que algum item   */
+/* dentro dela não tenha restrição. É o que faz "ADPP" desaparecer por         */
+/* completo fora do Suite Enterprise, em vez de aparecer vazia.                */
+/*                                                                            */
+/* As duas regras se somam: um item também precisa passar no próprio mínimo    */
+/* para entrar no escopo. Nenhuma delas afrouxa a outra.                       */
+/* -------------------------------------------------------------------------- */
+
+/** Plano mínimo exigido por uma categoria, para o SKU escolhido. */
+export function categoryMinPlanFor(category: any, sku: ZendeskSku): ZendeskPlanTier | null {
+  if (!category) return null;
+  return parseMinPlan(sku === 'ES' ? category.minPlanES : category.minPlanCS);
+}
+
+/**
+ * A categoria está disponível no plano selecionado?
+ * Sem mínimo definido → disponível (inclusivo por padrão, para que nada
+ * desapareça da tela antes de alguém preencher).
+ */
+export function isCategoryAvailable(
+  category: any,
+  sku: ZendeskSku,
+  plan: ZendeskPlanTier,
+): boolean {
+  const min = categoryMinPlanFor(category, sku);
+  if (!min) return true;
+  return PLAN_RANK[plan] >= PLAN_RANK[min];
+}
+
+/** Rótulo curto do requisito da categoria, ex.: "Enterprise+". */
+export function categoryMinPlanBadge(category: any, sku: ZendeskSku): string {
+  const min = categoryMinPlanFor(category, sku);
+  if (!min) return '';
+  return `${PLAN_LABEL[min].replace(/^Suite\s+/, '')}+`;
+}

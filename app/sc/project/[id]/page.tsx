@@ -66,6 +66,10 @@ export default async function ProjectEditorPage({
       name: c.name,
       displayName: c.displayName || '',
       displayNameEn: c.displayNameEn || '',
+      // Porteira de plano da categoria — o cliente usa para esconder a
+      // categoria inteira abaixo do tier mínimo.
+      minPlanCS: c.minPlanCS || '',
+      minPlanES: c.minPlanES || '',
     };
     return acc;
   }, {});

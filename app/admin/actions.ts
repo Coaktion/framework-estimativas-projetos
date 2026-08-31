@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
+import { ZENDESK_PLANS } from "@/lib/zendesk-plans";
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
@@ -236,7 +237,12 @@ export async function updatePackageAction(id: number, data: any) {
   }
 }
 
-export async function addCategoryAction(name: string, displayNameEn?: string) {
+export async function addCategoryAction(
+  name: string,
+  displayNameEn?: string,
+  minPlanCS?: string,
+  minPlanES?: string,
+) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
@@ -248,14 +254,30 @@ export async function addCategoryAction(name: string, displayNameEn?: string) {
   const nextOrder = (maxOrder._max.displayOrder ?? 0) + 1;
 
   const nameEn = String(displayNameEn || "").trim();
+  const csTier = normalizeMinPlanInput(minPlanCS);
+  const esTier = normalizeMinPlanInput(minPlanES);
 
   await prisma.category.upsert({
     where: { name },
-    update: { isActive: true, ...(nameEn ? { displayNameEn: nameEn } : {}) },
-    create: { name, displayOrder: nextOrder, displayNameEn: nameEn }
+    update: {
+      isActive: true,
+      ...(nameEn ? { displayNameEn: nameEn } : {}),
+      // Reativando uma categoria, só sobrescreve a porteira se veio um valor —
+      // assim não apagamos por acidente a restrição já configurada.
+      ...(csTier ? { minPlanCS: csTier } : {}),
+      ...(esTier ? { minPlanES: esTier } : {})
+    },
+    create: {
+      name,
+      displayOrder: nextOrder,
+      displayNameEn: nameEn,
+      minPlanCS: csTier,
+      minPlanES: esTier
+    }
   });
 
   revalidatePath("/admin");
+  revalidatePath("/sc");
 }
 
 export async function updateCategoryAction(id: number, data: any) {
@@ -266,6 +288,10 @@ export async function updateCategoryAction(id: number, data: any) {
   const displayName = data.displayName !== undefined ? String(data.displayName) : undefined;
   const displayNameEn = data.displayNameEn !== undefined ? String(data.displayNameEn) : undefined;
   const parentName = data.parentName !== undefined ? (data.parentName ? String(data.parentName) : null) : undefined;
+  // Porteira de plano da categoria. String vazia é um valor VÁLIDO (= sem
+  // restrição), então só ignoramos quando a chave não veio no payload.
+  const minPlanCS = data.minPlanCS !== undefined ? normalizeMinPlanInput(data.minPlanCS) : undefined;
+  const minPlanES = data.minPlanES !== undefined ? normalizeMinPlanInput(data.minPlanES) : undefined;
 
   await prisma.category.update({
     where: { id },
@@ -273,11 +299,24 @@ export async function updateCategoryAction(id: number, data: any) {
       displayName,
       displayNameEn,
       displayOrder: displayOrder !== undefined && !isNaN(displayOrder) ? displayOrder : undefined,
-      parentName
+      parentName,
+      minPlanCS,
+      minPlanES
     }
   });
 
   revalidatePath("/admin");
+  revalidatePath("/sc");
+}
+
+/**
+ * Aceita apenas os tiers conhecidos; qualquer outra coisa vira "" (sem
+ * restrição). Guardar um tier inválido faria `parseMinPlan` devolver null e a
+ * restrição sumiria em silêncio.
+ */
+function normalizeMinPlanInput(value: any): string {
+  const key = String(value ?? "").toLowerCase().replace(/^suite\s+/, "").trim();
+  return (ZENDESK_PLANS as readonly string[]).includes(key) ? key : "";
 }
 
 export async function setCategoryOrderAction(categoryIds: number[]) {

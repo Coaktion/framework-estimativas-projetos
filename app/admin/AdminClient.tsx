@@ -7,7 +7,7 @@ import {
   variableLabel, packageHaystack, categoryHaystack, skillHaystack, variableHaystack, matchesQuery,
 } from '@/lib/localized-names';
 import { SEGMENTS, SEGMENT_LABEL_KEYS, DEFAULT_SEGMENT, normalizeSegment, canManageSegments as canManageSegmentsFor } from '@/lib/segments';
-import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge } from '@/lib/zendesk-plans';
+import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge, categoryMinPlanBadge } from '@/lib/zendesk-plans';
 
 import { useState, useTransition, useMemo, useEffect } from 'react';
 import { 
@@ -188,7 +188,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
     const name = prompt(t('admin.promptNewCategory'));
     if (!name) return;
     const nameEn = prompt(t('admin.promptNewCategoryEn')) || '';
-    startTransition(() => addCategoryAction(name, nameEn));
+    // A porteira de plano nasce vazia (= sem restrição) e é ajustada no editor
+    // ao lado — evita empilhar mais um prompt() na criação.
+    startTransition(() => addCategoryAction(name, nameEn, '', ''));
   };
 
   const handleAddSkill = () => {
@@ -224,7 +226,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setCategoryEditValues({
       displayName: selectedCategory.displayName || '',
       displayNameEn: selectedCategory.displayNameEn || '',
-      parentName: selectedCategory.parentName || ''
+      parentName: selectedCategory.parentName || '',
+      minPlanCS: selectedCategory.minPlanCS || '',
+      minPlanES: selectedCategory.minPlanES || ''
     });
     setBulkSelectedPackageIds([]);
     setBulkTargetCategoryName('');
@@ -847,6 +851,20 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">
                                 {c.name}{c.parentName ? ` → ${(categories.find((x: any) => x.name === c.parentName)?.displayName || c.parentName)}` : ''}
                               </div>
+                              {(categoryMinPlanBadge(c, 'CS') || categoryMinPlanBadge(c, 'ES')) && (
+                                <div className="flex items-center gap-1.5 mt-1.5">
+                                  {categoryMinPlanBadge(c, 'CS') && (
+                                    <span title={t('plans.categoryMinPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 border border-sky-100 text-[7px] font-black uppercase tracking-widest">
+                                      CS {categoryMinPlanBadge(c, 'CS')}
+                                    </span>
+                                  )}
+                                  {categoryMinPlanBadge(c, 'ES') && (
+                                    <span title={t('plans.categoryMinPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[7px] font-black uppercase tracking-widest">
+                                      ES {categoryMinPlanBadge(c, 'ES')}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                             </div>
                             <ChevronRight className="w-4 h-4 text-slate-300" />
                           </div>
@@ -937,6 +955,37 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   </option>
                                 ))}
                             </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('plans.categoryMinPlanCS')}</label>
+                            <select
+                              value={categoryEditValues.minPlanCS || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, minPlanCS: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                            >
+                              <option value="">{t('plans.noRestriction')}</option>
+                              {ZENDESK_PLANS.map((plan) => (
+                                <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('plans.categoryMinPlanES')}</label>
+                            <select
+                              value={categoryEditValues.minPlanES || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, minPlanES: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                            >
+                              <option value="">{t('plans.noRestriction')}</option>
+                              {ZENDESK_PLANS.map((plan) => (
+                                <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="md:col-span-2">
+                            <p className="text-[9px] font-bold text-slate-400 leading-relaxed">
+                              {t('plans.categoryGateHint')}
+                            </p>
                           </div>
                         </div>
 

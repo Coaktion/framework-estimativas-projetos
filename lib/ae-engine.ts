@@ -385,6 +385,15 @@ export function validateAEInputs(inputs: Partial<AEInputData>): AEValidationResu
 // Result shape
 // ---------------------------------------------------------------------------
 
+/** Uma linha detalhada, com quantidade e valor unitário reais. */
+export interface AEDetailLine {
+  /** Chave estável para tradução na UI (não é texto exibível). */
+  key: string;
+  qty: number;
+  unitHours: number;
+  hours: number;
+}
+
 export interface AEEstimateResult {
   /** Sum of every line item — the sheet's SUM('Validação de Fórmulas'!D:D) */
   lineItemHours: number;
@@ -398,6 +407,36 @@ export interface AEEstimateResult {
   requiresSalesEngineer: boolean;
   breakdown: Record<string, number>;
   quantities: Record<string, number>;
+  /**
+   * Abertura, item a item, dos grupos que `breakdown` só entrega somados.
+   *
+   * Existe porque a tabela de resultado precisa mostrar quantidade e horas de
+   * cada linha, e antes ela tentava recompor esses números por conta própria —
+   * com valores unitários fixados em 0, o que fazia linhas reais aparecerem
+   * como "0.00h" enquanto o subtotal da seção vinha correto do `breakdown`.
+   * Publicando a abertura aqui, a tabela apenas exibe o que o engine calculou e
+   * não há como divergir.
+   */
+  details: {
+    generalConfig: AEDetailLine[];
+    training: AEDetailLine[];
+    workshops: AEDetailLine[];
+    fixedItems: AEDetailLine[];
+    marketplaceApps: AEDetailLine[];
+    aktieApps: AEDetailLine[];
+    channelSetup: AEDetailLine[];
+    dynamicContent: AEDetailLine[];
+    baseSetup: AEDetailLine[];
+    knowledge: AEDetailLine[];
+    sideConversations: AEDetailLine[];
+  };
+  /**
+   * Módulos que o plano de fato permite — e portanto os únicos que geraram
+   * horas. `inputs.selectedModules` pode conter módulos acima do plano, que o
+   * engine descarta em silêncio; a UI precisa saber disso para não desenhar uma
+   * seção cujo subtotal é zero.
+   */
+  allowedModules: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -630,22 +669,54 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // --- Base setup [rows 45-47] — all three gated on Support ---------------
   const agentSetupHoras = hasSupport ? agents * UH.membro_equipe : 0;
   const brandSetupHoras = hasSupport ? brands * UH.marca : 0;
+  // Agentes e marcas só são cobrados com Support no escopo; sem essa trava a
+  // tabela mostrava horas que o cálculo não somou.
+  const baseSetupLines: AEDetailLine[] = hasSupport
+    ? [
+        { key: 'agents', qty: agents, unitHours: UH.membro_equipe, hours: agentSetupHoras },
+        { key: 'brands', qty: brands, unitHours: UH.marca, hours: brandSetupHoras },
+      ].filter((l) => l.qty > 0)
+    : [];
 
   let meetingChannelQuantity = 0;
   for (const [channel, qty] of activeChannels) {
     if (!CHANNELS_BILLED_SEPARATELY.has(channel)) meetingChannelQuantity += qty;
   }
-  const channelSetupHoras = hasSupport
-    ? channelQty('email') * UH.canal_email +
-      channelQty('web_form') * UH.canal_web_form +
-      channelQty('web_widget') * UH.canal_web_widget +
-      (meetingChannelQuantity > 0
-        ? Math.max(
-            UH.canal_exige_reuniao_minimo,
-            meetingChannelQuantity * UH.canal_exige_reuniao
-          )
-        : 0)
-    : 0;
+
+  /**
+   * Canais têm tarifas DIFERENTES por tipo: e-mail, formulário web e widget são
+   * cobrados individualmente, e todos os demais entram num bloco único sujeito
+   * a um piso. Uma linha só de "Canais" multiplicada por uma tarifa média não
+   * fecha com o cálculo — daí a abertura por tipo.
+   */
+  const meetingChannelHoras =
+    meetingChannelQuantity > 0
+      ? Math.max(
+          UH.canal_exige_reuniao_minimo,
+          meetingChannelQuantity * UH.canal_exige_reuniao,
+        )
+      : 0;
+
+  const channelSetupLines: AEDetailLine[] = hasSupport
+    ? [
+        { key: 'email', qty: channelQty('email'), unitHours: UH.canal_email,
+          hours: channelQty('email') * UH.canal_email },
+        { key: 'web_form', qty: channelQty('web_form'), unitHours: UH.canal_web_form,
+          hours: channelQty('web_form') * UH.canal_web_form },
+        { key: 'web_widget', qty: channelQty('web_widget'), unitHours: UH.canal_web_widget,
+          hours: channelQty('web_widget') * UH.canal_web_widget },
+        {
+          key: 'meeting_channels',
+          qty: meetingChannelQuantity,
+          // Com o piso ativo, a tarifa efetiva sobe: exibir a nominal faria a
+          // linha não fechar com as próprias horas.
+          unitHours: meetingChannelQuantity > 0 ? meetingChannelHoras / meetingChannelQuantity : 0,
+          hours: meetingChannelHoras,
+        },
+      ].filter((l) => l.qty > 0)
+    : [];
+
+  const channelSetupHoras = channelSetupLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Aktie Now apps [rows 49-50] — each on its own checkbox -------------
   const appCondicionaisHoras = inputs.hasAppCondicionais
@@ -660,36 +731,84 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const ssoHoras = inputs.hasSSO ? UH.sso : 0;
 
   // --- General configuration [row 52] -------------------------------------
-  const generalConfigHoras =
-    (hasSupport ? CFG.support : 0) +
-    (hasKnowledge ? CFG.knowledge : 0) +
-    (hasCommunity ? CFG.community : 0) +
-    (hasAnalytics ? CFG.analytics : 0) +
-    (hasVoice ? CFG.voice : 0) +
-    (hasCopilot ? CFG.copilot : 0) +
-    (hasQA ? CFG.qa : 0) +
-    (hasWFM ? CFG.wfm : 0) +
-    (hasAIAgents ? CFG.ai_agents : 0) +
-    (hasADPP ? CFG.adpp : 0);
+  // Montado como lista para que a tabela mostre "Configuração geral: Support",
+  // "…: Knowledge" etc. O total continua sendo a soma da própria lista — não há
+  // uma segunda expressão que possa divergir dela.
+  const generalConfigLines: AEDetailLine[] = [
+    ['support', hasSupport, CFG.support],
+    ['knowledge', hasKnowledge, CFG.knowledge],
+    ['community', hasCommunity, CFG.community],
+    ['analytics', hasAnalytics, CFG.analytics],
+    ['voice', hasVoice, CFG.voice],
+    ['copilot', hasCopilot, CFG.copilot],
+    ['qa', hasQA, CFG.qa],
+    ['wfm', hasWFM, CFG.wfm],
+    ['ai_agents', hasAIAgents, CFG.ai_agents],
+    ['adpp', hasADPP, CFG.adpp],
+  ]
+    .filter(([, on]) => on)
+    .map(([key, , hours]) => ({
+      key: key as string,
+      qty: 1,
+      unitHours: hours as number,
+      hours: hours as number,
+    }));
+  const generalConfigHoras = generalConfigLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Training [row 53] ---------------------------------------------------
   // `analytics_avancado` is additive on top of `suite`, matching the sheet.
-  const trainingHoras =
-    (hasSupport || hasKnowledge || hasAnalytics ? TR.suite : 0) +
-    (hasAnalytics && inputs.analyticsTrainingType === 'advanced' ? TR.analytics_avancado : 0) +
-    (hasCommunity ? TR.community : 0) +
-    (hasVoice ? TR.voice : 0) +
-    (hasCopilot ? TR.copilot : 0) +
-    (hasQA ? TR.qa : 0) +
-    (hasWFM ? TR.wfm : 0) +
-    (hasAIAgents ? TR.ai_agents : 0) +
-    (hasADPP ? TR.adpp : 0);
+  const trainingLines: AEDetailLine[] = [
+    ['suite', hasSupport || hasKnowledge || hasAnalytics, TR.suite],
+    [
+      'analytics_avancado',
+      hasAnalytics && inputs.analyticsTrainingType === 'advanced',
+      TR.analytics_avancado,
+    ],
+    ['community', hasCommunity, TR.community],
+    ['voice', hasVoice, TR.voice],
+    ['copilot', hasCopilot, TR.copilot],
+    ['qa', hasQA, TR.qa],
+    ['wfm', hasWFM, TR.wfm],
+    ['ai_agents', hasAIAgents, TR.ai_agents],
+    ['adpp', hasADPP, TR.adpp],
+  ]
+    .filter(([, on]) => on)
+    .map(([key, , hours]) => ({
+      key: key as string,
+      qty: 1,
+      unitHours: hours as number,
+      hours: hours as number,
+    }));
+  const trainingHoras = trainingLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Fixed items [rows 54-63] -------------------------------------------
   const sumFixed = (group: Record<string, { qtd: number; horas: number }>) =>
     Object.values(group).reduce((acc, item) => acc + item.qtd * item.horas, 0);
 
   const supportNaoTeamQty = hasSupport && plan !== 'team' ? 1 : 0;
+
+  /** Expande um grupo de itens fixos em linhas, preservando qtd × horas. */
+  const fixedLines = (
+    group: Record<string, { qtd: number; horas: number }>,
+    active: boolean,
+    multiplier = 1,
+  ): AEDetailLine[] =>
+    active
+      ? Object.entries(group).map(([key, item]) => ({
+          key,
+          qty: item.qtd * multiplier,
+          unitHours: item.horas,
+          hours: item.qtd * multiplier * item.horas,
+        }))
+      : [];
+
+  const fixedItemLines: AEDetailLine[] = [
+    ...fixedLines(FIX.support, hasSupport),
+    ...fixedLines(FIX.support_nao_team, supportNaoTeamQty > 0),
+    ...fixedLines(FIX.wfm, hasWFM),
+    ...fixedLines(FIX.adpp, hasADPP),
+  ];
+
   const supportFixedHoras =
     (hasSupport ? sumFixed(FIX.support) : 0) +
     supportNaoTeamQty * sumFixed(FIX.support_nao_team);
@@ -704,40 +823,81 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const knowledgeHoras = hasKnowledge
     ? Math.max(2, knowledgeArticles * UH.artigo)
     : 0;
+  // O piso de 2 h faz a tarifa efetiva subir quando há poucos artigos; exibir a
+  // nominal deixaria a linha sem fechar com as próprias horas. Sem artigo
+  // nenhum, a linha vira um pacote mínimo de quantidade 1 — com quantidade 0 a
+  // conta "0 × 2 h = 2 h" não se sustentaria na tela.
+  const knowledgeLines: AEDetailLine[] = knowledgeHoras > 0
+    ? [
+        knowledgeArticles > 0
+          ? {
+              key: 'articles',
+              qty: knowledgeArticles,
+              unitHours: knowledgeHoras / knowledgeArticles,
+              hours: knowledgeHoras,
+            }
+          : {
+              key: 'articles_minimum',
+              qty: 1,
+              unitHours: knowledgeHoras,
+              hours: knowledgeHoras,
+            },
+      ]
+    : [];
 
   // --- Side conversations [rows 94-95] ------------------------------------
   const sideConvEligible = !(
     (sku === 'CS' && (plan === 'team' || plan === 'growth')) ||
     (sku === 'ES' && plan === 'team')
   );
-  const sideConversationHoras = sideConvEligible
-    ? (inputs.hasTeamsSideConv ? UH.conversa_paralela : 0) +
-      (inputs.hasSlackSideConv ? UH.conversa_paralela : 0)
-    : 0;
+  const sideConversationLines: AEDetailLine[] = sideConvEligible
+    ? [
+        ['teams', inputs.hasTeamsSideConv],
+        ['slack', inputs.hasSlackSideConv],
+      ]
+        .filter(([, on]) => on)
+        .map(([key]) => ({
+          key: key as string,
+          qty: 1,
+          unitHours: UH.conversa_paralela,
+          hours: UH.conversa_paralela,
+        }))
+    : [];
+  const sideConversationHoras = sideConversationLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Third-party apps [rows 96-103] -------------------------------------
   // Only sweethawk and other_marketplace are quantities; the rest are one-offs.
   const COUNTED_APPS = new Set<string>(['sweethawk', 'other_marketplace']);
-  const thirdPartyAppsHoras = inputs.selectedApps.reduce((acc, app) => {
+  const marketplaceLines: AEDetailLine[] = inputs.selectedApps.map((app) => {
     const rate = (APPS as Record<string, number>)[app] ?? 0;
     const qty = COUNTED_APPS.has(app)
       ? Math.max(0, inputs.appQuantities?.[app] ?? 1)
       : 1;
-    return acc + rate * qty;
-  }, 0);
+    return { key: app, qty, unitHours: rate, hours: rate * qty };
+  });
+  const thirdPartyAppsHoras = marketplaceLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Workshops [rows 104-109] -------------------------------------------
   const workshopSuite =
     hasSupport ||
     hasKnowledge ||
     ((hasCommunity || hasAnalytics) && (plan === 'professional' || plan === 'enterprise'));
-  const workshopHoras =
-    (workshopSuite ? WS.suite : 0) +
-    (hasVoice ? WS.voice : 0) +
-    (hasCopilot ? WS.copilot : 0) +
-    (hasAIAgents ? WS.ai_agents : 0) +
-    (hasQA ? WS.qa : 0) +
-    (hasWFM ? WS.wfm : 0);
+  const workshopLines: AEDetailLine[] = [
+    ['suite', workshopSuite, WS.suite],
+    ['voice', hasVoice, WS.voice],
+    ['copilot', hasCopilot, WS.copilot],
+    ['ai_agents', hasAIAgents, WS.ai_agents],
+    ['qa', hasQA, WS.qa],
+    ['wfm', hasWFM, WS.wfm],
+  ]
+    .filter(([, on]) => on)
+    .map(([key, , hours]) => ({
+      key: key as string,
+      qty: 1,
+      unitHours: hours as number,
+      hours: hours as number,
+    }));
+  const workshopHoras = workshopLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Multi-language [row 110] -------------------------------------------
   // The sum below is a QUANTITY of dynamic-content items; it is converted to hours
@@ -873,6 +1033,43 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
       actionFlows: actionFlowHoras,
     },
     quantities: q,
+    allowedModules: [...modules],
+    details: {
+      generalConfig: generalConfigLines,
+      training: trainingLines,
+      workshops: workshopLines,
+      fixedItems: fixedItemLines,
+      marketplaceApps: marketplaceLines,
+      // Os apps da Aktie Now têm base fixa + parcela variável, então a hora
+      // unitária É o próprio total: não há quantidade a multiplicar.
+      aktieApps: [
+        ...(appCondicionaisHoras > 0
+          ? [{ key: 'condicionais_avancadas', qty: 1, unitHours: appCondicionaisHoras, hours: appCondicionaisHoras }]
+          : []),
+        ...(appTicketManagerHoras > 0
+          ? [{ key: 'ticket_manager', qty: 1, unitHours: appTicketManagerHoras, hours: appTicketManagerHoras }]
+          : []),
+      ],
+      channelSetup: channelSetupLines,
+      baseSetup: baseSetupLines,
+      knowledge: knowledgeLines,
+      sideConversations: sideConversationLines,
+      // A quantidade aqui é de ITENS de conteúdo dinâmico (derivada do escopo e
+      // do número de idiomas extras), não de idiomas — por isso a linha mostrava
+      // "1 idioma × nada".
+      dynamicContent:
+        operationLanguagesHoras > 0
+          ? [{
+              key: 'conteudo_dinamico',
+              // Sem arredondar: `qty × unitHours` tem de bater exatamente com
+              // `hours`, senão a linha exibida não fecha com ela mesma. O
+              // arredondamento é responsabilidade da formatação na UI.
+              qty: dynamicContentQty,
+              unitHours: UH.conteudo_dinamico,
+              hours: operationLanguagesHoras,
+            }]
+          : [],
+    },
   };
 }
 

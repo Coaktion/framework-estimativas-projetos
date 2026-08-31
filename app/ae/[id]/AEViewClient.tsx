@@ -1,6 +1,8 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
+import { canViewExecutiveReport } from '@/lib/segments';
 import AEResultTable from '@/components/AEResultTable';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -279,6 +281,9 @@ export default function AEViewClient(props: any) {
 
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
+  const { data: session } = useSession();
+  // Relatório Executivo: só administradores. Os demais ficam com a tabela.
+  const showExecutiveReport = canViewExecutiveReport(session?.user as any);
   const [versionPickerOpen, setVersionPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -318,14 +323,61 @@ export default function AEViewClient(props: any) {
     return map;
   }, [variables]);
 
-  const { estimation, engineInputs, report } = useMemo(() => {
+  const { estimation, engineResult, engineInputs, report } = useMemo(() => {
     const f = data || {};
     const ei = buildEngineInputs(f);
-    const errs = validateAEInputs(ei, variablesMap, packages || []);
-    const est = calculateAEEstimate(ei, variablesMap, packages || []);
-    const r = buildMarkdownReport(est, { ...f, clientName }, ei, t, dateLocale);
-    return { estimation: est, engineInputs: ei, report: r };
-  }, [data, variablesMap, packages, clientName, t, dateLocale]);
+
+    // `calculateAEEstimate` LANÇA quando os inputs são inválidos, então a
+    // validação tem de ser respeitada antes da chamada — sem isso, uma
+    // estimativa antiga com dados incompletos derrubava a página inteira.
+    const validation = validateAEInputs(ei);
+    let raw: any = null;
+    if (validation.valid) {
+      try {
+        raw = calculateAEEstimate(ei);
+      } catch (err) {
+        console.error('AE engine failed while reopening estimate:', err);
+        raw = null;
+      }
+    }
+
+    /**
+     * Ponte entre o engine e o relatório.
+     *
+     * O engine devolve `totalHours` e `requiresSalesEngineer`; o relatório lê
+     * `total`, `needsSC` e `variables`. Antes essa tradução não existia: os três
+     * campos vinham `undefined`, o total caía no valor gravado por sorte e a
+     * seção 9 sempre imprimia "dentro dos limites", mesmo em estimativas que
+     * exigiam Sales Engineer.
+     */
+    const est: any = raw
+      ? {
+          ...raw,
+          total: raw.totalHours,
+          needsSC: raw.requiresSalesEngineer,
+          variables: {
+            discovery: raw.discoveryHours,
+            validation: raw.validationHours,
+            comunicacao_tecnica: raw.commTechHours,
+            go_live: raw.goLiveHours,
+            gp: raw.gpHours,
+          },
+        }
+      : {
+          lineItemHours: 0, discoveryHours: 0, validationHours: 0,
+          goLiveHours: 0, commTechHours: 0, gpHours: 0, totalHours: 0,
+          breakdown: {}, quantities: {},
+          total: Number(resultHours) || 0,
+          needsSC: Boolean(needsSC),
+          variables: {},
+        };
+
+    // Só monta o relatório para quem pode vê-lo.
+    const r = showExecutiveReport
+      ? buildMarkdownReport(est, { ...f, clientName }, ei, t, dateLocale)
+      : '';
+    return { estimation: est, engineResult: raw, engineInputs: ei, report: r };
+  }, [data, variablesMap, packages, clientName, resultHours, needsSC, showExecutiveReport, t, dateLocale]);
 
   const total = Math.max(0, Number(estimation?.total ?? resultHours ?? 0));
   const needsSCFinal = Boolean(estimation?.needsSC ?? needsSC);
@@ -544,9 +596,10 @@ export default function AEViewClient(props: any) {
       ) : null}
 
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl p-8 md:p-10 mb-8">
-        <AEResultTable estimation={estimation} inputs={engineInputs} />
+        <AEResultTable estimation={engineResult} inputs={engineInputs} />
       </div>
 
+      {showExecutiveReport && (
       <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
         <div className="px-10 pt-8 pb-4 border-b border-slate-50 flex items-center justify-between flex-wrap gap-4">
           <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('aeView.reportTitle')}</h2>
@@ -578,6 +631,7 @@ export default function AEViewClient(props: any) {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

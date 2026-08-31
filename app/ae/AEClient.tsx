@@ -1,10 +1,16 @@
 'use client';
 import { useTranslation } from 'react-i18next';
+import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
 import { packageName } from '@/lib/localized-names';
+import { canViewExecutiveReport } from '@/lib/segments';
+import {
+  buildScopePrompt, detectSuppressionFlags,
+  type ScopeExportItem, type ScopeExportChannel, type ScopeExportIntegration,
+} from '@/lib/scope-export';
 import AEResultTable from '@/components/AEResultTable';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Zap, Plus, X, ShieldCheck, 
   Globe, Layers, 
@@ -164,12 +170,37 @@ function buildEngineInputs(formState: any): AEInputData {
 export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
+  const { data: session } = useSession();
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
   const [markdownReport, setMarkdownReport] = useState('');
-  // Guardados para montar a tabela de resultado (a tabela é derivada, não gravada).
-  const [engineResult, setEngineResult] = useState<any>(null);
-  const [engineInputsState, setEngineInputsState] = useState<any>(null);
+
+  /**
+   * O Relatório Executivo é exclusivo de administradores. Os demais segmentos
+   * ficam apenas com a tabela de resultado — que já se adapta ao leitor
+   * (versão simplificada para o AE, completa para os outros).
+   */
+  const showExecutiveReport = canViewExecutiveReport(session?.user as any);
+
+  /**
+   * Resultado CONGELADO no momento do cálculo.
+   *
+   * Antes a tabela era derivada do `estimation` vivo, que segue reagindo a
+   * qualquer mudança de estado depois do cálculo. Numa nova versão, o
+   * `revalidatePath('/ae')` disparado pelo save reinjetava `initialData` e
+   * revertia o formulário para a versão anterior — a tela então mostrava o
+   * resultado da versão antiga. Congelar aqui garante que o painel exiba
+   * exatamente o que foi calculado e salvo.
+   */
+  const [resultSnapshot, setResultSnapshot] = useState<{
+    engineResult: any;
+    engineInputs: any;
+    total: number;
+    techHours: number;
+    needsSC: boolean;
+    variables: Record<string, number>;
+    clientName: string;
+  } | null>(null);
 
   const [clientName, setClientName] = useState(initialClientName);
   const [zohoLink, setZohoLink] = useState('');
@@ -241,9 +272,36 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     setHasAppTicketManager(false);
     setShowResult(false);
     setMarkdownReport('');
+    setResultSnapshot(null);
   };
 
+  /**
+   * Chave ESTÁVEL do payload vindo do servidor.
+   *
+   * `initialData` é um objeto novo em cada render do server component, então usar
+   * a identidade dele como dependência do efeito abaixo fazia o formulário ser
+   * reidratado sempre que a rota era revalidada — inclusive pelo
+   * `revalidatePath('/ae')` que o próprio save dispara. Numa nova versão isso
+   * jogava os inputs de volta para a configuração da versão clonada. Comparando
+   * o CONTEÚDO serializado, a reidratação só acontece quando os dados realmente
+   * mudam (outro cloneFrom, outro cliente).
+   */
+  const initialDataKey = useMemo(() => {
+    try {
+      return JSON.stringify({ d: initialData ?? null, c: initialClientName ?? '', v: cloneFromId ?? null });
+    } catch {
+      return String(initialClientName ?? '');
+    }
+  }, [initialData, initialClientName, cloneFromId]);
+
+  const hydratedKeyRef = useRef<string | null>(null);
+
   useEffect(() => {
+    // Já hidratamos exatamente este payload — não sobrescrever o que o usuário
+    // editou desde então.
+    if (hydratedKeyRef.current === initialDataKey) return;
+    hydratedKeyRef.current = initialDataKey;
+
     if (initialData && typeof initialData === 'object') {
       const d = initialData;
       if (typeof d.clientObjectives === 'string') setClientObjectives(d.clientObjectives);
@@ -303,7 +361,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       resetForm();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialData, initialClientName]);
+  }, [initialDataKey]);
 
   useEffect(() => {
     const sku = normalizeSku(skuType);
@@ -512,7 +570,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
 
   const analyticsTrainingTypeEngine = normalizeAnalyticsTraining(analyticsTrainingType);
 
-  const { engineInputs, validation, estimation } = useMemo(() => {
+  const { engineInputs, engineResult, validation, estimation } = useMemo(() => {
     const formState = {
       agents,
       brands,
@@ -537,8 +595,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       hasAppTicketManager,
     };
     const inputs = buildEngineInputs(formState);
-    setEngineInputsState(inputs);
-
     const validation = validateAEInputs(inputs);
     let result: ReturnType<typeof calculateAEEstimate> | null = null;
     if (validation.valid) {
@@ -565,8 +621,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       quantities: {},
     };
 
-    setEngineResult(result);
-
     const totalHours =
       db.lineItemHours +
       db.discoveryHours +
@@ -577,6 +631,9 @@ export default function AEClient({ packages, variables, initialClientName = '', 
 
     return {
       engineInputs: inputs,
+      // Saída crua do engine — usada pela tabela de resultado. Sai daqui em vez
+      // de um setState dentro do useMemo (atualização em fase de render).
+      engineResult: result,
       validation,
       estimation: {
         total: totalHours,
@@ -801,7 +858,10 @@ ${lines}
     };
 
     // Generate Markdown Report
-    const report = `
+    // Só administradores veem o Relatório Executivo, então para os demais o
+    // texto nem é montado — não há por que gerar e guardar em estado algo que
+    // não será exibido.
+    const report = !showExecutiveReport ? '' : `
 # ${t('aeReport.title')} — ${clientName}
 
 ## ${t('report.section1')}
@@ -1068,6 +1128,19 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 `;
     
     setMarkdownReport(report.trim());
+
+    // Congela o resultado ANTES de salvar. O save chama revalidatePath('/ae'),
+    // o que reinjeta `initialData` e faz o formulário voltar ao estado clonado;
+    // sem este congelamento o painel passaria a exibir a versão anterior.
+    setResultSnapshot({
+      engineResult,
+      engineInputs,
+      total: estimation.total,
+      techHours: estimation.techHours,
+      needsSC: estimation.needsSC,
+      variables: estimation.calculatedResults.variables,
+      clientName,
+    });
     setShowResult(true);
 
     try {
@@ -1109,6 +1182,175 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
     } finally {
       setIsPending(false);
     }
+  };
+
+  /**
+   * Valores do painel de resultado. SEMPRE do snapshot congelado no cálculo —
+   * nunca do `estimation` vivo, que continua reagindo a mudanças de estado.
+   * O fallback só existe para satisfazer a tipagem; `showResult` só vira true
+   * depois de `setResultSnapshot`.
+   */
+  const shown = resultSnapshot ?? {
+    engineResult: null,
+    engineInputs: null,
+    total: 0,
+    techHours: 0,
+    needsSC: false,
+    variables: {} as Record<string, number>,
+    clientName: '',
+  };
+  const shownVar = (key: string) => Number(shown.variables?.[key] ?? 0);
+
+  /* ------------------------------------------------------------------------ */
+  /*        EXPORTAÇÃO DO ESCOPO COMO PROMPT PARA A SKILL scope-creator        */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * Monta o mesmo envelope que o framework gera, mudando apenas `ORIGEM` e
+   * `TEMPLATE`. A skill não precisa saber de onde veio: o template escolhido é
+   * que define a estrutura do documento.
+   *
+   * Sai do SNAPSHOT congelado, não do estado vivo — assim o prompt descreve a
+   * estimativa que foi calculada e salva, e não um rascunho editado depois.
+   */
+  const scopePrompt = useMemo(() => {
+    if (!resultSnapshot) return '';
+
+    const inputs = resultSnapshot.engineInputs || {};
+    const bd = (resultSnapshot.engineResult?.breakdown || {}) as Record<string, number>;
+
+    const modules: string[] = (inputs.selectedModules || []).filter(Boolean);
+
+    const channels: ScopeExportChannel[] = (inputs.selectedChannels || []).map((key: string) => {
+      const option = [...channelOptions, ...extraChannelOptions].find((o) => {
+        const mapped = CHANNEL_LEGACY_TO_KEY[o.id];
+        return mapped === key || o.id === key;
+      });
+      return {
+        label: option?.label || String(key),
+        quantity: Math.max(1, Number(inputs.channelQuantities?.[key] ?? 1)),
+      };
+    });
+
+    const integrations: ScopeExportIntegration[] = [
+      ...(selectedNativeConnections || []).filter(Boolean).map((name: string) => ({
+        kind: 'Integração nativa', label: name, quantity: 1,
+      })),
+      ...(selectedApps || []).filter(Boolean).map((name: string) => ({
+        kind: 'Marketplace', label: name,
+        quantity: Math.max(1, Number(appQuantities[name] ?? 1)),
+      })),
+      ...(selectedActionFlows || []).filter(Boolean).map((name: string) => ({
+        kind: 'Action Flow',
+        label: ACTION_FLOW_OPTIONS.find((o) => o.value === name)?.label || String(name),
+        quantity: 1,
+      })),
+      ...(hasAppCondicionais ? [{ kind: 'App AktieNow', label: 'Condicionais Avançadas', quantity: 1 }] : []),
+      ...(hasAppTicketManager ? [{ kind: 'App AktieNow', label: 'Ticket Manager', quantity: 1 }] : []),
+    ];
+
+    /**
+     * A Calculadora AE não tem biblioteca de itens como o framework: o engine
+     * devolve grupos de horas. Cada grupo com hora > 0 vira uma linha, o que dá
+     * à skill a mesma base para decidir quais bullets do template ficam.
+     */
+    const groupLabels: Record<string, string> = {
+      supportConfig: 'Configuração Support', voiceConfig: 'Configuração Voice',
+      copilotConfig: 'Configuração Copilot', wfmConfig: 'Configuração WFM',
+      qaConfig: 'Configuração QA', agentSetup: 'Cadastro de agentes',
+      brandSetup: 'Configuração de marcas', channelSetup: 'Configuração de canais',
+      appCondicionais: 'App Condicionais Avançadas', appTicketManager: 'App Ticket Manager',
+      sso: 'Single Sign-On (SSO)', generalConfig: 'Configurações gerais',
+      training: 'Treinamento', supportFixed: 'Pacotes fixos Support',
+      wfmFixed: 'Pacotes fixos WFM', adppFixed: 'Pacotes fixos ADPP',
+      nativeConnections: 'Integrações nativas', knowledge: 'Knowledge / Central de Ajuda',
+      sideConversations: 'Conversas paralelas (Side Conversations)',
+      thirdPartyApps: 'Apps de Marketplace', workshops: 'Workshop',
+      operationLanguages: 'Conteúdo dinâmico / multi-idioma',
+      actionFlows: 'Action Flow',
+    };
+
+    const items: ScopeExportItem[] = Object.entries(bd)
+      .filter(([, hours]) => Number(hours) > 0)
+      .map(([key, hours]) => ({
+        category: 'Calculadora AE',
+        subcategory: 'Grupos de esforço',
+        label: groupLabels[key] || key,
+        quantity: 1,
+        hours: Number(hours) || 0,
+      }));
+
+    // Canais e integrações também entram como itens: é deles que as flags de
+    // WhatsApp, e-mail e Central de Ajuda são detectadas.
+    channels.forEach((c) => items.push({
+      category: 'Canais', subcategory: 'Canais',
+      label: c.label, quantity: Number(c.quantity) || 1, hours: 0,
+    }));
+    integrations.forEach((i) => items.push({
+      category: i.kind, subcategory: 'Integrações',
+      label: i.label, quantity: Number(i.quantity) || 1, hours: 0,
+    }));
+
+    const flags = detectSuppressionFlags(items, {
+      // A Calculadora nunca contempla desenvolvimento nem design sob medida.
+      desenvolvimento: false,
+      design: false,
+      sso: Boolean(hasSSO),
+      'side-conversations': Boolean(hasTeamsSideConv || hasSlackSideConv),
+      'action-flow': (selectedActionFlows || []).filter(Boolean).length > 0,
+      knowledge: Number(knowledgeArticles) > 0 || modules.includes('Knowledge'),
+    });
+
+    return buildScopePrompt({
+      origin: 'calculadora-ae',
+      template: 'escopo-padrao-60h',
+      clientName: resultSnapshot.clientName,
+      projectName: resultSnapshot.clientName,
+      versionName: initialVersion != null ? `v${initialVersion}` : 'v1',
+      generatedAt: new Date(),
+      zohoLink,
+      preSalesName: (session?.user as any)?.name || null,
+      totalHours: resultSnapshot.total,
+      // A Calculadora não separa horas por skill; o total técnico é a linha de
+      // implantação e as variáveis vêm no bloco de percentuais.
+      skillHours: {
+        'Implantação': resultSnapshot.techHours,
+        'GP': shownVar('gp'),
+      },
+      percents: null,
+      planTierLabel: `Suite ${String(zendeskPlan || 'professional').replace(/^\w/, (c) => c.toUpperCase())}`,
+      skuLabel: skuType === 'employee_service' ? t('plans.employeeService') : t('plans.customerService'),
+      modules,
+      channels,
+      integrations,
+      flags,
+      categories: null,
+      items,
+      crm: null,
+    });
+  }, [
+    resultSnapshot, selectedNativeConnections, selectedApps, appQuantities,
+    selectedActionFlows, hasAppCondicionais, hasAppTicketManager, hasSSO,
+    hasTeamsSideConv, hasSlackSideConv, knowledgeArticles, zohoLink,
+    zendeskPlan, skuType, initialVersion, session, t,
+  ]);
+
+  const [scopePromptCopied, setScopePromptCopied] = useState(false);
+
+  const handleCopyScopePrompt = async () => {
+    if (!scopePrompt) return;
+    try {
+      await navigator.clipboard.writeText(scopePrompt);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = scopePrompt;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+    setScopePromptCopied(true);
+    setTimeout(() => setScopePromptCopied(false), 2500);
   };
 
   return (
@@ -1656,76 +1898,76 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
       ) : (
         <div className="animate-in zoom-in-95 fade-in duration-500 max-w-4xl mx-auto">
           <div className={`rounded-[4rem] p-16 shadow-2xl relative overflow-hidden text-center space-y-12 ${
-            estimation.needsSC
+            shown.needsSC
               ? 'bg-amber-50 border-4 border-amber-200 text-amber-900 dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border-[color:var(--accent)]'
               : 'bg-brand-dark text-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)]'
           }`}>
             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
-              {estimation.needsSC ? <AlertTriangle className="w-64 h-64 text-amber-500 dark:text-[color:var(--accent)]" /> : <ShieldCheck className="w-64 h-64 text-white dark:text-[color:var(--accent)]" />}
+              {shown.needsSC ? <AlertTriangle className="w-64 h-64 text-amber-500 dark:text-[color:var(--accent)]" /> : <ShieldCheck className="w-64 h-64 text-white dark:text-[color:var(--accent)]" />}
             </div>
 
             <div className="relative z-10 space-y-8">
               <div className="flex flex-col items-center space-y-4">
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl ${
-                  estimation.needsSC
+                  shown.needsSC
                     ? 'bg-amber-200 text-amber-700 dark:bg-[color:var(--accent)]/20 dark:text-[color:var(--accent)]'
                     : 'brand-bg-primary text-white dark:bg-[color:var(--primary)] dark:text-white'
                 }`}>
-                  {estimation.needsSC ? <AlertTriangle className="w-10 h-10" /> : <CheckCircle2 className="w-10 h-10" />}
+                  {shown.needsSC ? <AlertTriangle className="w-10 h-10" /> : <CheckCircle2 className="w-10 h-10" />}
                 </div>
                 <div>
                   <h3 className={`text-sm font-black uppercase tracking-[0.3em] ${
-                    estimation.needsSC
+                    shown.needsSC
                       ? 'text-amber-600 dark:text-[color:var(--accent)]'
                       : 'text-slate-400 dark:text-[color:var(--text-muted)]'
                   }`}>
-                    Resultado para {clientName}
+                    Resultado para {shown.clientName}
                   </h3>
                 </div>
               </div>
 
               <div className="space-y-2">
                 <div className={`text-8xl font-black tracking-tighter ${
-                  estimation.needsSC
+                  shown.needsSC
                     ? 'text-amber-700 dark:text-[color:var(--accent)]'
                     : 'text-brand-accent dark:text-[color:var(--accent)]'
                 }`}>
-                  {estimation.needsSC ? t('ae.consultSC') : `${estimation.total.toFixed(0)}H`}
+                  {shown.needsSC ? t('ae.consultSC') : `${shown.total.toFixed(0)}H`}
                 </div>
                 <p className={`text-lg font-bold uppercase tracking-widest ${
-                  estimation.needsSC
+                  shown.needsSC
                     ? 'text-amber-600 dark:text-[color:var(--accent)]'
                     : 'text-slate-400 dark:text-[color:var(--text-muted)]'
                 }`}>
-                  {estimation.needsSC ? t('ae.effortNeedsSC') : t('ae.estimatedEffort')}
+                  {shown.needsSC ? t('ae.effortNeedsSC') : t('ae.estimatedEffort')}
                 </p>
               </div>
 
-              {!estimation.needsSC && (
+              {!shown.needsSC && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto pt-8 border-t border-white/10 dark:border-[color:var(--border-main)]">
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('editor.skillImplementation')}</span>
-                    <span className="text-xl font-black tracking-tight dark:text-[color:var(--text-main)]">{estimation.techHours.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight dark:text-[color:var(--text-main)]">{shown.techHours.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.gp')}</span>
-                    <span className="text-xl font-black tracking-tight text-brand-secondary dark:text-[color:var(--secondary)]">{estimation.calculatedResults.variables.gp.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight text-brand-secondary dark:text-[color:var(--secondary)]">{shownVar('gp').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.discovery')}</span>
-                    <span className="text-xl font-black tracking-tight text-amber-500 dark:text-[color:var(--accent)]">{estimation.calculatedResults.variables.discovery.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight text-amber-500 dark:text-[color:var(--accent)]">{shownVar('discovery').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.validation')}</span>
-                    <span className="text-xl font-black tracking-tight text-blue-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.validation.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight text-blue-500 dark:text-[color:var(--text-main)]">{shownVar('validation').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.techComm')}</span>
-                    <span className="text-xl font-black tracking-tight text-purple-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.comunicacao_tecnica.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight text-purple-500 dark:text-[color:var(--text-main)]">{shownVar('comunicacao_tecnica').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
                     <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.goLive')}</span>
-                    <span className="text-xl font-black tracking-tight text-green-500 dark:text-[color:var(--text-main)]">{estimation.calculatedResults.variables.go_live.toFixed(1)}H</span>
+                    <span className="text-xl font-black tracking-tight text-green-500 dark:text-[color:var(--text-main)]">{shownVar('go_live').toFixed(1)}H</span>
                   </div>
                 </div>
               )}
@@ -1751,11 +1993,34 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
           {/* Tabela de itens considerados — detalhe conforme o segmento do LEITOR */}
           <div className="mt-12">
             <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] border border-slate-200 p-8 md:p-10 shadow-xl">
-              <AEResultTable estimation={engineResult} inputs={engineInputsState} />
+              <AEResultTable estimation={shown.engineResult} inputs={shown.engineInputs} />
+
+              {/* Escopo Padrão: mesmo envelope do framework, template menor.
+                  Cópia manual por decisão de projeto — sem chamada de API. */}
+              <div className="mt-8 pt-8 border-t border-slate-100 dark:border-[color:var(--border-main)] flex flex-wrap items-center justify-between gap-4">
+                <p className="text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] max-w-md leading-relaxed">
+                  {t('editor.copyScopePromptHint')}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleCopyScopePrompt}
+                  disabled={!scopePrompt}
+                  className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
+                    scopePromptCopied
+                      ? 'brand-bg-primary text-white'
+                      : 'bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)] hover:border-brand-primary hover:text-brand-primary'
+                  }`}
+                >
+                  {scopePromptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* New Results Section: Markdown & JSON */}
+          {/* Relatório Executivo — exclusivo de administradores. Os demais
+              segmentos ficam com a tabela de resultado acima. */}
+          {showExecutiveReport && (
           <div className="mt-12 space-y-12">
             <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] border border-slate-200 p-10 shadow-xl overflow-hidden">
               <div className="flex items-center justify-between mb-8 border-b border-slate-50 dark:border-[color:var(--border-main)] pb-6">
@@ -1781,7 +2046,8 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               </div>
             </div>
           </div>
-          
+          )}
+
           <div className="mt-12 text-center">
           </div>
         </div>

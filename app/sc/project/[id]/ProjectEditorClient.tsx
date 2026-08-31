@@ -5,12 +5,17 @@ import { formatHoursMinutes } from '@/lib/format-hours';
 import {
   ZENDESK_PLANS, PLAN_LABEL, PLAN_RANK as ZD_PLAN_RANK, DEFAULT_PLAN, DEFAULT_SKU,
   normalizePlanTier, normalizeSkuType, isPackageAvailable, minPlanBadge,
+  isCategoryAvailable,
   type ZendeskPlanTier, type ZendeskSku,
 } from '@/lib/zendesk-plans';
 import {
   packageName, packageTooltip, categoryName as categoryNameOf,
   packageHaystack, categoryHaystack, matchesQuery,
 } from '@/lib/localized-names';
+import {
+  buildScopePrompt, detectSuppressionFlags, fold,
+  type ScopeExportItem, type ScopeExportIntegration,
+} from '@/lib/scope-export';
 
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
@@ -250,7 +255,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   const orderedCategories = useMemo(() => {
     return uniqueStrings([...(layoutConfig.categoryOrder || []), ...categories]);
   }, [layoutConfig.categoryOrder, categories]);
-
   const handleSavePreset = async () => {
     if (!presetName) return;
     await savePresetAction(presetName, hiddenItems.map(String), layoutConfig);
@@ -325,6 +329,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   // Detalhamento por categoria: começa recolhido para não empurrar o resumo para baixo.
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
+  /**
+   * Somar Discovery, GP e Validação proporcionais aos totais do detalhamento.
+   * Desligado = comportamento original (só horas de itens).
+   */
+  const [breakdownWithVariables, setBreakdownWithVariables] = useState(false);
   // SKU e tier do Zendesk: definem quais itens da biblioteca estão disponíveis.
   // Persistidos dentro do JSON `data` da versão, então não exigem coluna nova.
   const [skuType, setSkuType] = useState<ZendeskSku>(() => {
@@ -360,16 +369,61 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return map;
   }, [packagesByCategory]);
 
-  /** Um item está no escopo apenas se o plano selecionado atender ao mínimo dele. */
+  /**
+   * A categoria passou na porteira de plano dela?
+   *
+   * Vale para categorias raiz E subcategorias, porque `categoryRecords` traz
+   * todas. É uma porteira INDEPENDENTE da restrição do item: a categoria pode
+   * cair inteira mesmo que nenhum item dentro dela tenha restrição própria —
+   * é assim que "ADPP" desaparece fora do Suite Enterprise em vez de aparecer
+   * como uma seção vazia.
+   */
+  const isCategoryOnPlan = useCallback(
+    (catName: string) => {
+      const record = categoryRecords?.[catName];
+      // Categoria sem registro (não deveria acontecer) não é escondida — o
+      // default do sistema todo é inclusivo.
+      if (!record) return true;
+      return isCategoryAvailable(record, skuType, planTier);
+    },
+    [categoryRecords, skuType, planTier],
+  );
+
+  /**
+   * Um item está no escopo quando as DUAS porteiras passam: a do próprio item e
+   * a da categoria de origem dele (que pode ser uma subcategoria mesclada na
+   * raiz durante o carregamento da página).
+   */
   const isAvailable = useCallback(
-    (pkg: any) => isPackageAvailable(pkg, skuType, planTier),
-    [skuType, planTier],
+    (pkg: any) => {
+      if (!isPackageAvailable(pkg, skuType, planTier)) return false;
+      const sourceCat = pkg?.categoryName;
+      if (sourceCat && !isCategoryOnPlan(sourceCat)) return false;
+      return true;
+    },
+    [skuType, planTier, isCategoryOnPlan],
   );
 
   /** Quantos itens da biblioteca o filtro de plano está excluindo agora. */
   const planExcludedCount = useMemo(() => {
     return (allPackages || []).filter((pkg: any) => !isAvailable(pkg)).length;
   }, [allPackages, isAvailable]);
+
+  /** Categorias raiz escondidas pela porteira de plano — mostradas como aviso. */
+  const planExcludedCategories = useMemo(() => {
+    return (categories || []).filter((cat: string) => !isCategoryOnPlan(cat));
+  }, [categories, isCategoryOnPlan]);
+
+  /**
+   * Ordem de exibição já filtrada pelo plano.
+   *
+   * `orderedCategories` continua completo de propósito: é ele que a reordenação
+   * usa, para que uma categoria escondida pelo plano não perca a posição dela
+   * quando o usuário trocar o tier de volta.
+   */
+  const visibleCategories = useMemo(() => {
+    return orderedCategories.filter((cat: string) => isCategoryOnPlan(cat));
+  }, [orderedCategories, isCategoryOnPlan]);
 
   const searchResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -381,7 +435,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       results.push({ ...item, __key: key });
     };
 
-    orderedCategories.forEach((cat: string) => {
+    visibleCategories.forEach((cat: string) => {
       const label = catLabelOf(cat);
       // Busca nos dois idiomas: um usuário em PT encontra digitando em EN e vice-versa.
       const catHay = categoryHaystack(categoryRecords?.[cat] || { name: cat, displayName: categoryLabels?.[cat] });
@@ -405,6 +459,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
 
     allPackages.forEach((p: any) => {
+      // Itens fora do plano não devem aparecer na busca — clicar num resultado
+      // levaria a uma seção que não existe na tela.
+      if (!isAvailable(p)) return;
       // packageHaystack cobre name + nameEn + tooltip + tooltipEn.
       if (!matchesQuery(packageHaystack(p), q)) return;
 
@@ -429,7 +486,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return results.slice(0, 20);
   }, [
     searchQuery,
-    orderedCategories,
+    visibleCategories,
+    isAvailable,
     categoryLabels,
     categoryRecords,
     catLabelOf,
@@ -629,6 +687,59 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   });
 
   // Calculation Engine
+  /**
+   * Elegibilidade de cada item às três variáveis percentuais.
+   *
+   * Lê a configuração de incidência granular do painel Admin:
+   *   - `Package.excludedFromVariables` — o item se declara fora da variável;
+   *   - `Variable.excludedItems`        — a variável exclui o item;
+   *   - `Variable.targetItems` / `targetCategories` — quando preenchidos, a
+   *     variável só incide sobre esses alvos.
+   *
+   * Usado em DOIS lugares, e é bom que seja o mesmo critério nos dois:
+   *   1. no cálculo dos totais, para descontar da base de cada percentual as
+   *      horas que não incidem (ver `trackExclusions`);
+   *   2. no detalhamento por categoria, para repartir o valor já calculado.
+   *
+   * Como a base já vem descontada, uma categoria inteiramente não incidente
+   * recebe 0 na repartição e a soma continua fechando com o resumo.
+   */
+  const variableEligibility = useMemo(() => {
+    const asList = (raw: any): string[] => {
+      const parsed = safeJsonParse<any>(typeof raw === 'string' ? raw : JSON.stringify(raw ?? []), []);
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    };
+
+    const buildFor = (varKey: string) => {
+      const vDef = (variables || []).find((v: any) => v.key === varKey);
+      const targets = asList(vDef?.targetItems);
+      const targetCats = asList(vDef?.targetCategories);
+      const varExcluded = asList(vDef?.excludedItems);
+
+      return (pkg: any, rootCat: string): boolean => {
+        if (!pkg) return true;
+        const itemId = String(pkg.id ?? '');
+        if (asList(pkg.excludedFromVariables).includes(varKey)) return false;
+        if (itemId && varExcluded.includes(itemId)) return false;
+        // Só filtra por alvo quando a variável declara algum.
+        if (targets.length || targetCats.length) {
+          const inItems = itemId ? targets.includes(itemId) : false;
+          const inCats =
+            targetCats.includes(rootCat) ||
+            (pkg.categoryName ? targetCats.includes(String(pkg.categoryName)) : false);
+          if (!inItems && !inCats) return false;
+        }
+        return true;
+      };
+    };
+
+    return {
+      discovery: buildFor('DISCOVERY_STANDARD'),
+      validation: buildFor('VALIDATION_STANDARD'),
+      gp: buildFor('GP_STANDARD'),
+    };
+  }, [variables]);
+
   const totals = useMemo(() => {
     let subtotal = 0;
     let flatHoursMarketplace = marketplaceApps.length * 5;
@@ -669,39 +780,64 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return needles.some(x => n.includes(normCat(x)));
     };
 
-    const assignImplantBucket = (category: string, hours: number) => {
-      if (!hours) return;
-      const normalized = normCat(category);
-      if (!normalized) {
-        implantationBreakdown['implantacao_setup'] = (implantationBreakdown['implantacao_setup'] || 0) + hours;
-        return;
-      }
-      if (matchCatHas(category, ['workshop'])) {
-        implantationBreakdown['implantacao_workshop'] = (implantationBreakdown['implantacao_workshop'] || 0) + hours;
-        return;
-      }
-      if (matchCatHas(category, ['treinamento'])) {
-        implantationBreakdown['implantacao_treinamento'] = (implantationBreakdown['implantacao_treinamento'] || 0) + hours;
-        return;
-      }
+    /**
+     * Bucket de Implantação de uma categoria. Extraído como função PURA porque a
+     * base de Discovery e Validação precisa saber quais horas caíram em Setup —
+     * é só sobre elas que os percentuais incidem, e portanto só elas podem ser
+     * descontadas quando um item se declara fora da variável.
+     */
+    const bucketFor = (category: string): string => {
+      if (!normCat(category)) return 'implantacao_setup';
+      if (matchCatHas(category, ['workshop'])) return 'implantacao_workshop';
+      if (matchCatHas(category, ['treinamento'])) return 'implantacao_treinamento';
       if (matchCatHas(category, ['go-live', 'go live', 'pos go', 'go-live e pos go-live', 'go live e pos go live', 'pos go live', 'pos go'])) {
-        implantationBreakdown['implantacao_golive'] = (implantationBreakdown['implantacao_golive'] || 0) + hours;
-        return;
+        return 'implantacao_golive';
       }
       // Tudo que não for mapeado → Setup
-      implantationBreakdown['implantacao_setup'] = (implantationBreakdown['implantacao_setup'] || 0) + hours;
+      return 'implantacao_setup';
+    };
+
+    const assignImplantBucket = (category: string, hours: number) => {
+      if (!hours) return;
+      const bucket = bucketFor(category);
+      implantationBreakdown[bucket] = (implantationBreakdown[bucket] || 0) + hours;
+    };
+
+    /**
+     * Horas que precisam SAIR da base de cada percentual por conta das tags de
+     * não incidência configuradas no Admin.
+     *
+     * `setupExcluded` só acumula o que caiu no bucket de Setup, que é a base de
+     * Discovery e Validação. `gpExcluded` acumula sobre qualquer item, porque a
+     * base do GP é o consolidado dos quatro containers.
+     */
+    const setupExcluded = { discovery: 0, validation: 0 };
+    let gpExcluded = 0;
+
+    const trackExclusions = (pkg: any, rootCat: string, hours: number) => {
+      if (!hours) return;
+      const inSetup = bucketFor(rootCat) === 'implantacao_setup';
+      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) setupExcluded.discovery += hours;
+      if (inSetup && !variableEligibility.validation(pkg, rootCat)) setupExcluded.validation += hours;
+      if (!variableEligibility.gp(pkg, rootCat)) gpExcluded += hours;
     };
 
     // Standard Packages
     Object.keys(packagesByCategory).forEach(cat => {
-      const isChecked = formData[`check_area_${cat}`] === 'on';
+      // Categoria fora do plano sai inteira do cálculo — a porteira dela é
+      // independente da dos itens.
+      const catOnPlan = isCategoryOnPlan(cat);
+      const isChecked = catOnPlan && formData[`check_area_${cat}`] === 'on';
       catTotals[cat] = 0;
 
       packagesByCategory[cat].forEach((pkg: any) => {
         const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
         // Itens acima do plano selecionado não entram no total, mesmo que a
-        // quantidade tenha sido digitada antes de trocar o plano.
-        if (qty > 0 && isChecked && isPackageAvailable(pkg, skuType, planTier)) {
+        // quantidade tenha sido digitada antes de trocar o plano. `itemOnPlan`
+        // cobre as duas porteiras (item e categoria de origem).
+        const itemOnPlan = isPackageAvailable(pkg, skuType, planTier)
+          && (!pkg?.categoryName || isCategoryOnPlan(pkg.categoryName));
+        if (qty > 0 && isChecked && itemOnPlan) {
           let rowTotal = qty * pkg.hours;
           const isOverride = formData[`item_override_check_${pkg.id}`] === 'on';
           if (isOverride) {
@@ -713,6 +849,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           subtotal += rowTotal;
           const skillKey = pkg.skillName || pkg.skill;
           const sdDisc = Boolean(pkg.sdDiscovery || false);
+
+          // Tags de não incidência: registradas aqui, onde ainda se sabe o item
+          // e a categoria de origem dele.
+          trackExclusions(pkg, cat, rowTotal);
 
           if (sdDisc) hasSdDiscoveryOnAnyItem = true;
           if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
@@ -763,6 +903,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       catTotals[pkg.category] = (catTotals[pkg.category] || 0) + total;
       const skillKey = pkg.skillName || pkg.skill;
       const sdDisc = Boolean((pkg as any).sdDiscovery || false);
+      // Pacotes personalizados não têm configuração de incidência, então
+      // permanecem elegíveis às três variáveis — mesmo tratamento que recebem
+      // no detalhamento por categoria.
 
       if (sdDisc) hasSdDiscoveryOnAnyItem = true;
       if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
@@ -783,86 +926,20 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
 
     // Helper to calculate a variable's contribution
-    const calculateVariable = (varKey: string, manualPercent: number, manualOverride: number | null) => {
-      if (manualOverride !== null) return parseFloat(manualOverride as any);
-
-      const vDef = variables?.find((v: any) => v.key === varKey);
-      if (!vDef) return subtotal * (manualPercent / 100);
-
-      // Determine base for calculation
-      const targets = JSON.parse(vDef.targetItems || '[]');
-      const targetCats = JSON.parse(vDef.targetCategories || '[]');
-      const varExclusions = JSON.parse(vDef.excludedItems || '[]');
-      
-      let base = 0;
-      const allItems: any[] = allPackages; // All library items
-
-      if (targets.length === 0 && targetCats.length === 0) {
-        // Global variable: sum everything NOT excluded from this specific variable
-        Object.keys(packagesByCategory).forEach(cat => {
-          if (formData[`check_area_${cat}`] !== 'on') return;
-          
-          packagesByCategory[cat].forEach((pkg: any) => {
-            const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
-            if (qty <= 0) return;
-
-            const itemExclusions = JSON.parse(pkg.excludedFromVariables || '[]');
-            // Check if item is excluded either via its own config OR via the variable's config
-            const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(pkg.id.toString());
-            
-            if (!isExcluded) {
-              base += (itemTotals[pkg.id] || 0);
-            }
-          });
-        });
-        
-        // Also add custom packages if not explicitly excluded (custom pkgs don't have exclusions yet)
-        customPackages.forEach(pkg => {
-          if (formData[`check_area_${pkg.category}`] === 'on') {
-            const qty = parseFloat(pkg.qty || 0);
-            const hours = parseFloat(pkg.hours || 0);
-            base += (qty * hours);
-          }
-        });
-      } else {
-        targets.forEach((id: string) => { 
-          const pkg = allItems.find((p: any) => p.id === parseInt(id));
-          const itemExclusions = JSON.parse(pkg?.excludedFromVariables || '[]');
-          const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(id);
-          
-          if (!isExcluded) {
-            base += (itemTotals[parseInt(id)] || 0); 
-          }
-        });
-        targetCats.forEach((cat: string) => { 
-          packagesByCategory[cat]?.forEach((pkg: any) => {
-            const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
-            if (qty <= 0) return;
-
-            const itemExclusions = JSON.parse(pkg.excludedFromVariables || '[]');
-            const isExcluded = itemExclusions.includes(varKey) || varExclusions.includes(pkg.id.toString());
-            
-            if (!isExcluded) {
-              base += (itemTotals[pkg.id] || 0);
-            }
-          });
-        });
-      }
-
-      // Calculate based on type
-      let result = 0;
-      const pctValue = manualPercent;
-      
-      if (vDef.type === 'PERCENT') {
-        result = base * (pctValue / 100);
-      } else if (vDef.type === 'FLAT') {
-        result = parseFloat(vDef.flatValue || 0);
-      } else if (vDef.type === 'MIXED') {
-        result = (base * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-      }
-
-      return result;
-    };
+    /*
+     * NOTA (rodada 6): a antiga `calculateVariable` foi REMOVIDA daqui.
+     *
+     * Ela montava a base de cada percentual respeitando as tags de
+     * incidência, mas nunca era chamada — Discovery e Validação incidiam
+     * sobre todo o Setup e o GP sobre todo o consolidado, então a
+     * configuração do painel Admin não surtia efeito nenhum.
+     *
+     * A regra agora vive no fluxo real de cálculo: `trackExclusions` acumula
+     * as horas não incidentes durante a varredura dos itens, e elas são
+     * descontadas em `baseDiscovery`, `baseValidation` e `totalBaseGP`.
+     * Manter a função aqui, morta, foi justamente o que fez parecer que as
+     * tags funcionavam.
+     */
 
     // NOTA: GP será calculado ABAIXO, sobre o total consolidado (impl + SD + DEV + DESIGN), incluindo discovery/validação e marketplace/safety.
     // GP inicial é 0 para não duplicar.
@@ -940,6 +1017,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const setupBaseParaVariaveis = Math.max(0,
       (implantacaoBuckets['implantacao_setup'] || 0) + (devHorasSetupContribuicao || 0)
     );
+    /**
+     * Base efetiva de cada percentual, já sem as horas que os itens declararam
+     * como não incidentes.
+     *
+     * Até a rodada 5 essas tags eram inertes: a função que as lia
+     * (`calculateVariable`) nunca era chamada, e Discovery/Validação incidiam
+     * sobre TODO o Setup. Agora a configuração do painel Admin passa a valer.
+     */
+    const baseDiscovery = Math.max(0, setupBaseParaVariaveis - setupExcluded.discovery);
+    const baseValidation = Math.max(0, setupBaseParaVariaveis - setupExcluded.validation);
     // Recalcular discValRaw e validVal (mantendo overrides manuais se existirem)
     let discValRawFinal = 0;
     let validValRawFinal = 0;
@@ -949,13 +1036,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Base = apenas setup; percentual = percents.discovery (se houver vDef com tipo, respeitamos flat/mixed? mantendo padrão percentual simples)
       const vDef = variables?.find((v: any) => v.key === 'DISCOVERY_STANDARD');
       if (!vDef) {
-        discValRawFinal = setupBaseParaVariaveis * (percents.discovery / 100);
+        discValRawFinal = baseDiscovery * (percents.discovery / 100);
       } else {
         const pctValue = percents.discovery;
-        if (vDef.type === 'PERCENT') discValRawFinal = setupBaseParaVariaveis * (pctValue / 100);
+        if (vDef.type === 'PERCENT') discValRawFinal = baseDiscovery * (pctValue / 100);
         else if (vDef.type === 'FLAT') discValRawFinal = parseFloat(vDef.flatValue || 0);
-        else if (vDef.type === 'MIXED') discValRawFinal = (setupBaseParaVariaveis * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-        else discValRawFinal = setupBaseParaVariaveis * (pctValue / 100);
+        else if (vDef.type === 'MIXED') discValRawFinal = (baseDiscovery * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
+        else discValRawFinal = baseDiscovery * (pctValue / 100);
       }
     }
     if (overrides.validation !== null) {
@@ -963,13 +1050,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     } else {
       const vDef = variables?.find((v: any) => v.key === 'VALIDATION_STANDARD');
       if (!vDef) {
-        validValRawFinal = setupBaseParaVariaveis * (percents.validation / 100);
+        validValRawFinal = baseValidation * (percents.validation / 100);
       } else {
         const pctValue = percents.validation;
-        if (vDef.type === 'PERCENT') validValRawFinal = setupBaseParaVariaveis * (pctValue / 100);
+        if (vDef.type === 'PERCENT') validValRawFinal = baseValidation * (pctValue / 100);
         else if (vDef.type === 'FLAT') validValRawFinal = parseFloat(vDef.flatValue || 0);
-        else if (vDef.type === 'MIXED') validValRawFinal = (setupBaseParaVariaveis * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-        else validValRawFinal = setupBaseParaVariaveis * (pctValue / 100);
+        else if (vDef.type === 'MIXED') validValRawFinal = (baseValidation * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
+        else validValRawFinal = baseValidation * (pctValue / 100);
       }
     }
 
@@ -1067,11 +1154,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     //  - Desenvolvimento (horas cheias itens dev + safety)
     //  - Design (horas cheias itens design + safety)
     // Excluímos o próprio GP (skillTotals['GP']) para não haver circularidade.
+    // Base do GP: consolidado dos quatro containers, menos as horas de itens
+    // que se declararam fora do GP.
     const totalBaseGP = Math.max(0,
       Number(skillTotals['Implantação'] || 0)
       + Number(skillTotals['Solution Design'] || 0)
       + Number(skillTotals['Desenvolvimento'] || 0)
       + Number(skillTotals['Design'] || 0)
+      - gpExcluded
     );
 
     // Cálculo do GP sobre a base consolidada
@@ -1110,12 +1200,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       catTotals,
       gpVal,
       discVal,
+      // Bases efetivas e horas descontadas pelas tags de não incidência —
+      // expostas para que a UI possa explicar de onde veio o número.
+      baseDiscovery,
+      baseValidation,
+      totalBaseGP,
+      excludedFromVariables: {
+        discovery: roundHalfUp(setupExcluded.discovery, 1),
+        validation: roundHalfUp(setupExcluded.validation, 1),
+        gp: roundHalfUp(gpExcluded, 1),
+      },
       validVal,
       flatHoursMarketplace,
       totalSafety,
       grandTotal
     };
-  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages, skuType, planTier]);
+  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages, skuType, planTier, isCategoryOnPlan, variableEligibility]);
+
 
   /**
    * Detalhamento por categoria e, dentro dela, por subcategoria.
@@ -1123,14 +1224,37 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
    */
   const categoryBreakdown = useMemo(() => {
-    const byCategory = new Map<string, { total: number; subs: Map<string, number> }>();
+    type Bucket = {
+      total: number;
+      /** Base elegível a cada variável, para repartir proporcionalmente. */
+      elig: { discovery: number; validation: number; gp: number };
+      subs: Map<string, { hours: number; elig: { discovery: number; validation: number; gp: number } }>;
+    };
 
-    const bump = (cat: string, sub: string, hours: number) => {
+    const byCategory = new Map<string, Bucket>();
+    const zero = () => ({ discovery: 0, validation: 0, gp: 0 });
+
+    const bump = (
+      cat: string,
+      sub: string,
+      hours: number,
+      elig: { discovery: boolean; validation: boolean; gp: boolean },
+    ) => {
       if (!hours) return;
-      if (!byCategory.has(cat)) byCategory.set(cat, { total: 0, subs: new Map() });
+      if (!byCategory.has(cat)) {
+        byCategory.set(cat, { total: 0, elig: zero(), subs: new Map() });
+      }
       const entry = byCategory.get(cat)!;
       entry.total += hours;
-      entry.subs.set(sub, (entry.subs.get(sub) || 0) + hours);
+      if (!entry.subs.has(sub)) entry.subs.set(sub, { hours: 0, elig: zero() });
+      const subEntry = entry.subs.get(sub)!;
+      subEntry.hours += hours;
+
+      (['discovery', 'validation', 'gp'] as const).forEach((key) => {
+        if (!elig[key]) return;
+        entry.elig[key] += hours;
+        subEntry.elig[key] += hours;
+      });
     };
 
     // Itens da biblioteca
@@ -1141,42 +1265,265 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         const itemId = String(pkg.id);
         const sub =
           layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
-        bump(cat, sub, hours);
+        bump(cat, sub, hours, {
+          discovery: variableEligibility.discovery(pkg, cat),
+          validation: variableEligibility.validation(pkg, cat),
+          gp: variableEligibility.gp(pkg, cat),
+        });
       });
     });
 
     // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
+    // Não têm configuração de incidência, então entram elegíveis às três — é o
+    // mesmo tratamento que recebem na base de cálculo do resumo.
     customPackages.forEach((pkg: any) => {
       const hours = Number(pkg.hours) * Number(pkg.qty || 1);
       if (!hours) return;
-      bump(pkg.category || t('common.custom'), t('common.manual'), hours);
+      bump(pkg.category || t('common.custom'), t('common.manual'), hours, {
+        discovery: true, validation: true, gp: true,
+      });
     });
 
-    // Apps de marketplace entram como bloco FLAT próprio.
+    // Apps de marketplace entram como bloco FLAT próprio. São somados ao Setup
+    // antes do cálculo de Discovery/Validação, logo incidem normalmente.
     if (totals.flatHoursMarketplace) {
-      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace);
+      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace, {
+        discovery: true, validation: true, gp: true,
+      });
     }
 
+    // ---- Repartição proporcional das variáveis --------------------------------
+    // Os valores repartidos são os JÁ CALCULADOS no resumo (respeitando
+    // overrides manuais e as tags de não incidência), então a soma das
+    // contribuições fecha exatamente com o que o bloco "Resumo de horas" exibe.
+    const varTotals = {
+      discovery: Number(totals.discVal) || 0,
+      validation: Number(totals.validVal) || 0,
+      gp: Number(totals.gpVal) || 0,
+    };
+
+    const eligibleGrand = zero();
+    byCategory.forEach((entry) => {
+      eligibleGrand.discovery += entry.elig.discovery;
+      eligibleGrand.validation += entry.elig.validation;
+      eligibleGrand.gp += entry.elig.gp;
+    });
+
+    const share = (eligible: number, key: 'discovery' | 'validation' | 'gp') => {
+      const denominator = eligibleGrand[key];
+      if (!denominator) return 0;
+      return varTotals[key] * (eligible / denominator);
+    };
+
     const rows = Array.from(byCategory.entries())
-      .map(([cat, entry]) => ({
-        cat,
-        total: entry.total,
-        subs: Array.from(entry.subs.entries())
-          .map(([sub, hours]) => ({ sub, hours }))
-          .sort((a, b) => b.hours - a.hours),
-      }))
+      .map(([cat, entry]) => {
+        const contrib = {
+          discovery: share(entry.elig.discovery, 'discovery'),
+          validation: share(entry.elig.validation, 'validation'),
+          gp: share(entry.elig.gp, 'gp'),
+        };
+        const contribSum = contrib.discovery + contrib.validation + contrib.gp;
+
+        return {
+          cat,
+          total: entry.total,
+          contrib,
+          totalWithVariables: entry.total + contribSum,
+          subs: Array.from(entry.subs.entries())
+            .map(([sub, subEntry]) => {
+              const subContrib = {
+                discovery: share(subEntry.elig.discovery, 'discovery'),
+                validation: share(subEntry.elig.validation, 'validation'),
+                gp: share(subEntry.elig.gp, 'gp'),
+              };
+              return {
+                sub,
+                hours: subEntry.hours,
+                contrib: subContrib,
+                hoursWithVariables:
+                  subEntry.hours + subContrib.discovery + subContrib.validation + subContrib.gp,
+              };
+            })
+            .sort((a, b) => b.hours - a.hours),
+        };
+      })
       .sort((a, b) => b.total - a.total);
 
     const grand = rows.reduce((acc, r) => acc + r.total, 0);
-    return { rows, grand };
+    const grandWithVariables = rows.reduce((acc, r) => acc + r.totalWithVariables, 0);
+
+    return { rows, grand, grandWithVariables, varTotals };
   }, [
     totals.itemTotals,
     totals.flatHoursMarketplace,
+    totals.discVal,
+    totals.validVal,
+    totals.gpVal,
     packagesByCategory,
     layoutConfig.itemSubcategories,
     customPackages,
+    variableEligibility,
     t,
   ]);
+
+  /** Total do detalhamento conforme o toggle das horas proporcionais. */
+  const breakdownGrand = breakdownWithVariables
+    ? categoryBreakdown.grandWithVariables
+    : categoryBreakdown.grand;
+
+  /* ------------------------------------------------------------------------ */
+  /*        EXPORTAÇÃO DO ESCOPO COMO PROMPT PARA A SKILL scope-creator        */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * Itens que efetivamente entraram no escopo, com categoria e subcategoria.
+   * Sai de `totals.itemTotals`, então reflete quantidade, override manual e os
+   * dois filtros de plano — exatamente o que a tela está somando.
+   */
+  const scopeItems = useMemo(() => {
+    const out: ScopeExportItem[] = [];
+
+    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
+      (pkgs as any[]).forEach((pkg: any) => {
+        const hours = totals.itemTotals?.[pkg.id];
+        if (!hours) return;
+        const itemId = String(pkg.id);
+        const sub = layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
+        out.push({
+          // Nome canônico em português: é ele que a skill casa contra o
+          // template, que hoje só existe em pt-BR.
+          category: catLabelOf(cat),
+          subcategory: subcategoryLabel(t, sub),
+          label: String(pkg.name || ''),
+          quantity: parseFloat(formData[`item_${pkg.id}_qty`] || 0) || 0,
+          hours,
+        });
+      });
+    });
+
+    customPackages.forEach((pkg: any) => {
+      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
+      if (!hours) return;
+      out.push({
+        category: pkg.category || t('common.custom'),
+        subcategory: t('common.manual'),
+        label: String(pkg.name || t('common.custom')),
+        quantity: Number(pkg.qty || 1),
+        hours,
+      });
+    });
+
+    marketplaceApps.forEach((app: any) => {
+      out.push({
+        category: t('editor.marketplaceApps'),
+        subcategory: t('editor.flat5h'),
+        label: String(app?.name || app || 'App Marketplace'),
+        quantity: 1,
+        hours: 5,
+      });
+    });
+
+    return out.sort(
+      (a, b) =>
+        a.category.localeCompare(b.category) ||
+        a.subcategory.localeCompare(b.subcategory) ||
+        a.label.localeCompare(b.label),
+    );
+  }, [
+    packagesByCategory, totals.itemTotals, layoutConfig.itemSubcategories,
+    customPackages, marketplaceApps, formData, catLabelOf, t,
+  ]);
+
+  const scopePrompt = useMemo(() => {
+    // Módulos: derivados das CATEGORIAS que têm hora lançada. Um mapa fixo de
+    // módulos daria errado assim que a biblioteca mudasse.
+    const modules = Array.from(new Set(scopeItems.map((i) => i.category))).sort();
+
+    // Canais: itens das categorias de canal, com a quantidade lançada.
+    const channels = scopeItems
+      .filter((i) => fold(i.category).includes('canais') || fold(i.category).includes('channel'))
+      .map((i) => ({ label: i.label, quantity: i.quantity }));
+
+    // Integrações e apps, por tipo de origem.
+    const integrations: ScopeExportIntegration[] = scopeItems
+      .filter((i) => {
+        const cat = fold(i.category);
+        return cat.includes('integracoes nativas') || cat.includes('native integration')
+          || cat.includes('marketplace') || cat.includes('aplicativos aktienow')
+          || cat.includes('aktienow apps');
+      })
+      .map((i) => ({ kind: i.category, label: i.label, quantity: i.quantity }));
+
+    const devHours = Number(totals.skillTotals?.['Desenvolvimento'] || 0);
+    const designHours = Number(totals.skillTotals?.['Design'] || 0);
+
+    const flags = detectSuppressionFlags(scopeItems, {
+      // Estas duas não vêm de palavra-chave: vêm das horas por skill, que é o
+      // sinal correto para decidir se a seção 5.3 (Premissas de
+      // Desenvolvimento) permanece no documento.
+      desenvolvimento: devHours > 0,
+      design: designHours > 0,
+    });
+
+    return buildScopePrompt({
+      origin: 'framework',
+      template: 'pacote-de-horas',
+      clientName: project?.name || '',
+      projectName: project?.name || '',
+      versionName: versionName || currentVersion?.versionName || 'v1',
+      generatedAt: new Date(),
+      technicalScopeLink: techLink,
+      zohoLink,
+      preSalesName: project?.owner?.name || null,
+      totalHours: totals.grandTotal,
+      skillHours: totals.skillTotals,
+      percents: percents,
+      planTierLabel: PLAN_LABEL[planTier],
+      skuLabel: skuType === 'ES' ? t('plans.employeeService') : t('plans.customerService'),
+      modules,
+      channels,
+      integrations,
+      flags,
+      categories: categoryBreakdown.rows.map((row) => ({
+        label: catLabelOf(row.cat),
+        hours: row.total,
+        subcategories: row.subs.map((s) => ({
+          label: subcategoryLabel(t, s.sub),
+          hours: s.hours,
+        })),
+      })),
+      items: scopeItems,
+      // Fase 2: preencher a partir do Zoho CRM.
+      crm: null,
+    });
+  }, [
+    scopeItems, project, versionName, currentVersion, techLink, zohoLink,
+    totals.grandTotal, totals.skillTotals, percents, planTier, skuType,
+    categoryBreakdown.rows, catLabelOf, t,
+  ]);
+
+  const [scopePromptCopied, setScopePromptCopied] = useState(false);
+
+  const handleCopyScopePrompt = async () => {
+    // O escopo exportado descreve a versão SALVA; avisar é mais honesto do que
+    // exportar silenciosamente um rascunho.
+    if (!currentVersion) {
+      alert(t('editor.scopePromptNeedsSave'));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(scopePrompt);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = scopePrompt;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+    setScopePromptCopied(true);
+    setTimeout(() => setScopePromptCopied(false), 2500);
+  };
 
   const handleInputChange = (e: any) => {
     const { name, value, type, checked } = e.target;
@@ -1581,6 +1928,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <span>{t('editor.export')}</span>
                 </Link>
               )}
+              {/* Copia o escopo como prompt pronto para a skill scope-creator.
+                  A geração do documento é manual e proposital: nada aqui chama
+                  a API da Claude. */}
+              <button
+                type="button"
+                onClick={handleCopyScopePrompt}
+                disabled={isPending || !currentVersion}
+                title={currentVersion ? t('editor.copyScopePromptHint') : t('editor.scopePromptNeedsSave')}
+                className={`flex-1 lg:flex-none px-6 py-3.5 rounded-xl font-black transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50 ${
+                  scopePromptCopied
+                    ? 'bg-brand-primary text-white'
+                    : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white'
+                }`}
+              >
+                {scopePromptCopied ? <Check className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
+                <span>{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+              </button>
             </div>
           </div>
 
@@ -1615,6 +1979,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               {planExcludedCount > 0 && (
                 <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-black uppercase tracking-widest">
                   {t('plans.excludedCount', { count: planExcludedCount })}
+                </span>
+              )}
+              {planExcludedCategories.length > 0 && (
+                <span
+                  title={planExcludedCategories.map((cat: string) => catLabelOf(cat)).join(' · ')}
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-[8px] font-black uppercase tracking-widest"
+                >
+                  {t('plans.excludedCategories', {
+                    count: planExcludedCategories.length,
+                    list: planExcludedCategories.map((cat: string) => catLabelOf(cat)).join(', '),
+                  })}
                 </span>
               )}
             </div>
@@ -1766,7 +2141,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </div>
                 <div className="flex items-center gap-3">
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
-                    {orderedCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length}
+                    {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-[color:var(--text-muted)] transition-transform ${isModuleSelectOpen ? 'rotate-180' : ''}`} />
                 </div>
@@ -1775,7 +2150,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               {isModuleSelectOpen && (
                 <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-300 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-none">
                   <div className="max-h-[360px] overflow-auto divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
-                    {orderedCategories.map((cat: string, index: number) => {
+                    {visibleCategories.map((cat: string, index: number) => {
                       const isChecked = formData[`check_area_${cat}`] === 'on';
                       return (
                         <button
@@ -1824,7 +2199,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 e.stopPropagation();
                                 void reorderCategory(cat, 'down');
                               }}
-                              disabled={index === orderedCategories.length - 1}
+                              disabled={index === visibleCategories.length - 1}
                               className="p-2 rounded-2xl bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
                               title={t('editor.moveCategoryDown')}
                             >
@@ -1866,12 +2241,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {orderedCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
+            {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
               <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
                 {t('editor.noModuleSelected')}
               </div>
             ) : (
-              orderedCategories
+              visibleCategories
                 .filter((cat: string) => formData[`check_area_${cat}`] === 'on')
                 .map((cat: string) => (
                   <button
@@ -2031,7 +2406,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         )}
 
-        {orderedCategories.map((cat: string) => (
+        {visibleCategories.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
             <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-[2rem] border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
               <div 
@@ -2486,10 +2861,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           <div className="flex items-center gap-4 shrink-0">
             <div className="text-right">
               <div className="text-xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter tabular-nums leading-none">
-                {categoryBreakdown.grand.toFixed(1)}<span className="text-[10px] ml-0.5">h</span>
+                {breakdownGrand.toFixed(1)}<span className="text-[10px] ml-0.5">h</span>
               </div>
               <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
-                {formatHoursMinutes(categoryBreakdown.grand)}
+                {formatHoursMinutes(breakdownGrand)}
               </div>
             </div>
             <ChevronRight
@@ -2500,6 +2875,46 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
         {categoryBreakdownOpen && (
           <div className="px-6 md:px-8 pb-8 animate-in fade-in slide-in-from-top-2 duration-300">
+            {/* Toggle: somar as horas proporcionais de Discovery, GP e Validação */}
+            <div className="mb-5 rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50/60 dark:bg-[#0f0f0f] px-4 py-3.5">
+              <label className="flex items-start justify-between gap-4 cursor-pointer">
+                <span className="min-w-0">
+                  <span className="block text-[10px] font-black uppercase tracking-widest text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.includeProportionalVariables')}
+                  </span>
+                  <span className="block text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-1 leading-relaxed">
+                    {t('editor.includeProportionalVariablesHint')}
+                  </span>
+                </span>
+                <span className="shrink-0 inline-flex items-center pt-0.5">
+                  <input
+                    type="checkbox"
+                    checked={breakdownWithVariables}
+                    onChange={(e) => setBreakdownWithVariables(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <span className="relative w-11 h-6 bg-slate-200 dark:bg-[#1f1f1f] rounded-full peer peer-focus:ring-2 peer-focus:ring-brand-primary peer-checked:brand-bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:border-slate-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+                </span>
+              </label>
+
+              {breakdownWithVariables && (
+                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] flex flex-wrap items-center gap-x-5 gap-y-2">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+                    {t('editor.distributedTotals')}
+                  </span>
+                  <span className="text-[9px] font-black tabular-nums text-amber-600">
+                    {t('ae.discovery')} {percents.discovery}% · {categoryBreakdown.varTotals.discovery.toFixed(1)}h
+                  </span>
+                  <span className="text-[9px] font-black tabular-nums text-blue-600">
+                    {t('ae.validation')} {percents.validation}% · {categoryBreakdown.varTotals.validation.toFixed(1)}h
+                  </span>
+                  <span className="text-[9px] font-black tabular-nums text-brand-secondary dark:text-[color:var(--secondary)]">
+                    {t('editor.skillGP')} {percents.gp}% · {categoryBreakdown.varTotals.gp.toFixed(1)}h
+                  </span>
+                </div>
+              )}
+            </div>
+
             {categoryBreakdown.rows.length === 0 ? (
               <div className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
                 {t('editor.categoryBreakdownEmpty')}
@@ -2526,7 +2941,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="space-y-2">
                   {categoryBreakdown.rows.map((row) => {
                     const isOpen = Boolean(openBreakdownCats[row.cat]);
-                    const share = categoryBreakdown.grand > 0 ? (row.total / categoryBreakdown.grand) * 100 : 0;
+                    const rowValue = breakdownWithVariables ? row.totalWithVariables : row.total;
+                    const share = breakdownGrand > 0 ? (rowValue / breakdownGrand) * 100 : 0;
                     return (
                       <div key={row.cat} className="rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] overflow-hidden">
                         <button
@@ -2550,32 +2966,51 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             </span>
                             <div className="text-right">
                               <div className="text-xs font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
-                                {row.total.toFixed(1)}h
+                                {rowValue.toFixed(1)}h
                               </div>
                               <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
-                                {formatHoursMinutes(row.total)}
+                                {formatHoursMinutes(rowValue)}
                               </div>
+                              {breakdownWithVariables && (
+                                <div className="flex items-center justify-end gap-2 mt-1 text-[8px] font-black tabular-nums">
+                                  <span className="text-slate-400 dark:text-[color:var(--text-muted)]">{row.total.toFixed(1)}</span>
+                                  <span className="text-amber-600" title={t('ae.discovery')}>+{row.contrib.discovery.toFixed(1)}</span>
+                                  <span className="text-blue-600" title={t('ae.validation')}>+{row.contrib.validation.toFixed(1)}</span>
+                                  <span className="text-brand-secondary dark:text-[color:var(--secondary)]" title={t('editor.skillGP')}>+{row.contrib.gp.toFixed(1)}</span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </button>
 
                         {isOpen && (
                           <div className="divide-y divide-slate-100 dark:divide-[color:var(--border-main)]">
-                            {row.subs.map(({ sub, hours }) => (
+                            {row.subs.map(({ sub, hours, contrib, hoursWithVariables }) => {
+                              const subValue = breakdownWithVariables ? hoursWithVariables : hours;
+                              return (
                               <div key={sub} className="flex items-center justify-between gap-3 px-4 py-2.5 pl-10">
                                 <span className="text-[10px] font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
                                   {subcategoryLabel(t, sub)}
                                 </span>
                                 <div className="text-right shrink-0">
                                   <div className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
-                                    {hours.toFixed(1)}h
+                                    {subValue.toFixed(1)}h
                                   </div>
                                   <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
-                                    {formatHoursMinutes(hours)}
+                                    {formatHoursMinutes(subValue)}
                                   </div>
+                                  {breakdownWithVariables && (
+                                    <div className="flex items-center justify-end gap-2 mt-1 text-[8px] font-black tabular-nums">
+                                      <span className="text-slate-400 dark:text-[color:var(--text-muted)]">{hours.toFixed(1)}</span>
+                                      <span className="text-amber-600" title={t('ae.discovery')}>+{contrib.discovery.toFixed(1)}</span>
+                                      <span className="text-blue-600" title={t('ae.validation')}>+{contrib.validation.toFixed(1)}</span>
+                                      <span className="text-brand-secondary dark:text-[color:var(--secondary)]" title={t('editor.skillGP')}>+{contrib.gp.toFixed(1)}</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>

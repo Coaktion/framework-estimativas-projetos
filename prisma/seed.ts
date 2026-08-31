@@ -230,15 +230,35 @@ async function main() {
     "Design": "Design",
   }
 
+  /**
+   * Porteira de plano por CATEGORIA (item 6).
+   *
+   * Deixada vazia de propósito: a restrição por categoria é uma decisão
+   * comercial, configurada no painel Admin. Preencha aqui apenas o que deve
+   * valer como padrão de fábrica — por exemplo:
+   *
+   *   "Asset Management": { cs: "enterprise", es: "enterprise" },
+   *
+   * O upsert abaixo só grava quando existe entrada neste mapa, então rodar o
+   * seed de novo NÃO apaga a porteira que alguém configurou pelo painel.
+   */
+  const CATEGORY_MIN_PLAN: Record<string, { cs?: string; es?: string }> = {
+  }
+
   // 1. Extract and Upsert Categories
   const uniqueCategories = Array.from(new Set(packagesData.map(p => p.categoryName)))
   console.log(`Upserting ${uniqueCategories.length} categories...`)
   for (const catName of uniqueCategories) {
     const catNameEn = CATEGORY_EN[catName] || ""
+    const gate = CATEGORY_MIN_PLAN[catName]
+    const gateFields = {
+      ...(gate?.cs !== undefined ? { minPlanCS: gate.cs } : {}),
+      ...(gate?.es !== undefined ? { minPlanES: gate.es } : {}),
+    }
     await prisma.category.upsert({
       where: { name: catName },
-      update: { isActive: true, displayNameEn: catNameEn },
-      create: { name: catName, isActive: true, displayNameEn: catNameEn }
+      update: { isActive: true, displayNameEn: catNameEn, ...gateFields },
+      create: { name: catName, isActive: true, displayNameEn: catNameEn, ...gateFields }
     })
   }
 
