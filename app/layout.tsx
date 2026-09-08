@@ -46,7 +46,7 @@ export default async function RootLayout({
                 </svg>
               </div>
               <span className="text-xl font-black text-brand-dark tracking-tighter uppercase font-heading group-hover:tracking-normal transition-all duration-500">
-                PRE-SALES<span className="text-brand-accent">.AI</span>
+                TOOL<span className="text-brand-accent"> CENTER</span>
               </span>
             </Link>
 

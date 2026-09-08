@@ -52,7 +52,7 @@ export default function LoginPage() {
           </div>
         </div>
         <h1 className="text-5xl font-black text-brand-dark tracking-tighter uppercase font-heading leading-tight">
-          PRE-SALES<span className="text-brand-accent">.AI</span>
+          Aktie Now <span className="text-brand-accent">Tools Center</span>
         </h1>
         <p className="text-slate-400 text-[10px] font-black uppercase tracking-[0.4em]">{t('login.restrictedAccess')}</p>
       </div>

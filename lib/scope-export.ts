@@ -404,7 +404,7 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   push();
 
   // ---- Envelope -----------------------------------------------------------
-  push(`===== PRE-SALES.AI · ESCOPO TÉCNICO · ${SCOPE_EXPORT_VERSION} =====`);
+  push(`===== Aktie Now Tools Center · ESCOPO TÉCNICO · ${SCOPE_EXPORT_VERSION} =====`);
   push(`ORIGEM: ${input.origin}`);
   push(`TEMPLATE: ${input.template}  # ${TEMPLATE_LABEL[input.template]}`);
   // A linha que decide o idioma do DOCUMENTO. Segue a interface.
