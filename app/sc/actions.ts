@@ -2,7 +2,6 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
@@ -26,7 +25,7 @@ export async function createProjectAction(formData: FormData) {
   });
 
   revalidatePath("/sc");
-  redirect(`/sc/project/${project.id}`);
+  return { ok: true as const, projectId: project.id };
 }
 
 export async function deleteProjectAction(projectId: number) {

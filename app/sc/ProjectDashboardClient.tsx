@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useTransition, useMemo } from 'react';
+import type { FormEvent } from 'react';
 import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createProjectAction, deleteProjectAction } from './actions';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
@@ -27,10 +29,32 @@ type ProjectVersionChip = {
 export default function ProjectDashboardClient({ projects, currentUserId }: any) {
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
+  const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const [isCreatingProject, startCreatingProject] = useTransition();
+  const [isDeletingProject, startDeletingProject] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
   const [projectScope, setProjectScope] = useState<'mine' | 'all'>('mine');
+
+  const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (isCreatingProject) return;
+
+    const form = event.currentTarget;
+    const formData = new FormData(form);
+
+    startCreatingProject(async () => {
+      try {
+        const result = await createProjectAction(formData);
+        if (result?.ok) {
+          router.push(`/sc/project/${result.projectId}`);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Não foi possível criar o projeto. Tente novamente.');
+      }
+    });
+  };
 
   const filteredProjects = useMemo(() => {
     const scoped = projectScope === 'mine'
@@ -45,9 +69,16 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
   }, [projects, currentUserId, projectScope, searchQuery]);
 
   const handleDelete = async (id: number, name: string) => {
+    if (isDeletingProject) return;
     if (confirm(t('sc.confirmDelete', { name }))) {
-      startTransition(async () => {
-        await deleteProjectAction(id);
+      startDeletingProject(async () => {
+        try {
+          await deleteProjectAction(id);
+          router.refresh();
+        } catch (err) {
+          console.error(err);
+          alert('Não foi possível excluir o projeto. Tente novamente.');
+        }
       });
     }
   };
@@ -95,10 +126,11 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
             />
           </div>
           <button 
-            onClick={() => setIsModalOpen(true)}
-            className="w-full md:w-auto brand-bg-primary text-white px-10 py-5 rounded-[2rem] font-black hover:opacity-90 shadow-2xl btn-premium transition-all flex items-center justify-center space-x-4 text-xs uppercase tracking-[0.2em]"
+            onClick={() => !isCreatingProject && !isDeletingProject && setIsModalOpen(true)}
+            disabled={isCreatingProject || isDeletingProject}
+            className="w-full md:w-auto brand-bg-primary text-white px-10 py-5 rounded-[2rem] font-black hover:opacity-90 shadow-2xl btn-premium transition-all flex items-center justify-center space-x-4 text-xs uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-5 h-5 shrink-0" />
             <span>{t('sc.newProject')}</span>
           </button>
         </div>
@@ -121,12 +153,12 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                     <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border flex items-center space-x-2 ${
                       project.isPrivate ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
-                      {project.isPrivate ? <Lock className="w-2 h-2" /> : <Globe className="w-2 h-2" />}
+                      {project.isPrivate ? <Lock className="w-2 h-2 shrink-0" /> : <Globe className="w-2 h-2 shrink-0" />}
                       <span>{project.isPrivate ? t('common.private') : t('common.public')}</span>
                     </span>
                     {project.status === 'AE_ESTIMATE' && (
                       <span className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-purple-50 text-purple-600 border-purple-100 flex items-center space-x-2">
-                        <Zap className="w-2 h-2" />
+                        <Zap className="w-2 h-2 shrink-0" />
                         <span>{t('sc.legacyAE')}</span>
                       </span>
                     )}
@@ -160,8 +192,6 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                             <Link
                               key={String(v.id)}
                               href={`/sc/project/${project.id}?version_id=${v.id}`}
-                              // `versionName` é texto livre; vale como dica de
-                              // contexto, mas não como identificador na etiqueta.
                               title={v.versionName || undefined}
                               className={`
                                 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all
@@ -190,14 +220,15 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   className="text-[10px] font-black text-brand-dark hover:text-brand-primary uppercase tracking-widest flex items-center space-x-2 transition-all"
                 >
                     <span>{t('sc.editScope')}</span>
-                    <ExternalLink className="w-3 h-3" />
+                    <ExternalLink className="w-3 h-3 shrink-0" />
                   </Link>
                 <button 
                   onClick={() => handleDelete(project.id, project.name)}
-                  disabled={isPending}
-                  className="text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50"
+                  disabled={isDeletingProject}
+                  className="text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
+                  title={t('common.delete')}
                 >
-                  {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                  {isDeletingProject ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Trash2 className="w-4 h-4 shrink-0" />}
                 </button>
               </div>
             </div>
@@ -207,54 +238,71 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
 
       {/* Modal de Novo Projeto */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4">
-          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
+        <div
+          className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
+          onClick={(e) => { if (!isCreatingProject && e.target === e.currentTarget) setIsModalOpen(false); }}
+        >
+          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20 relative">
             <div className="brand-bg-primary p-10 flex justify-between items-center">
               <div>
                 <h3 className="text-2xl font-black text-white font-heading uppercase tracking-tight">{t('sc.newProject')}</h3>
                 <p className="text-white/60 text-xs mt-2 font-bold uppercase tracking-widest">{t('sc.modalSubtitle')}</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-white/60 hover:text-white transition-colors">
-                <X className="w-6 h-6" />
+              <button
+                type="button"
+                onClick={() => !isCreatingProject && setIsModalOpen(false)}
+                disabled={isCreatingProject}
+                className="text-white/60 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
+                aria-label={t('common.close')}
+              >
+                <X className="w-6 h-6 shrink-0" />
               </button>
             </div>
             
-            <form action={createProjectAction} className="p-10 space-y-8">
+            <form onSubmit={handleCreateSubmit} className="p-10 space-y-8">
               <div className="space-y-4">
                 <label className="block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1">{t('sc.projectName')}</label>
-                <input 
-                  type="text" 
-                  name="name" 
-                  placeholder={t('sc.projectNamePlaceholder')} 
-                  className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
-                  required 
+                <input
+                  type="text"
+                  name="name"
+                  placeholder={t('sc.projectNamePlaceholder')}
+                  className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  required
+                  disabled={isCreatingProject}
+                  autoFocus
                 />
               </div>
 
-              <div className="flex items-center space-x-4 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:border-[color:var(--border-main)] p-6 rounded-2xl border border-slate-100">
-                <div className="flex-1">
-                  <label htmlFor="isPrivate" className="block text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{t('sc.privacy')}</label>
+              <div className="flex items-center space-x-4 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)] p-6 rounded-2xl border border-slate-100">
+                <div className="flex-1 min-w-0">
+                  <label htmlFor="isPrivate" className={`block text-sm font-black tracking-tight ${isCreatingProject ? 'text-slate-400 dark:text-[color:var(--text-muted)]' : 'text-brand-dark dark:text-[color:var(--text-main)]'}`}>{t('sc.privacy')}</label>
                   <p className="text-[10px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">{t('sc.privacyHint')}</p>
                 </div>
-                <div className="relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full bg-slate-200 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)]">
-                  <input type="checkbox" name="isPrivate" id="isPrivate" className="absolute w-6 h-6 transition duration-200 ease-in-out transform bg-white dark:bg-[color:var(--bg-card)] border-4 border-slate-200 dark:border-[color:var(--border-main)] rounded-full appearance-none cursor-pointer checked:translate-x-6 checked:border-brand-primary outline-none" />
+                <div className={`relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full shrink-0 ${isCreatingProject ? 'opacity-50 cursor-not-allowed' : ''} bg-slate-200 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)]`}>
+                  <input
+                    type="checkbox"
+                    name="isPrivate"
+                    id="isPrivate"
+                    disabled={isCreatingProject}
+                    className="absolute w-6 h-6 transition duration-200 ease-in-out transform bg-white dark:bg-[color:var(--bg-card)] border-4 border-slate-200 dark:border-[color:var(--border-main)] rounded-full appearance-none cursor-pointer checked:translate-x-6 checked:border-brand-primary outline-none disabled:cursor-not-allowed"
+                  />
                 </div>
               </div>
 
               <div className="flex flex-col space-y-4 pt-4">
-                <button 
-                  type="submit" 
-                  disabled={isPending}
-                  className="w-full brand-bg-primary text-white py-5 rounded-2xl text-xs font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase tracking-[0.2em] disabled:opacity-50 flex items-center justify-center space-x-2"
+                <button
+                  type="submit"
+                  disabled={isCreatingProject}
+                  className="w-full brand-bg-primary text-white py-5 rounded-2xl text-xs font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>{t('sc.createProject')}</span>
+                  <Loader2 className={`w-4 h-4 shrink-0 animate-spin ${isCreatingProject ? 'opacity-100' : 'opacity-0'}`} style={{ width: isCreatingProject ? '1rem' : 0, height: isCreatingProject ? '1rem' : 0 }} />
+                  <span className="truncate">{t('sc.createProject')}</span>
                 </button>
-                <button 
-                  type="button" 
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={isPending}
-                  className="w-full py-4 text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors uppercase tracking-[0.2em] disabled:opacity-50"
+                <button
+                  type="button"
+                  onClick={() => !isCreatingProject && setIsModalOpen(false)}
+                  disabled={isCreatingProject}
+                  className="w-full py-4 text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('common.cancel')}
                 </button>

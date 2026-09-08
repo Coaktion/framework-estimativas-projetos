@@ -116,7 +116,8 @@ export default async function ProjectEditorPage({
     : allVersions[0];
 
   return (
-    <ProjectEditorClient 
+    <ProjectEditorClient
+      key={`sc-project-${project.id}-v-${currentVersion?.id ?? 'new'}`}
       project={project}
       categories={categories}
       categoryLabels={categoryLabels}

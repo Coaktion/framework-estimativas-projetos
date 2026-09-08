@@ -2021,31 +2021,25 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </div>
             </div>
             
-            <div className="flex items-center gap-3 w-full lg:w-auto">
+            <div className="flex items-center gap-3 w-full lg:w-auto min-w-0">
               <button 
                 type="button" 
                 onClick={handleSave}
                 disabled={isPending}
-                className="flex-1 lg:flex-none bg-brand-primary text-white px-6 py-3.5 rounded-xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50"
+                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 bg-brand-primary text-white px-4 lg:px-6 py-3.5 rounded-xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden"
               >
-                {isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                <span>{t('common.save')}</span>
+                {isPending ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Check className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{t('common.save')}</span>
               </button>
               <button 
                 type="button" 
                 onClick={handleClone}
                 disabled={isPending || !currentVersion}
-                className="flex-1 lg:flex-none border-2 border-brand-primary text-brand-primary px-6 py-3.5 rounded-xl font-black hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50"
+                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 border-2 border-brand-primary text-brand-primary px-4 lg:px-6 py-3.5 rounded-xl font-black hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden"
               >
-                <Copy className="w-3.5 h-3.5" />
-                <span>{t('editor.clone')}</span>
+                <Copy className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{t('editor.clone')}</span>
               </button>
-              {currentVersion && (
-                <Link href={`/sc/project/${project.id}/export?version_id=${currentVersion.id}`} className="flex-1 lg:flex-none bg-brand-dark text-white px-6 py-3.5 rounded-xl font-black hover:bg-slate-800 transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest text-center">
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{t('editor.export')}</span>
-                </Link>
-              )}
               {/* Copia o escopo como prompt pronto para a skill scope-creator.
                   A geração do documento é manual e proposital: nada aqui chama
                   a API da Claude. */}
@@ -2054,14 +2048,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 onClick={handleCopyScopePrompt}
                 disabled={isPending || !currentVersion}
                 title={currentVersion ? t('editor.copyScopePromptHint') : t('editor.scopePromptNeedsSave')}
-                className={`flex-1 lg:flex-none px-6 py-3.5 rounded-xl font-black transition-all flex items-center justify-center space-x-2 text-[10px] uppercase tracking-widest disabled:opacity-50 ${
+                className={`shrink-1 min-w-0 lg:flex-none lg:shrink-0 px-4 lg:px-6 py-3.5 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden ${
                   scopePromptCopied
                     ? 'bg-brand-primary text-white'
                     : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white'
                 }`}
               >
-                {scopePromptCopied ? <Check className="w-3.5 h-3.5" /> : <MessageSquare className="w-3.5 h-3.5" />}
-                <span>{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                {scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
               </button>
             </div>
           </div>
