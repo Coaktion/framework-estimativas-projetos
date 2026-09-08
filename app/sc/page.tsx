@@ -22,10 +22,43 @@ export default async function ProjectDashboard() {
       ]
     },
     orderBy: { updatedAt: 'desc' },
-    include: { owner: true },
+    include: {
+      owner: true,
+      // As versões vêm junto para que o card mostre os atalhos "V1 · 108h".
+      // Ordem CRESCENTE por criação: é ela que define o número ordinal da
+      // versão (V1, V2...), já que `versionName` é texto livre e pode ser
+      // qualquer coisa ("Proposta Final", "Rev. cliente").
+      versions: {
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          versionName: true,
+          totalHours: true,
+          createdAt: true,
+        },
+      },
+    },
   });
 
+  /**
+   * Achata as versões no formato que o card consome, já numeradas.
+   *
+   * `totalHours` pode vir 0 em versões salvas antes da coluna existir; nesse
+   * caso o chip mostra só "V2", sem horas — melhor do que anunciar "0h" como
+   * se fosse um escopo vazio.
+   */
+  const projectsWithVersions = projects.map((project: any) => ({
+    ...project,
+    versions: (project.versions || []).map((v: any, index: number) => ({
+      id: v.id,
+      ordinal: index + 1,
+      versionName: v.versionName || '',
+      totalHours: Number(v.totalHours) || 0,
+      createdAt: v.createdAt,
+    })),
+  }));
+
   return (
-    <ProjectDashboardClient projects={projects} currentUserId={userId} />
+    <ProjectDashboardClient projects={projectsWithVersions} currentUserId={userId} />
   );
 }

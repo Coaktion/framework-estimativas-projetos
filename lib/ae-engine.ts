@@ -59,6 +59,14 @@ export const AE_DATABASE = {
     funcoes: 0.25,
     grupos: 0.05,
     campos_ticket: 0.08,
+    /**
+     * Formulários — substitui o antigo "Canal: Formulário web".
+     *
+     * O canal media só os formulários VOLTADOS AO USUÁRIO FINAL. Este item mede
+     * o total de formulários criados, inclusive os internos que existem mesmo
+     * quando nenhum formulário é publicado para o cliente.
+     */
+    formularios: 0.08,
     condicionais_campos: 0.02,
     campos_usuario: 0.05,
     campos_organizacao: 0.05,
@@ -102,44 +110,57 @@ export const AE_DATABASE = {
     membro_equipe: 0.05,
     marca: 0.25,
     canal_email: 0.17,
-    canal_web_form: 0.08,
     canal_web_widget: 0.42,
     canal_exige_reuniao: 0.17,
     /** Floor applied to the "channels requiring a meeting" bucket [row 47] */
     canal_exige_reuniao_minimo: 0.5,
     // Misc
-    conteudo_dinamico: 0.08, // multi-language [row 110]
-    artigo: 0.1, // Knowledge article [row 93]
+    artigo: 0.1, // Knowledge article [row 93] — é a configuração geral de Knowledge
+    /** Piso da configuração geral de Knowledge, mesmo com 0 artigos [row 93] */
+    knowledge_minimo: 2.0,
     integracao_nativa: 2.0, // flat, every native integration [rows 74-79]
     action_flow: 4.5, // per external service [row 111]
     conversa_paralela: 0.5, // Teams / Slack side conversation [rows 94-95]
     sso: 2.0, // [row 51]
   },
 
-  /** Per-module general configuration [row 52] */
+  /**
+   * Per-module general configuration [row 52].
+   *
+   * Knowledge NÃO aparece aqui: a configuração geral de Knowledge É o cálculo
+   * de artigos (0,1 h por artigo, piso de 2 h). Antes havia as duas coisas —
+   * uma linha fixa de 0,1 h somada à linha de artigos —, o que exibia um
+   * "Configuração geral: Knowledge · 0.1h" sem significado ao lado do valor
+   * real. Ver `knowledgeHoras` abaixo.
+   *
+   * AI Agents também saiu: a Calculadora AE não dimensiona AI Agents (o módulo
+   * continua existindo no Framework e no painel admin).
+   */
   configuracoes_gerais: {
     support: 1.0,
-    knowledge: 0.1,
     community: 1.0,
     analytics: 3.5,
     voice: 0.5,
     copilot: 0.5,
     qa: 1.0,
     wfm: 0.33,
-    ai_agents: 0.75,
     adpp: 1.5,
   },
 
-  /** Admin + agent training, summed per module [row 53] */
+  /**
+   * Admin + agent training, summed per module [row 53].
+   *
+   * `analytics_avancado` foi removido: a Calculadora AE não oferece mais a
+   * escolha entre treinamento básico e avançado de Analytics — Analytics entra
+   * pelo treinamento de Suite, como Support e Knowledge.
+   */
   treinamentos: {
     suite: 3.0, // Support and/or Knowledge and/or Analytics
-    analytics_avancado: 6.0, // ADDITIVE on top of `suite`
     community: 1.5,
     voice: 2.5,
     copilot: 2.5,
     qa: 2.0,
     wfm: 3.0,
-    ai_agents: 4.0,
     adpp: 1.0,
   },
 
@@ -180,12 +201,11 @@ export const AE_DATABASE = {
     other_marketplace: 5.0, // per app
   },
 
-  /** Workshops [rows 104-109] */
+  /** Workshops [rows 104-109]. Sem AI Agents — fora do escopo da Calculadora. */
   workshops: {
     suite: 1.0,
     voice: 0.5,
     copilot: 0.5,
-    ai_agents: 0.5,
     qa: 0.5,
     wfm: 0.5,
   },
@@ -269,6 +289,15 @@ const CHANNELS_WITH_OWN_TICKET_FIELD_WEIGHT = new Set<string>([
 export type ZendeskPlan = 'team' | 'growth' | 'professional' | 'enterprise';
 export type SkuType = 'CS' | 'ES';
 export type OperationType = 'B2C' | 'B2B' | 'B2E';
+/**
+ * Módulos que a Calculadora AE dimensiona.
+ *
+ * 'AI Agents' NÃO está na lista: a Calculadora não estima AI Agents (nem
+ * configuração geral, nem treinamento, nem workshop). O módulo continua
+ * existindo no Framework e no painel administrativo — a exclusão vale só aqui.
+ * Estimativas antigas que gravaram 'AI Agents' são higienizadas em
+ * `modulesAllowedOnPlan` (ver AE_UNSUPPORTED_MODULES).
+ */
 export type ModuleKey =
   | 'Support'
   | 'Knowledge'
@@ -278,7 +307,6 @@ export type ModuleKey =
   | 'Copilot'
   | 'QA'
   | 'WFM'
-  | 'AI Agents'
   | 'ADPP';
 export type MarketplaceAppKey =
   | 'woocommerce'
@@ -305,9 +333,12 @@ export interface AEInputData {
   /** Per-channel quantity. A selected channel with no entry defaults to 1. */
   channelQuantities: Partial<Record<ChannelKey, number>>;
 
+  /**
+   * Artigos de Knowledge. Alimenta a configuração geral de Knowledge —
+   * 0,1 h por artigo, com piso de 2 h. Não há mais nenhuma outra linha de
+   * Knowledge no cálculo.
+   */
   knowledgeArticles: number;
-  operationLanguages: number;
-  analyticsTrainingType: 'basic' | 'advanced';
 
   /** Native Zendesk integrations — flat 2 h each, no quantity */
   selectedNativeConnections: string[];
@@ -331,40 +362,125 @@ export interface AEInputData {
 // Validation — the Calculate button should be disabled while this returns errors
 // ---------------------------------------------------------------------------
 
-export interface AEValidationResult {
-  valid: boolean;
-  errors: string[];
+/**
+ * Um problema de validação, em forma TRADUZÍVEL.
+ *
+ * A UI monta a mensagem com `t('aeValidation.' + code, params)`. Antes a
+ * validação devolvia só frases em inglês cravadas no engine, que apareciam em
+ * inglês mesmo com a interface em português. `message` continua existindo como
+ * texto de último recurso (logs, chamadas fora da UI).
+ */
+export interface AEValidationIssue {
+  code: string;
+  params?: Record<string, string | number>;
+  message: string;
 }
 
+export interface AEValidationResult {
+  valid: boolean;
+  /** Frases em inglês — mantidas para quem já consumia este campo. */
+  errors: string[];
+  issues: AEValidationIssue[];
+}
+
+/** Limite de marcas por plano. `null` = sem limite. */
+export const BRAND_LIMIT_BY_PLAN: Record<ZendeskPlan, number | null> = {
+  team: 1,
+  growth: 5,
+  professional: 5,
+  enterprise: null,
+};
+
+/** Limite de formulários web por plano. `null` = sem limite. */
+export const WEB_FORM_LIMIT_BY_PLAN: Record<ZendeskPlan, number | null> = {
+  team: 1,
+  growth: null,
+  professional: null,
+  enterprise: null,
+};
+
+export const PLAN_DISPLAY_NAME: Record<ZendeskPlan, string> = {
+  team: 'Suite Team',
+  growth: 'Suite Growth',
+  professional: 'Suite Professional',
+  enterprise: 'Suite Enterprise',
+};
+
 export function validateAEInputs(inputs: Partial<AEInputData>): AEValidationResult {
-  const errors: string[] = [];
+  const issues: AEValidationIssue[] = [];
+  const add = (
+    code: string,
+    message: string,
+    params?: Record<string, string | number>,
+  ) => issues.push({ code, message, params });
 
   if (!inputs.selectedModules?.length) {
-    errors.push('Select at least one Zendesk module.');
+    add('selectModule', 'Select at least one Zendesk module.');
   }
   if (!inputs.selectedChannels?.length) {
-    errors.push('Select at least one channel.');
+    add('selectChannel', 'Select at least one channel.');
   }
   if (!inputs.operationTypes?.length) {
-    errors.push('Select at least one operation type (B2C, B2B or B2E).');
+    add('selectOperation', 'Select at least one operation type (B2C, B2B or B2E).');
   }
   if (!inputs.zendeskPlan) {
-    errors.push('Select a Zendesk plan.');
+    add('selectPlan', 'Select a Zendesk plan.');
   }
   if (!inputs.skuType) {
-    errors.push('Select an instance type (Customer Service or Employee Service).');
+    add('selectSku', 'Select an instance type (Customer Service or Employee Service).');
   }
   if (!inputs.agents || inputs.agents < 1) {
-    errors.push('Number of agents must be at least 1.');
+    add('minAgents', 'Number of agents must be at least 1.');
   }
   if (!inputs.brands || inputs.brands < 1) {
-    errors.push('Number of brands must be at least 1.');
+    add('minBrands', 'Number of brands must be at least 1.');
   }
   if (!inputs.areas || inputs.areas < 1) {
-    errors.push('Number of areas must be at least 1.');
+    add('minAreas', 'Number of areas must be at least 1.');
   }
-  if (inputs.operationLanguages !== undefined && inputs.operationLanguages < 1) {
-    errors.push('Number of operation languages must be at least 1.');
+
+  /* ---------------------------------------------------------------------- *
+   * TETOS DO PLANO ZENDESK                                                  *
+   *                                                                         *
+   * São limites do produto, não escolhas de dimensionamento: um Suite Team  *
+   * não tem como ter duas marcas. Sem estas travas a calculadora produzia   *
+   * felizmente uma estimativa para um cenário impossível de contratar.      *
+   * ---------------------------------------------------------------------- */
+  let planKey: ZendeskPlan | null = null;
+  try {
+    if (inputs.zendeskPlan) planKey = normalizePlan(inputs.zendeskPlan);
+  } catch {
+    planKey = null;
+  }
+
+  if (planKey) {
+    const planName = PLAN_DISPLAY_NAME[planKey];
+
+    const brandLimit = BRAND_LIMIT_BY_PLAN[planKey];
+    if (brandLimit !== null && Number(inputs.brands || 0) > brandLimit) {
+      if (brandLimit === 1) {
+        add('teamSingleBrand', `${planName} only allows a single Brand.`, {
+          plan: planName,
+        });
+      } else {
+        add(
+          'planBrandLimit',
+          `${planName} only allows for up to ${brandLimit} Brands.`,
+          { plan: planName, limit: brandLimit },
+        );
+      }
+    }
+
+    const webFormLimit = WEB_FORM_LIMIT_BY_PLAN[planKey];
+    if (webFormLimit !== null) {
+      const webFormQty = Number(inputs.channelQuantities?.web_form ?? 0);
+      const webFormSelected = (inputs.selectedChannels || []).includes('web_form');
+      if (webFormSelected && webFormQty > webFormLimit) {
+        add('teamSingleWebForm', `${planName} only allows a single web form.`, {
+          plan: planName,
+        });
+      }
+    }
   }
 
   // A selected channel whose quantity is explicitly 0 contributes nothing, so a
@@ -374,11 +490,18 @@ export function validateAEInputs(inputs: Partial<AEInputData>): AEValidationResu
       (channel) => (inputs.channelQuantities?.[channel] ?? 1) > 0
     );
     if (!anyActive) {
-      errors.push('At least one selected channel must have a quantity greater than zero.');
+      add(
+        'channelQtyZero',
+        'At least one selected channel must have a quantity greater than zero.',
+      );
     }
   }
 
-  return { valid: errors.length === 0, errors };
+  return {
+    valid: issues.length === 0,
+    errors: issues.map((i) => i.message),
+    issues,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -425,7 +548,6 @@ export interface AEEstimateResult {
     marketplaceApps: AEDetailLine[];
     aktieApps: AEDetailLine[];
     channelSetup: AEDetailLine[];
-    dynamicContent: AEDetailLine[];
     baseSetup: AEDetailLine[];
     knowledge: AEDetailLine[];
     sideConversations: AEDetailLine[];
@@ -459,9 +581,20 @@ const MODULE_MIN_PLAN: Partial<Record<ModuleKey, ZendeskPlan>> = {
   ADPP: 'enterprise',
 };
 
+/**
+ * Módulos que a Calculadora AE não dimensiona, ainda que apareçam em dados
+ * gravados antes desta mudança.
+ *
+ * Descartá-los aqui — e não só na UI — garante que reabrir uma estimativa
+ * antiga recalcule SEM as horas de AI Agents, em vez de exibir uma tabela que
+ * não fecha com o total salvo.
+ */
+const AE_UNSUPPORTED_MODULES = new Set<string>(['AI Agents']);
+
 function modulesAllowedOnPlan(selected: ModuleKey[], plan: ZendeskPlan): Set<string> {
   const allowed = new Set<string>();
   for (const mod of selected) {
+    if (AE_UNSUPPORTED_MODULES.has(mod as string)) continue;
     const min = MODULE_MIN_PLAN[mod];
     if (!min || PLAN_RANK[plan] >= PLAN_RANK[min]) allowed.add(mod);
   }
@@ -487,7 +620,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const brands = Math.max(1, inputs.brands || 0);
   const areas = Math.max(1, inputs.areas || 0);
   const knowledgeArticles = Math.max(0, inputs.knowledgeArticles || 0);
-  const operationLanguages = Math.max(1, inputs.operationLanguages || 1);
   const plan = normalizePlan(inputs.zendeskPlan);
   const sku = normalizeSku(inputs.skuType);
 
@@ -502,7 +634,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const hasCopilot = modules.has('Copilot');
   const hasQA = modules.has('QA');
   const hasWFM = modules.has('WFM');
-  const hasAIAgents = modules.has('AI Agents');
   const hasADPP = modules.has('ADPP');
 
   // --- Channels ------------------------------------------------------------
@@ -548,8 +679,7 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
 
   // --- Quantities [rows 7-44] ---------------------------------------------
   // Computed unconditionally, exactly as the sheet's column B does. The module
-  // gates live on the hour totals below, not here, because the multi-language
-  // base [row 110] reads several of these regardless of which modules are on.
+  // gates live on the hour totals below, not here.
   const q = {
     funcoes: Math.min(
       ((0.1 * agents + areas) * (0.25 + 0.75 * brands)) * fatorPlanoFuncoes,
@@ -568,28 +698,62 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
     (0.7 + 0.3 * brands) *
     fatorPlanoCamposTicket;
 
-  q.condicionais_campos = q.campos_ticket * 0.5;
+  /**
+   * FORMULÁRIOS — substitui o antigo "Canal: Formulário web".
+   *
+   * O canal contava apenas os formulários publicados para o usuário final.
+   * Este item conta o TOTAL de formulários criados: mesmo um projeto sem
+   * nenhum formulário voltado ao cliente precisa de formulários internos.
+   *
+   * Daí o "pegue o maior" entre três leituras do mesmo escopo — estrutura
+   * (áreas × marcas), operações e formulários web declarados. Nenhuma das três
+   * sozinha cobre todos os cenários; a maior delas é a menos errada.
+   *
+   * Team é a exceção: o plano permite UM único formulário, então a conta não
+   * se aplica (ver `validateAEInputs`, que barra web_form > 1 em Team).
+   */
+  q.formularios =
+    plan === 'team'
+      ? 1
+      : Math.max(
+          areas * 0.5 * brands,
+          qtdOperacoes,
+          channelQty('web_form'),
+        );
+
+  /**
+   * Condicionais de campo não existem em Team — o plano não tem o recurso.
+   * Antes a linha era calculada em qualquer plano e cobrava horas por algo que
+   * o cliente não conseguiria configurar.
+   */
+  q.condicionais_campos = plan === 'team' ? 0 : q.campos_ticket * 0.5;
   q.campos_usuario = (2 * q.grupos + 2 * areas) * (1 + somaFatorOperacaoUsuario);
   q.campos_organizacao = 2 * areas * (1 + somaFatorOperacaoOrganizacao);
-  q.visualizacoes = 12 + 0.1 * q.campos_ticket * areas + (hasCopilot ? 5 : 0);
+  q.visualizacoes =
+    12 + q.formularios + 0.1 * q.campos_ticket * areas + (hasCopilot ? 5 : 0);
   q.macros = q.campos_ticket * 0.5;
   q.gatilhos_simples =
-    3 + (q.campos_ticket * 0.2 + totalChannelTypes * (3 + (hasCopilot ? 2 : 0)));
+    3 +
+    q.campos_ticket * 0.05 * q.formularios +
+    totalChannelTypes * (3 + (hasCopilot ? 2 : 0));
   q.gatilhos_complexos = q.gatilhos_simples * 0.25;
-  q.automacoes_simples = 3 + (q.gatilhos_simples + q.gatilhos_complexos) * 0.3;
+  q.automacoes_simples = 3 + (q.gatilhos_simples + q.gatilhos_complexos) * 0.1;
   q.automacoes_complexas = q.automacoes_simples * 0.25;
   q.politicas_sla =
-    (totalChannelQuantity * (0.3 + 0.7 * brands) + q.grupos) * fatorPlanoSLA;
+    (totalChannelQuantity * (0.7 + 0.3 * brands) + q.grupos + q.formularios) *
+    fatorPlanoSLA;
 
   q.ivr = plan === 'team' || plan === 'growth' ? 0 : 6 * channelQty('voice');
-  q.saudacoes = 6 * q.ivr;
+  q.saudacoes = 4.5 * q.ivr;
 
   q.intencoes =
-    4 + q.campos_ticket * 0.1 * ((hasQA ? 0.2 : 0) + 1) * qtdOperacoes;
+    4 + q.campos_ticket * 0.2 * (1 + (hasQA ? 0.2 : 0)) * qtdOperacoes;
   q.entidades = q.campos_ticket * 0.1;
   q.procedimentos = (areas + q.grupos) * 0.5 * brands * qtdOperacoes;
 
-  q.wfm_localizacoes = brands * qtdOperacoes;
+  // Localizações de WFM seguem ÁREAS × operações (antes era marcas × operações):
+  // um turno é organizado por área de atendimento, não por marca.
+  q.wfm_localizacoes = areas * qtdOperacoes;
   q.wfm_turnos = q.wfm_localizacoes * 2;
   q.wfm_grupos_trabalho = q.grupos + brands * qtdOperacoes + totalChannelTypes;
   q.wfm_equipes = q.grupos;
@@ -620,6 +784,9 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
         'funcoes',
         'grupos',
         'campos_ticket',
+        // Formulários entram na configuração de Support: deixaram de ser um
+        // item de canal e passaram a ser um item de estrutura do escopo.
+        'formularios',
         'condicionais_campos',
         'campos_usuario',
         'campos_organizacao',
@@ -701,8 +868,9 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
     ? [
         { key: 'email', qty: channelQty('email'), unitHours: UH.canal_email,
           hours: channelQty('email') * UH.canal_email },
-        { key: 'web_form', qty: channelQty('web_form'), unitHours: UH.canal_web_form,
-          hours: channelQty('web_form') * UH.canal_web_form },
+        // O canal Formulário web NÃO é mais cobrado aqui: virou o item
+        // "Formulários" na configuração de Support, que mede o total de
+        // formulários criados e não só os publicados ao usuário final.
         { key: 'web_widget', qty: channelQty('web_widget'), unitHours: UH.canal_web_widget,
           hours: channelQty('web_widget') * UH.canal_web_widget },
         {
@@ -721,7 +889,7 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // --- Aktie Now apps [rows 49-50] — each on its own checkbox -------------
   const appCondicionaisHoras = inputs.hasAppCondicionais
     ? APPS.condicionais_avancadas_base +
-      (q.visualizacoes * 0.1 + q.gatilhos_simples * 0.125) * 0.25
+      (q.visualizacoes * 0.1 + q.gatilhos_simples * 0.125 + q.formularios) * 0.25
     : 0;
   const appTicketManagerHoras = inputs.hasAppTicketManager
     ? APPS.ticket_manager_base + q.campos_ticket * 0.02 * qtdOperacoes
@@ -734,16 +902,16 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // Montado como lista para que a tabela mostre "Configuração geral: Support",
   // "…: Knowledge" etc. O total continua sendo a soma da própria lista — não há
   // uma segunda expressão que possa divergir dela.
+  // Knowledge não entra aqui — a configuração geral dele é a linha de artigos
+  // (`knowledgeLines`), que já é exibida como "Configuração geral: Knowledge".
   const generalConfigLines: AEDetailLine[] = [
     ['support', hasSupport, CFG.support],
-    ['knowledge', hasKnowledge, CFG.knowledge],
     ['community', hasCommunity, CFG.community],
     ['analytics', hasAnalytics, CFG.analytics],
     ['voice', hasVoice, CFG.voice],
     ['copilot', hasCopilot, CFG.copilot],
     ['qa', hasQA, CFG.qa],
     ['wfm', hasWFM, CFG.wfm],
-    ['ai_agents', hasAIAgents, CFG.ai_agents],
     ['adpp', hasADPP, CFG.adpp],
   ]
     .filter(([, on]) => on)
@@ -756,20 +924,15 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const generalConfigHoras = generalConfigLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Training [row 53] ---------------------------------------------------
-  // `analytics_avancado` is additive on top of `suite`, matching the sheet.
+  // Analytics entra pelo treinamento de Suite. A linha adicional de
+  // "Analytics avançado" (+6 h) foi removida da Calculadora AE.
   const trainingLines: AEDetailLine[] = [
     ['suite', hasSupport || hasKnowledge || hasAnalytics, TR.suite],
-    [
-      'analytics_avancado',
-      hasAnalytics && inputs.analyticsTrainingType === 'advanced',
-      TR.analytics_avancado,
-    ],
     ['community', hasCommunity, TR.community],
     ['voice', hasVoice, TR.voice],
     ['copilot', hasCopilot, TR.copilot],
     ['qa', hasQA, TR.qa],
     ['wfm', hasWFM, TR.wfm],
-    ['ai_agents', hasAIAgents, TR.ai_agents],
     ['adpp', hasADPP, TR.adpp],
   ]
     .filter(([, on]) => on)
@@ -819,29 +982,41 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const nativeConnectionsHoras =
     inputs.selectedNativeConnections.length * UH.integracao_nativa;
 
-  // --- Knowledge articles [row 93] ----------------------------------------
+  // --- Configuração geral de Knowledge [row 93] ---------------------------
+  /*
+   * A configuração geral de Knowledge É esta conta, e nada mais:
+   *   0,1 h por artigo, com piso de 2 h mesmo quando o AE informa 0 artigos.
+   *
+   * Antes existiam DUAS linhas — uma "Configuração geral: Knowledge" fixa de
+   * 0,1 h (vinda de `configuracoes_gerais`) e a linha de artigos. A primeira
+   * não representava esforço nenhum e poluía a tabela; foi removida.
+   *
+   * PROPOSTA (não aplicada): o pedido descreve a faixa "de 0 a 100 artigos".
+   * A conta aqui é linear e NÃO tem teto — 150 artigos geram 15 h. Mantive
+   * assim porque truncar em 10 h subestimaria silenciosamente o esforço, e
+   * porque acima de 100 artigos a estimativa já cai na trava de revisão por
+   * Sales Engineer (ver `requiresSalesEngineer`). Se a intenção for travar o
+   * INPUT em 100, o lugar é a validação do formulário, não esta fórmula.
+   */
   const knowledgeHoras = hasKnowledge
-    ? Math.max(2, knowledgeArticles * UH.artigo)
+    ? Math.max(UH.knowledge_minimo, knowledgeArticles * UH.artigo)
     : 0;
-  // O piso de 2 h faz a tarifa efetiva subir quando há poucos artigos; exibir a
-  // nominal deixaria a linha sem fechar com as próprias horas. Sem artigo
-  // nenhum, a linha vira um pacote mínimo de quantidade 1 — com quantidade 0 a
-  // conta "0 × 2 h = 2 h" não se sustentaria na tela.
+  /*
+   * Uma única linha, sempre. O piso faz a tarifa efetiva subir quando há
+   * poucos artigos, então a hora unitária exibida é a EFETIVA — do contrário a
+   * linha não fecharia com as próprias horas. Com 0 artigos a quantidade
+   * exibida vira 1 (um pacote mínimo), porque "0 × 2 h = 2 h" não se sustenta
+   * na tela; o número real de artigos vai no rótulo, montado na tabela.
+   */
   const knowledgeLines: AEDetailLine[] = knowledgeHoras > 0
     ? [
-        knowledgeArticles > 0
-          ? {
-              key: 'articles',
-              qty: knowledgeArticles,
-              unitHours: knowledgeHoras / knowledgeArticles,
-              hours: knowledgeHoras,
-            }
-          : {
-              key: 'articles_minimum',
-              qty: 1,
-              unitHours: knowledgeHoras,
-              hours: knowledgeHoras,
-            },
+        {
+          key: 'general_config',
+          qty: knowledgeArticles > 0 ? knowledgeArticles : 1,
+          unitHours:
+            knowledgeArticles > 0 ? knowledgeHoras / knowledgeArticles : knowledgeHoras,
+          hours: knowledgeHoras,
+        },
       ]
     : [];
 
@@ -886,7 +1061,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
     ['suite', workshopSuite, WS.suite],
     ['voice', hasVoice, WS.voice],
     ['copilot', hasCopilot, WS.copilot],
-    ['ai_agents', hasAIAgents, WS.ai_agents],
     ['qa', hasQA, WS.qa],
     ['wfm', hasWFM, WS.wfm],
   ]
@@ -899,28 +1073,9 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
     }));
   const workshopHoras = workshopLines.reduce((acc, l) => acc + l.hours, 0);
 
-  // --- Multi-language [row 110] -------------------------------------------
-  // The sum below is a QUANTITY of dynamic-content items; it is converted to hours
-  // by UH.conteudo_dinamico. Not gated on any module, matching the sheet.
-  const additionalLanguages = Math.max(0, operationLanguages - 1);
-  const dynamicContentQty =
-    (q.funcoes +
-      q.grupos +
-      q.campos_ticket * 1.73 +
-      q.campos_usuario * 1.8 +
-      q.campos_organizacao * 1.8 +
-      q.visualizacoes +
-      q.macros +
-      (q.gatilhos_simples +
-        q.gatilhos_complexos +
-        q.automacoes_simples +
-        q.automacoes_complexas) *
-        0.1 +
-      q.intencoes +
-      q.entidades +
-      supportNaoTeamQty) *
-    additionalLanguages;
-  const operationLanguagesHoras = dynamicContentQty * UH.conteudo_dinamico;
+  // Multi-idioma / conteúdo dinâmico foi REMOVIDO da Calculadora AE.
+  // A calculadora não dimensiona mais tradução de conteúdo; a linha voltará
+  // quando houver uma regra fechada para ela.
 
   // --- Action Flow [row 111] ----------------------------------------------
   const actionFlowHoras = (inputs.selectedActionFlows?.length ?? 0) * UH.action_flow;
@@ -948,7 +1103,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
     sideConversationHoras +
     thirdPartyAppsHoras +
     workshopHoras +
-    operationLanguagesHoras +
     actionFlowHoras;
 
   // --- Additional hours ('Calculadora AE' I3:I7) --------------------------
@@ -990,13 +1144,16 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // The sheet also tests ITAM (E24), Help Center code customization (E31), Copilot
   // external actions (E33) and a deprecated vendor module (E12). All four are
   // intentionally out of scope, so those clauses are omitted rather than stubbed false.
+  //
+  // A cláusula "módulo AI Agents selecionado" saiu junto com o módulo: a
+  // Calculadora não oferece mais AI Agents, então a condição nunca seria
+  // verdadeira e só confundiria quem lesse a regra.
   const requiresSalesEngineer =
     totalHours > 60 ||
     knowledgeArticles > 100 ||
     agents > 100 ||
     brands > 3 ||
-    totalChannelQuantity > 10 ||
-    hasAIAgents;
+    totalChannelQuantity > 10;
 
   return {
     lineItemHours,
@@ -1029,7 +1186,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
       sideConversations: sideConversationHoras,
       thirdPartyApps: thirdPartyAppsHoras,
       workshops: workshopHoras,
-      operationLanguages: operationLanguagesHoras,
       actionFlows: actionFlowHoras,
     },
     quantities: q,
@@ -1054,21 +1210,6 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
       baseSetup: baseSetupLines,
       knowledge: knowledgeLines,
       sideConversations: sideConversationLines,
-      // A quantidade aqui é de ITENS de conteúdo dinâmico (derivada do escopo e
-      // do número de idiomas extras), não de idiomas — por isso a linha mostrava
-      // "1 idioma × nada".
-      dynamicContent:
-        operationLanguagesHoras > 0
-          ? [{
-              key: 'conteudo_dinamico',
-              // Sem arredondar: `qty × unitHours` tem de bater exatamente com
-              // `hours`, senão a linha exibida não fecha com ela mesma. O
-              // arredondamento é responsabilidade da formatação na UI.
-              qty: dynamicContentQty,
-              unitHours: UH.conteudo_dinamico,
-              hours: operationLanguagesHoras,
-            }]
-          : [],
     },
   };
 }

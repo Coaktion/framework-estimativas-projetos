@@ -170,6 +170,14 @@ model ProjectVersion {
   validationOverride  Float?
   
   safetyHours         String?  // JSON object mapping skill names to extra hours
+
+  // Total geral da versão, congelado no momento do salvamento.
+  // Existe para que a tela de Projetos possa mostrar "V1 · 108h" sem abrir e
+  // recalcular cada versão — e para que o número exibido seja o que foi
+  // acordado naquela versão, mesmo que a biblioteca de itens mude depois.
+  // Mesmo princípio de AEEstimate.resultHours.
+  totalHours          Float    @default(0)
+
   createdAt           DateTime @default(now())
   createdBy           Int?
   creator             User?    @relation(fields: [createdBy], references: [id])

@@ -7,6 +7,23 @@ import { createProjectAction, deleteProjectAction } from './actions';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 
+/** Horas em formato curto: 148h, 47,5h. Mesmo formato do histórico da AE. */
+function formatHours(value: number): string {
+  const rounded = Math.round((Number(value) || 0) * 10) / 10;
+  const text = Number.isInteger(rounded)
+    ? String(rounded)
+    : rounded.toFixed(1).replace('.', ',');
+  return `${text}h`;
+}
+
+type ProjectVersionChip = {
+  id: number;
+  ordinal: number;
+  versionName: string;
+  totalHours: number;
+  createdAt: string | Date;
+};
+
 export default function ProjectDashboardClient({ projects, currentUserId }: any) {
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
@@ -120,10 +137,58 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                 <h3 className="text-2xl font-black text-brand-dark group-hover:text-brand-primary transition-colors uppercase tracking-tight leading-tight">
                   {project.name}
                 </h3>
+
+                {/* Atalhos de versão, no mesmo espírito dos chips da Calculadora
+                    AE. O card em si continua abrindo a versão mais recente; os
+                    chips existem para pular direto para uma versão anterior sem
+                    passar pelo editor. Ordem DECRESCENTE: a mais nova primeiro. */}
+                <div className="pt-4 mt-4 border-t border-slate-100">
+                  <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400 mb-2.5">
+                    {t('sc.versions')}
+                  </p>
+                  {(project.versions || []).length === 0 ? (
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">
+                      {t('sc.noVersions')}
+                    </span>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {[...(project.versions as ProjectVersionChip[])]
+                        .sort((a, b) => b.ordinal - a.ordinal)
+                        .map((v, index) => {
+                          const isLatest = index === 0;
+                          return (
+                            <Link
+                              key={String(v.id)}
+                              href={`/sc/project/${project.id}?version_id=${v.id}`}
+                              // `versionName` é texto livre; vale como dica de
+                              // contexto, mas não como identificador na etiqueta.
+                              title={v.versionName || undefined}
+                              className={`
+                                inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all
+                                ${isLatest
+                                  ? 'brand-bg-primary text-white border-brand-primary shadow-md shadow-green-900/10'
+                                  : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-brand-primary hover:text-brand-primary'
+                                }
+                              `}
+                            >
+                              <span>
+                                V{v.ordinal}
+                                {v.totalHours > 0 ? ` · ${formatHours(v.totalHours)}` : ''}
+                              </span>
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="px-10 py-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-                <Link href={`/sc/project/${project.id}`} className="text-[10px] font-black text-brand-dark hover:text-brand-primary uppercase tracking-widest flex items-center space-x-2 transition-all">
+                <Link
+                  href={`/sc/project/${project.id}`}
+                  title={t('sc.openLatestVersion')}
+                  className="text-[10px] font-black text-brand-dark hover:text-brand-primary uppercase tracking-widest flex items-center space-x-2 transition-all"
+                >
                     <span>{t('sc.editScope')}</span>
                     <ExternalLink className="w-3 h-3" />
                   </Link>

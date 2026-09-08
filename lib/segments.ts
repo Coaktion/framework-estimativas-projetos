@@ -13,6 +13,7 @@
 export const SEGMENTS = [
   'ADMIN',
   'SC',
+  'SD',
   'AE',
   'PM',
   'IMPL',
@@ -30,6 +31,7 @@ export const DEFAULT_SEGMENT: Segment = 'IMPL';
 export const SEGMENT_LABEL_KEYS: Record<Segment, string> = {
   ADMIN: 'segment.admin',
   SC: 'segment.salesEngineer',
+  SD: 'segment.solutionDesigner',
   AE: 'segment.accountExecutive',
   PM: 'segment.projectManager',
   IMPL: 'segment.implementation',
@@ -42,6 +44,7 @@ export const SEGMENT_LABEL_KEYS: Record<Segment, string> = {
 export const SEGMENT_SHORT: Record<Segment, string> = {
   ADMIN: 'ADMIN',
   SC: 'SC',
+  SD: 'SD',
   AE: 'AE',
   PM: 'PM',
   IMPL: 'IMPL',
@@ -57,6 +60,7 @@ export const SEGMENT_SHORT: Record<Segment, string> = {
 const LEGACY_SEGMENT_MAP: Record<string, Segment> = {
   ADMIN: 'ADMIN',
   SC: 'SC',
+  SD: 'SD',
   AE: 'AE',
   PM: 'PM',
   IMPL: 'IMPL',
@@ -79,6 +83,11 @@ const LEGACY_SEGMENT_MAP: Record<string, Segment> = {
   CUSTOMERSUCCESS: 'CS',
   'CUSTOMER SUCCESS': 'CS',
   DEVELOPER: 'DEV',
+  SOLUTION_DESIGNER: 'SD',
+  SOLUTIONDESIGNER: 'SD',
+  'SOLUTION DESIGNER': 'SD',
+  SOLUTION_DESIGN: 'SD',
+  'SOLUTION DESIGN': 'SD',
   USER: DEFAULT_SEGMENT,     // papel genérico antigo
   MEMBER: DEFAULT_SEGMENT,
 };
@@ -119,6 +128,7 @@ export function canManageSegments(user?: { isAdmin?: boolean; role?: string | nu
 /*   ----------|-----------------|----------------|-------|-----------------   */
 /*   ADMIN     |       sim       |      sim       |  sim  |      sim           */
 /*   SC        |       sim       |      sim       |  não  |      não           */
+/*   SD        |       sim       |      sim       |  não  |      não           */
 /*   AE        |       não       |      sim       |  não  |      não           */
 /*   PM        |       sim       |      sim       |  não  |      não           */
 /*   IMPL      |       sim       |      não       |  não  |      não           */
@@ -133,13 +143,18 @@ export function canManageSegments(user?: { isAdmin?: boolean; role?: string | nu
 /* SALES_OPS e CS entraram espelhando a linha do PM (apoiam o ciclo comercial  */
 /* e precisam ver estimativas e escopos); DEV entrou espelhando IMPL (consome  */
 /* o escopo técnico, mas não dimensiona pré-venda). Ambas são propostas.       */
+/*                                                                            */
+/* PROPOSTA — SD (Solution Designer): entrou espelhando o SC, porque desenha   */
+/* a solução a partir do escopo e da estimativa e precisa dos dois. Se o time  */
+/* preferir que o SD NÃO abra a Calculadora AE, basta tirar 'SD' de            */
+/* AE_SEGMENTS abaixo; nada mais depende disso.                                */
 /* -------------------------------------------------------------------------- */
 
 const SCOPE_SEGMENTS: readonly Segment[] = [
-  'ADMIN', 'SC', 'PM', 'IMPL', 'SALES_OPS', 'CS', 'DEV',
+  'ADMIN', 'SC', 'SD', 'PM', 'IMPL', 'SALES_OPS', 'CS', 'DEV',
 ];
 const AE_SEGMENTS: readonly Segment[] = [
-  'ADMIN', 'SC', 'AE', 'PM', 'SALES_OPS', 'CS',
+  'ADMIN', 'SC', 'SD', 'AE', 'PM', 'SALES_OPS', 'CS',
 ];
 
 /**

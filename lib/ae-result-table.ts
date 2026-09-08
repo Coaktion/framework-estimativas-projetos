@@ -96,7 +96,7 @@ export function buildAEResultTable(
   const d = estimation.details || {
     generalConfig: [], training: [], workshops: [],
     fixedItems: [], marketplaceApps: [], aktieApps: [],
-    channelSetup: [], dynamicContent: [],
+    channelSetup: [],
     baseSetup: [], knowledge: [], sideConversations: [],
   };
   /**
@@ -118,6 +118,7 @@ export function buildAEResultTable(
       row(t('cfg.roles'), q.funcoes, UH.funcoes),
       row(t('cfg.groups'), q.grupos, UH.grupos),
       row(t('cfg.ticketFields'), q.campos_ticket, UH.campos_ticket),
+      row(t('cfg.forms'), q.formularios, UH.formularios),
       row(t('cfg.fieldConditions'), q.condicionais_campos, UH.condicionais_campos),
       row(t('cfg.userFields'), q.campos_usuario, UH.campos_usuario),
       row(t('cfg.orgFields'), q.campos_organizacao, UH.campos_organizacao),
@@ -236,7 +237,6 @@ export function buildAEResultTable(
 
   // ------------------------------- Configs gerais, treinamentos e conteúdos
   const knowledgeArticles = Number(inputs?.knowledgeArticles) || 0;
-  const extraLanguages = Math.max(0, (Number(inputs?.operationLanguages) || 1) - 1);
 
   sections.push(
     section('general', t('aeTable.section6'), [
@@ -250,16 +250,20 @@ export function buildAEResultTable(
       ...detailRows(d.workshops, (key) =>
         t('aeTable.workshopOf', { module: moduleLabel(key, t) })),
       ...detailRows(d.fixedItems, (key) => t(`aeFixed.${key}`, { defaultValue: key })),
-      ...detailRows(d.knowledge, (key) =>
-        key === 'articles_minimum' ? t('aeTable.articlesMinimum') : t('aeTable.articles')),
-      ...detailRows(d.dynamicContent, () =>
-        t('aeTable.dynamicContent', { count: extraLanguages })),
+      // Knowledge tem UMA linha só, e ela É a configuração geral do módulo:
+      // "Configuração geral: Knowledge (X artigos)". A contagem vem do input,
+      // não da quantidade da linha — com 0 artigos a quantidade exibida é 1
+      // (pacote mínimo de 2 h) e o rótulo precisa continuar dizendo "0".
+      ...detailRows(d.knowledge, () =>
+        t('aeTable.knowledgeGeneralConfig', {
+          module: moduleLabel('knowledge', t),
+          count: knowledgeArticles,
+        })),
     ],
     (b.generalConfig || 0) +
       (b.training || 0) +
       (b.workshops || 0) +
       (b.knowledge || 0) +
-      (b.operationLanguages || 0) +
       (b.supportFixed || 0) +
       (b.wfmFixed || 0) +
       (b.adppFixed || 0)),

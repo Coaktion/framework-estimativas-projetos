@@ -17,26 +17,37 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
   const {
     versionName,
     technicalScopeLink,
+    zohoLink,
     gpPercent,
     discoveryPercent,
     validationPercent,
     gpOverride,
     discoveryOverride,
     validationOverride,
+    safetyHours,
+    totalHours,
     data
   } = formData;
 
+  // CORREÇÃO: `zohoLink` e `safetyHours` já eram ENVIADOS pelo editor e lidos de
+  // volta na abertura da versão (`currentVersion?.zohoLink`), mas nunca eram
+  // gravados — o campo voltava vazio a cada reabertura. Passaram a ser
+  // persistidos junto com o resto.
   const version = await prisma.projectVersion.create({
     data: {
       projectId,
       versionName,
       technicalScopeLink,
+      zohoLink: zohoLink || null,
       gpPercent: parseFloat(gpPercent || 0),
       discoveryPercent: parseFloat(discoveryPercent || 0),
       validationPercent: parseFloat(validationPercent || 0),
       gpOverride: gpOverride !== null ? parseFloat(gpOverride) : null,
       discoveryOverride: discoveryOverride !== null ? parseFloat(discoveryOverride) : null,
       validationOverride: validationOverride !== null ? parseFloat(validationOverride) : null,
+      safetyHours: safetyHours || null,
+      // Congela o total desta versão para a listagem de Projetos.
+      totalHours: Number.isFinite(Number(totalHours)) ? Number(totalHours) : 0,
       data: JSON.stringify(data),
       createdBy: parseInt(session.user.id)
     }
@@ -69,6 +80,9 @@ export async function cloneProjectVersionAction(projectId: number, sourceVersion
       gpOverride: source.gpOverride,
       discoveryOverride: source.discoveryOverride,
       validationOverride: source.validationOverride,
+      safetyHours: source.safetyHours,
+      // A cópia nasce com o mesmo total da origem; o próximo save atualiza.
+      totalHours: (source as any).totalHours ?? 0,
       data: source.data,
       createdBy: parseInt(session.user.id)
     }

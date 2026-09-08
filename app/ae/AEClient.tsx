@@ -4,16 +4,13 @@ import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
 import { packageName } from '@/lib/localized-names';
 import { canViewExecutiveReport } from '@/lib/segments';
-import {
-  buildScopePrompt, detectSuppressionFlags,
-  type ScopeExportItem, type ScopeExportChannel, type ScopeExportIntegration,
-} from '@/lib/scope-export';
+import { buildAEScopePrompt } from '@/lib/ae-scope-prompt';
 import AEResultTable from '@/components/AEResultTable';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Zap, Plus, X, ShieldCheck, 
-  Globe, Layers, 
+  Layers, 
   Settings, Loader2,
   AlertTriangle, CheckCircle2, 
   MessageSquare, Users, Shield, Clock, Box,
@@ -68,10 +65,6 @@ function normalizeSku(raw: string): SkuType {
   const key = String(raw || '').toUpperCase();
   if (key.includes('ES') || key.includes('EMPLOYEE')) return 'ES';
   return 'CS';
-}
-
-function normalizeAnalyticsTraining(raw: string): 'basic' | 'advanced' {
-  return String(raw || '').toLowerCase() === 'advanced' ? 'advanced' : 'basic';
 }
 
 const CHANNEL_LEGACY_TO_KEY: Record<string, ChannelKey> = {
@@ -135,6 +128,9 @@ function buildEngineInputs(formState: any): AEInputData {
   const planRank = PLAN_RANK[zendeskPlan] ?? PLAN_RANK.team;
 
   const selectedModules = (formState.selectedModules || ['Support']).filter((m: string) => {
+    // AI Agents saiu da Calculadora AE. Estimativas salvas antes disso ainda
+    // trazem o módulo no JSON, então ele é descartado já na entrada.
+    if (m === 'AI Agents') return false;
     if (['Analytics', 'Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
     if (m === 'ADPP') return planRank >= PLAN_RANK.enterprise;
     return true;
@@ -151,8 +147,6 @@ function buildEngineInputs(formState: any): AEInputData {
     selectedChannels: selectedChannels.length ? selectedChannels : ['web_form'],
     channelQuantities,
     knowledgeArticles: Math.max(0, Number(formState.knowledgeArticles) || 0),
-    operationLanguages: Math.max(1, Number(formState.operationLanguages) || 1),
-    analyticsTrainingType: normalizeAnalyticsTraining(formState.analyticsTrainingType),
     selectedNativeConnections: formState.selectedNativeConnections || [],
     selectedActionFlows: formState.selectedActionFlows || [],
     selectedApps,
@@ -208,7 +202,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   const [successIndicators, setSuccessIndicators] = useState('');
   
   const [selectedModules, setSelectedModules] = useState<string[]>(['Support']);
-  const [analyticsTrainingType, setAnalyticsTrainingType] = useState<'standard' | 'advanced'>('standard');
   const [knowledgeArticles, setKnowledgeArticles] = useState(0);
   
   const [operationTypes, setOperationTypes] = useState<string[]>([]);
@@ -235,7 +228,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   const [hasSSO, setHasSSO] = useState(false);
   const [hasTeamsSideConv, setHasTeamsSideConv] = useState(false);
   const [hasSlackSideConv, setHasSlackSideConv] = useState(false);
-  const [operationLanguages, setOperationLanguages] = useState(1);
 
   const [hasAppCondicionais, setHasAppCondicionais] = useState(false);
   const [hasAppTicketManager, setHasAppTicketManager] = useState(false);
@@ -246,7 +238,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     setClientObjectives('');
     setSuccessIndicators('');
     setSelectedModules(['Support']);
-    setAnalyticsTrainingType('standard');
     setKnowledgeArticles(0);
     setOperationTypes([]);
     setSkuType('customer_service');
@@ -267,7 +258,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     setHasSSO(false);
     setHasTeamsSideConv(false);
     setHasSlackSideConv(false);
-    setOperationLanguages(1);
     setHasAppCondicionais(false);
     setHasAppTicketManager(false);
     setShowResult(false);
@@ -306,8 +296,11 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       const d = initialData;
       if (typeof d.clientObjectives === 'string') setClientObjectives(d.clientObjectives);
       if (typeof d.successIndicators === 'string') setSuccessIndicators(d.successIndicators);
-      if (Array.isArray(d.selectedModules) && d.selectedModules.length) setSelectedModules(d.selectedModules.filter(Boolean));
-      if (typeof d.analyticsTrainingType === 'string') setAnalyticsTrainingType(d.analyticsTrainingType === 'advanced' ? 'advanced' : 'standard');
+      if (Array.isArray(d.selectedModules) && d.selectedModules.length) {
+        // Estimativas antigas podem trazer 'AI Agents'; ele não existe mais aqui.
+        const restored = d.selectedModules.filter((m: string) => Boolean(m) && m !== 'AI Agents');
+        if (restored.length) setSelectedModules(restored);
+      }
       if (d.knowledgeArticles != null) setKnowledgeArticles(Math.max(0, Number(d.knowledgeArticles) || 0));
       if (Array.isArray(d.operationTypes)) setOperationTypes(d.operationTypes.filter(Boolean));
       if (typeof d.skuType === 'string') {
@@ -352,7 +345,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       setHasSSO(Boolean(d.hasSSO));
       setHasTeamsSideConv(Boolean(d.hasTeamsSideConv));
       setHasSlackSideConv(Boolean(d.hasSlackSideConv));
-      if (d.operationLanguages != null) setOperationLanguages(Math.max(1, Number(d.operationLanguages) || 1));
       setHasAppCondicionais(Boolean(d.hasAppCondicionais));
       setHasAppTicketManager(Boolean(d.hasAppTicketManager));
     } else if (initialClientName) {
@@ -377,7 +369,9 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   );
 
   const availableModules = useMemo(() => {
-    const baseModules: string[] = ['Support', 'Knowledge', 'Voice', 'AI Agents'];
+    // Sem 'AI Agents': a Calculadora AE não dimensiona esse módulo (ele
+    // continua disponível no Framework e no painel administrativo).
+    const baseModules: string[] = ['Support', 'Knowledge', 'Voice'];
 
     // Analytics exige Professional+ — antes era oferecido em qualquer plano, o que
     // fazia o treinamento contar e o workshop não (regras discordantes no engine).
@@ -397,8 +391,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       setHasSSO(false);
       setHasTeamsSideConv(false);
       setHasSlackSideConv(false);
-      setOperationLanguages(1);
-    }
+      }
 
     if (!selectedModules.includes('Knowledge')) {
       setKnowledgeArticles(0);
@@ -568,8 +561,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     [skuType, zendeskPlan]
   );
 
-  const analyticsTrainingTypeEngine = normalizeAnalyticsTraining(analyticsTrainingType);
-
   const { engineInputs, engineResult, validation, estimation } = useMemo(() => {
     const formState = {
       agents,
@@ -586,11 +577,9 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       appQuantities,
       selectedNativeConnections,
       selectedActionFlows,
-      analyticsTrainingType: analyticsTrainingTypeEngine,
       hasSSO,
       hasTeamsSideConv,
       hasSlackSideConv,
-      operationLanguages,
       hasAppCondicionais,
       hasAppTicketManager,
     };
@@ -667,7 +656,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
             politicas_sla: (db.quantities as any).politicas_sla ?? 0,
           },
           analytics: {
-            treinamento: analyticsTrainingTypeEngine,
             horas_estimadas: (db.breakdown as any).generalConfig || 0,
           },
           knowledge: { horas_estimadas: (db.breakdown as any).knowledge || 0 },
@@ -725,11 +713,9 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     appQuantities,
     selectedNativeConnections,
     selectedActionFlows,
-    analyticsTrainingTypeEngine,
     hasSSO,
     hasTeamsSideConv,
     hasSlackSideConv,
-    operationLanguages,
     hasAppCondicionais,
     hasAppTicketManager,
   ]);
@@ -784,20 +770,12 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     }, 0);
 
     const actionFlowsQty = (selectedActionFlows || []).filter(Boolean).length;
-    const opLangs = Math.max(1, Number(operationLanguages) || 1);
-    const dynamicContentBase = (Number(q.visualizacoes || 0) +
-      Number(q.gatilhos_simples || 0) +
-      Number(q.gatilhos_complexos || 0) +
-      Number(q.automacoes_simples || 0) +
-      Number(q.automacoes_complexas || 0) +
-      Number(q.intencoes || 0) +
-      Number(q.entidades || 0) +
-      (String(zendeskPlan || 'professional').toLowerCase() !== 'team' ? 1 : 0)) * (opLangs - 1);
 
     const supportItems: Array<[string, number, number]> = [
       [t('cfg.roles'), Number(q.funcoes || 0), 0.25],
       [t('cfg.groups'), Number(q.grupos || 0), 0.05],
       [t('cfg.ticketFields'), Number(q.campos_ticket || 0), 0.08],
+      [t('cfg.forms'), Number(q.formularios || 0), 0.08],
       [t('cfg.fieldConditions'), Number(q.condicionais_campos || 0), 0.02],
       [t('cfg.userFields'), Number(q.campos_usuario || 0), 0.05],
       [t('cfg.orgFields'), Number(q.campos_organizacao || 0), 0.05],
@@ -873,7 +851,6 @@ ${zohoLink ? `- **${t('report.deal')}:** ${zohoLink}` : ''}
 - **${t('report.zendeskPlan')}:** ${String(zendeskPlan || 'professional').toUpperCase()}
 - **${t('report.selectedModules')}:** ${modulesList.length ? modulesList.join(', ') : '—'}
 - **${t('aeReport.operations')}:** ${(operationTypes || []).filter(Boolean).join(', ') || '—'}
-- **${t('aeReport.operationLanguages')}:** ${opLangs}
 - **${t('report.agents')}:** ${agents}
 - **${t('aeReport.brandsLabel')}:** ${brands}
 - **${t('ae.areas')}:** ${areas}
@@ -901,7 +878,6 @@ ${zohoLink ? `- **${t('report.deal')}:** ${zohoLink}` : ''}
 | ${t('aeReport.sideConvRow')} | ${num(breakdown.sideConversations, 2)}h | ${t('aeReport.sideConvNote')} |
 | ${t('aeReport.thirdPartyRow')} | ${num(breakdown.thirdPartyApps, 2)}h | ${t('aeReport.thirdPartyNote')} |
 | ${t('aeReport.workshopsRow')} | ${num(breakdown.workshops, 2)}h | ${t('aeReport.workshopsNote')} |
-| ${t('aeReport.langRow')} | ${num(breakdown.operationLanguages, 2)}h | ${t('aeReport.langNote')} |
 | ${t('aeReport.actionFlowsRow')} | ${num(breakdown.actionFlows, 2)}h | ${t('aeReport.externalServices')} |
 | | | |
 | **${t('aeReport.totalLineItems')}** | | **${num(estimation.lineItemHours, 2)}h** |
@@ -947,11 +923,9 @@ ${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Num
 | ${t('aeReport.agentSetupRow')} | ${agents} | 0.05h | ${num(Number(breakdown.agentSetup || 0), 2)}h |
 | ${t('report.brands')} | ${brands} | 0.25h | ${num(Number(breakdown.brandSetup || 0), 2)}h |
 | ${t('aeReport.channelsEmail')} | ${chQty('email')} | 0.17h | ${num(chQty('email') * 0.17, 2)}h |
-| ${t('aeReport.channelsWebForm')} | ${chQty('web_form')} | 0.08h | ${num(chQty('web_form') * 0.08, 2)}h |
 | ${t('aeReport.channelsWebWidget')} | ${chQty('web_widget')} | 0.42h | ${num(chQty('web_widget') * 0.42, 2)}h |
 | ${t('aeReport.otherChannelsRow')} | ${extraChannelsQty} | ${t('aeReport.minIfOver')} | ${num(Number(breakdown.channelSetup || 0) -
   chQty('email') * 0.17 -
-  chQty('web_form') * 0.08 -
   chQty('web_widget') * 0.42, 2)}h |
 | **${t('common.subtotal')}** | — | — | **${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h** |`;
     })()}
@@ -1013,7 +987,7 @@ ${!(oneOffAppLabels.length || sweethawkQty || otherQty) ? `| ${t('report.emptyMa
 ### ${t('aeReport.section55')}
 | ${t('aeReport.service')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
 | :--- | ---: | ---: |
-${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${ACTION_FLOW_OPTIONS.find((o) => o.value === name)?.label || String(name)} | 4.50h | 4.50h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — |`}
+${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${String(name)} | 4.50h | 4.50h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — |`}
 | **${t('aeReport.subtotalActionFlows')} (${actionFlowsQty})** | — | **${num(breakdown.actionFlows, 2)}h** |
 
 ---
@@ -1024,26 +998,24 @@ ${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: an
 | ${t('aeReport.module')} | H |
 | :--- | ---: |
 | Support | ${modulesList.includes('Support') ? '1.00h' : '0.00h'} |
-| Knowledge (Guide) | ${modulesList.includes('Knowledge') ? '0.10h' : '0.00h'} |
 | Community | ${modulesList.includes('Community') ? '1.00h' : '0.00h'} |
 | Analytics (Explore) | ${modulesList.includes('Analytics') ? '3.50h' : '0.00h'} |
 | Voice (Talk) | ${modulesList.includes('Voice') ? '0.50h' : '0.00h'} |
 | Copilot | ${modulesList.includes('Copilot') ? '0.50h' : '0.00h'} |
 | QA | ${modulesList.includes('QA') ? '1.00h' : '0.00h'} |
 | WFM | ${modulesList.includes('WFM') ? '0.33h' : '0.00h'} |
-| AI Agents | ${modulesList.includes('AI Agents') ? '0.75h' : '0.00h'} |
 | ADPP | ${modulesList.includes('ADPP') ? '1.50h' : '0.00h'} |
 | **${t('common.subtotal')}** | **${num(breakdown.generalConfig, 2)}h** |
 
+> ${t('aeReport.knowledgeConfigNote')}
+
 ### ${t('aeReport.section62')}
 - Suite (Support / Knowledge / Analytics): ${num(Number(breakdown.training || 0) > 0 ? 3.0 : 0, 2)}h
-- ${t('aeReport.advancedAnalyticsTraining', { mode: analyticsTrainingType === 'advanced' ? t('aeReport.trainingFull') : t('aeReport.trainingStandard') })}: ${num(analyticsTrainingType === 'advanced' && modulesList.includes('Analytics') ? 6.0 : 0, 2)}h
 - Community: ${num(modulesList.includes('Community') ? 1.5 : 0, 2)}h
 - Voice: ${num(modulesList.includes('Voice') ? 2.5 : 0, 2)}h
 - Copilot: ${num(modulesList.includes('Copilot') ? 2.5 : 0, 2)}h
 - QA: ${num(modulesList.includes('QA') ? 2.0 : 0, 2)}h
 - WFM: ${num(modulesList.includes('WFM') ? 3.0 : 0, 2)}h
-- AI Agents: ${num(modulesList.includes('AI Agents') ? 4.0 : 0, 2)}h
 - ADPP: ${num(modulesList.includes('ADPP') ? 1.0 : 0, 2)}h
 - ${t('aeReport.subtotalTraining')} **${num(breakdown.training, 2)}h**
 
@@ -1062,17 +1034,9 @@ ${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: an
 | ${t('aeReport.suiteWorkshopRow')} | ${(modulesList.includes('Support') || modulesList.includes('Knowledge') || modulesList.includes('Analytics')) ? '1.00h' : '0.00h'} |
 | Voice | ${modulesList.includes('Voice') ? '0.50h' : '0.00h'} |
 | Copilot | ${modulesList.includes('Copilot') ? '0.50h' : '0.00h'} |
-| AI Agents | ${modulesList.includes('AI Agents') ? '0.50h' : '0.00h'} |
 | QA | ${modulesList.includes('QA') ? '0.50h' : '0.00h'} |
 | WFM | ${modulesList.includes('WFM') ? '0.50h' : '0.00h'} |
 | **${t('aeReport.subtotalWorkshops')}** | **${num(breakdown.workshops, 2)}h** |
-
-### ${t('aeReport.section65')}
-| ${t('common.item')} | ${t('common.value')} | H |
-| :--- | :--- | ---: |
-| ${t('aeReport.operationLanguages')} | ${opLangs} | — |
-| ${t('aeReport.dynamicContentBase')} | ~${num(dynamicContentBase, 2)} ${t('aeReport.itemsUnit')} | 0.08h/item |
-| **${t('common.subtotal')}** | — | **${num(breakdown.operationLanguages, 2)}h** |
 
 ### ${t('aeReport.section66')}
 - SSO ${hasSSO ? t('aeReport.ssoEnabled') : t('aeReport.ssoDisabled')}: **${num(breakdown.sso, 2)}h** ${t('aeReport.ssoFlatNote')}
@@ -1080,6 +1044,7 @@ ${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: an
 ### ${t('aeReport.section67')}
 - ${t('aeReport.articles')}: ${knowledgeArticles}
 - ${t('aeReport.hoursPerArticle')}
+- ${t('aeReport.knowledgeConfigNote')}
 - ${t('aeReport.subtotalKnowledge')} **${num(breakdown.knowledge, 2)}h**
 
 ---
@@ -1151,7 +1116,6 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
         successIndicators,
         engineInputs,
         selectedModules,
-        analyticsTrainingType,
         knowledgeArticles,
         operationTypes,
         skuType,
@@ -1171,7 +1135,6 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
         hasSlackSideConv,
         hasAppCondicionais,
         hasAppTicketManager,
-        operationLanguages,
         resultHours: estimation.total,
         needsSC: estimation.needsSC,
         appQuantities,
@@ -1216,124 +1179,45 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
   const scopePrompt = useMemo(() => {
     if (!resultSnapshot) return '';
 
-    const inputs = resultSnapshot.engineInputs || {};
-    const bd = (resultSnapshot.engineResult?.breakdown || {}) as Record<string, number>;
-
-    const modules: string[] = (inputs.selectedModules || []).filter(Boolean);
-
-    const channels: ScopeExportChannel[] = (inputs.selectedChannels || []).map((key: string) => {
-      const option = [...channelOptions, ...extraChannelOptions].find((o) => {
-        const mapped = CHANNEL_LEGACY_TO_KEY[o.id];
-        return mapped === key || o.id === key;
-      });
-      return {
-        label: option?.label || String(key),
-        quantity: Math.max(1, Number(inputs.channelQuantities?.[key] ?? 1)),
-      };
-    });
-
-    const integrations: ScopeExportIntegration[] = [
-      ...(selectedNativeConnections || []).filter(Boolean).map((name: string) => ({
-        kind: 'Integração nativa', label: name, quantity: 1,
-      })),
-      ...(selectedApps || []).filter(Boolean).map((name: string) => ({
-        kind: 'Marketplace', label: name,
-        quantity: Math.max(1, Number(appQuantities[name] ?? 1)),
-      })),
-      ...(selectedActionFlows || []).filter(Boolean).map((name: string) => ({
-        kind: 'Action Flow',
-        label: ACTION_FLOW_OPTIONS.find((o) => o.value === name)?.label || String(name),
-        quantity: 1,
-      })),
-      ...(hasAppCondicionais ? [{ kind: 'App AktieNow', label: 'Condicionais Avançadas', quantity: 1 }] : []),
-      ...(hasAppTicketManager ? [{ kind: 'App AktieNow', label: 'Ticket Manager', quantity: 1 }] : []),
-    ];
-
-    /**
-     * A Calculadora AE não tem biblioteca de itens como o framework: o engine
-     * devolve grupos de horas. Cada grupo com hora > 0 vira uma linha, o que dá
-     * à skill a mesma base para decidir quais bullets do template ficam.
-     */
-    const groupLabels: Record<string, string> = {
-      supportConfig: 'Configuração Support', voiceConfig: 'Configuração Voice',
-      copilotConfig: 'Configuração Copilot', wfmConfig: 'Configuração WFM',
-      qaConfig: 'Configuração QA', agentSetup: 'Cadastro de agentes',
-      brandSetup: 'Configuração de marcas', channelSetup: 'Configuração de canais',
-      appCondicionais: 'App Condicionais Avançadas', appTicketManager: 'App Ticket Manager',
-      sso: 'Single Sign-On (SSO)', generalConfig: 'Configurações gerais',
-      training: 'Treinamento', supportFixed: 'Pacotes fixos Support',
-      wfmFixed: 'Pacotes fixos WFM', adppFixed: 'Pacotes fixos ADPP',
-      nativeConnections: 'Integrações nativas', knowledge: 'Knowledge / Central de Ajuda',
-      sideConversations: 'Conversas paralelas (Side Conversations)',
-      thirdPartyApps: 'Apps de Marketplace', workshops: 'Workshop',
-      operationLanguages: 'Conteúdo dinâmico / multi-idioma',
-      actionFlows: 'Action Flow',
-    };
-
-    const items: ScopeExportItem[] = Object.entries(bd)
-      .filter(([, hours]) => Number(hours) > 0)
-      .map(([key, hours]) => ({
-        category: 'Calculadora AE',
-        subcategory: 'Grupos de esforço',
-        label: groupLabels[key] || key,
-        quantity: 1,
-        hours: Number(hours) || 0,
-      }));
-
-    // Canais e integrações também entram como itens: é deles que as flags de
-    // WhatsApp, e-mail e Central de Ajuda são detectadas.
-    channels.forEach((c) => items.push({
-      category: 'Canais', subcategory: 'Canais',
-      label: c.label, quantity: Number(c.quantity) || 1, hours: 0,
-    }));
-    integrations.forEach((i) => items.push({
-      category: i.kind, subcategory: 'Integrações',
-      label: i.label, quantity: Number(i.quantity) || 1, hours: 0,
-    }));
-
-    const flags = detectSuppressionFlags(items, {
-      // A Calculadora nunca contempla desenvolvimento nem design sob medida.
-      desenvolvimento: false,
-      design: false,
-      sso: Boolean(hasSSO),
-      'side-conversations': Boolean(hasTeamsSideConv || hasSlackSideConv),
-      'action-flow': (selectedActionFlows || []).filter(Boolean).length > 0,
-      knowledge: Number(knowledgeArticles) > 0 || modules.includes('Knowledge'),
-    });
-
-    return buildScopePrompt({
-      origin: 'calculadora-ae',
-      template: 'escopo-padrao-60h',
+    const appQuantitiesByLabel = appQuantities || {};
+    return buildAEScopePrompt({
+      estimate: resultSnapshot.engineResult,
+      inputs: resultSnapshot.engineInputs,
       clientName: resultSnapshot.clientName,
-      projectName: resultSnapshot.clientName,
-      versionName: initialVersion != null ? `v${initialVersion}` : 'v1',
-      generatedAt: new Date(),
+      versionLabel: initialVersion != null ? `v${initialVersion}` : 'v1',
       zohoLink,
       preSalesName: (session?.user as any)?.name || null,
-      totalHours: resultSnapshot.total,
-      // A Calculadora não separa horas por skill; o total técnico é a linha de
-      // implantação e as variáveis vêm no bloco de percentuais.
-      skillHours: {
-        'Implantação': resultSnapshot.techHours,
-        'GP': shownVar('gp'),
-      },
-      percents: null,
-      planTierLabel: `Suite ${String(zendeskPlan || 'professional').replace(/^\w/, (c) => c.toUpperCase())}`,
-      skuLabel: skuType === 'employee_service' ? t('plans.employeeService') : t('plans.customerService'),
-      modules,
-      channels,
-      integrations,
-      flags,
-      categories: null,
-      items,
-      crm: null,
+      // Texto livre do AE — vira o bloco [CONTEXTO DO CLIENTE] no prompt, que é
+      // o que permite à skill escrever dores e objetivos sem inventar.
+      clientObjectives,
+      successIndicators,
+      deploymentType,
+      marketplaceApps: (selectedApps || []).filter(Boolean).map((label: string) => ({
+        label: String(label),
+        quantity: Math.max(1, Number(appQuantitiesByLabel[label] ?? 1)),
+      })),
+      hasAppCondicionais,
+      hasAppTicketManager,
+      // O prompt sai no idioma da interface: quem trabalha em inglês recebe as
+      // instruções em inglês e IDIOMA DE SAÍDA: en-US.
+      locale: language,
+      channelLabels: Object.fromEntries(
+        [...channelOptions, ...extraChannelOptions].map((o) => [
+          CHANNEL_LEGACY_TO_KEY[o.id] || o.id,
+          o.label,
+        ]),
+      ),
+      skuLabel: skuType === 'employee_service'
+        ? t('plans.employeeService')
+        : t('plans.customerService'),
+      generatedAt: new Date(),
     });
   }, [
-    resultSnapshot, selectedNativeConnections, selectedApps, appQuantities,
-    selectedActionFlows, hasAppCondicionais, hasAppTicketManager, hasSSO,
-    hasTeamsSideConv, hasSlackSideConv, knowledgeArticles, zohoLink,
-    zendeskPlan, skuType, initialVersion, session, t,
+    resultSnapshot, selectedApps, appQuantities, hasAppCondicionais,
+    hasAppTicketManager, zohoLink, clientObjectives, successIndicators,
+    deploymentType, skuType, initialVersion, session, language, t,
   ]);
+
 
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
 
@@ -1475,25 +1359,9 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                   </div>
                 </div>
 
-                {selectedModules.includes('Analytics') && (
-                  <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 space-y-4 animate-in fade-in slide-in-from-top-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 block">{t('ae.trainingType')}</label>
-                    <div className="flex bg-white p-1 rounded-xl border border-slate-200">
-                      <button 
-                        onClick={() => setAnalyticsTrainingType('standard')} 
-                        className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'standard' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                      >
-                        {t('ae.standardTraining')}
-                      </button>
-                      <button 
-                        onClick={() => setAnalyticsTrainingType('advanced')} 
-                        className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase transition-all ${analyticsTrainingType === 'advanced' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                      >
-                        {t('ae.advancedTraining')}
-                      </button>
-                    </div>
-                  </div>
-                )}
+                {/* O seletor de treinamento Básico/Avançado de Analytics foi
+                    removido: Analytics entra pelo treinamento de Suite, como
+                    Support e Knowledge. */}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
@@ -1555,19 +1423,6 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                             <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                           </label>
                         ))}
-                      </div>
-                      <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <Globe className="w-4 h-4 text-slate-400" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{t('ae.operationLanguages')}</span>
-                        </div>
-                        <input 
-                          type="number" 
-                          min="1" 
-                          value={operationLanguages} 
-                          onChange={(e) => setOperationLanguages(Math.max(1, parseInt(e.target.value) || 1))}
-                          className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
-                        />
                       </div>
                       {!canUseSideConversations && (
                         <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
@@ -1867,13 +1722,16 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 <h2 className="text-xl font-black uppercase tracking-tight dark:text-[color:var(--text-main)]">{t('ae.finishEstimate')}</h2>
               </div>
 
-              {!validation.valid && validation.errors.length > 0 && (
+              {!validation.valid && (validation.issues || []).length > 0 && (
                 <div className="space-y-2">
                   <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">{t('ae.beforeCalculating')}</p>
                   <ul className="space-y-1">
-                    {validation.errors.map((err, i) => (
-                      <li key={i} className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">
-                        • {err}
+                    {/* As mensagens vêm do engine como CÓDIGO + parâmetros, não
+                        como frase pronta — antes apareciam sempre em inglês,
+                        mesmo com a interface em português. */}
+                    {(validation.issues || []).map((issue, i) => (
+                      <li key={issue.code + i} className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">
+                        • {t(`aeValidation.${issue.code}`, { ...(issue.params || {}), defaultValue: issue.message })}
                       </li>
                     ))}
                   </ul>

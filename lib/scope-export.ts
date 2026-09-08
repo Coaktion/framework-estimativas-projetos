@@ -18,23 +18,135 @@
  * ensine a skill a aceitar as duas versões — assim um prompt copiado ontem
  * continua funcionando.
  *
+ * IDIOMA — SAÍDA SEMPRE EM pt-BR
+ * ------------------------------
+ * O prompt sai INTEIRO em português, independentemente do idioma da interface.
+ *
+ * Motivo: a skill `scope-creator` tem um único template, em pt-BR, e casa os
+ * trechos suprimíveis contra rótulos em português. Um prompt em inglês pedindo
+ * documento em inglês produziria um .docx meio traduzido, com a estrutura de um
+ * template que não existe — pior do que um documento coerente em português.
+ *
+ * O inglês volta quando houver template e skill próprios (já previstos). A
+ * mecânica de tradução continua montada: `PROSE.en` está aqui, completa, e
+ * `LOCK_OUTPUT_TO_PT` abaixo é o único interruptor. Ligar o inglês é trocar
+ * `false` e passar `locale` do chamador.
+ *
  * FASE 2 (Zoho CRM)
  * -----------------
- * A seção `[CRM]` já é emitida com os campos previstos, marcados como
- * "(pendente — Zoho)". Quando a integração existir, basta preencher
- * `ScopeExportInput.crm` que o texto sai completo, sem mudar a skill nem o
- * formato. É por isso que a seção existe desde já, vazia.
+ * A seção `[CRM]` NÃO é mais emitida. Os tipos (`ScopeExportCrm`, o campo
+ * `crm`) continuam aqui de propósito: quando os endpoints do Zoho existirem,
+ * religar é trocar `EMIT_CRM_SECTION` para `true` e preencher o objeto — sem
+ * remexer no formato nem na skill.
  */
 
 export const SCOPE_EXPORT_VERSION = 'v1';
 
+/**
+ * Emissão da seção `[CRM]`.
+ *
+ * Desligada enquanto a integração com o Zoho não existe: uma seção inteira de
+ * "(pendente — Zoho)" só ensinava a skill a preencher o documento com
+ * placeholders. Ligue quando os endpoints estiverem prontos.
+ */
+const EMIT_CRM_SECTION = false;
+
+/**
+ * Trava a saída em pt-BR.
+ *
+ * Enquanto `true`, `input.locale` é ignorado e o prompt sai em português — é o
+ * que garante compatibilidade com o template pt-BR da skill `scope-creator`.
+ * Troque para `false` quando existirem template e skill em inglês.
+ */
+const LOCK_OUTPUT_TO_PT = true;
+
+export type ScopeExportLocale = 'pt' | 'en';
+
 export type ScopeTemplateKey = 'pacote-de-horas' | 'escopo-padrao-60h';
 export type ScopeOrigin = 'framework' | 'calculadora-ae';
 
-/** Valor exibido quando o dado não existe no site. */
-const MISSING = '(não informado)';
-/** Valor exibido para campos que virão do Zoho na fase 2. */
-const PENDING_CRM = '(pendente — Zoho)';
+/**
+ * Prosa do prompt, por idioma.
+ *
+ * Só entra aqui o que um humano LÊ ou o que instrui o modelo. Tags de seção,
+ * rótulos de campo e valores de enum ficam de fora — são identificadores.
+ */
+const PROSE = {
+  pt: {
+    outputLanguage: 'pt-BR',
+    instruction: 'Gere o Escopo Técnico deste projeto usando a skill scope-creator.',
+    precedence:
+      'REGRA DE PRECEDÊNCIA: os dados do bloco abaixo são a fonte de verdade e ' +
+      'prevalecem sobre qualquer documento anexado. Use anexos apenas para ' +
+      'enriquecer contexto (dores, objetivos, cenário atual). Nada que apareça ' +
+      'só no anexo entra no escopo.',
+    glossary: '',
+    missing: '(não informado)',
+    pendingCrm: '(pendente — Zoho)',
+    noModules: '(nenhum módulo identificado)',
+    noChannels: '(nenhum canal identificado)',
+    noIntegrations: '(nenhuma integração ou app no escopo)',
+    noHours: '(sem horas lançadas)',
+    noItems: '(nenhum item selecionado)',
+    yes: 'sim',
+    no: 'nao',
+    crmNote1: '# Preenchido pela integração com o Zoho CRM (fase 2). Campos pendentes',
+    crmNote2: '# devem ser deixados como placeholder no documento, nunca inventados.',
+    flagsNote: '# "nao" significa REMOVER do documento o trecho correspondente.',
+    itemsNote: '# Use para decidir quais bullets de capacidade permanecem no documento.',
+    contextNote:
+      '# Texto livre escrito pelo Account Executive. Use para redigir as seções ' +
+      'de contexto, dores e objetivos — nunca para acrescentar entregas ao escopo.',
+    skillHoursLabel: 'Horas por skill',
+    percentsLabel: 'Percentuais aplicados',
+    painsLabel: 'Dores identificadas',
+    end: '===== FIM =====',
+  },
+  en: {
+    outputLanguage: 'en-US',
+    instruction: 'Generate the Technical Scope for this project using the scope-creator skill.',
+    precedence:
+      'PRECEDENCE RULE: the data in the block below is the source of truth and ' +
+      'overrides any attached document. Use attachments only to enrich context ' +
+      '(pain points, goals, current landscape). Nothing that appears only in an ' +
+      'attachment belongs in the scope.',
+    glossary:
+      '# Section tags and field labels below are STABLE KEYS and stay in Portuguese ' +
+      'on purpose, so the same parser reads a prompt copied in any interface ' +
+      'language. Quick glossary: PROJETO=Project, DIMENSIONAMENTO=Sizing, ' +
+      'PLATAFORMA=Platform, MÓDULOS EM ESCOPO=Modules in scope, CANAIS EM ' +
+      'ESCOPO=Channels in scope, INTEGRAÇÕES E APPS=Integrations and apps, ' +
+      'CONTEXTO DO CLIENTE=Client context, FLAGS DE SUPRESSÃO=Suppression flags, ' +
+      'DETALHAMENTO POR CATEGORIA=Breakdown by category, ITENS ' +
+      'SELECIONADOS=Selected items. Values "sim"/"nao" mean yes/no. ' +
+      'Write the DOCUMENT in the language given by IDIOMA DE SAÍDA.',
+    missing: '(not provided)',
+    pendingCrm: '(pending — Zoho)',
+    noModules: '(no module identified)',
+    noChannels: '(no channel identified)',
+    noIntegrations: '(no integration or app in scope)',
+    noHours: '(no hours entered)',
+    noItems: '(no item selected)',
+    yes: 'sim',
+    no: 'nao',
+    crmNote1: '# Filled by the Zoho CRM integration (phase 2). Pending fields must be',
+    crmNote2: '# left as placeholders in the document, never invented.',
+    flagsNote: '# "nao" means REMOVE the corresponding passage from the document.',
+    itemsNote: '# Use this to decide which capability bullets stay in the document.',
+    contextNote:
+      '# Free text written by the Account Executive. Use it to write the context, ' +
+      'pain-point and goal sections — never to add deliverables to the scope.',
+    skillHoursLabel: 'Horas por skill',
+    percentsLabel: 'Percentuais aplicados',
+    painsLabel: 'Dores identificadas',
+    end: '===== FIM =====',
+  },
+} as const;
+
+function proseFor(locale?: ScopeExportLocale | string | null) {
+  if (LOCK_OUTPUT_TO_PT) return PROSE.pt;
+  return String(locale || 'pt').toLowerCase().startsWith('en') ? PROSE.en : PROSE.pt;
+}
 
 export interface ScopeExportChannel {
   label: string;
@@ -84,6 +196,15 @@ export interface ScopeExportInput {
   origin: ScopeOrigin;
   template: ScopeTemplateKey;
 
+  /**
+   * Idioma da interface de quem copiou.
+   *
+   * Hoje é IGNORADO: `LOCK_OUTPUT_TO_PT` força pt-BR para bater com o template
+   * da skill. O campo continua aqui para que religar o inglês seja só destravar
+   * a constante — os chamadores já passam o idioma certo.
+   */
+  locale?: ScopeExportLocale | string | null;
+
   clientName: string;
   projectName?: string | null;
   versionName?: string | null;
@@ -102,6 +223,9 @@ export interface ScopeExportInput {
   planTierLabel: string;
   skuLabel: string;
 
+  /** Nova implantação × Otimização de instância existente. */
+  deploymentType?: 'new' | 'optimization' | null;
+
   modules?: string[] | null;
   channels?: ScopeExportChannel[] | null;
   integrations?: ScopeExportIntegration[] | null;
@@ -111,6 +235,18 @@ export interface ScopeExportInput {
 
   categories?: ScopeExportCategory[] | null;
   items?: ScopeExportItem[] | null;
+
+  /**
+   * Texto livre digitado na Calculadora AE ("Objetivos e dores do cliente" e
+   * "Indicadores de sucesso").
+   *
+   * É a única entrada qualitativa que o site tem sobre o cliente, e o que
+   * permite à skill escrever as seções de contexto e objetivos sem inventar.
+   * Vai num bloco próprio, separado do dimensionamento, exatamente para que a
+   * regra de precedência continue clara: contexto NÃO cria entrega.
+   */
+  clientObjectives?: string | null;
+  successIndicators?: string | null;
 
   crm?: ScopeExportCrm | null;
 }
@@ -230,9 +366,17 @@ function pct(value: unknown): string {
   return `${text}%`;
 }
 
-function orMissing(value: unknown, fallback = MISSING): string {
+function orMissing(value: unknown, fallback: string): string {
   const text = String(value ?? '').trim();
   return text || fallback;
+}
+
+/** Normaliza texto multilinha para o corpo do prompt, sem linhas vazias. */
+function textBlock(value: unknown): string[] {
+  return String(value ?? '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 function dateBR(value?: Date | null): string {
@@ -250,58 +394,80 @@ const TEMPLATE_LABEL: Record<ScopeTemplateKey, string> = {
 export function buildScopePrompt(input: ScopeExportInput): string {
   const lines: string[] = [];
   const push = (line = '') => lines.push(line);
+  const L = proseFor(input.locale);
+  const missing = (value: unknown, fallback: string = L.missing) => orMissing(value, fallback);
 
   // ---- Instrução de uso ---------------------------------------------------
-  push('Gere o Escopo Técnico deste projeto usando a skill scope-creator.');
+  push(L.instruction);
   push();
-  push(
-    'REGRA DE PRECEDÊNCIA: os dados do bloco abaixo são a fonte de verdade e ' +
-      'prevalecem sobre qualquer documento anexado. Use anexos apenas para ' +
-      'enriquecer contexto (dores, objetivos, cenário atual). Nada que apareça ' +
-      'só no anexo entra no escopo.',
-  );
+  push(L.precedence);
   push();
 
   // ---- Envelope -----------------------------------------------------------
   push(`===== PRE-SALES.AI · ESCOPO TÉCNICO · ${SCOPE_EXPORT_VERSION} =====`);
   push(`ORIGEM: ${input.origin}`);
   push(`TEMPLATE: ${input.template}  # ${TEMPLATE_LABEL[input.template]}`);
-  push('IDIOMA DE SAÍDA: pt-BR');
+  // A linha que decide o idioma do DOCUMENTO. Segue a interface.
+  push(`IDIOMA DE SAÍDA: ${L.outputLanguage}`);
+  if (L.glossary) push(L.glossary);
   push();
 
   // ---- Projeto ------------------------------------------------------------
   push('[PROJETO]');
-  push(`Cliente: ${orMissing(input.clientName)}`);
-  push(`Projeto: ${orMissing(input.projectName, orMissing(input.clientName))}`);
-  push(`Versão da proposta técnica: ${orMissing(input.versionName, 'v1')}`);
+  push(`Cliente: ${missing(input.clientName)}`);
+  push(`Projeto: ${missing(input.projectName, missing(input.clientName))}`);
+  push(`Versão da proposta técnica: ${missing(input.versionName, 'v1')}`);
   push(`Data: ${dateBR(input.generatedAt)}`);
-  push(`Pre-Sales responsável: ${orMissing(input.preSalesName)}`);
-  push(`Link do escopo técnico: ${orMissing(input.technicalScopeLink)}`);
-  push(`Link do negócio: ${orMissing(input.zohoLink)}`);
+  push(`Pre-Sales responsável: ${missing(input.preSalesName)}`);
+  push(`Link do escopo técnico: ${missing(input.technicalScopeLink)}`);
+  push(`Link do negócio: ${missing(input.zohoLink)}`);
+  if (input.deploymentType) {
+    push(`Tipo de projeto: ${input.deploymentType === 'optimization' ? 'Otimização' : 'Nova implantação'}`);
+  }
   push();
 
   // ---- CRM (fase 2) -------------------------------------------------------
-  const crm = input.crm || {};
-  push('[CRM]');
-  push('# Preenchido pela integração com o Zoho CRM (fase 2). Campos pendentes');
-  push('# devem ser deixados como placeholder no documento, nunca inventados.');
-  push(`Razão social do cliente: ${orMissing(crm.clientLegalName, PENDING_CRM)}`);
-  push(`ID do negócio: ${orMissing(crm.dealId, PENDING_CRM)}`);
-  push(`Account Executive: ${orMissing(crm.accountExecutive, PENDING_CRM)}`);
-  push(`Site do cliente: ${orMissing(crm.clientWebsite, PENDING_CRM)}`);
-  push(`Segmento: ${orMissing(crm.segment, PENDING_CRM)}`);
-  push(`Região de operação: ${orMissing(crm.region, PENDING_CRM)}`);
-  push(`Modelo de atendimento: ${orMissing(crm.serviceModel, PENDING_CRM)}`);
-  push(`Vigência para uso das horas: ${orMissing(crm.hoursValidityMonths, PENDING_CRM)}`);
-  push(`BANT: ${orMissing(crm.bant, PENDING_CRM)}`);
-  const pains = (crm.painPoints || []).filter(Boolean);
-  if (pains.length) {
-    push('Dores identificadas:');
-    pains.forEach((pain) => push(`- ${pain}`));
-  } else {
-    push(`Dores identificadas: ${PENDING_CRM}`);
+  // Desligado enquanto os endpoints do Zoho não existem — ver EMIT_CRM_SECTION.
+  if (EMIT_CRM_SECTION) {
+    const crm = input.crm || {};
+    push('[CRM]');
+    push(L.crmNote1);
+    push(L.crmNote2);
+    push(`Razão social do cliente: ${missing(crm.clientLegalName, L.pendingCrm)}`);
+    push(`ID do negócio: ${missing(crm.dealId, L.pendingCrm)}`);
+    push(`Account Executive: ${missing(crm.accountExecutive, L.pendingCrm)}`);
+    push(`Site do cliente: ${missing(crm.clientWebsite, L.pendingCrm)}`);
+    push(`Segmento: ${missing(crm.segment, L.pendingCrm)}`);
+    push(`Região de operação: ${missing(crm.region, L.pendingCrm)}`);
+    push(`Modelo de atendimento: ${missing(crm.serviceModel, L.pendingCrm)}`);
+    push(`Vigência para uso das horas: ${missing(crm.hoursValidityMonths, L.pendingCrm)}`);
+    push(`BANT: ${missing(crm.bant, L.pendingCrm)}`);
+    const pains = (crm.painPoints || []).filter(Boolean);
+    if (pains.length) {
+      push(`${L.painsLabel}:`);
+      pains.forEach((pain) => push(`- ${pain}`));
+    } else {
+      push(`${L.painsLabel}: ${L.pendingCrm}`);
+    }
+    push();
   }
-  push();
+
+  // ---- Contexto do cliente (texto livre do AE) ---------------------------
+  const objectives = textBlock(input.clientObjectives);
+  const indicators = textBlock(input.successIndicators);
+  if (objectives.length || indicators.length) {
+    push('[CONTEXTO DO CLIENTE]');
+    push(L.contextNote);
+    if (objectives.length) {
+      push('Objetivos e dores do cliente:');
+      objectives.forEach((line) => push(`- ${line}`));
+    }
+    if (indicators.length) {
+      push('Indicadores de sucesso:');
+      indicators.forEach((line) => push(`- ${line}`));
+    }
+    push();
+  }
 
   // ---- Dimensionamento ---------------------------------------------------
   push('[DIMENSIONAMENTO]');
@@ -311,28 +477,28 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   const skillNames: Record<string, string> = {
     'GP': 'Gerente de Projeto',
   };
-  push('Horas por skill:');
+  push(`${L.skillHoursLabel}:`);
   skillOrder.forEach((skill) => {
     const value = Number(skills[skill] || 0);
     push(`- ${skillNames[skill] || skill}: ${hrs(value)}`);
   });
   const p = input.percents || {};
   push(
-    `Percentuais aplicados: Discovery ${pct(p.discovery)} · ` +
+    `${L.percentsLabel}: Discovery ${pct(p.discovery)} · ` +
       `Validação ${pct(p.validation)} · GP ${pct(p.gp)}`,
   );
   push();
 
   // ---- Plataforma --------------------------------------------------------
   push('[PLATAFORMA]');
-  push(`Plano Zendesk: ${orMissing(input.planTierLabel)}`);
-  push(`Tipo de instância: ${orMissing(input.skuLabel)}`);
+  push(`Plano Zendesk: ${missing(input.planTierLabel)}`);
+  push(`Tipo de instância: ${missing(input.skuLabel)}`);
   push();
 
   // ---- Módulos -----------------------------------------------------------
   const modules = (input.modules || []).filter(Boolean);
   push('[MÓDULOS EM ESCOPO]');
-  push(modules.length ? modules.join(', ') : '(nenhum módulo identificado)');
+  push(modules.length ? modules.join(', ') : L.noModules);
   push();
 
   // ---- Canais ------------------------------------------------------------
@@ -344,7 +510,7 @@ export function buildScopePrompt(input: ScopeExportInput): string {
       push(`- ${c.label}${Number.isFinite(qty) && qty > 0 ? `: ${qty}` : ''}`);
     });
   } else {
-    push('(nenhum canal identificado)');
+    push(L.noChannels);
   }
   push();
 
@@ -360,23 +526,23 @@ export function buildScopePrompt(input: ScopeExportInput): string {
       );
     });
   } else {
-    push('(nenhuma integração ou app no escopo)');
+    push(L.noIntegrations);
   }
   push();
 
   // ---- Flags -------------------------------------------------------------
   const flags = input.flags || {};
   push('[FLAGS DE SUPRESSÃO]');
-  push('# "nao" significa REMOVER do documento o trecho correspondente.');
+  push(L.flagsNote);
   SUPPRESSION_FLAGS.forEach((flag) => {
     const on = Boolean(flags[flag.key]);
-    push(`${flag.key}: ${on ? 'sim' : 'nao'}  # ${flag.governs}`);
+    push(`${flag.key}: ${on ? L.yes : L.no}  # ${flag.governs}`);
   });
   // Flags fora da tabela (ex.: desenvolvimento) também são emitidas.
   Object.keys(flags)
     .filter((key) => !SUPPRESSION_FLAGS.some((f) => f.key === key))
     .sort()
-    .forEach((key) => push(`${key}: ${flags[key] ? 'sim' : 'nao'}`));
+    .forEach((key) => push(`${key}: ${flags[key] ? L.yes : L.no}`));
   push();
 
   // ---- Detalhamento ------------------------------------------------------
@@ -390,14 +556,14 @@ export function buildScopePrompt(input: ScopeExportInput): string {
       });
     });
   } else {
-    push('(sem horas lançadas)');
+    push(L.noHours);
   }
   push();
 
   // ---- Itens -------------------------------------------------------------
   const items = (input.items || []).filter((i) => i && i.label);
   push('[ITENS SELECIONADOS]');
-  push('# Use para decidir quais bullets de capacidade permanecem no documento.');
+  push(L.itemsNote);
   if (items.length) {
     let currentGroup = '';
     items.forEach((item) => {
@@ -410,11 +576,11 @@ export function buildScopePrompt(input: ScopeExportInput): string {
       push(`- ${item.label}${qty > 1 ? ` ×${qty}` : ''} — ${hrs(item.hours)}`);
     });
   } else {
-    push('(nenhum item selecionado)');
+    push(L.noItems);
   }
   push();
 
-  push('===== FIM =====');
+  push(L.end);
 
   return lines.join('\n');
 }

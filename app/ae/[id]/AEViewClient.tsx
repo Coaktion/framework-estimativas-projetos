@@ -16,6 +16,7 @@ import {
   validateAEInputs,
   type AEInputData,
 } from '@/lib/ae-engine';
+import { buildAEScopePrompt } from '@/lib/ae-scope-prompt';
 
 const CHANNEL_LEGACY_TO_KEY: Record<string, any> = {
   web_form: 'web_form', email: 'email', web_widget: 'web_widget', whatsapp: 'whatsapp',
@@ -47,9 +48,6 @@ function normalizeSku(raw: string): any {
   if (key.includes('ES') || key.includes('EMPLOYEE')) return 'ES';
   return 'CS';
 }
-function normalizeAnalyticsTraining(raw: string): 'basic' | 'advanced' {
-  return String(raw || '').toLowerCase() === 'advanced' ? 'advanced' : 'basic';
-}
 
 function buildEngineInputs(formState: any): AEInputData {
   const selectedChannels: any[] = (formState.selectedChannels || [])
@@ -78,6 +76,9 @@ function buildEngineInputs(formState: any): AEInputData {
   const planRank = (PLAN_RANK as any)[zendeskPlan] ?? 1;
 
   const selectedModules = (formState.selectedModules || ['Support']).filter((m: string) => {
+    // Estimativas salvas antes da remoção ainda trazem 'AI Agents' no JSON.
+    // Descartar aqui faz a estimativa reabrir já recalculada sem ele.
+    if (m === 'AI Agents') return false;
     if (['Analytics', 'Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
     if (m === 'ADPP') return planRank >= PLAN_RANK.enterprise;
     return true;
@@ -94,8 +95,6 @@ function buildEngineInputs(formState: any): AEInputData {
     selectedChannels: selectedChannels.length ? selectedChannels : ['web_form'],
     channelQuantities,
     knowledgeArticles: Math.max(0, Number(formState.knowledgeArticles) || 0),
-    operationLanguages: Math.max(1, Number(formState.operationLanguages) || 1),
-    analyticsTrainingType: normalizeAnalyticsTraining(formState.analyticsTrainingType),
     selectedNativeConnections: formState.selectedNativeConnections || [],
     selectedActionFlows: formState.selectedActionFlows || [],
     selectedApps,
@@ -153,7 +152,6 @@ function buildMarkdownReport(est: any, f: any, engineInputs: any, t: TFunc, date
 - **${t('report.agentCount')}:** ${Math.max(1, Number(d.agents) || 1)}
 - **${t('report.brands')}:** ${Math.max(1, Number(d.brands) || 1)}
 - **${t('report.areasQueues')}:** ${Math.max(1, Number(d.areas) || 1)}
-- **${t('report.operationLanguages')}:** ${Math.max(1, Number(d.operationLanguages) || 1)}
 - **${t('report.selectedModules')}:** ${Array.isArray(d.selectedModules) ? d.selectedModules.join(', ') : 'Support'}
 - **${t('report.clientObjectives')}:** ${String(d.clientObjectives || t('report.notProvided'))}
 - **${t('report.successIndicators')}:** ${String(d.successIndicators || t('report.notProvided'))}
@@ -178,9 +176,6 @@ ${(engineInputs?.selectedChannels || []).map((c: string) => `  - ${String(c)} ×
 
 ### ${t('report.section32')}
 - ${t('report.knowledgeArticles')} ${Math.max(0, Number(d.knowledgeArticles) || 0)} ${t('report.knowledgeRule')}
-
-### ${t('report.section33')}
-- ${t('report.analyticsTrainingType')} ${d.analyticsTrainingType === 'advanced' ? t('report.advanced') : t('report.standard')}
 
 ### ${t('report.section34')}
 - ${t('report.actionFlowsNote')}
@@ -227,7 +222,6 @@ ${(engineInputs?.selectedChannels || []).map((c: string) => `  - ${String(c)} ×
 | ${t('common.item')} | ${t('report.applied')} |
 | :--- | :--- |
 | ${t('report.fixedTrainingRow')} | ${t('report.appliedViaEngine')} |
-| ${t('report.analyticsTrainingRow')} | ${d.analyticsTrainingType === 'advanced' ? t('report.advanced') : t('report.standard')} |
 
 ---
 
@@ -280,7 +274,7 @@ export default function AEViewClient(props: any) {
   } = props;
 
   const { t } = useTranslation();
-  const { dateLocale } = useLanguage();
+  const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   // Relatório Executivo: só administradores. Os demais ficam com a tabela.
   const showExecutiveReport = canViewExecutiveReport(session?.user as any);
@@ -382,6 +376,62 @@ export default function AEViewClient(props: any) {
   const total = Math.max(0, Number(estimation?.total ?? resultHours ?? 0));
   const needsSCFinal = Boolean(estimation?.needsSC ?? needsSC);
 
+  /* ------------------------------------------------------------------------ */
+  /*        EXPORTAÇÃO DO ESCOPO COMO PROMPT PARA A SKILL scope-creator        */
+  /* ------------------------------------------------------------------------ */
+
+  /**
+   * Mesmo prompt da tela de cálculo, montado a partir do RECÁLCULO desta
+   * estimativa salva. Antes o botão só existia logo depois de calcular, então
+   * reabrir a estimativa pelo histórico deixava o usuário sem saída a não ser
+   * refazer a simulação inteira.
+   */
+  const scopePrompt = useMemo(() => {
+    const d = data || {};
+    const appQuantities = (d.appQuantities || {}) as Record<string, number>;
+    return buildAEScopePrompt({
+      estimate: engineResult,
+      inputs: engineInputs,
+      clientName: String(clientName || ''),
+      versionLabel: version != null ? `v${version}` : 'v1',
+      zohoLink: zohoLink || null,
+      preSalesName: (session?.user as any)?.name || null,
+      clientObjectives: d.clientObjectives || null,
+      successIndicators: d.successIndicators || null,
+      deploymentType: d.deploymentType === 'optimization' ? 'optimization' : 'new',
+      marketplaceApps: (d.selectedApps || []).filter(Boolean).map((label: string) => ({
+        label: String(label),
+        quantity: Math.max(1, Number(appQuantities[label] ?? 1)),
+      })),
+      hasAppCondicionais: Boolean(d.hasAppCondicionais),
+      hasAppTicketManager: Boolean(d.hasAppTicketManager),
+      locale: language,
+      skuLabel:
+        normalizeSku(d.skuType) === 'ES'
+          ? t('plans.employeeService')
+          : t('plans.customerService'),
+      generatedAt: new Date(),
+    });
+  }, [engineResult, engineInputs, data, clientName, version, zohoLink, session, language, t]);
+
+  const [scopePromptCopied, setScopePromptCopied] = useState(false);
+
+  const handleCopyScopePrompt = async () => {
+    if (!scopePrompt) return;
+    try {
+      await navigator.clipboard.writeText(scopePrompt);
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = scopePrompt;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (_) {}
+      document.body.removeChild(ta);
+    }
+    setScopePromptCopied(true);
+    setTimeout(() => setScopePromptCopied(false), 2500);
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 py-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -415,6 +465,23 @@ export default function AEViewClient(props: any) {
             <Plus className="w-4 h-4" />
             <span>{t('ae.newSimulation')}</span>
           </Link>
+          {/* Copia o escopo como prompt pronto para a skill scope-creator.
+              A geração do documento é manual e proposital: nada aqui chama a
+              API da Claude. */}
+          <button
+            type="button"
+            onClick={handleCopyScopePrompt}
+            disabled={!scopePrompt}
+            title={t('aeView.copyScopePromptHint')}
+            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 transition-all disabled:opacity-50 ${
+              scopePromptCopied
+                ? 'brand-bg-primary text-white border-2 border-transparent'
+                : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white'
+            }`}
+          >
+            {scopePromptCopied ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+            <span>{scopePromptCopied ? t('aeView.scopePromptCopied') : t('aeView.copyScopePrompt')}</span>
+          </button>
           <Link
             href={`/ae?cloneFrom=${estimateId}`}
             className="brand-bg-primary text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 shadow-xl shadow-green-900/10 hover:scale-[1.02] transition-transform"

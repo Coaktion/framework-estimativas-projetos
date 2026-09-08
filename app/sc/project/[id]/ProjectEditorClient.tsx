@@ -20,7 +20,7 @@ import {
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
-  CheckSquare, Bot, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight
+  CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -86,6 +86,81 @@ const SKILL_BREAKDOWN_SUBITEMS: Record<string, { key: string; label: string; sou
 
 
 type TFunc = (key: string, params?: Record<string, any>) => string;
+
+/**
+ * Colunas das variáveis proporcionais no Detalhamento por Categoria.
+ *
+ * Existe como tabela porque a cor sozinha não identificava nada: as três
+ * parcelas apareciam como números coloridos empilhados à direita e o leitor
+ * tinha de subir até a legenda do toggle para descobrir qual era qual. Agora
+ * cada uma tem um cabeçalho de coluna, um rótulo curto repetido no mobile e a
+ * mesma cor — a cor virou reforço, não a única pista.
+ */
+const BREAKDOWN_VARIABLE_COLUMNS = [
+  {
+    key: 'discovery' as const,
+    labelKey: 'ae.discovery',
+    shortKey: 'ae.discovery',
+    textClass: 'text-amber-600',
+    dotClass: 'bg-amber-500',
+    chipClass:
+      'border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300',
+  },
+  {
+    key: 'validation' as const,
+    labelKey: 'ae.validation',
+    shortKey: 'ae.validation',
+    textClass: 'text-blue-600',
+    dotClass: 'bg-blue-500',
+    chipClass:
+      'border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300',
+  },
+  {
+    key: 'gp' as const,
+    labelKey: 'editor.skillGP',
+    shortKey: 'editor.skillGP',
+    textClass: 'text-brand-secondary dark:text-[color:var(--secondary)]',
+    dotClass: 'bg-brand-secondary',
+    chipClass:
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[#141414] text-brand-secondary dark:text-[color:var(--secondary)]',
+  },
+];
+
+/**
+ * Uma célula numérica do detalhamento.
+ *
+ * No desktop entra numa coluna que já tem cabeçalho; no mobile, onde o grid
+ * colapsa, ela imprime o próprio rótulo — do contrário o número voltaria a ser
+ * um valor solto sem identificação, que era exatamente o problema.
+ */
+function BreakdownCell({
+  value,
+  labelKey,
+  prefix = '',
+  className = '',
+  muted = false,
+  small = false,
+}: {
+  value: number;
+  labelKey: string;
+  prefix?: string;
+  className?: string;
+  muted?: boolean;
+  small?: boolean;
+}) {
+  const { t } = useTranslation();
+  const tone = muted ? 'text-slate-400 dark:text-[color:var(--text-muted)]' : className;
+  return (
+    <span className="flex items-baseline justify-end gap-1 shrink-0">
+      <span className="md:hidden text-[7px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-[color:var(--text-muted)]">
+        {t(labelKey)}
+      </span>
+      <span className={`${small ? 'text-[9px]' : 'text-[10px]'} font-black tabular-nums ${tone}`}>
+        {prefix}{Number(value || 0).toFixed(1)}
+      </span>
+    </span>
+  );
+}
 
 /**
  * Os nomes de subcategoria e de subitem ficam GRAVADOS no banco (layoutConfig),
@@ -350,6 +425,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return normalizePlanTier(saved.__planTier ?? DEFAULT_PLAN);
     } catch {
       return DEFAULT_PLAN;
+    }
+  });
+  /**
+   * Nova implantação × Otimização de instância existente.
+   *
+   * Mesmo controle que já existe na Calculadora AE. Hoje é informativo: não
+   * altera cálculo nenhum, apenas viaja no prompt do Escopo Técnico para que a
+   * skill saiba se o documento fala de uma implantação do zero ou de um ajuste
+   * sobre um Zendesk já em produção. Fica no JSON `data`, como SKU e plano, e
+   * portanto não exige coluna nova.
+   */
+  const [deploymentType, setDeploymentType] = useState<'new' | 'optimization'>(() => {
+    try {
+      const saved = currentVersion?.data ? JSON.parse(currentVersion.data) : {};
+      return saved.__deploymentType === 'optimization' ? 'optimization' : 'new';
+    } catch {
+      return 'new';
     }
   });
   const [openBreakdownCats, setOpenBreakdownCats] = useState<Record<string, boolean>>({});
@@ -1371,6 +1463,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     ? categoryBreakdown.grandWithVariables
     : categoryBreakdown.grand;
 
+  /**
+   * Grade de colunas do detalhamento, compartilhada por cabeçalho, linhas de
+   * categoria, linhas de subcategoria e rodapé — é isso que faz os números
+   * ficarem ALINHADOS em coluna em vez de amontoados à direita.
+   *
+   * A coluna 2 (participação) é elástica e absorve a sobra de largura, que
+   * antes ficava simplesmente vazia. Com o toggle ligado entram três colunas
+   * de largura fixa para as parcelas; desligado, a linha respira.
+   *
+   * Classes ESCRITAS POR EXTENSO de propósito: o Tailwind varre o código-fonte
+   * em busca de nomes de classe literais, então uma string montada por
+   * concatenação não geraria CSS nenhum.
+   */
+  const breakdownGridClass = breakdownWithVariables
+    ? 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_4.5rem_6rem]'
+    : 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_6rem]';
+
   /* ------------------------------------------------------------------------ */
   /*        EXPORTAÇÃO DO ESCOPO COMO PROMPT PARA A SKILL scope-creator        */
   /* ------------------------------------------------------------------------ */
@@ -1480,6 +1589,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       percents: percents,
       planTierLabel: PLAN_LABEL[planTier],
       skuLabel: skuType === 'ES' ? t('plans.employeeService') : t('plans.customerService'),
+      deploymentType,
+      // O prompt sai no idioma da interface — ver lib/scope-export.ts.
+      locale: language,
       modules,
       channels,
       integrations,
@@ -1499,6 +1611,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   }, [
     scopeItems, project, versionName, currentVersion, techLink, zohoLink,
     totals.grandTotal, totals.skillTotals, percents, planTier, skuType,
+    deploymentType, language,
     categoryBreakdown.rows, catLabelOf, t,
   ]);
 
@@ -1584,11 +1697,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           discoveryOverride: overrides.discovery,
           validationOverride: overrides.validation,
           safetyHours: JSON.stringify(safetyHours),
+          // Congelado para a tela de Projetos exibir "V1 · 108h" sem recalcular.
+          totalHours: Number(totals.grandTotal) || 0,
           data: {
             ...formData,
             marketplace_apps: JSON.stringify(marketplaceApps),
             __skuType: skuType,
-            __planTier: planTier
+            __planTier: planTier,
+            __deploymentType: deploymentType
           }
         });
         
@@ -1800,8 +1916,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 {[
                   { label: 'Integração', active: aeData.hasIntegration, icon: Settings },
                   { label: 'QA', active: aeData.hasQA, icon: CheckSquare },
-                  { label: 'WFM', active: aeData.hasWFM, icon: Users },
-                  { label: 'AI Agents', active: aeData.hasAIAgents, icon: Bot }
+                  { label: 'WFM', active: aeData.hasWFM, icon: Users }
+                  // O chip de AI Agents saiu: este painel resume uma estimativa
+                  // da Calculadora AE, que não dimensiona mais esse módulo — a
+                  // etiqueta seria sempre falsa.
                 ].map((feat) => (
                   <div key={feat.label} className={`p-4 rounded-2xl border flex items-center space-x-3 ${feat.active ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
                     <feat.icon className="w-4 h-4" />
@@ -1971,6 +2089,33 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
                 ))}
               </select>
+            </div>
+            <div className="md:col-span-2 space-y-2">
+              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.deploymentType')}</label>
+              <div className="flex bg-slate-100 dark:bg-[color:var(--bg-input)] p-1 rounded-xl max-w-md">
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('new')}
+                  className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    deploymentType === 'new'
+                      ? 'bg-brand-primary text-white shadow-sm'
+                      : 'text-slate-400 dark:text-[color:var(--text-muted)] hover:text-slate-600'
+                  }`}
+                >
+                  {t('editor.deploymentNew')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeploymentType('optimization')}
+                  className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                    deploymentType === 'optimization'
+                      ? 'bg-brand-primary text-white shadow-sm'
+                      : 'text-slate-400 dark:text-[color:var(--text-muted)] hover:text-slate-600'
+                  }`}
+                >
+                  {t('editor.deploymentOptimization')}
+                </button>
+              </div>
             </div>
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <p className="text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
@@ -2842,7 +2987,59 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         ))}
       </div>
 
-      {/* ---------------- Detalhamento por Categoria / Subcategoria ---------------- */}
+      {/* Totals & Calculations Summary */}
+      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-[2rem] shadow-xl mt-12">
+        <div className="max-w-7xl mx-auto flex flex-col space-y-8">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-2xl md:text-3xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
+              {t('editor.summaryOf')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('editor.summaryOfHours')}</span>
+            </h2>
+          </div>
+
+          {/* Skill Breakdown · 3 colunas: Implantação | SD | GP/DEV/DESIGN */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-4 border-b border-slate-100 dark:border-[color:var(--border-main)]">
+            {/* Coluna 1: Implantação (altura total) */}
+            <SkillCard skill="Implantação" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} />
+
+            {/* Coluna 2: Solution Design (altura total) */}
+            <SkillCard skill="Solution Design" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} />
+
+            {/* Coluna 3: GP + Desenvolvimento + Design (stack vertical */}
+            <div className="flex flex-col gap-5">
+              <SkillCard skill="GP" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
+              <SkillCard skill="Desenvolvimento" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
+              <SkillCard skill="Design" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
+            </div>
+          </div>
+
+          {/* Total Geral · alinhado conforme wireframe */}
+          <div className="flex items-end justify-end gap-4 flex-wrap">
+            <div className="w-full md:w-auto md:min-w-[340px]">
+              <div className={`
+                rounded-[1.75rem] border-2 border-brand-primary
+                px-6 md:px-10 py-5 md:py-7
+                bg-[#FFFFFF] dark:bg-[#0a0a0a]
+                flex items-center justify-between gap-4
+              `}>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('editor.grandTotal')}</p>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl md:text-6xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter leading-none tabular-nums">
+                    {Math.round(totals.grandTotal).toFixed(0)}
+                  </span>
+                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('common.hours')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------------- Detalhamento por Categoria / Subcategoria ----------------
+          Fica DEPOIS do Resumo de Horas: o número que fecha a conversa é o total
+          geral, e o detalhamento existe para explicá-lo — não para antecedê-lo.
+          Continua recolhido por padrão. */}
       <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-[2rem] shadow-lg mt-12 overflow-hidden">
         <button
           type="button"
@@ -2898,19 +3095,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </label>
 
               {breakdownWithVariables && (
-                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] flex flex-wrap items-center gap-x-5 gap-y-2">
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
-                    {t('editor.distributedTotals')}
-                  </span>
-                  <span className="text-[9px] font-black tabular-nums text-amber-600">
-                    {t('ae.discovery')} {percents.discovery}% · {categoryBreakdown.varTotals.discovery.toFixed(1)}h
-                  </span>
-                  <span className="text-[9px] font-black tabular-nums text-blue-600">
-                    {t('ae.validation')} {percents.validation}% · {categoryBreakdown.varTotals.validation.toFixed(1)}h
-                  </span>
-                  <span className="text-[9px] font-black tabular-nums text-brand-secondary dark:text-[color:var(--secondary)]">
-                    {t('editor.skillGP')} {percents.gp}% · {categoryBreakdown.varTotals.gp.toFixed(1)}h
-                  </span>
+                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
+                    <div
+                      key={col.key}
+                      className={`rounded-xl border px-3 py-2.5 ${col.chipClass}`}
+                    >
+                      <div className="flex items-center gap-1.5">
+                        <span className={`w-1.5 h-1.5 rounded-full ${col.dotClass}`} />
+                        <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-80">
+                          {t(col.labelKey)} · {percents[col.key]}%
+                        </span>
+                      </div>
+                      <div className="text-sm font-black tabular-nums tracking-tighter mt-1">
+                        {categoryBreakdown.varTotals[col.key].toFixed(1)}h
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -2921,7 +3122,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </div>
             ) : (
               <>
-                <div className="flex justify-end gap-3 mb-4">
+                <div className="flex justify-end gap-3 mb-3">
                   <button
                     type="button"
                     onClick={() => setOpenBreakdownCats(Object.fromEntries(categoryBreakdown.rows.map((r) => [r.cat, true])))}
@@ -2938,7 +3139,35 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   </button>
                 </div>
 
-                <div className="space-y-2">
+                {/* Cabeçalho de colunas: os números passam a ter NOME. Antes as
+                    parcelas de Discovery/Validação/GP eram só três valores
+                    coloridos empilhados à direita, legíveis apenas contra a
+                    legenda do toggle. */}
+                <div className={`hidden md:grid ${breakdownGridClass} gap-x-4 px-4 pb-2 mb-1 border-b border-slate-200 dark:border-[color:var(--border-main)]`}>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                    {t('editor.breakdownColCategory')}
+                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                    {t('editor.breakdownColShare')}
+                  </span>
+                  {breakdownWithVariables && (
+                    <>
+                      <span className="text-right text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                        {t('editor.breakdownColBase')}
+                      </span>
+                      {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
+                        <span key={col.key} className={`text-right text-[8px] font-black uppercase tracking-[0.2em] ${col.textClass}`}>
+                          {t(col.shortKey)}
+                        </span>
+                      ))}
+                    </>
+                  )}
+                  <span className="text-right text-[8px] font-black uppercase tracking-[0.2em] text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.breakdownColTotal')}
+                  </span>
+                </div>
+
+                <div className="space-y-1.5">
                   {categoryBreakdown.rows.map((row) => {
                     const isOpen = Boolean(openBreakdownCats[row.cat]);
                     const rowValue = breakdownWithVariables ? row.totalWithVariables : row.total;
@@ -2949,7 +3178,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           type="button"
                           onClick={() => setOpenBreakdownCats((prev) => ({ ...prev, [row.cat]: !prev[row.cat] }))}
                           aria-expanded={isOpen}
-                          className="w-full flex items-center justify-between gap-3 px-4 py-3 bg-slate-50/70 dark:bg-[#0f0f0f] hover:bg-slate-100/70 dark:hover:bg-[#141414] transition-colors text-left"
+                          className={`w-full md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-3 bg-slate-50/70 dark:bg-[#0f0f0f] hover:bg-slate-100/70 dark:hover:bg-[#141414] transition-colors text-left`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
@@ -2957,28 +3186,45 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               {catLabelOf(row.cat)}
                             </span>
                             <span className="shrink-0 text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
-                              {row.subs.length}
+                              {t('editor.breakdownSubcategories', { count: row.subs.length })}
                             </span>
                           </div>
-                          <div className="flex items-center gap-4 shrink-0">
-                            <span className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] tabular-nums">
+
+                          {/* Barra de participação: ocupa o espaço vazio do meio e
+                              torna a proporção legível sem ler número nenhum. */}
+                          <div className="hidden md:flex items-center gap-2 min-w-0">
+                            <div className="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-[#1f1f1f] overflow-hidden">
+                              <div
+                                className="h-full rounded-full brand-bg-primary"
+                                style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
+                              />
+                            </div>
+                            <span className="shrink-0 w-9 text-right text-[9px] font-black tabular-nums text-slate-400 dark:text-[color:var(--text-muted)]">
                               {share.toFixed(0)}%
                             </span>
-                            <div className="text-right">
-                              <div className="text-xs font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
-                                {rowValue.toFixed(1)}h
-                              </div>
-                              <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
-                                {formatHoursMinutes(rowValue)}
-                              </div>
-                              {breakdownWithVariables && (
-                                <div className="flex items-center justify-end gap-2 mt-1 text-[8px] font-black tabular-nums">
-                                  <span className="text-slate-400 dark:text-[color:var(--text-muted)]">{row.total.toFixed(1)}</span>
-                                  <span className="text-amber-600" title={t('ae.discovery')}>+{row.contrib.discovery.toFixed(1)}</span>
-                                  <span className="text-blue-600" title={t('ae.validation')}>+{row.contrib.validation.toFixed(1)}</span>
-                                  <span className="text-brand-secondary dark:text-[color:var(--secondary)]" title={t('editor.skillGP')}>+{row.contrib.gp.toFixed(1)}</span>
-                                </div>
-                              )}
+                          </div>
+
+                          {breakdownWithVariables && (
+                            <>
+                              <BreakdownCell value={row.total} labelKey="editor.breakdownColBase" muted />
+                              {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
+                                <BreakdownCell
+                                  key={col.key}
+                                  value={row.contrib[col.key]}
+                                  labelKey={col.shortKey}
+                                  prefix="+"
+                                  className={col.textClass}
+                                />
+                              ))}
+                            </>
+                          )}
+
+                          <div className="text-right shrink-0">
+                            <div className="text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter leading-none">
+                              {rowValue.toFixed(1)}<span className="text-[9px] ml-0.5">h</span>
+                            </div>
+                            <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+                              {formatHoursMinutes(rowValue)}
                             </div>
                           </div>
                         </button>
@@ -2987,28 +3233,53 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           <div className="divide-y divide-slate-100 dark:divide-[color:var(--border-main)]">
                             {row.subs.map(({ sub, hours, contrib, hoursWithVariables }) => {
                               const subValue = breakdownWithVariables ? hoursWithVariables : hours;
+                              const subShare = row.total > 0 ? (hours / row.total) * 100 : 0;
                               return (
-                              <div key={sub} className="flex items-center justify-between gap-3 px-4 py-2.5 pl-10">
-                                <span className="text-[10px] font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
-                                  {subcategoryLabel(t, sub)}
-                                </span>
-                                <div className="text-right shrink-0">
-                                  <div className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter">
-                                    {subValue.toFixed(1)}h
-                                  </div>
-                                  <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
-                                    {formatHoursMinutes(subValue)}
-                                  </div>
-                                  {breakdownWithVariables && (
-                                    <div className="flex items-center justify-end gap-2 mt-1 text-[8px] font-black tabular-nums">
-                                      <span className="text-slate-400 dark:text-[color:var(--text-muted)]">{hours.toFixed(1)}</span>
-                                      <span className="text-amber-600" title={t('ae.discovery')}>+{contrib.discovery.toFixed(1)}</span>
-                                      <span className="text-blue-600" title={t('ae.validation')}>+{contrib.validation.toFixed(1)}</span>
-                                      <span className="text-brand-secondary dark:text-[color:var(--secondary)]" title={t('editor.skillGP')}>+{contrib.gp.toFixed(1)}</span>
+                                <div
+                                  key={sub}
+                                  className={`md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-2.5 md:pl-10`}
+                                >
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
+                                    {subcategoryLabel(t, sub)}
+                                  </span>
+
+                                  <div className="hidden md:flex items-center gap-2 min-w-0">
+                                    <div className="h-1 flex-1 rounded-full bg-slate-100 dark:bg-[#141414] overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full bg-slate-300 dark:bg-[#2a2a2a]"
+                                        style={{ width: `${Math.min(100, Math.max(0, subShare))}%` }}
+                                      />
                                     </div>
+                                    <span className="shrink-0 w-9 text-right text-[8px] font-bold tabular-nums text-slate-300 dark:text-[color:var(--text-muted)]">
+                                      {subShare.toFixed(0)}%
+                                    </span>
+                                  </div>
+
+                                  {breakdownWithVariables && (
+                                    <>
+                                      <BreakdownCell value={hours} labelKey="editor.breakdownColBase" muted small />
+                                      {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
+                                        <BreakdownCell
+                                          key={col.key}
+                                          value={contrib[col.key]}
+                                          labelKey={col.shortKey}
+                                          prefix="+"
+                                          className={col.textClass}
+                                          small
+                                        />
+                                      ))}
+                                    </>
                                   )}
+
+                                  <div className="text-right shrink-0">
+                                    <div className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter leading-none">
+                                      {subValue.toFixed(1)}<span className="text-[8px] ml-0.5">h</span>
+                                    </div>
+                                    <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+                                      {formatHoursMinutes(subValue)}
+                                    </div>
+                                  </div>
                                 </div>
-                              </div>
                               );
                             })}
                           </div>
@@ -3017,59 +3288,36 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     );
                   })}
                 </div>
+
+                {/* Rodapé de fechamento: o detalhamento tem de bater com o resumo,
+                    e agora o leitor consegue conferir isso sem somar linha a linha. */}
+                <div className={`hidden md:grid ${breakdownGridClass} gap-x-4 items-center px-4 pt-3 mt-2 border-t-2 border-brand-primary/30`}>
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.breakdownTotalLabel')}
+                  </span>
+                  <span />
+                  {breakdownWithVariables && (
+                    <>
+                      <BreakdownCell value={categoryBreakdown.grand} labelKey="editor.breakdownColBase" muted />
+                      {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
+                        <BreakdownCell
+                          key={col.key}
+                          value={categoryBreakdown.varTotals[col.key]}
+                          labelKey={col.shortKey}
+                          prefix="+"
+                          className={col.textClass}
+                        />
+                      ))}
+                    </>
+                  )}
+                  <span className="text-right text-sm font-black text-brand-primary dark:text-[color:var(--primary)] tabular-nums tracking-tighter">
+                    {breakdownGrand.toFixed(1)}h
+                  </span>
+                </div>
               </>
             )}
           </div>
         )}
-      </div>
-
-      {/* Totals & Calculations Summary */}
-      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-[2rem] shadow-xl mt-12">
-        <div className="max-w-7xl mx-auto flex flex-col space-y-8">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-2xl md:text-3xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
-              {t('editor.summaryOf')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('editor.summaryOfHours')}</span>
-            </h2>
-          </div>
-
-          {/* Skill Breakdown · 3 colunas: Implantação | SD | GP/DEV/DESIGN */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 pb-4 border-b border-slate-100 dark:border-[color:var(--border-main)]">
-            {/* Coluna 1: Implantação (altura total) */}
-            <SkillCard skill="Implantação" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} />
-
-            {/* Coluna 2: Solution Design (altura total) */}
-            <SkillCard skill="Solution Design" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} />
-
-            {/* Coluna 3: GP + Desenvolvimento + Design (stack vertical */}
-            <div className="flex flex-col gap-5">
-              <SkillCard skill="GP" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
-              <SkillCard skill="Desenvolvimento" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
-              <SkillCard skill="Design" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
-            </div>
-          </div>
-
-          {/* Total Geral · alinhado conforme wireframe */}
-          <div className="flex items-end justify-end gap-4 flex-wrap">
-            <div className="w-full md:w-auto md:min-w-[340px]">
-              <div className={`
-                rounded-[1.75rem] border-2 border-brand-primary
-                px-6 md:px-10 py-5 md:py-7
-                bg-[#FFFFFF] dark:bg-[#0a0a0a]
-                flex items-center justify-between gap-4
-              `}>
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('editor.grandTotal')}</p>
-                </div>
-                <div className="flex items-baseline gap-2">
-                  <span className="text-4xl md:text-6xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter leading-none tabular-nums">
-                    {Math.round(totals.grandTotal).toFixed(0)}
-                  </span>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('common.hours')}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </form>
   );
