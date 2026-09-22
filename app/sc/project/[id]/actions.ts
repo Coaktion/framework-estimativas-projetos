@@ -56,6 +56,28 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
     data
   } = formData;
 
+  // 🔍 DEBUG SERVER: o que chegou no servidor dentro de `data`?
+  const dataBeforeStringify = data;
+  const debugCustomKeysBefore = typeof dataBeforeStringify === 'object' && dataBeforeStringify !== null
+    ? Object.keys(dataBeforeStringify as Record<string, any>).filter(k => k.startsWith('custom_pkg_'))
+    : [];
+  console.log('[DEBUG:ACTION:SAVE] ===== saveProjectVersionAction INVOCADA =====');
+  console.log('[DEBUG:ACTION:SAVE] typeof data =', typeof data, '| É null?', data === null, '| É undefined?', data === undefined);
+  console.log('[DEBUG:ACTION:SAVE] Flat keys custom_pkg_* RECEBIDAS no data (antes de JSON.stringify):', debugCustomKeysBefore.length, debugCustomKeysBefore.join(', '));
+  debugCustomKeysBefore.forEach((k: string) => console.log(`[DEBUG:ACTION:SAVE]   RECEBIDO ${k} =`, (dataBeforeStringify as any)[k]));
+
+  // Garantia: data é SEMPRE stringificada antes de gravar. Se chegou string,
+  // re-stringificar cria JSON aninhado quebrando o parse no load.
+  const safeDataString = typeof data === 'string' ? data : JSON.stringify(data ?? {});
+  if (typeof data !== 'string') {
+    console.log('[DEBUG:ACTION:SAVE] JSON.stringify(data) gravado:', safeDataString.slice(0, 500));
+    const reParsed = JSON.parse(safeDataString);
+    const afterKeys = Object.keys(reParsed).filter(k => k.startsWith('custom_pkg_'));
+    console.log('[DEBUG:ACTION:SAVE] custom_pkg_* RE-PARSEADAS da string a gravar:', afterKeys.length, afterKeys.join(', '));
+  } else {
+    console.log('[DEBUG:ACTION:SAVE] data já era string. Primeiros 500 chars:', safeDataString.slice(0, 500));
+  }
+
   // CORREÇÃO: `zohoLink` e `safetyHours` já eram ENVIADOS pelo editor e lidos de
   // volta na abertura da versão (`currentVersion?.zohoLink`), mas nunca eram
   // gravados — o campo voltava vazio a cada reabertura. Passaram a ser
@@ -74,10 +96,22 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
       validationOverride: validationOverride !== null ? parseFloat(validationOverride) : null,
       safetyHours: safetyHours || null,
       // NOTA: `totalHours` NÃO é passado aqui. É aplicado via update abaixo.
-      data: JSON.stringify(data),
+      data: safeDataString,
       createdBy: parseInt(session.user.id)
     }
   });
+
+  const dbVersion = await prisma.projectVersion.findUnique({ where: { id: version.id } });
+  if (dbVersion) {
+    try {
+      const parsedData = typeof dbVersion.data === 'string' ? JSON.parse(dbVersion.data) : dbVersion.data;
+      const keysInDb = Object.keys(parsedData ?? {}).filter(k => k.startsWith('custom_pkg_'));
+      console.log('[DEBUG:ACTION:SAVE] Versão criada e RE-LIDA do banco. ID:', dbVersion.id, '| data keys custom_pkg_* NO BANCO:', keysInDb.length, keysInDb.join(', '));
+      keysInDb.forEach(k => console.log(`[DEBUG:ACTION:SAVE]   DB ${k} =`, parsedData[k]));
+    } catch (e) {
+      console.error('[DEBUG:ACTION:SAVE] Erro ao re-parsear data do banco pós-insert:', e);
+    }
+  }
 
   await trySetTotalHours(version.id, totalHours);
 

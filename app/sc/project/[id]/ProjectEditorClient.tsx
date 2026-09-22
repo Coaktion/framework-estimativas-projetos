@@ -735,31 +735,50 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   const [customPackages, setCustomPackages] = useState<any[]>(() => {
-    // Extract custom packages from formData on initial load
-    const extracted: any[] = [];
-    Object.keys(formData).forEach(key => {
-      if (key.startsWith('custom_pkg_') && key.endsWith('_name')) {
-        const parts = key.split('_');
-        const index = parts.pop();
-        const category = parts.slice(2).join('_');
-        
-        const prefix = `custom_pkg_${category}_${index}`;
-        extracted.push({
-          id: `${category}_${index}`,
-          category,
-          index,
-          name: formData[`${prefix}_name`],
-          hours: formData[`${prefix}_hours`],
-          qty: formData[`${prefix}_qty`],
-          skill: formData[`${prefix}_skill`] || 'Implantação',
-          scopeIn: formData[`${prefix}_scope_in`],
-          scopeOut: formData[`${prefix}_scope_out`],
-          overrideCheck: formData[`${prefix}_override_check`] === 'on',
-          overrideVal: formData[`${prefix}_override_val`]
-        });
-      }
-    });
-    return extracted;
+    try {
+      // ✅ Parser via REGEX: extrai corretamente categoria / index / field,
+      // mesmo com categorias que contenham underscore, acentos ou espaços.
+      //   custom_pkg_{CATEGORY}_{INDEX}_{FIELD}
+      const PKG_NAME_RE = /^custom_pkg_(.+)_(\d+)_name$/;
+      const snake: Record<string, string> = {
+        overrideCheck: 'override_check',
+        overrideVal:  'override_val',
+        scopeIn:      'scope_in',
+        scopeOut:     'scope_out'
+      };
+      const buildKey = (category: string, index: string | number, field: string) =>
+        `custom_pkg_${category}_${index}_${snake[field] ?? field}`;
+
+      const safeFormData = formData && typeof formData === 'object' ? formData : {};
+      const extracted: any[] = [];
+      Object.keys(safeFormData).forEach(key => {
+        const m = typeof key === 'string' ? key.match(PKG_NAME_RE) : null;
+        if (!m) return;
+        const [, category, index] = m;
+        try {
+          extracted.push({
+            id: `${category}_${index}`,
+            category,
+            index: Number(index),
+            name: safeFormData[buildKey(category, index, 'name')],
+            hours: safeFormData[buildKey(category, index, 'hours')],
+            qty: safeFormData[buildKey(category, index, 'qty')],
+            skill: safeFormData[buildKey(category, index, 'skill')] || 'Implantação',
+            scopeIn: safeFormData[buildKey(category, index, 'scopeIn')],
+            scopeOut: safeFormData[buildKey(category, index, 'scopeOut')],
+            overrideCheck: safeFormData[buildKey(category, index, 'overrideCheck')] === 'on',
+            overrideVal: safeFormData[buildKey(category, index, 'overrideVal')]
+          });
+        } catch {
+          /* ignora pacote com campos quebrados */
+        }
+      });
+
+      return extracted;
+    } catch (e) {
+      console.error('[DEBUG:LOADER] Erro no initializer de customPackages (fallback []):', e);
+      return [];
+    }
   });
 
   const [marketplaceApps, setMarketplaceApps] = useState<any[]>(() => {
@@ -1686,7 +1705,40 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
     startTransition(async () => {
       try {
-        const result = await saveProjectVersionAction(project.id, {
+        // ✅ Sempre reconstruímos as flat keys de customPackages a partir do array
+        // que o usuário VÊ NA TELA (fonte da verdade). Isso elimina qualquer risco
+        // de os campos terem ficado para trás no formData devido a batching.
+        const mergedFormData: any = { ...formData };
+
+        // 1. Remove TODAS as flat keys antigas de custom_pkg_* previamente salvas
+        //    (evita restos de pacotes deletados voltarem na próxima carga)
+        Object.keys(mergedFormData).forEach(k => {
+          if (k.startsWith('custom_pkg_')) delete mergedFormData[k];
+        });
+
+        // 2. Escreve as flat keys a partir do estado atual customPackages
+        customPackages.forEach(pkg => {
+          const fields = [
+            'name', 'hours', 'qty', 'skill', 'scopeIn', 'scopeOut',
+            'overrideCheck', 'overrideVal'
+          ] as const;
+          fields.forEach(field => {
+            const key = formKeyForField(pkg.category, pkg.index, field);
+            const rawVal = pkg[field];
+            mergedFormData[key] =
+              rawVal === true ? 'on' :
+              rawVal === false ? 'off' :
+              rawVal ?? '';
+          });
+        });
+
+        // 🔍 DEBUG: mostra exatamente o que será enviado para a Server Action
+        const debugCustomKeysFinal = Object.keys(mergedFormData).filter(k => k.startsWith('custom_pkg_'));
+        console.log('[DEBUG:SAVE] customPackages no momento do clique em Salvar:', customPackages.length, customPackages.map(p => `${p.id}:${p.name}`).join(', '));
+        console.log('[DEBUG:SAVE] flat keys custom_pkg_* que serão gravadas em data:', debugCustomKeysFinal.length, debugCustomKeysFinal.join(', '));
+        debugCustomKeysFinal.forEach(k => console.log(`[DEBUG:SAVE]   ${k} =`, (mergedFormData as any)[k]));
+
+        const payload = {
           versionName,
           technicalScopeLink: techLink,
           zohoLink,
@@ -1697,21 +1749,30 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           discoveryOverride: overrides.discovery,
           validationOverride: overrides.validation,
           safetyHours: JSON.stringify(safetyHours),
-          // Congelado para a tela de Projetos exibir "V1 · 108h" sem recalcular.
           totalHours: Number(totals.grandTotal) || 0,
           data: {
-            ...formData,
+            ...mergedFormData,
             marketplace_apps: JSON.stringify(marketplaceApps),
             __skuType: skuType,
             __planTier: planTier,
             __deploymentType: deploymentType
           }
-        });
-        
+        };
+        console.log('[DEBUG:SAVE] Tamanho do JSON.stringify(payload.data) antes da requisição:',
+          typeof payload.data === 'string'
+            ? payload.data.length
+            : JSON.stringify(payload.data).length);
+
+        const result = await saveProjectVersionAction(project.id, payload);
+        console.log('[DEBUG:SAVE] Versão criada. ID:', result.id, 'ProjectVersion.data (raw):',
+          typeof (result as any).data === 'string'
+            ? (result as any).data.slice(0, 300)
+            : JSON.stringify((result as any).data ?? null).slice(0, 300));
+
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
         alert(t('editor.versionSaved'));
       } catch (e) {
-        console.error(e);
+        console.error('[DEBUG:SAVE] saveProjectVersionAction ERROR:', e);
         alert(t('editor.versionSaveError'));
       }
     });
@@ -1744,6 +1805,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
   };
 
+  const formKeyForField = (category: string, index: number | string, field: string): string => {
+    // Mapeia nomes dos campos do objeto (camelCase / Pascal) para o flat key usado
+    // no JSON de `data`. IMPORTANTE: precisa ser o inverso EXATO do parser do
+    // `useState customPackages`, senão categoria com espaço/underscore quebra.
+    const snake: Record<string, string> = {
+      overrideCheck: 'override_check',
+      overrideVal:  'override_val',
+      scopeIn:      'scope_in',
+      scopeOut:     'scope_out'
+    };
+    return `custom_pkg_${category}_${index}_${snake[field] ?? field}`;
+  };
+
   const addCustomPackage = (category: string) => {
     const index = Date.now();
     const newPkg = {
@@ -1759,37 +1833,57 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       overrideCheck: false,
       overrideVal: ''
     };
-    setCustomPackages([...customPackages, newPkg]);
-    
-    // Also update formData for the new fields
-    const prefix = `custom_pkg_${category}_${index}`;
+    setCustomPackages(prev => [...prev, newPkg]);
+
+    // Also update formData for the new fields (TODOS os campos, não só 4)
     setFormData((prev: any) => ({
       ...prev,
-      [`${prefix}_name`]: '',
-      [`${prefix}_hours`]: 0,
-      [`${prefix}_qty`]: 1,
-      [`${prefix}_skill`]: 'Implantação'
+      [formKeyForField(category, index, 'name')]: '',
+      [formKeyForField(category, index, 'hours')]: 0,
+      [formKeyForField(category, index, 'qty')]: 1,
+      [formKeyForField(category, index, 'skill')]: 'Implantação',
+      [formKeyForField(category, index, 'scopeIn')]: '',
+      [formKeyForField(category, index, 'scopeOut')]: '',
+      [formKeyForField(category, index, 'overrideCheck')]: 'off',
+      [formKeyForField(category, index, 'overrideVal')]: ''
     }));
   };
 
   const updateCustomPackage = (id: string, field: string, value: any) => {
-    setCustomPackages(prev => prev.map(p => {
-      if (p.id === id) {
-        let finalValue = value;
-        // Prevent negative numbers for numeric fields
-        if (['hours', 'qty', 'overrideVal'].includes(field)) {
-          finalValue = Math.max(0, parseFloat(value) || 0);
-        }
-        
-        const updated = { ...p, [field]: finalValue };
-        // Sync with formData
-        const prefix = `custom_pkg_${p.category}_${p.index}`;
-        const formKey = field === 'overrideCheck' ? `${prefix}_override_check` : `${prefix}_${field.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`)}`;
-        setFormData((f: any) => ({ ...f, [formKey]: finalValue === true ? 'on' : finalValue === false ? 'off' : finalValue }));
-        return updated;
-      }
-      return p;
+    // ✅ SetState FORA do functional updater do outro hook (evita stale batching do React 18)
+    const pkg = customPackages.find(p => p.id === id);
+    if (!pkg) return;
+
+    let finalValue = value;
+    if (['hours', 'qty', 'overrideVal'].includes(field)) {
+      finalValue = Math.max(0, parseFloat(value) || 0);
+    }
+
+    setCustomPackages(prev =>
+      prev.map(p => (p.id === id ? { ...p, [field]: finalValue } : p))
+    );
+
+    const formKey = formKeyForField(pkg.category, pkg.index, field);
+    setFormData((f: any) => ({
+      ...f,
+      [formKey]: finalValue === true ? 'on' : finalValue === false ? 'off' : finalValue
     }));
+  };
+
+  const removeCustomPackage = (id: string) => {
+    const pkg = customPackages.find(p => p.id === id);
+    setCustomPackages(prev => prev.filter(p => p.id !== id));
+    if (pkg) {
+      // Limpa também as flat keys do formData para não "ressuscitar" o pacote no próximo load
+      setFormData((prev: any) => {
+        const next = { ...prev };
+        [
+          'name', 'hours', 'qty', 'skill', 'scopeIn', 'scopeOut',
+          'overrideCheck', 'overrideVal'
+        ].forEach(f => delete next[formKeyForField(pkg.category, pkg.index, f)]);
+        return next;
+      });
+    }
   };
 
   const toggleSection = (cat: string) => {
@@ -2871,7 +2965,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     type="button" 
                                     onClick={() => {
                                       if(confirm(t('editor.confirmRemove'))) {
-                                        setCustomPackages(prev => prev.filter(p => p.id !== pkg.id));
+                                        removeCustomPackage(pkg.id);
                                       }
                                     }}
                                     className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
