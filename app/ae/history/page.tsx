@@ -6,7 +6,13 @@ import { getServerT } from "@/app/i18n/server";
 
 export const dynamic = 'force-dynamic';
 
-export default async function AEHistoryPage() {
+type HistoryScope = 'mine' | 'all';
+
+export default async function AEHistoryPage({
+  searchParams,
+}: {
+  searchParams?: { scope?: string; q?: string };
+}) {
   const t = getServerT();
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return (
@@ -16,13 +22,22 @@ export default async function AEHistoryPage() {
   );
 
   const userSession = session.user as any;
-  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && userSession.role.toUpperCase) === 'ADMIN';
+  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && String(userSession.role).toUpperCase() === 'ADMIN');
   const userId = parseInt(session.user.id);
 
+  const rawScope = String(searchParams?.scope || '').toLowerCase();
+  let scope: HistoryScope = isAdmin ? 'all' : 'mine';
+  if (isAdmin && (rawScope === 'mine' || rawScope === 'all')) {
+    scope = rawScope;
+  }
+
+  const createdByFilter =
+    !isAdmin || scope === 'mine'
+      ? { createdBy: userId }
+      : {};
+
   const estimates = await prisma.aEEstimate.findMany({
-    where: isAdmin
-      ? {}
-      : { createdBy: userId },
+    where: createdByFilter,
     orderBy: { createdAt: 'desc' },
     include: {
       creator: {
@@ -106,5 +121,12 @@ export default async function AEHistoryPage() {
   // Mais recentes primeiro
   groups.sort((a, b) => new Date(b.latestCreatedAt).getTime() - new Date(a.latestCreatedAt).getTime());
 
-  return <AEHistoryClient groups={groups} />;
+  return (
+    <AEHistoryClient
+      groups={groups}
+      isAdmin={isAdmin}
+      currentUserId={userId}
+      scope={scope}
+    />
+  );
 }

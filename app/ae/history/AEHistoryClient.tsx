@@ -2,10 +2,13 @@
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { useSession } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import Link from "next/link";
-import { Zap, Clock, Search, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
+import {
+  Zap, Clock, Search, CheckCircle2, AlertTriangle, Shield, Filter, Lock, Globe,
+} from "lucide-react";
 
 /** Horas em formato curto: 148h, 47,5h. Evita "47.66h" na listagem. */
 function formatHours(value: number): string {
@@ -42,10 +45,37 @@ type HistoryGroup = {
   isAdmin?: boolean;
 };
 
-export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) {
+type Scope = 'mine' | 'all';
+
+export default function AEHistoryClient(
+  props: HistoryGroup & {
+    groups?: HistoryGroup[];
+    isAdmin?: boolean;
+    currentUserId?: number;
+    scope?: Scope;
+  },
+) {
   const { t } = useTranslation();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data: session } = useSession();
-  const showOwnerChip = Boolean((session?.user as any)?.isAdmin) || (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN');
+
+  const groups = Array.isArray(props.groups) ? props.groups : [];
+  const sessionIsAdmin = props.isAdmin ??
+    (Boolean((session?.user as any)?.isAdmin) ||
+    (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN'));
+
+  const initialScope = props.scope ?? (sessionIsAdmin ? 'all' : 'mine');
+  const [projectScope, setProjectScope] = useState<Scope>(initialScope);
+
+  const setScope = useCallback((next: Scope) => {
+    setProjectScope(next);
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('scope', next);
+    router.push(`/ae/history?${params.toString()}`);
+  }, [router, searchParams]);
+
+  const showOwnerChip = sessionIsAdmin && projectScope === 'all';
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredGroups = useMemo(() => {
@@ -65,24 +95,67 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
           <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-xs mt-4 font-bold uppercase tracking-[0.2em]">
             {t('aeHistory.projectsLabel')} ({t('aeHistory.clientCount', { count: filteredGroups.length })}{filteredGroups.length ? ` · ${t('aeHistory.versionCount', { count: filteredGroups.reduce((s, g) => s + Number(g.count || 0), 0) })}` : ''})
           </p>
+          {sessionIsAdmin && (
+            <p className="mt-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-[color:var(--text-muted)]">
+              <Filter className="w-3 h-3" />
+              <span>
+                Visualizando estimativas de{' '}
+                <span className="text-brand-primary dark:text-[color:var(--primary)]">
+                  {projectScope === 'all'
+                    ? t('aeHistory.scopeAll', 'todos os AE')
+                    : t('aeHistory.scopeMine', 'apenas as minhas')}
+                </span>
+              </span>
+            </p>
+          )}
         </div>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="relative w-full md:w-80 group">
-            <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 dark:text-[color:var(--text-muted)] group-focus-within:text-brand-primary dark:group-focus-within:text-[color:var(--primary)] transition-colors" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t('aeHistory.searchPlaceholder')}
-              className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
-            />
+        <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+          {sessionIsAdmin && (
+            <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-[1.5rem] p-1.5 shadow-sm self-start md:self-end">
+              <button
+                type="button"
+                onClick={() => setScope('mine')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-[1.25rem] text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${
+                  projectScope === 'mine'
+                    ? 'brand-bg-primary text-white shadow-md shadow-green-900/10'
+                    : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
+                }`}
+              >
+                <Lock className="w-3 h-3" />
+                <span>{t('aeHistory.scopeMineBtn', 'Meus')}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setScope('all')}
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-[1.25rem] text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${
+                  projectScope === 'all'
+                    ? 'brand-bg-primary text-white shadow-md shadow-green-900/10'
+                    : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
+                }`}
+              >
+                <Globe className="w-3 h-3" />
+                <span>{t('aeHistory.scopeAllBtn', 'Todos')}</span>
+              </button>
+            </div>
+          )}
+          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
+            <div className="relative w-full md:w-80 group">
+              <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 dark:text-[color:var(--text-muted)] group-focus-within:text-brand-primary dark:group-focus-within:text-[color:var(--primary)] transition-colors" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t('aeHistory.searchPlaceholder')}
+                className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
+              />
+            </div>
+            <Link
+              href="/ae"
+              className="w-full md:w-auto bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
+            >
+              <span>{t('aeHistory.newEstimate')}</span>
+            </Link>
           </div>
-          <Link
-            href="/ae"
-            className="w-full md:w-auto bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
-          >
-            <span>{t('aeHistory.newEstimate')}</span>
-          </Link>
         </div>
       </div>
 

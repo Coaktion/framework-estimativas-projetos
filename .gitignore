@@ -54,8 +54,3 @@ check-admin.js
 # Vercel local config
 .vercel/
 
-
-# python (from original)
-__pycache__/
-venv/
-.venv/
