@@ -98,7 +98,7 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
           </div>
         ) : (
           filteredGroups.map((g) => (
-            <ProjectCard key={g.clientName} group={g} />
+            <ProjectCard key={g.clientName} group={g} canSeeOwner={showOwnerChip} />
           ))
         )}
       </div>
@@ -106,9 +106,10 @@ export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) 
   );
 }
 
-function ProjectCard({ group }: { group: HistoryGroup }) {
+function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner: boolean }) {
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
+  const showOwnerChip = canSeeOwner;
   const orderedVersions = useMemo(
     () => [...(group.versions || [])].sort((a, b) => b.version - a.version),
     [group.versions],
