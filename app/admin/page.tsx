@@ -12,6 +12,58 @@ export default async function AdminPage() {
     redirect('/');
   }
 
+  // ===========================================================================
+  // 🎛️  UPSERT AUTOMÁTICO das variáveis de regras SD / DRN.
+  //     Garante que as variáveis abaixo EXISTAM e fiquem 100% funcionais SEM o primeiro acesso
+  //     ao painel de Admin (não precisa criar variável manualmente).
+  //     Se já existirem, mantém o valor atual do banco (não sobrescreve customizações).
+  // ===========================================================================
+  try {
+    await prisma.variable.upsert({
+      where: { key: 'SD_DRN_DEVOPS_PERCENT' },
+      update: { isActive: true },
+      create: {
+        key:   'SD_DRN_DEVOPS_PERCENT',
+        label: 'DRN - % sobre Desenvolvimento',
+        labelEn: 'DRN - % over Development',
+        value: '15',
+        type:  'PERCENT',
+        category: 'Solution Design',
+        isActive: true
+      }
+    });
+
+    await prisma.variable.upsert({
+      where: { key: 'SD_DISCOVERY_DEVOPS_PERCENT' },
+      update: { isActive: true },
+      create: {
+        key:   'SD_DISCOVERY_DEVOPS_PERCENT',
+        label: 'SD c/ Dev - % Discovery sobre Desenvolvimento',
+        labelEn: 'SD with Dev - % Discovery over Development',
+        value: '15',
+        type:  'PERCENT',
+        category: 'Solution Design',
+        isActive: true
+      }
+    });
+
+    await prisma.variable.upsert({
+      where: { key: 'SD_LIQUID_TO_DISCOVERY_PCT' },
+      update: { isActive: true },
+      create: {
+        key:   'SD_LIQUID_TO_DISCOVERY_PCT',
+        label: 'SD - % do bruto para Discovery',
+        labelEn: 'SD - % gross value to Discovery',
+        value: '100',
+        type:  'PERCENT',
+        category: 'Solution Design',
+        isActive: true
+      }
+    });
+  } catch {
+    /* se não der certo, seguimos de qualquer forma — o editor usa fallback hardcoded. */
+  }
+
   const packages = await prisma.package.findMany({
     where: { isActive: true },
     orderBy: { createdAt: 'desc' },

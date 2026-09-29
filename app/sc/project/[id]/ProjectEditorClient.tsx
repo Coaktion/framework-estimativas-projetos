@@ -852,6 +852,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   }, [variables]);
 
   const totals = useMemo(() => {
+    // =========================================================================
+    // 🎛️  CONFIGURAÇÃO DE REGRAS SD / DRN (via painel Admin, fallback seguro)
+    //     Cadastre as keys abaixo no Admin (tipo PERCENT) para ajustar sem deploy.
+    // =========================================================================
+    const pctDRNDevops         = getVariableNumber(variables, ['SD_DRN_DEVOPS_PERCENT'],        15);
+    const pctDiscoveryDevopsSD = getVariableNumber(variables, ['SD_DISCOVERY_DEVOPS_PERCENT'],  15);
+    const pctSdLiquidoParaSd   = getVariableNumber(variables, ['SD_LIQUID_TO_DISCOVERY_PCT'], 100);
+
     let subtotal = 0;
     let flatHoursMarketplace = marketplaceApps.length * 5;
     const itemTotals: Record<number, number> = {};
@@ -861,7 +869,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     };
     let hasSdDiscoveryOnAnyItem = false;
     let hasAnyDesenvolvimento = false;
+    // routedSdDiscoveryFromLib: horas de itens marcados sdDiscovery (skill ≠ Dev)
+    //   -> creditadas 100% no subitem SD > Discovery.
     let routedSdDiscoveryFromLib = 0;
+    // routedSdDRNFromLib: mantido APENAS p/ debug histórico. NÃO COMPÕE sd_desenvolvimento
+    //   (a regra 2 substitui tudo por % pctDRNDevops sobre totalDevFull).
     let routedSdDRNFromLib = 0;
     const implantationBreakdown: Record<string, number> = {
       implantacao_workshop: 0,
@@ -1171,52 +1183,72 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       }
     }
 
-    const discoveryGoesToSd = hasAnyDesenvolvimento || hasSdDiscoveryOnAnyItem;
-    if (!discoveryGoesToSd) {
-      implantacaoBuckets['implantacao_discovery'] = roundHalfUp((implantacaoBuckets['implantacao_discovery'] || 0) + discValRawFinal, 1);
+    // =========================================================================
+    // REGRAS SD / DRN — REGRAS NOVAS (removida distribuição fixa 60/40)
+    // =========================================================================
+    const totalDevFull = Math.max(0,
+      Number(skillLiquido['Desenvolvimento'] || 0) +
+      (Number((safetyHours || {})['Desenvolvimento']) || 0)
+    );
+    const sdLiquido = skillLiquido['Solution Design'] || 0;
+    const safetySD = Number((safetyHours || {})['Solution Design']) || 0;
+    const totalSdBruto = sdLiquido + safetySD;
+
+    const hasSD   = totalSdBruto > 0.0001 || hasSdDiscoveryOnAnyItem;
+    const hasDEV  = totalDevFull  > 0.0001 || hasAnyDesenvolvimento;
+
+    // --- Regra 3 + Regra 4 (1): zerar Discovery de Implantação ---
+    // Zera se:
+    //  • existir item marcado sdDiscovery (implantação)  - OU -
+    //  • SD e Dev existirem juntos no projeto
+    const zeroImplantDiscovery = hasSdDiscoveryOnAnyItem || (hasSD && hasDEV);
+
+    if (zeroImplantDiscovery) {
+      implantacaoBuckets['implantacao_discovery'] = 0;
+    } else {
+      implantacaoBuckets['implantacao_discovery'] = roundHalfUp(
+        (implantacaoBuckets['implantacao_discovery'] || 0) + discValRawFinal, 1
+      );
     }
-    implantacaoBuckets['implantacao_validacao'] = roundHalfUp((implantacaoBuckets['implantacao_validacao'] || 0) + validValRawFinal, 1);
+    implantacaoBuckets['implantacao_validacao'] = roundHalfUp(
+      (implantacaoBuckets['implantacao_validacao'] || 0) + validValRawFinal, 1
+    );
 
     // 4) Safety de Implantação → Go-Live e Pós Go-live (apoio na estabilização)
     if (safetyImplantacao > 0) {
-      implantacaoBuckets['implantacao_golive'] = roundHalfUp((implantacaoBuckets['implantacao_golive'] || 0) + safetyImplantacao, 1);
+      implantacaoBuckets['implantacao_golive'] = roundHalfUp(
+        (implantacaoBuckets['implantacao_golive'] || 0) + safetyImplantacao, 1
+      );
     }
 
     // Redefine discVal e validVal para a fórmula final (consolidado total) usar os valores baseados em Setup
     const discValRaw = discValRawFinal;
     const validValRaw = validValRawFinal;
 
-    // Segmentação de SD (Solution Design)
-    const sdLiquido = skillLiquido['Solution Design'] || 0;
-    const safetySD = Number((safetyHours || {})['Solution Design']) || 0;
+    // --- Segmentação de SD (Solution Design) ---
     let sd_discovery = 0;
     let sd_desenvolvimento = 0;
 
-    // Primeiro, distribui o SD liquido (itens standard não sdDiscovery) + safety SD em 60/40
-    if (sdLiquido > 0 || safetySD > 0) {
-      const raw = {
-        d: (sdLiquido + safetySD) * 0.6,
-        dev: (sdLiquido + safetySD) * 0.4,
-      };
-      const dR = roundHalfUp(raw.d, 1);
-      const totalRoundedTarget = roundHalfUp(sdLiquido + safetySD, 1);
-      sd_discovery = dR;
-      sd_desenvolvimento = roundHalfUp(totalRoundedTarget - dR, 1);
-      if (sd_desenvolvimento < 0) sd_desenvolvimento = 0;
+    // (a) Itens sdDiscovery (skill ≠ Dev) — 100% creditados em SD > Discovery
+    sd_discovery += routedSdDiscoveryFromLib;
+
+    // --- Regra 2: DRN = pctDRNDevops % SOBRE TUDO que for Desenvolvimento (SEMPRE) ---
+    sd_desenvolvimento += totalDevFull * (pctDRNDevops / 100);
+
+    // --- Regra 4: se tivermos SD + Dev juntos ---
+    //   (4.2) Inclui pctDiscoveryDevopsSD % de discovery sobre Dev em SD > Discovery
+    //   (4.3) Inclui 100% (configurável) do SD bruto em SD > Discovery
+    if (hasSD && hasDEV) {
+      sd_discovery += totalDevFull * (pctDiscoveryDevopsSD / 100);
+      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd  / 100);
+    } else if (totalSdBruto > 0 && !hasDEV) {
+      // Fallback: "só SD, sem Dev" -> SD bruto 100% creditado em SD > Discovery (sem DRN)
+      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
     }
 
-    sd_discovery = roundHalfUp(sd_discovery + routedSdDiscoveryFromLib, 1);
-    sd_desenvolvimento = roundHalfUp(sd_desenvolvimento + routedSdDRNFromLib, 1);
-
-    // NOTA: NÃO somamos discValRawFinal no sd_discovery para evitar DUPLICAÇÃO.
-    // A soma de sdDiscovery (1,3h no exemplo 5h × 25%) já vem de routedSdDiscoveryFromLib.
-    // discValRawFinal = (% Discovery calculado sobre TODO Setup — é apenas usado para decidir se
-    // discoveryGoesToSd manda mostrar em qual container ele aparece (como discovery do
-    // Implantação se discoveryGoesToSd=false; se discoveryGoesToSd=true, ele não é
-    // creditado em lugar nenhum a mais (fica apenas como base de cálculo, sem duplicar
-    // o valor já creditado via itens sdDiscovery marcados).
-    if (sd_discovery < 0) sd_discovery = 0;
-    if (sd_desenvolvimento < 0) sd_desenvolvimento = 0;
+    // Arredonda e evita negativo
+    sd_discovery       = Math.max(0, roundHalfUp(sd_discovery,       1));
+    sd_desenvolvimento = Math.max(0, roundHalfUp(sd_desenvolvimento, 1));
 
     // Distribuição por SKILL para o engine da UI (retorna exibido + por subitem)
     const skillBreakdownBySkill: Record<string, Record<string, number>> = {
