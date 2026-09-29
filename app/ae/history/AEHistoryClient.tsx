@@ -1,10 +1,11 @@
 'use client';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
+import { useSession } from 'next-auth/react';
 
 import { useState, useMemo } from 'react';
 import Link from "next/link";
-import { Zap, Clock, Search, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Zap, Clock, Search, CheckCircle2, AlertTriangle, Shield } from "lucide-react";
 
 /** Horas em formato curto: 148h, 47,5h. Evita "47.66h" na listagem. */
 function formatHours(value: number): string {
@@ -32,10 +33,19 @@ type HistoryGroup = {
   latestNeedsSC: boolean;
   count: number;
   versions: HistoryVersion[];
+  owner?: {
+    id: number;
+    name?: string;
+    email?: string;
+    role?: string;
+  } | null;
+  isAdmin?: boolean;
 };
 
 export default function AEHistoryClient({ groups }: { groups: HistoryGroup[] }) {
   const { t } = useTranslation();
+  const { data: session } = useSession();
+  const showOwnerChip = Boolean((session?.user as any)?.isAdmin) || (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN');
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredGroups = useMemo(() => {
@@ -127,6 +137,17 @@ function ProjectCard({ group }: { group: HistoryGroup }) {
               {group.clientName}
             </h3>
           </Link>
+
+          {/* chip do owner do projeto — EXCLUSIVO para admins */}
+          {showOwnerChip && group.owner && (
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
+              <Shield className="w-2 h-2 shrink-0" />
+              <span className="text-[8px] font-black uppercase tracking-[0.22em]">
+                {String(group.owner.name || group.owner.email || t('common.unknown') || 'Desconhecido')}
+                {group.owner.role ? ` (${group.owner.role})` : ''}
+              </span>
+            </div>
+          )}
 
           {/* Tag Needs SC / AE Estimate (baseada na última versão) */}
           <span className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${

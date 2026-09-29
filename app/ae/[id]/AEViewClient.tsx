@@ -8,7 +8,7 @@ import AEResultTable from '@/components/AEResultTable';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from "next/link";
 import {
-  Zap, ArrowLeft, ExternalLink, MessageSquare, ShieldCheck, Settings, Users, Bot, Layout, Activity,
+  Zap, ArrowLeft, ExternalLink, MessageSquare, ShieldCheck, Shield, Settings, Users, Bot, Layout, Activity,
   Clock, BookOpen, Hash, Search, Copy, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers
 } from "lucide-react";
 import {
@@ -271,6 +271,7 @@ export default function AEViewClient(props: any) {
   const {
     estimateId, clientName, zohoLink, resultHours, needsSC,
     version, createdAt, parentId, data, variables, packages, categories, allVersions,
+    owner,
   } = props;
 
   const { t } = useTranslation();
@@ -278,6 +279,15 @@ export default function AEViewClient(props: any) {
   const { data: session } = useSession();
   // Relatório Executivo: só administradores. Os demais ficam com a tabela.
   const showExecutiveReport = canViewExecutiveReport(session?.user as any);
+  const sessionIsAdmin = Boolean((session?.user as any)?.isAdmin) || (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN');
+  const ownerChip = showExecutiveReport && owner
+    ? {
+        id: Number(owner.id),
+        name: String(owner.name || owner.email || ''),
+        email: String(owner.email || ''),
+        role: String(owner.role || ''),
+      }
+    : null;
   const [versionPickerOpen, setVersionPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
 
@@ -440,6 +450,15 @@ export default function AEViewClient(props: any) {
             {String(clientName || '')}
           </h1>
           <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">{t('aeView.savedBanner')}</p>
+          {ownerChip && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
+              <Shield className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-[9px] font-black uppercase tracking-[0.22em]">
+                {t('common.owner') || 'Responsável'} · {ownerChip.name || ownerChip.email || t('common.unknown') || 'Desconhecido'}
+                {ownerChip.role ? ` (${ownerChip.role})` : ''}
+              </span>
+            </div>
+          )}
           {parentId != null && (
             <Link
               href={`/ae/${parentId}`}

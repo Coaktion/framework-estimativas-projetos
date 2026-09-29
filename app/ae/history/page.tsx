@@ -15,11 +15,25 @@ export default async function AEHistoryPage() {
     </div>
   );
 
+  const userSession = session.user as any;
+  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && userSession.role.toUpperCase) === 'ADMIN';
   const userId = parseInt(session.user.id);
 
   const estimates = await prisma.aEEstimate.findMany({
-    where: { createdBy: userId },
+    where: isAdmin
+      ? {}
+      : { createdBy: userId },
     orderBy: { createdAt: 'desc' },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        }
+      }
+    }
   });
 
   // Agrupa por cliente (projeto). Cada cliente aparece apenas UMA vez no histórico,
@@ -38,7 +52,17 @@ export default async function AEHistoryPage() {
     const withVersion = rows.map((r, idx) => {
       const rawVersion = (r as any).version;
       const version = typeof rawVersion === 'number' && rawVersion > 0 ? rawVersion : idx + 1;
-      return { ...r, version };
+
+      const ownerRaw = (r as any).creator || null;
+      const owner = ownerRaw
+        ? {
+            id: Number(ownerRaw.id),
+            name: String(ownerRaw.name || ownerRaw.email || ''),
+            email: String(ownerRaw.email || ''),
+            role: String(ownerRaw.role || ''),
+          }
+        : null;
+      return { ...r, version, owner };
     });
 
     withVersion.sort((a, b) => {
@@ -61,6 +85,7 @@ export default async function AEHistoryPage() {
       latestVersion: latest.version,
       latestCreatedAt: latest.createdAt,
       latestNeedsSC: Boolean(latest.needsSC),
+      owner: (latest as any).owner || null,
       // Horas da ÚLTIMA versão, para o card mostrar o número corrente sem que o
       // usuário precise abrir a estimativa.
       latestHours: Number((latest as any).resultHours) || 0,

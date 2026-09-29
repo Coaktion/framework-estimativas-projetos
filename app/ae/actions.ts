@@ -47,12 +47,14 @@ export async function saveAEEstimateAction(formData: any) {
   } = formData;
 
   const userId = parseInt(session.user.id);
-
+  const userSession = session.user as any;
+  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && String(userSession.role).toUpperCase() === 'ADMIN');
+  const filterCreatedBy = isAdmin ? {} : { createdBy: userId };
  
   let detectedLastVersion: number = 0;
   try {
     const lastVersionEstimate: any = await prisma.aEEstimate.findFirst({
-      where: { clientName, createdBy: userId },
+      where: { clientName, ...filterCreatedBy },
       orderBy: { version: 'desc' } as any,
       select: { version: true, id: true } as any,
     });
@@ -66,7 +68,7 @@ export async function saveAEEstimateAction(formData: any) {
   } catch (_) {
     try {
       const fallbackRows = await prisma.aEEstimate.findMany({
-        where: { clientName, createdBy: userId },
+        where: { clientName, ...filterCreatedBy },
         orderBy: { id: 'desc' },
         take: 500,
         select: { id: true, version: true } as any,

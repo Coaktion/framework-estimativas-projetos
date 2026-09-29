@@ -23,30 +23,58 @@ export default async function AEViewPage({ params }: { params: { id: string } })
     </div>
   );
 
+  const userSession = session.user as any;
+  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && userSession.role.toUpperCase) === 'ADMIN';
   const userId = parseInt(session.user.id);
-  const estimate = await prisma.aEEstimate.findUnique({ where: { id } });
-  if (!estimate || estimate.createdBy !== userId) return (
+
+  const estimate = await prisma.aEEstimate.findUnique({
+    where: { id },
+    include: {
+      creator: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        }
+      }
+    }
+  });
+
+  const canView = Boolean(estimate) && (isAdmin || Number(estimate?.createdBy) === userId);
+  if (!canView) return (
     <div className="p-12 text-center">
       <p className="text-slate-400 font-bold uppercase tracking-widest">{t('aeView.notFoundOrNoPermission')}</p>
     </div>
   );
+
+  const ownerRaw = (estimate as any).creator || null;
+  const owner = ownerRaw
+    ? {
+        id: Number(ownerRaw.id),
+        name: String(ownerRaw.name || ownerRaw.email || ''),
+        email: String(ownerRaw.email || ''),
+        role: String(ownerRaw.role || ''),
+      }
+    : null;
 
   const categoriesData = await prisma.category.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   const packages = await prisma.package.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   const variables = await prisma.variable.findMany({ where: { isActive: true } });
   const categories = categoriesData.map(c => c.name);
 
+  const filterCreatedBy = isAdmin ? {} : { createdBy: userId };
   let allVersions: { id: number; version: number; createdAt: Date; needsSC: boolean }[] = [];
   try {
     allVersions = await prisma.aEEstimate.findMany({
-      where: { clientName: estimate.clientName, createdBy: userId },
+      where: { clientName: estimate.clientName, ...filterCreatedBy },
       orderBy: { createdAt: 'asc' },
       select: { id: true, version: true, createdAt: true, needsSC: true } as any,
     });
   } catch (_) {
     try {
       allVersions = await prisma.aEEstimate.findMany({
-        where: { clientName: estimate.clientName, createdBy: userId },
+        where: { clientName: estimate.clientName, ...filterCreatedBy },
         orderBy: { createdAt: 'asc' },
         select: { id: true, createdAt: true, needsSC: true },
       }).then(rows => (rows as any[]).map((r, i) => ({ ...r, version: (r as any).version ?? (i + 1) })));
@@ -92,6 +120,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
       variables={variables}
       categories={categories}
       allVersions={allVersions}
+      owner={owner}
     />
   );
 }
