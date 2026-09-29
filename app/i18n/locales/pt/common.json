@@ -614,11 +614,13 @@
     "zendeskCopilot": "Zendesk Copilot"
   },
   "errors": {
+    "allFieldsRequired": "Todos os campos são obrigatórios.",
     "cannotChangeSegment": "Somente administradores podem alterar segmentos de usuário.",
     "createUserFailed": "Erro ao criar usuário",
     "emailPasswordRequired": "Email e senha são obrigatórios",
     "emailRequired": "E-mail obrigatório",
     "emailTaken": "Já existe usuário com este e-mail",
+    "generic": "Erro inesperado. Tente novamente.",
     "hashFailed": "Erro ao gerar hash da senha",
     "invalidSegment": "Segmento inválido",
     "lastAdmin": "Não é possível remover o último administrador do sistema.",
@@ -626,7 +628,10 @@
     "notAuthorized": "Não autorizado",
     "packageNameTaken": "Já existe um pacote cadastrado com este nome. Por favor, utilize um nome exclusivo.",
     "packageUpdateFailed": "Erro ao atualizar o pacote. Tente novamente.",
+    "passwordMismatch": "A confirmação da nova senha não coincide.",
     "passwordRequired": "Senha obrigatória",
+    "passwordSameAsCurrent": "A nova senha não pode ser igual à senha atual.",
+    "passwordTooShort": "A nova senha deve ter pelo menos 6 caracteres.",
     "userNotFound": "Usuário não encontrado ou senha não definida",
     "wrongPassword": "Senha incorreta"
   },
@@ -821,7 +826,19 @@
     "selfDemotionWarning": "Você está removendo o seu próprio privilégio de administrador. Continuar?",
     "solutionDesigner": "Solution Designer"
   },
+  "profile": {
+    "changePassword": "Alterar Senha",
+    "changePasswordHint": "Atualize periodicamente para manter sua conta segura.",
+    "confirmPassword": "Confirmar Nova Senha",
+    "currentPassword": "Senha Atual",
+    "minPasswordHint": "Mínimo de 6 caracteres.",
+    "newPassword": "Nova Senha",
+    "passwordChanged": "Senha alterada com sucesso!",
+    "savePassword": "Salvar Nova Senha",
+    "titleAccent": "Profile"
+  },
   "userMenu": {
+    "changePassword": "Alterar Senha",
     "member": "Membro",
     "signIn": "Entrar no Perfil",
     "signOut": "Sair do Perfil",

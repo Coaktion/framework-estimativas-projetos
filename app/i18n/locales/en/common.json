@@ -614,11 +614,13 @@
     "zendeskCopilot": "Zendesk Copilot"
   },
   "errors": {
+    "allFieldsRequired": "All fields are required.",
     "cannotChangeSegment": "Only administrators can change user segments.",
     "createUserFailed": "Failed to create the user",
     "emailPasswordRequired": "Email and password are required",
     "emailRequired": "Email is required",
     "emailTaken": "A user with this email already exists",
+    "generic": "Unexpected error. Please try again.",
     "hashFailed": "Failed to hash the password",
     "invalidSegment": "Invalid segment",
     "lastAdmin": "You cannot remove the last administrator in the system.",
@@ -626,7 +628,10 @@
     "notAuthorized": "Not authorized",
     "packageNameTaken": "A package with this name already exists. Please use a unique name.",
     "packageUpdateFailed": "Failed to update the package. Please try again.",
+    "passwordMismatch": "New password confirmation does not match.",
     "passwordRequired": "Password is required",
+    "passwordSameAsCurrent": "New password cannot be the same as your current password.",
+    "passwordTooShort": "New password must be at least 6 characters long.",
     "userNotFound": "User not found, or no password is set",
     "wrongPassword": "Incorrect password"
   },
@@ -821,7 +826,19 @@
     "selfDemotionWarning": "You are removing your own administrator privileges. Continue?",
     "solutionDesigner": "Solution Designer"
   },
+  "profile": {
+    "changePassword": "Change Password",
+    "changePasswordHint": "Update it periodically to keep your account safe.",
+    "confirmPassword": "Confirm New Password",
+    "currentPassword": "Current Password",
+    "minPasswordHint": "Minimum 6 characters.",
+    "newPassword": "New Password",
+    "passwordChanged": "Password changed successfully!",
+    "savePassword": "Save New Password",
+    "titleAccent": "Profile"
+  },
   "userMenu": {
+    "changePassword": "Change Password",
     "member": "Member",
     "signIn": "Sign In",
     "signOut": "Sign Out",
