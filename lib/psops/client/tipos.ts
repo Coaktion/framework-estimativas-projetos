@@ -33,6 +33,9 @@ export interface Sinal {
   titulo: string;
   resumoPtBr: string | null;
   trechoOriginal: string;
+  /** tradução pt-br publicada pelo Zendesk; null enquanto não sai */
+  tituloPt: string | null;
+  trechoPt: string | null;
   produto: Produto;
   modulo: Modulo;
   tipo: SignalTipo;
@@ -129,4 +132,21 @@ export interface ResultadoColeta {
   porFonte: Array<{ fonte: string; ok: boolean; erro?: string }>;
   totalSinaisCriados: number;
   totalSinaisArquivados: number;
+  reclassificacao?: { reclassificados: number; arquivados: number };
+  traducao?: { conferidos: number; artigosTraduzidos: number; sinaisTraduzidos: number };
+}
+
+/**
+ * Título e trecho no idioma do portal. Em português, usa a tradução do
+ * Zendesk quando ela existe; senão cai no original e marca como pendente.
+ */
+export function textoDoSinal(
+  s: Pick<Sinal, 'titulo' | 'trechoOriginal' | 'tituloPt' | 'trechoPt'>,
+  idioma: string,
+): { titulo: string; trecho: string; traduzido: boolean; pendente: boolean } {
+  const querPt = idioma === 'pt';
+  if (querPt && s.tituloPt) {
+    return { titulo: s.tituloPt, trecho: s.trechoPt ?? s.trechoOriginal, traduzido: true, pendente: false };
+  }
+  return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: querPt };
 }

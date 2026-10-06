@@ -2,8 +2,9 @@
 
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLanguage } from '@/components/LanguageProvider';
 import { Badge, varianteDoTipo } from './ui';
-import type { Impacto, Sinal } from '@/lib/psops/client/tipos';
+import { textoDoSinal, type Impacto, type Sinal } from '@/lib/psops/client/tipos';
 
 /**
  * A fila. Densa de propósito: o triador precisa varrer 40 itens sem rolar mais
@@ -21,6 +22,7 @@ export function ListaSinais({
   onSelecionar: (id: string) => void;
 }) {
   const { t } = useTranslation();
+  const { language } = useLanguage();
   const refLista = useRef<HTMLUListElement>(null);
   const refSelecionado = useRef<HTMLLIElement>(null);
 
@@ -46,6 +48,7 @@ export function ListaSinais({
       {sinais.map((s) => {
         const selecionado = s.id === selecionadoId;
         const impactos = impactosPorSinal[s.id] ?? s.impactosSugeridos;
+        const texto = textoDoSinal(s, language);
         return (
           <li
             key={s.id}
@@ -79,7 +82,7 @@ export function ListaSinais({
 
               <span className="min-w-0 flex-1">
                 <span className="mb-1.5 block text-[13px] font-bold leading-snug text-psops-texto">
-                  {s.titulo}
+                  {texto.titulo}
                 </span>
                 <span className="flex flex-wrap items-center gap-1.5">
                   <Badge variante="produto">{t(`psops.produto.${s.produto}`)}</Badge>

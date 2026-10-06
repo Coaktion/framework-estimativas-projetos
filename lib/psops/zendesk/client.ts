@@ -78,6 +78,11 @@ export interface ClienteHc {
     pararEm?: Date | null;
   }): Promise<HcArticle[]>;
   pegarArtigo(params: { zendeskId: string; locale?: string }): Promise<HcArticle>;
+  /**
+   * Tradução publicada pelo Zendesk (ex.: pt-br), ou null se ainda não existe.
+   * Opcional na interface para os duplos de teste que não tratam tradução.
+   */
+  pegarTraducao?(params: { zendeskId: string; locale: string }): Promise<HcArticle | null>;
 }
 
 export function criarClienteHc(overrides?: Partial<FetchOpts> & { base?: string }): ClienteHc {
@@ -120,6 +125,23 @@ export function criarClienteHc(overrides?: Partial<FetchOpts> & { base?: string 
       const url = `${base}/api/v2/help_center/${locale}/articles/${zendeskId}.json`;
       const dados = await pegarJson<{ article: HcArticle }>(url, opts);
       return dados.article;
+    },
+
+    async pegarTraducao({ zendeskId, locale }) {
+      const url = `${base}/api/v2/help_center/${locale}/articles/${zendeskId}.json`;
+      try {
+        const dados = await pegarJson<{ article: HcArticle }>(url, { ...opts, retries: 1 });
+        const a = dados.article;
+        // Só vale se o Zendesk devolveu de fato o idioma pedido (sem tradução,
+        // a API pode responder 404 ou cair no idioma de origem).
+        if (!a || a.draft || (a.locale ?? '').toLowerCase() !== locale.toLowerCase()) return null;
+        return a;
+      } catch (e) {
+        if (e instanceof ZendeskHttpError && (e.status === 404 || e.status === 401 || e.status === 403)) {
+          return null;
+        }
+        throw e;
+      }
     },
   };
 }

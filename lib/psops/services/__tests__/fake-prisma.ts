@@ -71,6 +71,11 @@ const casa = (row: Row, where: Row): boolean =>
     if (v !== null && typeof v === 'object' && 'not' in (v as Row)) {
       return row[k] !== (v as { not: unknown }).not;
     }
+    if (v !== null && typeof v === 'object' && 'gte' in (v as Row)) {
+      const a = row[k] as Date | number | null | undefined;
+      const b = (v as { gte: Date | number }).gte;
+      return a != null && +a >= +b;
+    }
     return row[k] === v;
   });
 

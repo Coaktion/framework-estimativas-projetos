@@ -67,7 +67,7 @@ const H2_PARA_PRODUTO: Array<[RegExp, Produto]> = [
   [/quality assurance|\bqa\b/i, Produto.QA],
   [/messaging|chat|whatsapp|social/i, Produto.MESSAGING],
   [/apps and integrations|marketplace|app/i, Produto.MARKETPLACE],
-  [/developer|api|sdk|webhook/i, Produto.DEVELOPER_API],
+  [/developer|\bapis?\b|sdk|webhook|ios|android|mobile/i, Produto.DEVELOPER_API],
   [/admin|security|account|authentication|sso/i, Produto.ADMIN_SEGURANCA],
   [/support|ticket|agent workspace/i, Produto.SUPPORT],
 ];
@@ -80,7 +80,7 @@ const TEXTO_PARA_PRODUTO: Array<[RegExp, Produto]> = [
   [/\bhelp center|knowledge base|article|web crawler\b/i, Produto.KNOWLEDGE],
   [/\bexplore|dataset|metric|dashboard\b/i, Produto.ANALYTICS],
   [/\bwhatsapp|messaging|sunshine conversations\b/i, Produto.MESSAGING],
-  [/\bapi token|oauth|endpoint|webhook|custom object|mcp\b/i, Produto.DEVELOPER_API],
+  [/\bapi token|oauth|endpoint|webhook|mcp|sdk|ios version|android version|rest api|graphql\b/i, Produto.DEVELOPER_API],
   [/\bworkforce|shift|forecast\b/i, Produto.WFM],
   [/\bquality assurance|spotlight\b/i, Produto.QA],
   [/\bmarketplace|integration\b/i, Produto.MARKETPLACE],
@@ -97,7 +97,9 @@ const RX = {
   ga: /\b(general availability|generally available|now available|is available to all|announcing the general)\b/i,
   preco: /\b(pricing|price|prices|billing|invoice|cost per|packaging|entitlement|new add-on|subscription change)\b/i,
   ux: /\b(new look|refreshed|redesign|unified navigation|updated interface|visual refresh|now displays|reorganiz\w*)\b/i,
-  config: /\b(admin center|settings?|configure|configurable|enable|turn on|set up|setup|permission|role|policy|trigger|automation|macro|custom field|custom object|brand|sla policy)\b/i,
+  fix: /^(fixed|fixes|fix:|resolved|we fixed|we've fixed|bug fix)\b|\bfixed an issue\b|\bfixed a bug\b|\bfixed crashes?\b/i,
+  novidade: /^(added|adds|new|introduc\w*|launch\w*)\b|\b(you can now|can now|now (supports?|available|includes?|lets?|allows?)|is now available|new (feature|capability|option|setting))\b/i,
+  config: /\b(admin center|admins? can (now )?(configure|create|set|define|enable|turn on|add)|configur(e|es|able|ation)|custom (field|object|role|status)s?|triggers?|automations?|macros?|sla polic(y|ies)|permissions?|routing|business rules?)\b/i,
   dev: /\b(api|endpoint|webhook|payload|sdk|oauth|scope|graphql|rate limit|schema|mcp|integration)\b/i,
 };
 
@@ -170,7 +172,7 @@ function detectarProduto(sinal: SinalBruto, ctx: ContextoClassificacao): Produto
   return porH2 ?? porTexto ?? Produto.OUTRO;
 }
 
-function detectarTipo(texto: string, componente: string | null, fonte: string): SignalTipo {
+function detectarTipo(texto: string, componente: string | null): SignalTipo {
   // Deprecation tem precedência: um anúncio de remoção que obriga migração é
   // uma deprecation, e a migração é a consequência. BREAKING_CHANGE fica para
   // mudança que quebra sem ser remoção (contrato de API alterado, por exemplo).
@@ -179,22 +181,34 @@ function detectarTipo(texto: string, componente: string | null, fonte: string): 
   if (RX.preco.test(texto)) return SignalTipo.PRICING_PACKAGING;
   if (RX.eap.test(texto)) return SignalTipo.EAP_BETA;
   if (RX.ga.test(texto)) return SignalTipo.GA;
-  if (/^(fixed|fixes|bug fixes)/i.test(componente ?? '')) return SignalTipo.FIX_MINOR;
+  // Correção pelo cabeçalho ("Fixed") OU pelo próprio texto ("Fixed an issue…")
+  if (/^(fixed|fixes|bug fixes)/i.test(componente ?? '') || RX.fix.test(texto)) {
+    return SignalTipo.FIX_MINOR;
+  }
   if (RX.ux.test(texto)) return SignalTipo.UX_INTERFACE;
-  // Release notes sob "New" descrevem capacidade nova → GA
-  if (/^new\b/i.test(componente ?? '') || /release notes/i.test(fonte)) return SignalTipo.GA;
-  return SignalTipo.GA;
+  // Capacidade nova: sob "New", ou o texto anuncia algo que passa a existir
+  if (/^new\b/i.test(componente ?? '') || RX.novidade.test(texto)) return SignalTipo.GA;
+  // Sem pista nenhuma: tratar como ajuste de interface (sugere só Demo). Antes
+  // o padrão era GA, e por isso toda a primeira coleta saiu como GA.
+  return SignalTipo.UX_INTERFACE;
 }
 
 // ─────────────────────── Classificador por regras ───────────────────────────
 
+/**
+ * Versão das regras. Ao mudar qualquer regra deste arquivo ou do filtro de
+ * escopo, suba o número: na coleta seguinte, os sinais ainda na fila (NOVO)
+ * com versão antiga são reclassificados a partir da camada crua.
+ */
+export const VERSAO_REGRAS = 'regras@2';
+
 export class ClassificadorPorRegras implements Classificador {
-  readonly nome = 'regras';
+  readonly nome = VERSAO_REGRAS;
 
   async classificar(sinal: SinalBruto, ctx: ContextoClassificacao): Promise<Classificacao> {
     const texto = sinal.texto;
     const produto = detectarProduto(sinal, ctx);
-    const tipo = detectarTipo(texto, sinal.grupoComponente, ctx.fonte);
+    const tipo = detectarTipo(texto, sinal.grupoComponente);
 
     const requerConfiguracao = RX.config.test(texto);
     const requerDev = RX.dev.test(texto) || /developer/i.test(ctx.fonte);

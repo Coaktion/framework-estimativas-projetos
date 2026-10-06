@@ -70,7 +70,7 @@ function Conteudo({ admin }: { admin: boolean }) {
     setEstado('carregando');
     setErro(null);
     try {
-      const dados = await api.get<RespostaFila>('/api/pre-sales-ops/signals?status=NOVO&limite=100');
+      const dados = await api.get<RespostaFila>('/api/pre-sales-ops/signals?status=NOVO&limite=200');
       setFila(dados);
       setImpactosPorSinal((atual) => {
         const novo = { ...atual };
@@ -205,6 +205,16 @@ function Conteudo({ admin }: { admin: boolean }) {
       );
       const res = 'erro' in r ? r.detalhe : r;
       const falhas = res.porFonte.filter((f) => !f.ok).length;
+      const rec = res.reclassificacao;
+      if (rec && rec.reclassificados > 0) {
+        avisar(
+          t('psops.coleta.reclassificada', { arquivados: rec.arquivados, total: rec.reclassificados }),
+          'neutro',
+        );
+      }
+      if (res.traducao && res.traducao.sinaisTraduzidos > 0) {
+        avisar(t('psops.coleta.traduzidos', { n: res.traducao.sinaisTraduzidos }), 'neutro');
+      }
       if (falhas > 0) {
         avisar(t('psops.coleta.parcial', { falhas, total: res.porFonte.length }), 'erro');
       } else {

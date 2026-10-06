@@ -15,19 +15,19 @@
  */
 
 import type { PrismaClient } from '@prisma/client';
-import { SECTION_NAMES } from '../config/sources';
 import { hashConteudo } from '../lib/hash';
 import type { ClienteHc } from '../zendesk/client';
 import type { HcArticle } from '../zendesk/types';
-import {
-  parseArtigoEap,
-  parseArtigoUnico,
-  parseReleaseNote,
-  blocosNovos,
-  type SinalBruto,
-} from './parser';
-import { avaliarRuido } from './noise';
+import { parseArtigoEap, blocosNovos, type SinalBruto } from './parser';
+import { brutosDoArtigo } from './artigo';
+import { avaliarEscopo, avaliarRuido, decidirArquivamento } from './noise';
 import { classificadorPadrao, type Classificador } from './classify';
+import {
+  reclassificarFila,
+  traduzirPendentes,
+  type ResultadoReclassificacao,
+  type ResultadoTraducao,
+} from './manutencao';
 
 export interface ResultadoColeta {
   runId: string;
@@ -41,6 +41,10 @@ export interface ResultadoColeta {
   }>;
   totalSinaisCriados: number;
   totalSinaisArquivados: number;
+  /** sinais da fila reprocessados porque as regras mudaram */
+  reclassificacao: ResultadoReclassificacao;
+  /** títulos e trechos em português vindos da tradução do Zendesk */
+  traducao: ResultadoTraducao;
 }
 
 export interface DepsColeta {
@@ -56,6 +60,11 @@ export interface DepsColeta {
    * limite de 60 s da função no Netlify. Padrão: 14 dias.
    */
   primeiraColetaDias?: number;
+  /**
+   * Orçamento de tempo, em ms, para a etapa de tradução (a última). A rota no
+   * Netlify tem 60 s; a tradução para antes de estourar e continua na próxima.
+   */
+  orcamentoMs?: number;
 }
 
 export const PRIMEIRA_COLETA_DIAS_PADRAO = 14;
@@ -70,19 +79,20 @@ export function semanaIso(d: Date): string {
   return `${dt.getUTCFullYear()}-W${String(semana).padStart(2, '0')}`;
 }
 
-function nomeFonteDoArtigo(secaoId: number | null, fonteNome: string): string {
-  if (secaoId && SECTION_NAMES[String(secaoId)]) return SECTION_NAMES[String(secaoId)]!;
-  return fonteNome;
-}
-
-const ehReleaseNote = (fonte: string, titulo: string) =>
-  /release notes/i.test(fonte) || /^release notes/i.test(titulo);
-
 export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
   const { prisma, hc } = deps;
   const classificador = deps.classificador ?? classificadorPadrao;
   const agora = deps.agora ?? (() => new Date());
   const primeiraColetaDias = deps.primeiraColetaDias ?? PRIMEIRA_COLETA_DIAS_PADRAO;
+  const inicio = Date.now();
+
+  // 1. Regras mudaram? Reprocessa o que ainda está na fila antes de coletar.
+  let reclassificacao: ResultadoReclassificacao = { reclassificados: 0, arquivados: 0 };
+  try {
+    reclassificacao = await reclassificarFila(prisma, classificador);
+  } catch (e) {
+    console.error('[psops] reclassificação falhou:', e instanceof Error ? e.message : e);
+  }
 
   const run = await prisma.psOpsIngestRun.create({ data: { iniciadoEm: agora() } });
   const fontes = await prisma.psOpsSource.findMany({ where: { ativo: true } });
@@ -91,6 +101,7 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
   let totalCriados = 0;
   let totalArquivados = 0;
 
+  // 2. Coleta, fonte a fonte: falha numa não impede as outras.
   for (const fonte of fontes) {
     try {
       const r = fonte.isLiveArticle
@@ -128,6 +139,18 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
     }
   }
 
+  // 3. Tradução pt-br do Zendesk para o que já está no banco (inclusive o que
+  // acabou de chegar). Falha aqui nunca derruba a coleta.
+  let traducao: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0 };
+  try {
+    traducao = await traduzirPendentes(prisma, hc, {
+      agora,
+      ate: inicio + (deps.orcamentoMs ?? 40_000),
+    });
+  } catch (e) {
+    console.error('[psops] tradução falhou:', e instanceof Error ? e.message : e);
+  }
+
   await prisma.psOpsIngestRun.update({
     where: { id: run.id },
     data: {
@@ -145,6 +168,8 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
     porFonte,
     totalSinaisCriados: totalCriados,
     totalSinaisArquivados: totalArquivados,
+    reclassificacao,
+    traducao,
   };
 }
 
@@ -235,10 +260,7 @@ async function processarArtigo(ctx: Ctx, artigo: HcArticle) {
     },
   });
 
-  const nomeFonte = nomeFonteDoArtigo(artigo.section_id, fonte.nome);
-  const brutos: SinalBruto[] = ehReleaseNote(nomeFonte, artigo.title)
-    ? parseReleaseNote(artigo.body ?? '')
-    : [parseArtigoUnico(artigo)];
+  const { nomeFonte, brutos } = brutosDoArtigo(artigo, fonte.nome);
 
   return gravarSinais(ctx, {
     rawItemId: rawItem.id,
@@ -352,11 +374,23 @@ async function gravarSinais(
     });
     if (duplicado) continue;
 
-    const ruido = avaliarRuido(bruto);
+    let ruido = avaliarRuido(bruto);
 
     let dados;
     try {
       const c = await classificador.classificar(bruto, args.ctxClassificacao);
+      ruido = decidirArquivamento(
+        avaliarEscopo({
+          texto: bruto.texto,
+          fonte: args.ctxClassificacao.fonte,
+          tituloArtigo: args.ctxClassificacao.tituloArtigo,
+          grupoProduto: bruto.grupoProduto,
+          grupoComponente: bruto.grupoComponente,
+          produto: c.produto,
+          tipo: c.tipo,
+        }),
+        ruido,
+      );
       dados = {
         titulo: c.titulo,
         resumoPtBr: c.resumoPtBr,

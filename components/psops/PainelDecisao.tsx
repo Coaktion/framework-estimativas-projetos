@@ -7,6 +7,7 @@ import { Avatar, Badge, Carregando, btnPrimario, btnSecundario, rotulo, variante
 import {
   ATALHO_IMPACTO,
   IMPACTOS_ORDEM,
+  textoDoSinal,
   type Impacto,
   type Sinal,
   type SinalDetalhe,
@@ -39,14 +40,15 @@ export function PainelDecisao({
   ocupado: boolean;
 }) {
   const { t } = useTranslation();
-  const { dateLocale } = useLanguage();
+  const { dateLocale, language } = useLanguage();
+  const texto = textoDoSinal(sinal, language);
   const alvos = (detalhe?.previa ?? []).filter((p) => impactos.includes(p.impacto));
   const data = (iso: string) => new Date(iso).toLocaleDateString(dateLocale);
 
   return (
     <div className="px-6 py-5">
       <h3 className="mb-3 text-[19px] font-black leading-tight tracking-tight text-psops-texto">
-        {sinal.titulo}
+        {texto.titulo}
       </h3>
 
       <div className="mb-4 flex flex-wrap gap-1.5">
@@ -59,7 +61,12 @@ export function PainelDecisao({
         {sinal.dataLimite ? (
           <Badge variante="alerta">{t('psops.triagem.dataLimite', { data: data(sinal.dataLimite) })}</Badge>
         ) : null}
-        {sinal.classificadoPor === 'regras' ? (
+        {texto.pendente ? (
+          <Badge variante="discreto" titulo={t('psops.triagem.traducaoPendenteDica')}>
+            {t('psops.triagem.traducaoPendente')}
+          </Badge>
+        ) : null}
+        {sinal.classificadoPor.startsWith('regras') ? (
           <Badge variante="discreto" titulo={t('psops.triagem.porRegrasDica')}>
             {t('psops.triagem.porRegras')}
           </Badge>
@@ -74,7 +81,15 @@ export function PainelDecisao({
         <cite className={`${rotulo} mb-1.5 block not-italic text-psops-tinta`}>
           {t('psops.triagem.trechoOriginal')} · {data(sinal.publicadoEm)} · {sinal.fonteNome}
         </cite>
-        {sinal.trechoOriginal}
+        {texto.trecho}
+        {texto.traduzido ? (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[10.5px] font-bold text-psops-tinta">
+              {t('psops.triagem.verOriginal')}
+            </summary>
+            <p className="mt-1.5 text-[12px] italic">{sinal.trechoOriginal}</p>
+          </details>
+        ) : null}
       </blockquote>
 
       <a

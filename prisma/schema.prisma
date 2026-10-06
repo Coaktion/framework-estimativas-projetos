@@ -382,6 +382,9 @@ model PsOpsRawItem {
   payload    Json
   coletadoEm DateTime @default(now())
 
+  /// quando a tradução pt-br do Zendesk foi aplicada aos sinais deste artigo
+  traducaoPtEm DateTime?
+
   signals PsOpsSignal[]
 
   @@unique([sourceId, externalId, bodyHash])
@@ -408,6 +411,12 @@ model PsOpsSignal {
   titulo         String
   resumoPtBr     String?
   trechoOriginal String  @db.Text
+
+  /// título e trecho da tradução pt-br publicada pelo próprio Zendesk no Help
+  /// Center. Só preenchidos quando a estrutura da tradução bate com a original
+  /// bullet a bullet — na dúvida, fica em inglês.
+  tituloPt String?
+  trechoPt String? @db.Text
 
   produto PsOpsProduto
   modulo  PsOpsModulo

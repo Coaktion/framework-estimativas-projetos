@@ -958,7 +958,10 @@
       "planoMinimo": "Min. plan: {{plano}}",
       "dataLimite": "Deadline: {{data}}",
       "porRegras": "rule-based classification",
-      "porRegrasDica": "Classified by deterministic rules. The plain-language summary comes with the LLM layer, not enabled yet."
+      "porRegrasDica": "Classified by deterministic rules. It is a suggestion: the decision is yours.",
+      "traducaoPendente": "in English · Zendesk translation pending",
+      "traducaoPendenteDica": "Zendesk usually publishes the Portuguese version a few days later. The daily collection checks again until it is out.",
+      "verOriginal": "See original in English"
     },
     "avisos": {
       "geradas_one": "{{count}} activity created, already assigned to the artifact's owner.",
@@ -972,7 +975,7 @@
       "scoreAlto": "Score ≥ 80",
       "scoreAltoSub": "read these first",
       "arquivados": "Auto-archived",
-      "arquivadosSub": "no-impact fixes · noise filter",
+      "arquivadosSub": "out of scope or no impact",
       "triados": "Triaged this week",
       "triadosSub": "goal: queue cleared in 20 min",
       "ultimaColeta": "Last collection",
@@ -983,11 +986,13 @@
       "botao": "Collect now",
       "coletando": "Collecting…",
       "dica": "Fetches the latest from the Zendesk Help Center now, without waiting for the schedule.",
-      "ok": "Collection done: {{novos}} new signals in the queue, {{arquivados}} archived by the noise filter.",
+      "ok": "Collection done: {{novos}} new signals in the queue, {{arquivados}} archived by the filter.",
       "parcial": "Partial collection: {{falhas}} of {{total}} sources failed. What came from the others is already in the queue.",
       "nenhuma": "No collection yet",
       "nenhumaAdmin": "Click Collect now to fetch the latest from the Zendesk Help Center.",
-      "nenhumaUsuario": "Ask an admin to run the first collection."
+      "nenhumaUsuario": "Ask an admin to run the first collection.",
+      "reclassificada": "Queue reclassified with the new rules: {{arquivados}} of {{total}} signals moved to the archive.",
+      "traduzidos": "{{n}} signals got the Zendesk translation."
     },
     "descarte": {
       "titulo": "Discard signal",

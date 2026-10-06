@@ -958,7 +958,10 @@
       "planoMinimo": "Plano mín.: {{plano}}",
       "dataLimite": "Data limite: {{data}}",
       "porRegras": "classificação por regras",
-      "porRegrasDica": "Classificado por regras determinísticas. O resumo em português vem com a camada de LLM, ainda não ligada."
+      "porRegrasDica": "Classificado por regras determinísticas. É uma sugestão: a decisão é sua.",
+      "traducaoPendente": "em inglês · tradução do Zendesk pendente",
+      "traducaoPendenteDica": "O Zendesk costuma publicar a versão em português alguns dias depois. A coleta diária confere de novo até ela sair.",
+      "verOriginal": "Ver original em inglês"
     },
     "avisos": {
       "geradas_one": "{{count}} atividade gerada, já atribuída ao dono do artefato.",
@@ -972,7 +975,7 @@
       "scoreAlto": "Score ≥ 80",
       "scoreAltoSub": "leia estes primeiro",
       "arquivados": "Auto-arquivados",
-      "arquivadosSub": "fixes sem impacto · filtro de ruído",
+      "arquivadosSub": "fora do escopo ou sem impacto",
       "triados": "Triados na semana",
       "triadosSub": "meta: fila zerada em 20 min",
       "ultimaColeta": "Última coleta",
@@ -983,11 +986,13 @@
       "botao": "Coletar agora",
       "coletando": "Coletando…",
       "dica": "Busca as novidades no Help Center do Zendesk agora, sem esperar o horário agendado.",
-      "ok": "Coleta concluída: {{novos}} sinais novos na fila, {{arquivados}} arquivados pelo filtro de ruído.",
+      "ok": "Coleta concluída: {{novos}} sinais novos na fila, {{arquivados}} arquivados pelo filtro.",
       "parcial": "Coleta parcial: {{falhas}} de {{total}} fontes falharam. O que veio das outras já está na fila.",
       "nenhuma": "Nenhuma coleta ainda",
       "nenhumaAdmin": "Clique em Coletar agora para buscar as novidades no Help Center do Zendesk.",
-      "nenhumaUsuario": "Peça a um admin para rodar a primeira coleta."
+      "nenhumaUsuario": "Peça a um admin para rodar a primeira coleta.",
+      "reclassificada": "Fila reclassificada com as regras novas: {{arquivados}} de {{total}} sinais saíram para o arquivo.",
+      "traduzidos": "{{n}} sinais ganharam a tradução do Zendesk."
     },
     "descarte": {
       "titulo": "Descartar sinal",

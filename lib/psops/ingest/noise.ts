@@ -13,6 +13,7 @@
  */
 
 import type { SinalBruto } from './parser';
+import type { Produto, SignalTipo } from '../config/taxonomy';
 
 const CABECALHO_FIX = /^(fixed|fixes|bug fixes|corre(ç|c)(õ|o)es)\b/i;
 
@@ -63,5 +64,59 @@ export function avaliarRuido(sinal: SinalBruto): ResultadoRuido {
     return { arquivar: true, motivo: 'texto curto demais para ser acionável' };
   }
 
+  return { arquivar: false, motivo: null };
+}
+
+// ─────────────────────────── Filtro de escopo ───────────────────────────────
+
+/**
+ * O que o time decidiu NÃO tratar, independente de quão relevante a mudança
+ * seja para outros públicos. Diferente do ruído (que é "não muda nada"), aqui
+ * é "muda, mas não é com a gente". Vai para AUTO_ARQUIVADO com o motivo:
+ * continua pesquisável na Linha do tempo, só sai da fila.
+ *
+ * Decisão do time (out/2026):
+ *   · Developer / API, incluindo SDKs mobile
+ *   · incidentes e manutenção do serviço
+ *   · toda correção ("Fixed…"), mencione o que mencionar
+ */
+const RX_DEV = /\b(developers?|apis?|sdks?|rest api|graphql|webhooks?|endpoints?|oauth|zendesk apps framework|zaf|ios version|android version|mobile sdk|unity|react native)\b/i;
+const RX_INCIDENTE = /\b(experienced (an|a) (issue|problem|outage)|service incident|incident report|post-?mortem|root cause|outage|degraded performance|service disruption|(scheduled|planned) maintenance|maintenance window|on (multiple|several) pods|pods? \d+)\b|\bfrom \d{1,2}:\d{2} utc to \d{1,2}:\d{2} utc\b/i;
+
+export interface ContextoEscopo {
+  texto: string;
+  /** seção de origem ("Developer updates", "Release notes"…) */
+  fonte?: string;
+  tituloArtigo: string;
+  grupoProduto: string | null;
+  grupoComponente: string | null;
+  produto: Produto;
+  tipo: SignalTipo;
+}
+
+export const MOTIVO_ESCOPO = {
+  dev: 'fora do escopo: Developer / API',
+  incidente: 'fora do escopo: incidente ou manutenção do serviço',
+  correcao: 'fora do escopo: correção (Fixed)',
+} as const;
+
+export function avaliarEscopo(c: ContextoEscopo): ResultadoRuido {
+  const cabecalhos = `${c.fonte ?? ''} ${c.tituloArtigo} ${c.grupoProduto ?? ''} ${c.grupoComponente ?? ''}`;
+  if (c.produto === 'DEVELOPER_API' || RX_DEV.test(cabecalhos) || RX_DEV.test(c.texto)) {
+    return { arquivar: true, motivo: MOTIVO_ESCOPO.dev };
+  }
+  if (RX_INCIDENTE.test(c.texto) || RX_INCIDENTE.test(c.tituloArtigo)) {
+    return { arquivar: true, motivo: MOTIVO_ESCOPO.incidente };
+  }
+  if (c.tipo === 'FIX_MINOR') {
+    return { arquivar: true, motivo: MOTIVO_ESCOPO.correcao };
+  }
+  return { arquivar: false, motivo: null };
+}
+
+/** Escopo primeiro (motivo mais útil para auditar), ruído depois. */
+export function decidirArquivamento(escopo: ResultadoRuido, ruido: ResultadoRuido): ResultadoRuido {
+  if (escopo.arquivar) return escopo;
+  if (ruido.arquivar) return ruido;
   return { arquivar: false, motivo: null };
 }

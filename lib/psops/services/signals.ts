@@ -22,6 +22,8 @@ const selecaoLista = {
   titulo: true,
   resumoPtBr: true,
   trechoOriginal: true,
+  tituloPt: true,
+  trechoPt: true,
   produto: true,
   modulo: true,
   tipo: true,
@@ -53,6 +55,8 @@ export async function listarSinais(prisma: PrismaClient, f: FiltroSinais) {
             { titulo: { contains: f.q, mode: 'insensitive' } },
             { trechoOriginal: { contains: f.q, mode: 'insensitive' } },
             { resumoPtBr: { contains: f.q, mode: 'insensitive' } },
+            { tituloPt: { contains: f.q, mode: 'insensitive' } },
+            { trechoPt: { contains: f.q, mode: 'insensitive' } },
           ],
         }
       : {}),
