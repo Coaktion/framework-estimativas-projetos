@@ -920,8 +920,8 @@
       "triagem": "Fila de Triagem",
       "backlog": "Backlog",
       "artefatos": "Mapa de Artefatos",
-      "radar": "Radar",
-      "aria": "Seções do Pre-Sales Ops"
+      "radar": "Linha do tempo",
+      "aria": "Seções do Radar"
     },
     "carregando": "Carregando…",
     "triagem": {

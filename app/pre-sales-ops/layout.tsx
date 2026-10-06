@@ -7,7 +7,7 @@ import { AbasModulo } from '@/components/psops/AbasModulo';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Pre-Sales Ops · Aktie Now Tool Center',
+  title: 'Radar · Aktie Now Tool Center',
   description: 'Novidades do Zendesk viram backlog de demo, estimativa e escopo.',
 };
 
@@ -23,7 +23,7 @@ export default async function PreSalesOpsLayout({ children }: { children: React.
     <div className="psops relative left-1/2 w-[min(1600px,calc(100vw-3rem))] -translate-x-1/2 space-y-8">
       <div className="space-y-2">
         <h1 className="font-heading text-5xl font-black uppercase leading-none tracking-tighter text-brand-dark dark:text-[color:var(--text-main)]">
-          Pre-Sales <span className="text-brand-primary dark:text-[color:var(--primary)]">Ops</span>
+          <span className="text-brand-primary dark:text-[color:var(--primary)]">Radar</span>
         </h1>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-slate-500 dark:text-[color:var(--text-muted)]">
           {t('psops.subtitulo')}

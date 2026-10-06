@@ -1,5 +1,8 @@
 # Pre-Sales Ops
 
+No portal aparece como **Radar** (menu e título da página). No código, o
+prefixo continua `psops` / `pre-sales-ops`.
+
 Monitora as novidades do Zendesk (API pública do Help Center) e transforma cada
 mudança que o time julgar relevante em atividades com Definition of Done para
 manter atualizados os ativos de pré-venda: **ambiente de demo**, **framework de
@@ -12,7 +15,7 @@ Segue o mesmo padrão do ZD Auto Config dentro do Tool Center.
 
 | | |
 |---|---|
-| telas | `app/pre-sales-ops/` (Fila de Triagem pronta; Backlog, Mapa de Artefatos e Radar ainda são placeholders) |
+| telas | `app/pre-sales-ops/` (Fila de Triagem pronta; Backlog, Mapa de Artefatos e Linha do tempo ainda são placeholders) |
 | API | `app/api/pre-sales-ops/` (15 rotas, todas exigem sessão + acesso) |
 | lógica (servidor) | `lib/psops/` (ingestão, classificação, triagem, artefatos, reconciliação) |
 | tipos do cliente | `lib/psops/client/` (seguro para o browser) |
@@ -69,7 +72,7 @@ em `testPathIgnorePatterns` no `jest.config.ts`.
 
 ## Ainda não existe
 
-- Telas de Backlog (com filtro por responsável), Mapa de Artefatos e Radar.
+- Telas de Backlog (com filtro por responsável), Mapa de Artefatos e Linha do tempo.
 - Camada de LLM para resumo em português (o slot é a interface `Classificador`
   em `ingest/classify.ts`).
 - Verificadores `GDRIVE` e `ZENDESK_ADMIN` na reconciliação (este último por

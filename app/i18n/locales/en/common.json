@@ -920,8 +920,8 @@
       "triagem": "Triage Queue",
       "backlog": "Backlog",
       "artefatos": "Artifact Map",
-      "radar": "Radar",
-      "aria": "Pre-Sales Ops sections"
+      "radar": "Timeline",
+      "aria": "Radar sections"
     },
     "carregando": "Loading…",
     "triagem": {
