@@ -215,3 +215,393 @@ model ZdEnvironment {
   @@index([shared])
   @@map("zdcfg_environments")
 }
+
+// =============================================================================
+// Pre-Sales Ops — monitoramento das novidades do Zendesk (lib/psops)
+// -----------------------------------------------------------------------------
+// Só ACRESCENTA tabelas: nenhum model acima é alterado. Prefixo PsOps nos
+// models e psops_ nas tabelas, no mesmo padrão do zdcfg_ do ZD Auto Config.
+//
+// Ids de pessoa (donoId, responsavelId, usuarioId, autorId) são String com o
+// id do User do portal, SEM relação: o módulo não mexe no model User e o
+// `db push` não precisa tocar em tabela existente.
+// =============================================================================
+
+// ─────────────────────────────── Enums ──────────────────────────────────────
+
+enum PsOpsSourceKind {
+  CATEGORY
+  SECTION
+  ARTICLE
+}
+
+enum PsOpsProduto {
+  SUPPORT
+  MESSAGING
+  CONTACT_CENTER
+  KNOWLEDGE
+  AI_AGENTS
+  COPILOT
+  ANALYTICS
+  WFM
+  QA
+  ADMIN_SEGURANCA
+  DEVELOPER_API
+  MARKETPLACE
+  OUTRO
+}
+
+/// Frentes do nosso catálogo de propostas. É a ponte entre o sinal externo
+/// e os nossos artefatos internos.
+enum PsOpsModulo {
+  SUPPORT
+  VOICE
+  KNOWLEDGE
+  COPILOT
+  AI_AGENTS
+  ANALYTICS
+  WFM
+  QA
+  INTEGRACOES
+  OUTRO
+}
+
+enum PsOpsSignalTipo {
+  GA
+  EAP_BETA
+  DEPRECATION
+  BREAKING_CHANGE
+  PRICING_PACKAGING
+  UX_INTERFACE
+  FIX_MINOR
+}
+
+enum PsOpsSignalStatus {
+  NOVO
+  TRIADO
+  DESCARTADO
+  /// Filtrado pelo detector de ruído. Continua pesquisável, fora da fila.
+  AUTO_ARQUIVADO
+  /// A classificação falhou a validação de schema. Entra na fila sem metadados.
+  NAO_CLASSIFICADO
+}
+
+/// Os quatro destinos de impacto. ESTUDO produz uma ficha da feature
+/// (PsOpsStudyNote); os outros três atualizam um PsOpsArtifact.
+enum PsOpsImpacto {
+  ESTUDO
+  DEMO
+  ESTIM
+  ESCOPO
+}
+
+enum PsOpsArtifactTipo {
+  DEMO_TEMPLATE
+  FRAMEWORK
+  ESCOPO
+}
+
+/// Onde mora a verdade sobre "este artefato foi atualizado".
+/// PORTAL: o artefato mora numa tabela deste portal — a atualização é o
+/// próprio write, então revisaoVerificadaEm é preenchido por construção.
+enum PsOpsVerifyFonte {
+  PORTAL
+  GDRIVE
+  ZENDESK_ADMIN
+  NENHUMA
+}
+
+enum PsOpsActivityStatus {
+  TODO
+  DOING
+  DONE
+  CANCELADA
+}
+
+// ─────────────────────── Camada 1 · Ingestão ────────────────────────────────
+
+model PsOpsSource {
+  id     String          @id @default(cuid())
+  key    String          @unique
+  nome   String
+  kind   PsOpsSourceKind
+  /// id da categoria, seção ou artigo no Help Center do Zendesk
+  zendeskId String
+  baseUrl   String       @default("https://support.zendesk.com")
+  locale    String       @default("en-us")
+  /// true para artigos atualizados no lugar (ex.: a lista de EAPs).
+  /// Esses não ganham created_at novo — são controlados por hash de body.
+  isLiveArticle Boolean  @default(false)
+  ativo         Boolean  @default(true)
+
+  /// maior created_at já processado nesta fonte
+  watermark     DateTime?
+  ultimoRunEm   DateTime?
+  ultimoRunOk   Boolean?
+  ultimoRunErro String?
+
+  rawItems PsOpsRawItem[]
+  runs     PsOpsIngestRun[]
+
+  @@map("psops_sources")
+}
+
+model PsOpsIngestRun {
+  id           String    @id @default(cuid())
+  sourceId     String?
+  source       PsOpsSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  iniciadoEm   DateTime  @default(now())
+  finalizadoEm DateTime?
+  ok           Boolean   @default(false)
+  itensNovos       Int   @default(0)
+  itensAtualizados Int   @default(0)
+  sinaisCriados    Int   @default(0)
+  sinaisArquivados Int   @default(0)
+  erro         String?
+
+  @@index([iniciadoEm])
+  @@map("psops_ingest_runs")
+}
+
+/// Camada crua imutável. Guarda o payload da Zendesk sem transformação, para
+/// que uma mudança de taxonomia possa reprocessar o histórico sem rebuscar.
+model PsOpsRawItem {
+  id         String   @id @default(cuid())
+  sourceId   String
+  source     PsOpsSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  externalId String
+  titulo     String
+  htmlUrl    String
+  secaoId    String?
+  criadoEm     DateTime
+  atualizadoEm DateTime
+  editadoEm    DateTime?
+  labels       String[]
+  /// sha256 do body — detecta edição em artigo-vivo
+  bodyHash   String
+  payload    Json
+  coletadoEm DateTime @default(now())
+
+  signals PsOpsSignal[]
+
+  @@unique([sourceId, externalId, bodyHash])
+  @@index([criadoEm])
+  @@map("psops_raw_items")
+}
+
+// ───────────── Camada 2 · Sinais atômicos (normalizados) ────────────────────
+
+model PsOpsSignal {
+  id        String       @id @default(cuid())
+  rawItemId String
+  rawItem   PsOpsRawItem @relation(fields: [rawItemId], references: [id], onDelete: Cascade)
+
+  /// Posição estável do sinal dentro do body: "2.1.3" = 3º bullet do 1º H4
+  /// do 2º H2. Junto com rawItemId dá idempotência ao reprocessamento.
+  ancora String
+
+  /// sha256 do texto do sinal. Quando um artigo é editado ele gera um novo
+  /// RawItem (hash de body diferente) e a âncora pode deslocar — a assinatura
+  /// é o que impede recriar sinal para conteúdo que já tínhamos.
+  assinatura String
+
+  titulo         String
+  resumoPtBr     String?
+  trechoOriginal String  @db.Text
+
+  produto PsOpsProduto
+  modulo  PsOpsModulo
+  tipo    PsOpsSignalTipo
+
+  planoMinimo        String?
+  requerConfiguracao Boolean @default(false)
+  requerDev          Boolean @default(false)
+  afetaPreco         Boolean @default(false)
+  dataLimite         DateTime?
+
+  /// 0–100. Ordena a fila de leitura. Sugestão, nunca decisão.
+  score             Int
+  impactosSugeridos PsOpsImpacto[]
+  /// "regras" ou "llm:<modelo>" — rastreia quem classificou
+  classificadoPor   String
+  motivoRuido       String?
+
+  status   PsOpsSignalStatus @default(NOVO)
+  criadoEm DateTime          @default(now())
+
+  triage     PsOpsTriage?
+  initiative PsOpsInitiative?
+  aplicacoes PsOpsArtifactSignal[]
+  studyNote  PsOpsStudyNote?
+
+  @@unique([rawItemId, ancora])
+  @@index([assinatura])
+  @@index([status, score(sort: Desc)])
+  @@index([produto])
+  @@index([criadoEm])
+  @@map("psops_signals")
+}
+
+// ──────────────── Camada 3 · Triagem (julgamento humano) ────────────────────
+
+model PsOpsTriage {
+  id       String      @id @default(cuid())
+  signalId String      @unique
+  signal   PsOpsSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  usuarioId      String
+  decididoEm     DateTime       @default(now())
+  impactos       PsOpsImpacto[]
+  motivoDescarte String?
+  nota           String?
+
+  @@index([usuarioId])
+  @@map("psops_triages")
+}
+
+// ─────────────── Camada 4 · Geração (iniciativa + atividades) ───────────────
+
+model PsOpsInitiative {
+  id       String      @id @default(cuid())
+  signalId String      @unique
+  signal   PsOpsSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  titulo     String
+  /// ciclo semanal, formato ISO week: "2026-W33"
+  ciclo String
+  criadoEm   DateTime @default(now())
+
+  atividades PsOpsActivity[]
+
+  @@index([ciclo])
+  @@map("psops_initiatives")
+}
+
+model PsOpsActivity {
+  id           String          @id @default(cuid())
+  initiativeId String
+  initiative   PsOpsInitiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+
+  tipo   PsOpsImpacto
+  titulo String
+
+  /// null para atividades de ESTUDO (que produzem uma ficha, não atualizam ativo)
+  artifactId String?
+  artifact   PsOpsArtifact? @relation(fields: [artifactId], references: [id], onDelete: SetNull)
+
+  /// id do User do portal. Herdado do dono do artefato na criação.
+  responsavelId String?
+  status        PsOpsActivityStatus @default(TODO)
+
+  /// [{ "t": "texto do item", "d": false, "evidencia": null }]
+  dod Json
+
+  /// Como provar que isto foi feito, sem confiar no clique. Ex.:
+  /// { "fonte": "ZENDESK_ADMIN", "endpoint": "/api/v2/triggers",
+  ///   "caminho": "triggers[].title", "contem": "Voice AI" }
+  criterioVerificavel Json?
+
+  concluidoEm  DateTime?
+  concluidoPor String?
+
+  studyNote  PsOpsStudyNote?
+  aplicacoes PsOpsArtifactSignal[]
+
+  @@index([responsavelId, status])
+  @@index([artifactId])
+  @@index([status, tipo])
+  @@map("psops_activities")
+}
+
+/// Ficha de estudo da feature — o que a atividade de ESTUDO produz.
+/// Vira a base de conhecimento de produto do time, pesquisável no Pre-Sales Ops.
+model PsOpsStudyNote {
+  id String @id @default(cuid())
+
+  signalId String      @unique
+  signal   PsOpsSignal @relation(fields: [signalId], references: [id], onDelete: Cascade)
+
+  activityId String?        @unique
+  activity   PsOpsActivity? @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  /// O que é, em duas linhas, sem jargão de produto
+  oQueE            String? @db.Text
+  comoFunciona     String? @db.Text
+  preRequisitos    String? @db.Text
+  limitacoes       String? @db.Text
+  planoNecessario  String?
+  /// docs oficiais lidos durante o estudo
+  linksConsultados String[]
+  testadoEmSandbox Boolean @default(false)
+  motivoNaoTestado String?
+
+  autorId     String?
+  versao      Int       @default(1)
+  publicadoEm DateTime?
+  atualizadoEm DateTime @updatedAt
+
+  @@index([publicadoEm])
+  @@map("psops_study_notes")
+}
+
+// ───────────── Camada 5 · Artefatos e rastreabilidade ───────────────────────
+
+model PsOpsArtifact {
+  id String @id @default(cuid())
+
+  /// chave estável, ex. "FRAMEWORK:VOICE", "ESCOPO:KNOWLEDGE", "DEMO_TEMPLATE"
+  chave  String            @unique
+  tipo   PsOpsArtifactTipo
+  modulo PsOpsModulo?
+  nome   String
+
+  /// id do User do portal. É de onde a atividade herda o responsável.
+  donoId String?
+  versao String @default("1")
+
+  // ── As três datas. Nunca colapsar em uma só. ──
+  /// alguém clicou "concluir" — promessa
+  revisaoDeclaradaEm  DateTime?
+  /// a fonte confirmou a mudança — o que o semáforo de saúde usa
+  revisaoVerificadaEm DateTime?
+  /// quando o reconciliador rodou por último nesta linha
+  conferidoEm         DateTime?
+
+  fonteVerificacao PsOpsVerifyFonte @default(NENHUMA)
+  /// fileId do Drive, subdomínio do tenant, nome da tabela do portal…
+  fonteRef         String?
+  /// hash/checksum/version do último estado observado na fonte
+  fonteAssinatura  String?
+
+  /// true quando declarada e verificada divergem além do limite configurado
+  divergente         Boolean @default(false)
+  divergenciaDetalhe String?
+
+  atividades PsOpsActivity[]
+  aplicacoes PsOpsArtifactSignal[]
+
+  @@index([tipo])
+  @@index([donoId])
+  @@map("psops_artifacts")
+}
+
+/// A tabela pequena que entrega o valor grande: por que este artefato está do
+/// jeito que está. Permite a leitura reversa artefato → sinais → announcements.
+model PsOpsArtifactSignal {
+  id String @id @default(cuid())
+
+  artifactId String
+  artifact   PsOpsArtifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  signalId   String
+  signal     PsOpsSignal   @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  activityId String
+  activity   PsOpsActivity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  aplicadoEm DateTime @default(now())
+  /// versão do artefato resultante desta aplicação
+  versaoResultante String?
+
+  @@unique([artifactId, signalId, activityId])
+  @@index([signalId])
+  @@map("psops_artifact_signals")
+}

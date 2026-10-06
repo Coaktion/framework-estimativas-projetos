@@ -7,7 +7,7 @@ import { Moon, Sun, Maximize, Minimize } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
-import { canAccessScopes, canAccessAE, canAccessZdAutoConfig } from "@/lib/segments";
+import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps } from "@/lib/segments";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -23,6 +23,7 @@ export default function Navbar() {
   const showScopes = canAccessScopes(user);
   const showAE = canAccessAE(user);
   const showZdCfg = canAccessZdAutoConfig(user);
+  const showPsOps = canAccessPreSalesOps(user);
 
   return (
     <div className="hidden md:flex items-center space-x-8">
@@ -58,6 +59,18 @@ export default function Navbar() {
             }`}
           >
             {t('nav.zdAutoConfig')}
+          </Link>
+        )}
+
+        {showPsOps && (
+          <Link
+            href="/pre-sales-ops"
+            title={t('nav.preSalesOpsTitle')}
+            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
+              pathname.startsWith('/pre-sales-ops') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
+            }`}
+          >
+            {t('nav.preSalesOps')}
           </Link>
         )}
 

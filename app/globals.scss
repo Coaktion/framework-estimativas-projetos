@@ -180,6 +180,65 @@ body {
   }
 }
 
+/* ── Pre-Sales Ops ──────────────────────────────────────────────────────────
+   Tokens do módulo em canais RGB, derivados da paleta do Tool Center acima.
+   "tinta" é o verde para TEXTO: no tema claro o --primary (#2BDD66) não tem
+   contraste sobre branco, então o texto verde usa um tom mais escuro.
+   Magenta (Aktie Now) só para deprecation e estado crítico. */
+:root {
+  --psops-surf-1: 255 255 255;
+  --psops-surf-2: 240 247 243;
+  --psops-surf-3: 226 238 230;
+  --psops-texto: 4 23 12;
+  --psops-muted: 71 98 87;
+  --psops-linha: 214 229 218;
+  --psops-linha-forte: 182 204 189;
+  --psops-acento: 43 221 102;
+  --psops-acento-tinta: 11 122 59;
+  --psops-sobre-acento: 4 23 12;
+  --psops-alerta: 163 0 132;
+  --psops-alerta-tinta: 150 0 122;
+}
+
+.dark {
+  --psops-surf-1: 10 18 12;
+  --psops-surf-2: 15 30 20;
+  --psops-surf-3: 21 41 27;
+  --psops-texto: 233 247 237;
+  --psops-muted: 159 179 166;
+  --psops-linha: 28 61 32;
+  --psops-linha-forte: 41 94 47;
+  --psops-acento: 43 221 102;
+  --psops-acento-tinta: 124 255 110;
+  --psops-sobre-acento: 4 23 12;
+  --psops-alerta: 163 0 132;
+  --psops-alerta-tinta: 240 159 222;
+}
+
+.psops kbd {
+  display: inline-block;
+  border-radius: 0.375rem;
+  border: 1px solid rgb(var(--psops-linha-forte));
+  border-bottom-width: 2px;
+  background-color: rgb(var(--psops-surf-3));
+  color: rgb(var(--psops-muted));
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+/* O teclado é caminho de primeira classe na triagem: foco sempre visível */
+.psops :focus-visible {
+  outline: 2px solid rgb(var(--psops-acento));
+  outline-offset: 2px;
+}
+
+@keyframes psops-entrada {
+  from { opacity: 0; transform: translateX(26px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Custom transitions for Next.js app */
 .tab-content {
   @apply transition-all duration-700;

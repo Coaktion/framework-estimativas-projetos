@@ -682,7 +682,9 @@
     "switchToEnglish": "Switch to English",
     "switchToPortuguese": "Switch to Portuguese",
     "zdAutoConfig": "ZD Auto Config",
-    "zdAutoConfigTitle": "Zendesk demo environment provisioner"
+    "zdAutoConfigTitle": "Zendesk demo environment provisioner",
+    "preSalesOps": "Pre-Sales Ops",
+    "preSalesOpsTitle": "Zendesk announcements and the backlog they create for demo, estimates and scope"
   },
   "plans": {
     "categoryGateHint": "Below the minimum plan the whole category disappears from the framework, even if some item inside it has no restriction of its own. Empty = no restriction.",
@@ -911,5 +913,152 @@
     "waitingHc": "[waiting for Help Center activation] open the activation page, activate it and click Continue.",
     "whatToProvision": "What to provision",
     "whenToUse": "When to use"
+  },
+  "psops": {
+    "subtitulo": "Zendesk announcements turned into backlog for demo, estimates and scope",
+    "abas": {
+      "triagem": "Triage Queue",
+      "backlog": "Backlog",
+      "artefatos": "Artifact Map",
+      "radar": "Radar",
+      "aria": "Pre-Sales Ops sections"
+    },
+    "carregando": "Loading…",
+    "triagem": {
+      "editoria": "Human judgment",
+      "titulo": "Triage Queue",
+      "subtitulo": "Each signal is a change announced by Zendesk. You don't write tasks: you mark where it has impact, and the system creates the activities with a Definition of Done, already assigned to each artifact's owner.",
+      "sinaisNovos": "New signals",
+      "decisao": "Eligibility decision",
+      "ondeImpacta": "Where does this have impact?",
+      "oQueSeraGerado": "What will be created",
+      "lerNota": "Read the full note on the Zendesk Help Center",
+      "trechoOriginal": "Original excerpt",
+      "gerar_one": "Create {{count}} activity",
+      "gerar_other": "Create {{count}} activities",
+      "descartar": "Discard signal",
+      "semImpacto": "No impact selected: this signal creates no activity.",
+      "atividades_one": "{{count}} activity",
+      "atividades_other": "{{count}} activities",
+      "responsavelHerdado": "owner inherited from the artifact",
+      "semResponsavel": "no owner",
+      "artefatoNovo": "new artifact",
+      "fichaNova": "new fact sheet",
+      "calculando": "Working out the affected artifacts…",
+      "filaZerada": "Queue cleared",
+      "filaZeradaTexto": "Every signal has been triaged. The automatic collection runs daily at 07:00 BRT.",
+      "selecione": "Select a signal from the list.",
+      "sugerido": "suggested",
+      "navegar": "navigate",
+      "impacto": "impact",
+      "atalhoGerar": "create",
+      "atalhoDescartar": "discard",
+      "score": "Score",
+      "modulo": "Module: {{nome}}",
+      "planoMinimo": "Min. plan: {{plano}}",
+      "dataLimite": "Deadline: {{data}}",
+      "porRegras": "rule-based classification",
+      "porRegrasDica": "Classified by deterministic rules. The plain-language summary comes with the LLM layer, not enabled yet."
+    },
+    "avisos": {
+      "geradas_one": "{{count}} activity created, already assigned to the artifact's owner.",
+      "geradas_other": "{{count}} activities created, already assigned to the artifacts' owners.",
+      "artefatoNovo": "New artifact on the map: {{nome}}, no owner yet.",
+      "descartado": "Signal discarded. The reason feeds the noise-filter tuning."
+    },
+    "stats": {
+      "naFila": "In queue",
+      "naFilaSub": "awaiting a decision",
+      "scoreAlto": "Score ≥ 80",
+      "scoreAltoSub": "read these first",
+      "arquivados": "Auto-archived",
+      "arquivadosSub": "no-impact fixes · noise filter",
+      "triados": "Triaged this week",
+      "triadosSub": "goal: queue cleared in 20 min",
+      "ultimaColeta": "Last collection",
+      "nunca": "never",
+      "sinaisNaColeta": "{{n}} signals in the last collection"
+    },
+    "coleta": {
+      "botao": "Collect now",
+      "coletando": "Collecting…",
+      "dica": "Fetches the latest from the Zendesk Help Center now, without waiting for the schedule.",
+      "ok": "Collection done: {{novos}} new signals in the queue, {{arquivados}} archived by the noise filter.",
+      "parcial": "Partial collection: {{falhas}} of {{total}} sources failed. What came from the others is already in the queue.",
+      "nenhuma": "No collection yet",
+      "nenhumaAdmin": "Click Collect now to fetch the latest from the Zendesk Help Center.",
+      "nenhumaUsuario": "Ask an admin to run the first collection."
+    },
+    "descarte": {
+      "titulo": "Discard signal",
+      "explicacao": "The reason feeds the noise-filter tuning. One sentence is enough.",
+      "placeholder": "e.g.: only changes the agent UI, no impact on our assets",
+      "confirmar": "Discard",
+      "cancelar": "Cancel"
+    },
+    "erro": {
+      "titulo": "Something failed",
+      "tentarNovamente": "Try again",
+      "semBanco": "Couldn't reach the database. If this is the first deploy with Pre-Sales Ops, check the build log to confirm prisma db push created the psops_* tables.",
+      "semAcesso": "Your segment doesn't have access to Pre-Sales Ops."
+    },
+    "emConstrucao": {
+      "titulo": "Under construction",
+      "texto": "This screen comes in the next round. The API it will use is already in place:"
+    },
+    "impacto": {
+      "ESTUDO": {
+        "nome": "Study",
+        "pergunta": "Does someone need to understand this in depth?"
+      },
+      "DEMO": {
+        "nome": "Demo",
+        "pergunta": "Do we need to be able to show it live?"
+      },
+      "ESTIM": {
+        "nome": "Estimate",
+        "pergunta": "Does this change what it costs to implement?"
+      },
+      "ESCOPO": {
+        "nome": "Scope",
+        "pergunta": "Does this change what we promise?"
+      }
+    },
+    "tipo": {
+      "GA": "GA",
+      "EAP_BETA": "EAP / Beta",
+      "DEPRECATION": "Deprecation",
+      "BREAKING_CHANGE": "Breaking change",
+      "PRICING_PACKAGING": "Pricing / Packaging",
+      "UX_INTERFACE": "UX / Interface",
+      "FIX_MINOR": "Minor fix"
+    },
+    "produto": {
+      "SUPPORT": "Support",
+      "MESSAGING": "Messaging",
+      "CONTACT_CENTER": "Contact Center",
+      "KNOWLEDGE": "Knowledge",
+      "AI_AGENTS": "AI Agents",
+      "COPILOT": "Copilot",
+      "ANALYTICS": "Explore / Analytics",
+      "WFM": "WFM",
+      "QA": "QA",
+      "ADMIN_SEGURANCA": "Admin & Security",
+      "DEVELOPER_API": "Developer / API",
+      "MARKETPLACE": "Marketplace",
+      "OUTRO": "Other"
+    },
+    "modulo": {
+      "SUPPORT": "Support",
+      "VOICE": "Voice",
+      "KNOWLEDGE": "Knowledge",
+      "COPILOT": "Copilot",
+      "AI_AGENTS": "AI Agents",
+      "ANALYTICS": "Analytics",
+      "WFM": "WFM",
+      "QA": "QA",
+      "INTEGRACOES": "Integrations",
+      "OUTRO": "Other"
+    }
   }
 }

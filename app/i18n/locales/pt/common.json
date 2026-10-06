@@ -682,7 +682,9 @@
     "switchToEnglish": "Mudar para inglês",
     "switchToPortuguese": "Mudar para português",
     "zdAutoConfig": "ZD Auto Config",
-    "zdAutoConfigTitle": "Provisionador de ambientes de demonstração Zendesk"
+    "zdAutoConfigTitle": "Provisionador de ambientes de demonstração Zendesk",
+    "preSalesOps": "Pre-Sales Ops",
+    "preSalesOpsTitle": "Novidades do Zendesk e o backlog que elas geram para demo, estimativa e escopo"
   },
   "plans": {
     "categoryGateHint": "Abaixo do plano mínimo a categoria inteira desaparece do framework, mesmo que algum item dentro dela não tenha restrição própria. Vazio = sem restrição.",
@@ -911,5 +913,152 @@
     "waitingHc": "[aguardando ativação do Help Center] abra a página de ativação, ative e clique em Continuar.",
     "whatToProvision": "O que provisionar",
     "whenToUse": "Quando utilizar"
+  },
+  "psops": {
+    "subtitulo": "Novidades do Zendesk viram backlog de demo, estimativa e escopo",
+    "abas": {
+      "triagem": "Fila de Triagem",
+      "backlog": "Backlog",
+      "artefatos": "Mapa de Artefatos",
+      "radar": "Radar",
+      "aria": "Seções do Pre-Sales Ops"
+    },
+    "carregando": "Carregando…",
+    "triagem": {
+      "editoria": "Julgamento humano",
+      "titulo": "Fila de Triagem",
+      "subtitulo": "Cada sinal é uma mudança anunciada pelo Zendesk. Você não escreve tarefa: marca onde impacta, e o sistema gera as atividades com Definition of Done, já atribuídas ao dono de cada artefato.",
+      "sinaisNovos": "Sinais novos",
+      "decisao": "Decisão de elegibilidade",
+      "ondeImpacta": "Onde isso impacta?",
+      "oQueSeraGerado": "O que vai ser gerado",
+      "lerNota": "Ler a nota completa no Help Center do Zendesk",
+      "trechoOriginal": "Trecho original",
+      "gerar_one": "Gerar {{count}} atividade",
+      "gerar_other": "Gerar {{count}} atividades",
+      "descartar": "Descartar sinal",
+      "semImpacto": "Nenhum impacto marcado: este sinal não gera atividade.",
+      "atividades_one": "{{count}} atividade",
+      "atividades_other": "{{count}} atividades",
+      "responsavelHerdado": "responsável herdado do artefato",
+      "semResponsavel": "sem responsável",
+      "artefatoNovo": "artefato novo",
+      "fichaNova": "ficha nova",
+      "calculando": "Calculando os artefatos afetados…",
+      "filaZerada": "Fila zerada",
+      "filaZeradaTexto": "Todos os sinais foram triados. A coleta automática roda todo dia às 07:00.",
+      "selecione": "Selecione um sinal na lista.",
+      "sugerido": "sugerido",
+      "navegar": "navegar",
+      "impacto": "impacto",
+      "atalhoGerar": "gerar",
+      "atalhoDescartar": "descartar",
+      "score": "Score",
+      "modulo": "Módulo: {{nome}}",
+      "planoMinimo": "Plano mín.: {{plano}}",
+      "dataLimite": "Data limite: {{data}}",
+      "porRegras": "classificação por regras",
+      "porRegrasDica": "Classificado por regras determinísticas. O resumo em português vem com a camada de LLM, ainda não ligada."
+    },
+    "avisos": {
+      "geradas_one": "{{count}} atividade gerada, já atribuída ao dono do artefato.",
+      "geradas_other": "{{count}} atividades geradas, já atribuídas aos donos dos artefatos.",
+      "artefatoNovo": "Novo artefato no mapa: {{nome}}, ainda sem responsável.",
+      "descartado": "Sinal descartado. O motivo alimenta o ajuste do filtro de ruído."
+    },
+    "stats": {
+      "naFila": "Na fila",
+      "naFilaSub": "aguardando decisão",
+      "scoreAlto": "Score ≥ 80",
+      "scoreAltoSub": "leia estes primeiro",
+      "arquivados": "Auto-arquivados",
+      "arquivadosSub": "fixes sem impacto · filtro de ruído",
+      "triados": "Triados na semana",
+      "triadosSub": "meta: fila zerada em 20 min",
+      "ultimaColeta": "Última coleta",
+      "nunca": "nunca",
+      "sinaisNaColeta": "{{n}} sinais na última coleta"
+    },
+    "coleta": {
+      "botao": "Coletar agora",
+      "coletando": "Coletando…",
+      "dica": "Busca as novidades no Help Center do Zendesk agora, sem esperar o horário agendado.",
+      "ok": "Coleta concluída: {{novos}} sinais novos na fila, {{arquivados}} arquivados pelo filtro de ruído.",
+      "parcial": "Coleta parcial: {{falhas}} de {{total}} fontes falharam. O que veio das outras já está na fila.",
+      "nenhuma": "Nenhuma coleta ainda",
+      "nenhumaAdmin": "Clique em Coletar agora para buscar as novidades no Help Center do Zendesk.",
+      "nenhumaUsuario": "Peça a um admin para rodar a primeira coleta."
+    },
+    "descarte": {
+      "titulo": "Descartar sinal",
+      "explicacao": "O motivo alimenta o ajuste do filtro de ruído. Uma frase basta.",
+      "placeholder": "ex.: só muda a tela do agente, sem impacto em ativo nosso",
+      "confirmar": "Descartar",
+      "cancelar": "Cancelar"
+    },
+    "erro": {
+      "titulo": "Algo falhou",
+      "tentarNovamente": "Tentar novamente",
+      "semBanco": "Não consegui falar com o banco. Se este é o primeiro deploy com o Pre-Sales Ops, confira no log do build se o prisma db push criou as tabelas psops_*.",
+      "semAcesso": "Seu segmento não tem acesso ao Pre-Sales Ops."
+    },
+    "emConstrucao": {
+      "titulo": "Em construção",
+      "texto": "Esta tela vem na próxima rodada. A API que ela vai consumir já está pronta:"
+    },
+    "impacto": {
+      "ESTUDO": {
+        "nome": "Estudo",
+        "pergunta": "Alguém precisa entender isso a fundo?"
+      },
+      "DEMO": {
+        "nome": "Demo",
+        "pergunta": "Precisamos conseguir mostrar ao vivo?"
+      },
+      "ESTIM": {
+        "nome": "Estimativa",
+        "pergunta": "Isso muda quanto custa implantar?"
+      },
+      "ESCOPO": {
+        "nome": "Escopo",
+        "pergunta": "Isso muda o que prometemos?"
+      }
+    },
+    "tipo": {
+      "GA": "GA",
+      "EAP_BETA": "EAP / Beta",
+      "DEPRECATION": "Deprecation",
+      "BREAKING_CHANGE": "Breaking change",
+      "PRICING_PACKAGING": "Preço / Empacotamento",
+      "UX_INTERFACE": "UX / Interface",
+      "FIX_MINOR": "Fix menor"
+    },
+    "produto": {
+      "SUPPORT": "Support",
+      "MESSAGING": "Messaging",
+      "CONTACT_CENTER": "Contact Center",
+      "KNOWLEDGE": "Knowledge",
+      "AI_AGENTS": "AI Agents",
+      "COPILOT": "Copilot",
+      "ANALYTICS": "Explore / Analytics",
+      "WFM": "WFM",
+      "QA": "QA",
+      "ADMIN_SEGURANCA": "Admin e Segurança",
+      "DEVELOPER_API": "Developer / API",
+      "MARKETPLACE": "Marketplace",
+      "OUTRO": "Outro"
+    },
+    "modulo": {
+      "SUPPORT": "Support",
+      "VOICE": "Voice",
+      "KNOWLEDGE": "Knowledge",
+      "COPILOT": "Copilot",
+      "AI_AGENTS": "AI Agents",
+      "ANALYTICS": "Analytics",
+      "WFM": "WFM",
+      "QA": "QA",
+      "INTEGRACOES": "Integrações",
+      "OUTRO": "Outro"
+    }
   }
 }

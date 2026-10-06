@@ -10,6 +10,8 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)sx?$': '@swc/jest',
   },
+  // Os testes do Pre-Sales Ops rodam no test runner do Node: npm run psops:test
+  testPathIgnorePatterns: ['/node_modules/', '<rootDir>/lib/psops/'],
 };
 
 export default config;
