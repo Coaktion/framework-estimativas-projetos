@@ -181,7 +181,7 @@ export async function atualizarArtefato(
   const existe = await prisma.psOpsArtifact.findUnique({ where: { id: args.artifactId } });
   if (!existe) throw new NaoEncontrado('Artefato');
 
-  return prisma.psOpsArtifact.update({
+  const artefato = await prisma.psOpsArtifact.update({
     where: { id: args.artifactId },
     data: {
       ...(args.donoId !== undefined ? { donoId: args.donoId } : {}),
@@ -190,4 +190,17 @@ export async function atualizarArtefato(
       ...(args.nome ? { nome: args.nome } : {}),
     },
   });
+
+  // Dono novo herda as atividades abertas que nasceram órfãs (geradas antes de
+  // o artefato ter dono). Nunca sobrescreve quem já foi atribuído à mão.
+  let atividadesAtribuidas = 0;
+  if (args.donoId) {
+    const r = await prisma.psOpsActivity.updateMany({
+      where: { artifactId: args.artifactId, responsavelId: null, status: { in: ['TODO', 'DOING'] } },
+      data: { responsavelId: args.donoId },
+    });
+    atividadesAtribuidas = r.count;
+  }
+
+  return { artefato, atividadesAtribuidas };
 }

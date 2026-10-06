@@ -1,14 +1,25 @@
-import { EmConstrucao } from '@/components/psops/EmConstrucao';
+import { LinhaDoTempo } from '@/components/psops/LinhaDoTempo';
 import { getServerT } from '@/app/i18n/server';
 
-export default function Pagina() {
+export const dynamic = 'force-dynamic';
+
+export default async function Pagina() {
   const t = getServerT();
+
   return (
     <>
-      <h2 className="mb-6 font-heading text-2xl font-black uppercase tracking-tight text-psops-texto">
-        {t('psops.abas.radar')}
-      </h2>
-      <EmConstrucao rotaApi="/api/pre-sales-ops/timeline" />
+      <div className="mb-6">
+        <div className="mb-1.5 text-[9px] font-black uppercase tracking-widest text-psops-tinta">
+          {t('psops.linha.editoria')}
+        </div>
+        <h2 className="font-heading text-2xl font-black uppercase tracking-tight text-psops-texto">
+          {t('psops.linha.titulo')}
+        </h2>
+        <p className="mt-1.5 max-w-[720px] text-[13px] leading-relaxed text-psops-muted">
+          {t('psops.linha.subtitulo')}
+        </p>
+      </div>
+      <LinhaDoTempo />
     </>
   );
 }

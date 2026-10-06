@@ -185,34 +185,38 @@ export async function previaImpactos(
  */
 export async function timeline(
   prisma: PrismaClient,
-  args: { semanas?: number; produto?: string[]; q?: string },
+  args: { semanas?: number; produto?: string[]; q?: string; arquivados?: boolean },
 ) {
   const semanas = Math.min(args.semanas ?? 6, 26);
   const desde = new Date(Date.now() - semanas * 7 * 86_400_000);
 
   const sinais = await prisma.psOpsSignal.findMany({
     where: {
-      criadoEm: { gte: desde },
+      // pela data de publicação no Zendesk, não pela data da coleta
+      rawItem: { criadoEm: { gte: desde } },
+      ...(args.arquivados ? {} : { status: { not: 'AUTO_ARQUIVADO' } }),
       ...(args.produto?.length ? { produto: { in: args.produto as never[] } } : {}),
       ...(args.q
         ? {
             OR: [
               { titulo: { contains: args.q, mode: 'insensitive' } },
               { trechoOriginal: { contains: args.q, mode: 'insensitive' } },
+              { tituloPt: { contains: args.q, mode: 'insensitive' } },
+              { trechoPt: { contains: args.q, mode: 'insensitive' } },
             ],
           }
         : {}),
     },
     select: selecaoLista,
-    orderBy: [{ criadoEm: 'desc' }, { score: 'desc' }],
+    orderBy: [{ rawItem: { criadoEm: 'desc' } }, { score: 'desc' }],
   });
 
-  const porSemana = new Map<string, ReturnType<typeof mapear>[]>();
+  const porSemana = new Map<string, { inicio: Date; itens: ReturnType<typeof mapear>[] }>();
   for (const s of sinais) {
     const chave = rotuloSemana(s.rawItem.criadoEm);
-    const lista = porSemana.get(chave) ?? [];
-    lista.push(mapear(s as never));
-    porSemana.set(chave, lista);
+    const grupo = porSemana.get(chave) ?? { inicio: inicioSemana(s.rawItem.criadoEm), itens: [] };
+    grupo.itens.push(mapear(s as never));
+    porSemana.set(chave, grupo);
   }
 
   const porProduto = new Map<string, number>();
@@ -220,12 +224,20 @@ export async function timeline(
 
   return {
     // Array.from em vez de spread: o tsconfig do portal não tem target ES2015+
-    semanas: Array.from(porSemana.entries()).map(([semana, itens]) => ({ semana, itens })),
+    semanas: Array.from(porSemana.entries()).map(([semana, g]) => ({ semana, inicio: g.inicio, itens: g.itens })),
     porProduto: Array.from(porProduto.entries())
       .map(([produto, total]) => ({ produto, total }))
       .sort((a, b) => b.total - a.total),
     total: sinais.length,
   };
+}
+
+/** Segunda-feira (UTC) da semana da data. */
+function inicioSemana(d: Date): Date {
+  const dt = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const dia = dt.getUTCDay() || 7;
+  dt.setUTCDate(dt.getUTCDate() - (dia - 1));
+  return dt;
 }
 
 function rotuloSemana(d: Date): string {

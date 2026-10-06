@@ -1007,10 +1007,6 @@
       "semBanco": "Não consegui falar com o banco. Se este é o primeiro deploy com o Pre-Sales Ops, confira no log do build se o prisma db push criou as tabelas psops_*.",
       "semAcesso": "Seu segmento não tem acesso ao Pre-Sales Ops."
     },
-    "emConstrucao": {
-      "titulo": "Em construção",
-      "texto": "Esta tela vem na próxima rodada. A API que ela vai consumir já está pronta:"
-    },
     "impacto": {
       "ESTUDO": {
         "nome": "Estudo",
@@ -1064,6 +1060,134 @@
       "QA": "QA",
       "INTEGRACOES": "Integrações",
       "OUTRO": "Outro"
+    },
+    "status": {
+      "NOVO": "na fila",
+      "TRIADO": "triado",
+      "DESCARTADO": "descartado",
+      "AUTO_ARQUIVADO": "arquivado",
+      "NAO_CLASSIFICADO": "sem classificação"
+    },
+    "saude": {
+      "SAUDAVEL": "Em dia",
+      "ATENCAO": "Atenção",
+      "CRITICO": "Crítico",
+      "DIVERGENTE": "Divergente",
+      "NAO_VERIFICADO": "Não verificado"
+    },
+    "mapa": {
+      "editoria": "Quem responde pelo quê",
+      "titulo": "Mapa de Artefatos",
+      "subtitulo": "Os ativos que o time mantém e o dono de cada um. Toda atividade gerada na triagem herda o responsável daqui. A saúde usa a data em que a fonte confirmou a atualização, não o clique de concluir.",
+      "statTotal": "Artefatos",
+      "statTotalSub": "template, framework e escopo",
+      "statSemDono": "Sem dono",
+      "statSemDonoSub": "atividades nascem sem responsável",
+      "statAbertas": "Com atividades abertas",
+      "statAbertasSub": "precisam de atualização",
+      "statAtencao": "Precisam de atenção",
+      "statAtencaoSub": "atrasados ou divergentes",
+      "soAdmin": "Só admin define o dono de um artefato.",
+      "grupo": {
+        "DEMO_TEMPLATE": "Template de demo",
+        "FRAMEWORK": "Framework de estimativa",
+        "ESCOPO": "Blocos de escopo"
+      },
+      "grupoDica": {
+        "DEMO_TEMPLATE": "a planilha que o ZD Auto Config usa",
+        "FRAMEWORK": "um por frente do catálogo",
+        "ESCOPO": "um por frente do catálogo"
+      },
+      "colNome": "Artefato",
+      "colSaude": "Saúde",
+      "colVersao": "Versão",
+      "colAbertas": "Abertas",
+      "colDono": "Dono",
+      "fonte": {
+        "PORTAL": "verificado pelo portal",
+        "GDRIVE": "verificado no Google Drive (em breve)",
+        "ZENDESK_ADMIN": "verificado no Zendesk (em breve)",
+        "NENHUMA": "sem verificação"
+      },
+      "semDono": "sem dono",
+      "donoDefinido": "Dono definido: {{nome}}.",
+      "donoComHeranca": "Dono definido: {{nome}}. {{n}} atividades que estavam sem responsável passaram para essa pessoa.",
+      "donoRemovido": "Artefato ficou sem dono. As atividades já atribuídas não mudam.",
+      "vazioTitulo": "Nenhum artefato ainda",
+      "vazioTexto": "A base de artefatos é criada na primeira coleta. Volte à Fila de Triagem e use Coletar agora."
+    },
+    "backlog": {
+      "editoria": "Execução",
+      "titulo": "Backlog",
+      "subtitulo": "As atividades que a triagem gerou. O card anda sozinho: marcar o primeiro item do Definition of Done move para Em andamento, e só conclui com o DoD completo.",
+      "filtroResp": "Filtrar por responsável",
+      "filtroTipo": "Filtrar por destino",
+      "todos": "Todos",
+      "minhas": "Minhas",
+      "semResponsavel": "Sem responsável",
+      "coluna": {
+        "TODO": "A fazer",
+        "DOING": "Em andamento",
+        "DONE": "Concluídas",
+        "CANCELADA": "Cancelada"
+      },
+      "colunaVazia": "Nada aqui com estes filtros.",
+      "maisConcluidas": "e mais {{n}} concluídas antes.",
+      "fichaDaFeature": "Ficha da feature",
+      "fechar": "Fechar",
+      "artefato": "Artefato",
+      "responsavel": "Responsável",
+      "dod": "Definition of Done",
+      "evidencia": "Evidência",
+      "evidenciaPlaceholder": "link ou descrição da evidência (obrigatória para marcar)",
+      "evidenciaObrigatoria": "Este item exige evidência: preencha o campo antes de marcar.",
+      "concluir": "Concluir atividade",
+      "concluida": "Atividade concluída. A versão do artefato subiu.",
+      "concluidaFicha": "Atividade concluída. A ficha da feature foi publicada.",
+      "concluidaEm": "Concluída em {{data}}.",
+      "faltam": "Faltam {{itens}} itens e {{evidencias}} evidências.",
+      "vazioTitulo": "Nenhuma atividade ainda",
+      "vazioTexto": "As atividades aparecem aqui quando um sinal é triado na Fila de Triagem."
+    },
+    "ficha": {
+      "titulo": "Ficha da feature",
+      "explicacao": "É o que o estudo produz e o que o time consulta depois. Salve quantas vezes quiser; ela é publicada quando a atividade for concluída.",
+      "oQueE": "O que é",
+      "oQueEDica": "duas linhas, em linguagem de negócio",
+      "comoFunciona": "Como funciona",
+      "comoFuncionaDica": "o suficiente para explicar a um cliente",
+      "preRequisitos": "Pré-requisitos",
+      "preRequisitosDica": "o que precisa existir antes",
+      "limitacoes": "Limitações",
+      "limitacoesDica": "o que a feature NÃO faz",
+      "planoNecessario": "Plano necessário",
+      "planoNecessarioDica": "ex.: Suite Professional + Advanced AI",
+      "links": "Documentação consultada",
+      "linksDica": "um link por linha",
+      "testadoEmSandbox": "Testado no tenant de sandbox",
+      "motivoNaoTestado": "Por que não foi testado",
+      "motivoNaoTestadoDica": "ex.: exige plano que o sandbox não tem",
+      "salvar": "Salvar ficha",
+      "salvando": "Salvando…",
+      "salva": "Ficha salva.",
+      "linkInvalido": "Link inválido: {{link}}. Use endereços começando com http."
+    },
+    "linha": {
+      "editoria": "Histórico",
+      "titulo": "Linha do tempo",
+      "subtitulo": "Tudo o que o Zendesk publicou, semana a semana, e o que aconteceu com cada novidade. Os arquivados pelo filtro ficam ocultos, mas dá para mostrar.",
+      "buscar": "Buscar nas novidades",
+      "periodo": "Período",
+      "semanas": "{{n}} semanas",
+      "mostrarArquivados": "Mostrar arquivados",
+      "porProduto": "Filtrar por produto",
+      "todosProdutos": "Todos",
+      "semanaDe": "Semana de {{data}}",
+      "nSinais_one": "{{count}} novidade",
+      "nSinais_other": "{{count}} novidades",
+      "abrirNota": "Abrir nota",
+      "vazioTitulo": "Nada neste período",
+      "vazioTexto": "Mude o período, a busca ou mostre os arquivados."
     }
   }
 }

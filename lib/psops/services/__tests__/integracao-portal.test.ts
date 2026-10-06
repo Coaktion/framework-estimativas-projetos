@@ -68,3 +68,31 @@ test('prévia com os quatro destinos herda o dono de cada artefato', async () =>
   assert.equal(por.ESCOPO!.artefatoExiste, false);
   assert.equal(por.ESCOPO!.responsavelId, null);
 });
+
+test('dono novo no artefato herda as atividades abertas que estavam sem responsável', async () => {
+  const { atualizarArtefato } = await import('../artifacts');
+  const fake = criarFakePrisma();
+  const art = semearArtefato(fake, { chave: 'FRAMEWORK:VOICE', donoId: null });
+  const ativ = (over: Record<string, unknown>) =>
+    fake.estado.activities.push({
+      id: `a${fake.estado.activities.length}`,
+      artifactId: art.id,
+      tipo: 'ESTIM',
+      titulo: 't',
+      status: 'TODO',
+      responsavelId: null,
+      ...over,
+    });
+  ativ({});                                      // órfã aberta → herda
+  ativ({ status: 'DOING' });                     // órfã em andamento → herda
+  ativ({ responsavelId: '9' });                  // já atribuída à mão → não muda
+  ativ({ status: 'DONE' });                      // concluída → não muda
+
+  const r = await atualizarArtefato(fake as never, { artifactId: String(art.id), donoId: '7' });
+
+  assert.equal(r.atividadesAtribuidas, 2);
+  assert.deepEqual(
+    fake.estado.activities.map((a) => a.responsavelId),
+    ['7', '7', '9', null],
+  );
+});

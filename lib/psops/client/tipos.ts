@@ -150,3 +150,108 @@ export function textoDoSinal(
   }
   return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: querPt };
 }
+
+// ─────────────────────────────── Backlog ────────────────────────────────────
+
+export type AtividadeStatus = 'TODO' | 'DOING' | 'DONE' | 'CANCELADA';
+
+export interface DodItem {
+  t: string;
+  d: boolean;
+  exigeEvidencia?: boolean;
+  evidencia?: string | null;
+}
+
+export interface Atividade {
+  id: string;
+  tipo: Impacto;
+  titulo: string;
+  status: AtividadeStatus;
+  responsavelId: string | null;
+  responsavelNome: string | null;
+  responsavelIniciais: string | null;
+  dod: DodItem[];
+  progresso: { feitos: number; total: number };
+  pendencias: { faltamCheck: number; faltamEvidencia: number };
+  concluidoEm: string | null;
+  artifact: { id: string; nome: string; chave: string; tipo: string } | null;
+  initiative: {
+    id: string;
+    titulo: string;
+    ciclo: string;
+    signal: {
+      id: string;
+      titulo: string;
+      tituloPt: string | null;
+      trechoOriginal: string;
+      trechoPt: string | null;
+      tipo: SignalTipo;
+      produto: Produto;
+    };
+  };
+  studyNote: { id: string; publicadoEm: string | null } | null;
+  fonteUrl: string;
+}
+
+export interface RespostaBacklog {
+  itens: Atividade[];
+  contagens: Array<{ responsavelId: string | null; total: number; nome: string | null }>;
+}
+
+export interface Pessoa {
+  id: string;
+  nome: string;
+  iniciais: string;
+}
+
+export interface RespostaPessoas {
+  itens: Pessoa[];
+  euId: string;
+}
+
+export interface FichaEstudo {
+  id: string;
+  oQueE: string | null;
+  comoFunciona: string | null;
+  preRequisitos: string | null;
+  limitacoes: string | null;
+  planoNecessario: string | null;
+  linksConsultados: string[];
+  testadoEmSandbox: boolean;
+  motivoNaoTestado: string | null;
+  publicadoEm: string | null;
+  versao: number;
+}
+
+// ─────────────────────────── Mapa de Artefatos ──────────────────────────────
+
+export type EstadoSaude = 'SAUDAVEL' | 'ATENCAO' | 'CRITICO' | 'DIVERGENTE' | 'NAO_VERIFICADO';
+export type ArtefatoTipo = 'DEMO_TEMPLATE' | 'FRAMEWORK' | 'ESCOPO';
+
+export interface Artefato {
+  id: string;
+  chave: string;
+  tipo: ArtefatoTipo;
+  modulo: Modulo | null;
+  nome: string;
+  donoId: string | null;
+  donoNome: string | null;
+  donoIniciais: string | null;
+  versao: string;
+  revisaoDeclaradaEm: string | null;
+  revisaoVerificadaEm: string | null;
+  fonteVerificacao: 'PORTAL' | 'GDRIVE' | 'ZENDESK_ADMIN' | 'NENHUMA';
+  pendentes: number;
+  aplicacoesTotal: number;
+  saude: { estado: EstadoSaude; detalhe: string; idadeDias: number | null };
+}
+
+export const ARTEFATO_TIPOS_ORDEM: ArtefatoTipo[] = ['DEMO_TEMPLATE', 'FRAMEWORK', 'ESCOPO'];
+
+// ───────────────────────────── Linha do tempo ───────────────────────────────
+
+export interface RespostaTimeline {
+  semanas: Array<{ semana: string; inicio: string; itens: Sinal[] }>;
+  porProduto: Array<{ produto: Produto; total: number }>;
+  total: number;
+}

@@ -1007,10 +1007,6 @@
       "semBanco": "Couldn't reach the database. If this is the first deploy with Pre-Sales Ops, check the build log to confirm prisma db push created the psops_* tables.",
       "semAcesso": "Your segment doesn't have access to Pre-Sales Ops."
     },
-    "emConstrucao": {
-      "titulo": "Under construction",
-      "texto": "This screen comes in the next round. The API it will use is already in place:"
-    },
     "impacto": {
       "ESTUDO": {
         "nome": "Study",
@@ -1064,6 +1060,134 @@
       "QA": "QA",
       "INTEGRACOES": "Integrations",
       "OUTRO": "Other"
+    },
+    "status": {
+      "NOVO": "in queue",
+      "TRIADO": "triaged",
+      "DESCARTADO": "discarded",
+      "AUTO_ARQUIVADO": "archived",
+      "NAO_CLASSIFICADO": "unclassified"
+    },
+    "saude": {
+      "SAUDAVEL": "Up to date",
+      "ATENCAO": "Attention",
+      "CRITICO": "Critical",
+      "DIVERGENTE": "Mismatch",
+      "NAO_VERIFICADO": "Not verified"
+    },
+    "mapa": {
+      "editoria": "Who owns what",
+      "titulo": "Artifact Map",
+      "subtitulo": "The assets the team maintains and who owns each one. Every activity created in triage inherits its owner from here. Health uses the date the source confirmed the update, not the click on complete.",
+      "statTotal": "Artifacts",
+      "statTotalSub": "template, framework and scope",
+      "statSemDono": "No owner",
+      "statSemDonoSub": "activities are created unassigned",
+      "statAbertas": "With open activities",
+      "statAbertasSub": "need an update",
+      "statAtencao": "Need attention",
+      "statAtencaoSub": "overdue or mismatched",
+      "soAdmin": "Only admins set an artifact's owner.",
+      "grupo": {
+        "DEMO_TEMPLATE": "Demo template",
+        "FRAMEWORK": "Estimation framework",
+        "ESCOPO": "Scope blocks"
+      },
+      "grupoDica": {
+        "DEMO_TEMPLATE": "the spreadsheet ZD Auto Config uses",
+        "FRAMEWORK": "one per catalog area",
+        "ESCOPO": "one per catalog area"
+      },
+      "colNome": "Artifact",
+      "colSaude": "Health",
+      "colVersao": "Version",
+      "colAbertas": "Open",
+      "colDono": "Owner",
+      "fonte": {
+        "PORTAL": "verified by the portal",
+        "GDRIVE": "verified in Google Drive (coming soon)",
+        "ZENDESK_ADMIN": "verified in Zendesk (coming soon)",
+        "NENHUMA": "not verified"
+      },
+      "semDono": "no owner",
+      "donoDefinido": "Owner set: {{nome}}.",
+      "donoComHeranca": "Owner set: {{nome}}. {{n}} unassigned activities moved to this person.",
+      "donoRemovido": "Artifact has no owner now. Activities already assigned don't change.",
+      "vazioTitulo": "No artifacts yet",
+      "vazioTexto": "The artifact base is created on the first collection. Go back to the Triage Queue and use Collect now."
+    },
+    "backlog": {
+      "editoria": "Execution",
+      "titulo": "Backlog",
+      "subtitulo": "The activities triage created. Cards move on their own: checking the first Definition of Done item moves it to In progress, and it only completes with the full DoD.",
+      "filtroResp": "Filter by owner",
+      "filtroTipo": "Filter by destination",
+      "todos": "All",
+      "minhas": "Mine",
+      "semResponsavel": "Unassigned",
+      "coluna": {
+        "TODO": "To do",
+        "DOING": "In progress",
+        "DONE": "Done",
+        "CANCELADA": "Cancelled"
+      },
+      "colunaVazia": "Nothing here with these filters.",
+      "maisConcluidas": "and {{n}} more done earlier.",
+      "fichaDaFeature": "Feature fact sheet",
+      "fechar": "Close",
+      "artefato": "Artifact",
+      "responsavel": "Owner",
+      "dod": "Definition of Done",
+      "evidencia": "Evidence",
+      "evidenciaPlaceholder": "link or description of the evidence (required to check)",
+      "evidenciaObrigatoria": "This item requires evidence: fill in the field before checking it.",
+      "concluir": "Complete activity",
+      "concluida": "Activity completed. The artifact version went up.",
+      "concluidaFicha": "Activity completed. The feature fact sheet was published.",
+      "concluidaEm": "Completed on {{data}}.",
+      "faltam": "{{itens}} items and {{evidencias}} pieces of evidence left.",
+      "vazioTitulo": "No activities yet",
+      "vazioTexto": "Activities show up here when a signal is triaged in the Triage Queue."
+    },
+    "ficha": {
+      "titulo": "Feature fact sheet",
+      "explicacao": "It's what the study produces and what the team looks up later. Save as often as you like; it is published when the activity is completed.",
+      "oQueE": "What it is",
+      "oQueEDica": "two lines, in business language",
+      "comoFunciona": "How it works",
+      "comoFuncionaDica": "enough to explain it to a customer",
+      "preRequisitos": "Prerequisites",
+      "preRequisitosDica": "what must exist beforehand",
+      "limitacoes": "Limitations",
+      "limitacoesDica": "what the feature does NOT do",
+      "planoNecessario": "Required plan",
+      "planoNecessarioDica": "e.g.: Suite Professional + Advanced AI",
+      "links": "Documentation read",
+      "linksDica": "one link per line",
+      "testadoEmSandbox": "Tested in the sandbox tenant",
+      "motivoNaoTestado": "Why it was not tested",
+      "motivoNaoTestadoDica": "e.g.: requires a plan the sandbox doesn't have",
+      "salvar": "Save fact sheet",
+      "salvando": "Saving…",
+      "salva": "Fact sheet saved.",
+      "linkInvalido": "Invalid link: {{link}}. Use addresses starting with http."
+    },
+    "linha": {
+      "editoria": "History",
+      "titulo": "Timeline",
+      "subtitulo": "Everything Zendesk published, week by week, and what happened to each announcement. Items archived by the filter are hidden, but you can show them.",
+      "buscar": "Search announcements",
+      "periodo": "Period",
+      "semanas": "{{n}} weeks",
+      "mostrarArquivados": "Show archived",
+      "porProduto": "Filter by product",
+      "todosProdutos": "All",
+      "semanaDe": "Week of {{data}}",
+      "nSinais_one": "{{count}} announcement",
+      "nSinais_other": "{{count}} announcements",
+      "abrirNota": "Open note",
+      "vazioTitulo": "Nothing in this period",
+      "vazioTexto": "Change the period or the search, or show archived items."
     }
   }
 }

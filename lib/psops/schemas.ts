@@ -114,6 +114,10 @@ export const queryTimeline = z.object({
   semanas: z.coerce.number().int().min(1).max(26).optional(),
   produto: listaCsv(produto),
   q: z.string().trim().min(2).max(120).optional(),
+  arquivados: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
 });
 
 export type QuerySinais = z.infer<typeof querySinais>;

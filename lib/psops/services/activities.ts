@@ -52,6 +52,9 @@ export async function listarAtividades(prisma: PrismaClient, f: FiltroAtividades
             select: {
               id: true,
               titulo: true,
+              tituloPt: true,
+              trechoOriginal: true,
+              trechoPt: true,
               tipo: true,
               produto: true,
               rawItem: { select: { htmlUrl: true, titulo: true } },
