@@ -7,12 +7,17 @@ import { PrismaClient } from '@prisma/client';
 import { criarClienteHc } from '../lib/psops/zendesk/client';
 import { coletar } from '../lib/psops/ingest/collector';
 import { garantirBase } from '../lib/psops/services/seed';
+import { env } from '../lib/psops/lib/env';
 
 async function main() {
   const prisma = new PrismaClient();
   try {
     await garantirBase(prisma);
-    const r = await coletar({ prisma, hc: criarClienteHc() });
+    const r = await coletar({
+      prisma,
+      hc: criarClienteHc(),
+      primeiraColetaDias: env().PSOPS_PRIMEIRA_COLETA_DIAS,
+    });
 
     console.log(`run ${r.runId}`);
     for (const f of r.porFonte) {

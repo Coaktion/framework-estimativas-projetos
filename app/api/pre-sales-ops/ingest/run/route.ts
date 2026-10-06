@@ -33,7 +33,11 @@ export async function POST(req: Request) {
 
     // banco recém-criado pelo build: garante fontes e artefatos antes de coletar
     const base = await garantirBase(prisma);
-    const r = await coletar({ prisma, hc: criarClienteHc() });
+    const r = await coletar({
+      prisma,
+      hc: criarClienteHc(),
+      primeiraColetaDias: env().PSOPS_PRIMEIRA_COLETA_DIAS,
+    });
     const corpo = { ...r, base };
     return r.porFonte.every((f) => f.ok)
       ? ok(corpo)

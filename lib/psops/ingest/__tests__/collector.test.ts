@@ -330,3 +330,47 @@ test('semanaIso devolve o ciclo semanal no formato ISO', () => {
   assert.equal(semanaIso(new Date('2026-08-04T00:00:00Z')), '2026-W32');
   assert.equal(semanaIso(new Date('2026-01-01T00:00:00Z')), '2026-W01');
 });
+
+test('primeira coleta (sem marca d\'água) só pega a janela de dias, não o histórico inteiro', async () => {
+  const f = criarFakePrisma();
+  semearFontes(f);
+
+  const antigo = artigo({
+    id: 501,
+    title: ANNOUNCEMENTS[0]!.title,
+    body: ANNOUNCEMENTS[0]!.body,
+    created_at: '2026-07-01T00:00:00Z', // 42 dias antes de AGORA
+  });
+  const recente = artigo({
+    id: 502,
+    title: ANNOUNCEMENTS[0]!.title,
+    body: ANNOUNCEMENTS[0]!.body,
+    created_at: '2026-08-05T00:00:00Z', // 7 dias antes de AGORA
+  });
+
+  let pararEmRecebido: Date | null | undefined;
+  const hc: ClienteHc = {
+    async listarArtigos({ pararEm }) {
+      pararEmRecebido = pararEm;
+      return [recente, antigo];
+    },
+    async pegarArtigo() {
+      throw new Error('sem artigo-vivo neste teste');
+    },
+  };
+
+  const r = await coletar({ prisma: asPrisma(f), hc, agora: AGORA, primeiraColetaDias: 14 });
+
+  const fonte = r.porFonte.find((x) => x.fonte === 'zendesk-updates')!;
+  assert.equal(fonte.itensNovos, 1, 'só o artigo dentro da janela entra');
+  assert.equal(
+    pararEmRecebido?.toISOString(),
+    '2026-07-29T10:00:00.000Z',
+    'a paginação para no corte da janela',
+  );
+  assert.equal(
+    (f.estado.sources[0]!.watermark as Date).toISOString(),
+    '2026-08-05T00:00:00.000Z',
+    'a marca d\'água nasce no artigo mais novo',
+  );
+});

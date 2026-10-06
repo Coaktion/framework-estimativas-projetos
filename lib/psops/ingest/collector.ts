@@ -49,7 +49,16 @@ export interface DepsColeta {
   classificador?: Classificador;
   /** injetável em teste para tornar o resultado determinístico */
   agora?: () => Date;
+  /**
+   * Janela da PRIMEIRA coleta de uma fonte (sem marca d'água): só entram
+   * artigos dos últimos N dias. Sem isso, a primeira coleta varreria meses de
+   * release notes — centenas de sinais velhos na fila e risco de estourar o
+   * limite de 60 s da função no Netlify. Padrão: 14 dias.
+   */
+  primeiraColetaDias?: number;
 }
+
+export const PRIMEIRA_COLETA_DIAS_PADRAO = 14;
 
 /** "2026-W33" — usado como ciclo semanal na iniciativa. */
 export function semanaIso(d: Date): string {
@@ -73,6 +82,7 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
   const { prisma, hc } = deps;
   const classificador = deps.classificador ?? classificadorPadrao;
   const agora = deps.agora ?? (() => new Date());
+  const primeiraColetaDias = deps.primeiraColetaDias ?? PRIMEIRA_COLETA_DIAS_PADRAO;
 
   const run = await prisma.psOpsIngestRun.create({ data: { iniciadoEm: agora() } });
   const fontes = await prisma.psOpsSource.findMany({ where: { ativo: true } });
@@ -84,8 +94,8 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
   for (const fonte of fontes) {
     try {
       const r = fonte.isLiveArticle
-        ? await processarArtigoVivo({ prisma, hc, classificador, fonte, agora })
-        : await processarLista({ prisma, hc, classificador, fonte, agora });
+        ? await processarArtigoVivo({ prisma, hc, classificador, fonte, agora, primeiraColetaDias })
+        : await processarLista({ prisma, hc, classificador, fonte, agora, primeiraColetaDias });
 
       totalCriados += r.sinaisCriados;
       totalArquivados += r.sinaisArquivados;
@@ -154,22 +164,27 @@ type Ctx = {
     watermark: Date | null;
   };
   agora: () => Date;
+  primeiraColetaDias: number;
 };
 
 async function processarLista(ctx: Ctx) {
   const { prisma, hc, fonte } = ctx;
 
+  // Com marca d'água, ela é o corte. Sem (primeira coleta), a janela de dias.
+  const corte =
+    fonte.watermark ?? new Date(ctx.agora().getTime() - ctx.primeiraColetaDias * 86_400_000);
+
   const artigos = await hc.listarArtigos({
     kind: fonte.kind === 'CATEGORY' ? 'CATEGORY' : 'SECTION',
     zendeskId: fonte.zendeskId,
     locale: fonte.locale,
-    pararEm: fonte.watermark,
+    pararEm: corte,
   });
 
   // ordem crescente: a marca d'água avança de forma consistente mesmo se o
   // processamento parar no meio
   const novos = artigos
-    .filter((a) => !fonte.watermark || new Date(a.created_at) > fonte.watermark)
+    .filter((a) => new Date(a.created_at) > corte)
     .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
 
   let sinaisCriados = 0;

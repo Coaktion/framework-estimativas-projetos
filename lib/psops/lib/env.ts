@@ -18,6 +18,12 @@ const schema = z.object({
   /** Teto de páginas por fonte por execução — evita varrer o histórico inteiro. */
   PSOPS_MAX_PAGES: z.coerce.number().int().min(1).max(50).default(3),
 
+  /**
+   * Primeira coleta de uma fonte (sem marca d'água): quantos dias para trás.
+   * Depois da primeira, a marca d'água assume e só entra o que é mais novo.
+   */
+  PSOPS_PRIMEIRA_COLETA_DIAS: z.coerce.number().int().min(1).max(120).default(14),
+
   /** Segredo do endpoint de ingestão, para o agendador do Netlify chamar. */
   PSOPS_INGEST_SECRET: z.string().min(16).optional(),
 
