@@ -214,8 +214,3 @@ export function canAccessZdAutoConfig(
   if (!user) return false;
   return Boolean(user.isAdmin) || ZD_AUTO_CONFIG_SEGMENTS.includes(normalizeSegment(user.role));
 }
-
-/** URL do serviço, vinda do ambiente. Vazia = item some do menu. */
-export function zdAutoConfigUrl(): string {
-  return (process.env.NEXT_PUBLIC_ZD_AUTOCFG_URL || '').trim();
-}

@@ -7,7 +7,7 @@ import { Moon, Sun, Maximize, Minimize } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
-import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, zdAutoConfigUrl } from "@/lib/segments";
+import { canAccessScopes, canAccessAE, canAccessZdAutoConfig } from "@/lib/segments";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -22,8 +22,7 @@ export default function Navbar() {
 
   const showScopes = canAccessScopes(user);
   const showAE = canAccessAE(user);
-  const zdCfgUrl = zdAutoConfigUrl();
-  const showZdCfg = Boolean(zdCfgUrl) && canAccessZdAutoConfig(user);
+  const showZdCfg = canAccessZdAutoConfig(user);
 
   return (
     <div className="hidden md:flex items-center space-x-8">

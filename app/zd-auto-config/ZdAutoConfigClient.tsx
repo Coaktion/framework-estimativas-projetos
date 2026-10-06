@@ -6,9 +6,16 @@ import {
   FileSpreadsheet, Server, Activity, ListChecks, Bot, Sparkles, Loader2, Plus, Pencil,
   Trash2, Copy, Check, Play, Square, Undo2, ExternalLink, AlertTriangle, Users, Lock, ChevronDown,
 } from 'lucide-react';
+import { lerXlsx } from '@/lib/zdcfg/xlsx';
+import { planilhaParaBlueprint } from '@/lib/zdcfg/planilha';
+import { aplicarSelecao, secoesStatus, type Secao } from '@/lib/zdcfg/selecao';
+import { TEMA_POR_IDIOMA, baseDe } from '@/lib/zdcfg/plano';
+import { executar, rollback } from '@/lib/zdcfg/executor';
+import type { Blueprint } from '@/lib/zdcfg/blueprint';
+import type { Criado } from '@/lib/zdcfg/passos';
 
 /* -------------------------------------------------------------------------- */
-/*  Tipos da API do serviço                                                   */
+/*  Tipos                                                                     */
 /* -------------------------------------------------------------------------- */
 
 type Env = {
@@ -22,8 +29,6 @@ type Env = {
   compartilhado: boolean;
   pode_editar: boolean;
 };
-
-type Secao = { key: string; label: string; default: boolean; qtd: number };
 
 type Resumo = {
   cliente: string;
@@ -83,42 +88,12 @@ const detail = 'text-sm leading-relaxed text-slate-600 dark:text-[color:var(--te
 
 export default function ZdAutoConfigClient({ email }: { email?: string | null }) {
   const { t } = useTranslation();
-
-  // ---------------------------------------------------------------- token / API
-  const auth = useRef<{ token: string; expiresAt: number; serviceUrl: string } | null>(null);
   const [fatal, setFatal] = useState<string | null>(null);
 
-  const getAuth = useCallback(async (force = false) => {
-    const a = auth.current;
-    if (!force && a && a.expiresAt - Date.now() > 60_000) return a;
-    const r = await fetch('/api/zd-auto-config/token', { cache: 'no-store' });
-    if (!r.ok) {
-      const code = (await r.json().catch(() => ({})))?.error || r.status;
-      throw new Error(String(code));
-    }
-    auth.current = await r.json();
-    return auth.current!;
-  }, []);
-
-  const api = useCallback(
-    async (path: string, init: RequestInit = {}, retry = true): Promise<Response> => {
-      const a = await getAuth();
-      const r = await fetch(a.serviceUrl + path, {
-        ...init,
-        headers: { ...(init.headers || {}), Authorization: `Bearer ${a.token}` },
-      });
-      if (r.status === 401 && retry) {
-        await getAuth(true);
-        return api(path, init, false);
-      }
-      return r;
-    },
-    [getAuth],
-  );
-
-  const errMsg = async (r: Response) => {
+  const jsonOuErro = async (r: Response) => {
     const j = await r.json().catch(() => null);
-    return (j && (j.detail || j.error)) || `HTTP ${r.status}`;
+    if (!r.ok || (j && j.ok === false)) throw new Error((j && (j.erro || j.detail)) || `HTTP ${r.status}`);
+    return j;
   };
 
   // ---------------------------------------------------------------- ambientes
@@ -130,28 +105,23 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
 
   const loadEnvs = useCallback(async () => {
     try {
-      const r = await api('/api/envs');
-      if (!r.ok) throw new Error(await errMsg(r));
-      const j = await r.json();
+      const j = await jsonOuErro(await fetch('/api/zd-auto-config/envs', { cache: 'no-store' }));
+      if (!j.configurado) {
+        setFatal(t('zdcfg.notConfigured', 'O ZD Auto Config não está configurado neste ambiente (falta a ZDCFG_FERNET_KEY no servidor).'));
+        return;
+      }
       setEnvs(j.envs || []);
     } catch (e: any) {
-      const m = String(e?.message || e);
-      setFatal(
-        m === 'not_configured'
-          ? t('zdcfg.notConfigured', 'O ZD Auto Config não está configurado neste ambiente (URL ou segredo ausente).')
-          : m === 'forbidden'
-            ? t('zdcfg.forbidden', 'Seu segmento não tem acesso ao ZD Auto Config.')
-            : t('zdcfg.serviceDown', 'Não foi possível falar com o serviço do ZD Auto Config.') + ` (${m})`,
-      );
+      setFatal(`${t('zdcfg.serviceDown', 'Não foi possível carregar os ambientes.')} (${e?.message || e})`);
     }
-  }, [api, t]);
+  }, [t]);
 
   useEffect(() => { loadEnvs(); }, [loadEnvs]);
 
   const envSel = envs.find((e) => e.id === envId) || null;
   const meus = envs.filter((e) => e.dono && e.dono.toLowerCase() === (email || '').toLowerCase());
   const compart = envs.filter((e) => e.compartilhado && !meus.includes(e));
-  const semDono = envs.filter((e) => !e.dono && !e.compartilhado);
+  const semDono = envs.filter((e) => !meus.includes(e) && !compart.includes(e));
 
   const openNew = () => { setForm({ ...EMPTY_FORM }); setEnvMsg(null); };
   const openEdit = () => {
@@ -168,13 +138,11 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
     if (!form) return;
     setSavingEnv(true); setEnvMsg(null);
     try {
-      const r = await api(form.id ? `/api/envs/${form.id}` : '/api/envs', {
+      const j = await jsonOuErro(await fetch(form.id ? `/api/zd-auto-config/envs/${form.id}` : '/api/zd-auto-config/envs', {
         method: form.id ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
-      });
-      if (!r.ok) throw new Error(await errMsg(r));
-      const j = await r.json();
+      }));
       setForm(null);
       await loadEnvs();
       setEnvId(j.id);
@@ -188,17 +156,18 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
   const deleteEnv = async () => {
     if (!envSel) return;
     if (!confirm(t('zdcfg.confirmDeleteEnv', 'Excluir o ambiente "{{nome}}"?', { nome: envSel.nome }))) return;
-    const r = await api(`/api/envs/${envSel.id}`, { method: 'DELETE' });
-    if (!r.ok) { alert(await errMsg(r)); return; }
+    try {
+      await jsonOuErro(await fetch(`/api/zd-auto-config/envs/${envSel.id}`, { method: 'DELETE' }));
+    } catch (e: any) { alert(e?.message || e); return; }
     setEnvId('');
     loadEnvs();
   };
 
-  // ---------------------------------------------------------------- planilha
+  // ---------------------------------------------------------------- planilha (lida no navegador)
   const [file, setFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [uploadId, setUploadId] = useState<string | null>(null);
+  const [bp, setBp] = useState<Blueprint | null>(null);
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [secoes, setSecoes] = useState<Record<string, boolean>>({});
   const [analyzeErr, setAnalyzeErr] = useState<string | null>(null);
@@ -207,121 +176,124 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
     if (!file) return;
     setAnalyzing(true); setAnalyzeErr(null);
     try {
-      const fd = new FormData();
-      fd.append('file', file);
-      const r = await api('/api/analyze', { method: 'POST', body: fd });
-      if (!r.ok) throw new Error(await errMsg(r));
-      const j = await r.json();
-      setUploadId(j.upload_id);
-      setResumo(j.resumo);
-      setSecoes(Object.fromEntries((j.resumo.secoes_disp || []).map((s: Secao) => [s.key, s.default])));
+      if (file.size > 20 * 1024 * 1024) throw new Error('planilha maior que 20 MB');
+      const b = planilhaParaBlueprint(lerXlsx(new Uint8Array(await file.arrayBuffer())));
+      const disp = secoesStatus(b).filter((s) => s.presente);
+      setBp(b);
+      setResumo({
+        cliente: b.cliente, identificador: b.identificador, idioma: b.idioma,
+        grupos: b.grupos.length, campos: b.campos_ticket.length, condicionais: b.condicionais.length,
+        views: b.views.length, gatilhos: b.gatilhos_padrao.length, macros: b.macros.length,
+        secoes: b.guide_secoes.length, artigos: b.guide_artigos.length, marca: b.marca?.nome ?? null,
+        lembretes: b.lembretes, copilots: b.copilots, ai_agents: b.ai_agents, secoes_disp: disp,
+      });
+      setSecoes(Object.fromEntries(disp.map((s) => [s.key, s.default])));
     } catch (e: any) {
-      setAnalyzeErr(String(e?.message || e));
+      setBp(null); setResumo(null);
+      setAnalyzeErr(`${t('zdcfg.invalidSheet', 'Planilha inválida')}: ${e?.message || e}`);
     } finally {
       setAnalyzing(false);
     }
   };
 
-  // ---------------------------------------------------------------- execução
+  // ---------------------------------------------------------------- execução (a tela conduz, passo a passo)
   const [apply, setApply] = useState(false);
   const [force, setForce] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState('');
   const [hcUrl, setHcUrl] = useState<string | null>(null);
   const [canUndo, setCanUndo] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
+  const cancelRef = useRef(false);
+  const hcContinuar = useRef<(() => void) | null>(null);
+  const criadosRef = useRef<Criado[]>([]);
+  const envDaExecucao = useRef('');
 
   const addLog = (s: string) => setLog((l) => l + s + '\n');
   useEffect(() => { logRef.current?.scrollTo({ top: logRef.current.scrollHeight }); }, [log]);
-  useEffect(() => () => abortRef.current?.abort(), []);
 
-  /** SSE via fetch (EventSource não envia Authorization). */
-  const openStream = async (id: string, applied: boolean) => {
-    abortRef.current?.abort();
-    const ctrl = new AbortController();
-    abortRef.current = ctrl;
-    try {
-      const r = await api(`/api/stream/${id}`, { signal: ctrl.signal });
-      if (!r.ok || !r.body) throw new Error(await errMsg(r));
-      const reader = r.body.getReader();
-      const dec = new TextDecoder();
-      let buf = '';
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i: number;
-        while ((i = buf.indexOf('\n\n')) >= 0) {
-          const block = buf.slice(0, i);
-          buf = buf.slice(i + 2);
-          let ev = 'message';
-          const data: string[] = [];
-          for (const line of block.split('\n')) {
-            if (line.startsWith('event:')) ev = line.slice(6).trim();
-            else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
-          }
-          if (!data.length) continue;
-          let payload: any = data.join('\n');
-          try { payload = JSON.parse(payload); } catch { /* texto puro */ }
-          if (ev === 'log') addLog(String(payload));
-          else if (ev === 'waiting') {
-            setHcUrl(String(payload));
-            addLog(t('zdcfg.waitingHc', '[aguardando ativação do Help Center] abra a página de ativação, ative e clique em Continuar.'));
-          } else if (ev === 'done') {
-            addLog(`== ${String(payload).toUpperCase()} ==`);
-            setRunning(false);
-            setHcUrl(null);
-            setCanUndo(applied && payload === 'ok');
-            return;
-          }
-        }
-      }
-    } catch (e: any) {
-      if (e?.name !== 'AbortError') addLog(`(${t('zdcfg.streamLost', 'conexão com o progresso perdida')}: ${e?.message || e})`);
-    } finally {
-      setRunning(false);
-    }
-  };
+  // Fechar a aba no meio interrompe a execução: avisa antes.
+  useEffect(() => {
+    if (!running) return;
+    const aviso = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', aviso);
+    return () => window.removeEventListener('beforeunload', aviso);
+  }, [running]);
+
+  const chamarRollback = (alvo: string) => async (itens: Criado[]) => jsonOuErro(await fetch('/api/zd-auto-config/rollback', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ envId: alvo, itens }),
+  }));
 
   const run = async () => {
-    if (!uploadId || !envSel) return;
+    if (!bp || !envSel) return;
     if (apply && !confirm(t('zdcfg.confirmApply', 'Executar DE VERDADE em {{sub}}.zendesk.com?', { sub: envSel.subdomain }))) return;
+    const sel = aplicarSelecao(bp, secoes as any);
+    const base = baseDe(sel);
+    const alvo = envSel.id;
+    const aplicar = apply;
+    envDaExecucao.current = alvo;
+    cancelRef.current = false;
+    criadosRef.current = [];
     setRunning(true); setCanUndo(false); setLog(''); setHcUrl(null);
     try {
-      const r = await api('/api/provision', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ upload_id: uploadId, env_id: envSel.id, apply, force, sections: secoes }),
+      const r = await executar({
+        bp: sel,
+        aplicar,
+        forcar: force,
+        temaArquivo: TEMA_POR_IDIOMA[sel.idioma] ?? 'tema_hc_br.zip',
+        log: addLog,
+        cancelado: () => cancelRef.current,
+        aoCriar: (todos) => { criadosRef.current = todos; },
+        aguardarHelpCenter: (url) => new Promise<void>((resolve) => {
+          setHcUrl(url);
+          hcContinuar.current = () => { hcContinuar.current = null; setHcUrl(null); resolve(); };
+          addLog(t('zdcfg.waitingHc', '[aguardando ativação do Help Center] abra a página de ativação, ative e clique em Continuar.'));
+          try { window.open(url, '_blank', 'noopener'); } catch { /* bloqueado pelo navegador: há o botão */ }
+        }),
+        chamar: async (passo, ctx) => {
+          const resp = await fetch('/api/zd-auto-config/passo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ envId: alvo, aplicar, base, passo, ctx }),
+          });
+          const j = await resp.json().catch(() => null);
+          if (!j) throw new Error(`HTTP ${resp.status}`);
+          return j;
+        },
+        chamarRollback: chamarRollback(alvo),
       });
-      if (!r.ok) throw new Error(await errMsg(r));
-      const j = await r.json();
-      setJobId(j.job_id);
-      openStream(j.job_id, apply);
+      addLog(`== ${r.status.toUpperCase()} ==`);
+      setCanUndo(aplicar && r.status === 'ok' && r.criados.length > 0);
     } catch (e: any) {
       addLog(`FALHA: ${e?.message || e}`);
+      setCanUndo(aplicar && criadosRef.current.length > 0);
+    } finally {
       setRunning(false);
+      setHcUrl(null);
+      hcContinuar.current = null;
     }
   };
 
-  const resume = async () => {
-    if (!jobId) return;
-    setHcUrl(null);
-    await api(`/api/resume/${jobId}`, { method: 'POST' });
-  };
+  const resume = () => hcContinuar.current?.();
 
-  const stop = async () => {
-    if (!jobId || !confirm(t('zdcfg.confirmStop', 'Interromper a configuração e desfazer o que já foi criado?'))) return;
+  const stop = () => {
+    if (!confirm(t('zdcfg.confirmStop', 'Interromper a configuração e desfazer o que já foi criado?'))) return;
     addLog(t('zdcfg.stopping', 'Interrompendo... aguardando o rollback do que já foi criado.'));
-    await api(`/api/cancel/${jobId}`, { method: 'POST' });
+    cancelRef.current = true;
+    hcContinuar.current?.();   // libera a pausa do Help Center, se estiver aguardando
   };
 
   const undo = async () => {
-    if (!jobId || !confirm(t('zdcfg.confirmUndo', 'Desfazer tudo que foi criado nesta execução?'))) return;
+    if (!confirm(t('zdcfg.confirmUndo', 'Desfazer tudo que foi criado nesta execução?'))) return;
     setCanUndo(false);
-    const r = await api(`/api/rollback/${jobId}`, { method: 'POST' });
-    if (r.ok) { setRunning(true); openStream(jobId, false); }
+    setRunning(true);
+    try {
+      await rollback(criadosRef.current, chamarRollback(envDaExecucao.current), addLog);
+      addLog('== ROLLBACK ==');
+      criadosRef.current = [];
+    } finally {
+      setRunning(false);
+    }
   };
 
   // ---------------------------------------------------------------- copiar
@@ -378,7 +350,7 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
                   type="file"
                   accept=".xlsx"
                   className="hidden"
-                  onChange={(e) => { setFile(e.target.files?.[0] || null); setResumo(null); setUploadId(null); }}
+                  onChange={(e) => { setFile(e.target.files?.[0] || null); setResumo(null); setBp(null); }}
                 />
                 <button type="button" className={`${btnGhost} shrink-0`} onClick={() => fileRef.current?.click()}>
                   <FileSpreadsheet className="w-4 h-4" />
@@ -542,7 +514,7 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
               </div>
 
               <div className="flex flex-wrap gap-3">
-                <button className={btnPrimary} onClick={run} disabled={!uploadId || !envSel || running}>
+                <button className={btnPrimary} onClick={run} disabled={!bp || !envSel || running}>
                   {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                   {apply ? t('zdcfg.provision', 'Provisionar') : t('zdcfg.simulate', 'Simular')}
                 </button>
@@ -555,7 +527,7 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
                   </>
                 )}
               </div>
-              {!uploadId && <p className={muted}>{t('zdcfg.needSheet', 'Analise uma planilha para liberar a execução.')}</p>}
+              {!bp && <p className={muted}>{t('zdcfg.needSheet', 'Analise uma planilha para liberar a execução.')}</p>}
             </div>
           </section>
 
