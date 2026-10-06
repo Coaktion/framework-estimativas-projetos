@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+environments.json
+users.json
+*.xlsx
+*.zip
+.appkey
+!temas/*.zip

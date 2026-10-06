@@ -7,7 +7,7 @@ import { Moon, Sun, Maximize, Minimize } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
-import { canAccessScopes, canAccessAE } from "@/lib/segments";
+import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, zdAutoConfigUrl } from "@/lib/segments";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -22,6 +22,8 @@ export default function Navbar() {
 
   const showScopes = canAccessScopes(user);
   const showAE = canAccessAE(user);
+  const zdCfgUrl = zdAutoConfigUrl();
+  const showZdCfg = Boolean(zdCfgUrl) && canAccessZdAutoConfig(user);
 
   return (
     <div className="hidden md:flex items-center space-x-8">
@@ -45,6 +47,18 @@ export default function Navbar() {
             }`}
           >
             {t('nav.history')}
+          </Link>
+        )}
+
+        {showZdCfg && (
+          <Link
+            href="/zd-auto-config"
+            title={t('nav.zdAutoConfigTitle')}
+            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
+              pathname.startsWith('/zd-auto-config') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
+            }`}
+          >
+            {t('nav.zdAutoConfig')}
           </Link>
         )}
 

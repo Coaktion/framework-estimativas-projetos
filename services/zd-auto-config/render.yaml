@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: zd-auto-config
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn webapp.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.4"
+      # Cofre de ambientes: tabela zdcfg_environments no banco do site.
+      # Mesmo valor da DATABASE_URL do Netlify.
+      - key: ZDCFG_DATABASE_URL
+        sync: false
+      # Chave Fernet que cifra os segredos no banco. Tem que ser a MESMA que
+      # cifrou o que ja esta la (localmente: services/zd-auto-config/webapp/.appkey).
+      - key: ZDCFG_FERNET_KEY
+        sync: false
+      # Login pelo site. Mesmo valor de ZDCFG_SSO_SECRET no Netlify.
+      - key: ZDCFG_SSO_SECRET
+        sync: false
+      # Endereco do site: libera o CORS e o redirecionamento.
+      - key: ZDCFG_SITE_URL
+        value: https://aktienowtc.netlify.app

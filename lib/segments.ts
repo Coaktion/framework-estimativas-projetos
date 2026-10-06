@@ -167,6 +167,13 @@ const AE_SEGMENTS: readonly Segment[] = [
  */
 const SIMPLIFIED_AE_TABLE_SEGMENTS: readonly Segment[] = ['AE'];
 
+/**
+ * Quem enxerga o ZD Auto Config (provisionador de ambientes de demonstração
+ * Zendesk). A ferramenta cria marcas, campos, macros e artigos em contas reais,
+ * por isso fica restrita a quem desenha e apresenta demo: ADMIN e SC.
+ */
+const ZD_AUTO_CONFIG_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
 /** A tabela de resultado deve esconder quantidades e horas deste leitor? */
 export function usesSimplifiedAETable(
   user?: { role?: string | null } | null,
@@ -198,4 +205,17 @@ export function canAccessScopes(user?: { isAdmin?: boolean; role?: string | null
 export function canAccessAE(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
   if (!user) return false;
   return Boolean(user.isAdmin) || AE_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/** Quem enxerga o ZD Auto Config. */
+export function canAccessZdAutoConfig(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || ZD_AUTO_CONFIG_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/** URL do serviço, vinda do ambiente. Vazia = item some do menu. */
+export function zdAutoConfigUrl(): string {
+  return (process.env.NEXT_PUBLIC_ZD_AUTOCFG_URL || '').trim();
 }

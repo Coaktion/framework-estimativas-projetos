@@ -23,6 +23,7 @@ model User {
   frameworkVers FrameworkVersion[]
   aeEstimates   AEEstimate[]
   preferences   UserPreference?
+  zdEnvironments ZdEnvironment[]
 }
 
 model UserPreference {
@@ -190,4 +191,27 @@ model Spreadsheet {
   projectId Int?
   project   Project? @relation(fields: [projectId], references: [id])
   createdAt DateTime @default(now())
+}
+
+/// Cofre de ambientes Zendesk do ZD Auto Config (services/zd-auto-config).
+/// O site só DECLARA a tabela (para o `prisma db push` não apagá-la); quem lê e
+/// grava é o serviço Python. `secretEnc` é cifrado pelo serviço (Fernet) com a
+/// chave ZDCFG_FERNET_KEY, que só existe no host do serviço.
+model ZdEnvironment {
+  id         String   @id
+  name       String
+  subdomain  String
+  authType   String   @default("token") // "token" | "oauth"
+  adminEmail String? // modo token
+  clientId   String? // modo oauth
+  secretEnc  String // token de API ou client secret, cifrado
+  shared     Boolean  @default(false)
+  ownerId    Int
+  owner      User     @relation(fields: [ownerId], references: [id], onDelete: Restrict)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now())
+
+  @@unique([ownerId, name])
+  @@index([shared])
+  @@map("zdcfg_environments")
 }

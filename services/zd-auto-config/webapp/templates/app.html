@@ -1,0 +1,307 @@
+<!doctype html><html lang=pt-br><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1"><title>ZD Auto Config — Aktie Now</title>
+<link rel=preconnect href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Roboto:wght@400;500;700&display=swap" rel=stylesheet>
+<style>
+:root{--bg:#09100D;--surface:#0f1712;--surface2:#0b120f;--line:#20302a;--green:#7ED170;
+--green2:#CDFFB5;--txt:#FFFFFF;--muted:#B8C9BE}
+*{box-sizing:border-box}
+body{font-family:Roboto,Arial,sans-serif;background:radial-gradient(1100px 500px at 85% -15%,#12241b 0,var(--bg) 55%);
+color:var(--txt);margin:0;padding:0;min-height:100vh}
+.bar{display:flex;justify-content:space-between;align-items:center;padding:16px 28px;border-bottom:1px solid var(--line);
+background:rgba(9,16,13,.6);position:sticky;top:0;backdrop-filter:blur(6px);z-index:5}
+.brand{display:flex;align-items:center;gap:14px}
+.brand img{height:26px}
+.brand .t{font-family:"Bebas Neue",Arial;letter-spacing:1px;font-size:22px}
+.brand .t small{color:var(--green);font-family:Roboto;font-size:11px;letter-spacing:2px;display:block;margin-top:-4px;text-transform:uppercase}
+.who{color:var(--muted);font-size:13px}.who a{color:var(--green);text-decoration:none}
+.wrap{max-width:1200px;margin:0 auto;padding:24px}
+.cols{display:grid;grid-template-columns:1fr 400px;gap:18px;align-items:start}
+@media(max-width:980px){.cols{grid-template-columns:1fr}}
+.side{position:sticky;top:88px}
+.card{background:var(--surface);border:1px solid var(--line);padding:22px;border-radius:16px;margin:0 0 16px}
+.card h2{font-family:"Bebas Neue",Arial;letter-spacing:1px;font-size:20px;margin:0 0 4px;color:var(--txt);
+display:flex;align-items:center;gap:10px}
+.card h2 .n{background:var(--green);color:#09100D;width:26px;height:26px;border-radius:8px;display:inline-flex;
+align-items:center;justify-content:center;font-family:Roboto;font-weight:700;font-size:14px}
+label{display:block;font-size:12.5px;margin:12px 0 5px;color:var(--muted)}
+input,select{width:100%;padding:11px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);
+color:var(--txt);font-size:14px}
+input:focus,select:focus{outline:none;border-color:var(--green)}
+.rowf{display:flex;gap:12px}.rowf>div{flex:1}
+button{padding:11px 18px;border:0;border-radius:10px;background:var(--green);color:#09100D;font-weight:700;
+cursor:pointer;margin-top:14px;font-size:14px}
+button:hover{background:var(--green2)}
+button.sec{background:#1a2a22;color:var(--txt);border:1px solid var(--line)}button.sec:hover{background:#22362c}
+button.danger{background:#c0473a;color:#fff}button.danger:hover{background:#d3564a}
+button:disabled{opacity:.45;cursor:not-allowed}
+.chk{display:flex;align-items:center;gap:9px;margin-top:12px;color:var(--muted);font-size:13.5px}.chk input{width:auto}
+#log{background:#050807;border:1px solid var(--line);border-radius:12px;padding:14px;height:340px;overflow:auto;
+font-family:Consolas,monospace;font-size:12.5px;white-space:pre-wrap;line-height:1.55;color:#d7e6dc}
+.muted{color:var(--muted);font-size:13px}
+.pill{display:inline-block;background:#16241d;border:1px solid var(--line);color:var(--green2);padding:3px 10px;
+border-radius:20px;font-size:12px;margin:3px 3px 0 0}
+#resume{background:#e8a13a;color:#09100D;display:none}#undo{display:none}#stop{display:none;margin-right:8px}
+a#openHC{display:none;margin-top:14px;margin-right:8px;padding:11px 18px;border-radius:10px;
+background:var(--green);color:#09100D;font-weight:700;text-decoration:none;font-size:14px}
+a#openHC:hover{background:var(--green2)}
+details.lb{border:1px solid var(--line);border-radius:10px;margin:8px 0;background:var(--surface2)}
+details.lb summary{cursor:pointer;padding:11px 12px;color:var(--green2);font-weight:700;font-size:13.5px;list-style:none}
+details.lb summary::-webkit-details-marker{display:none}
+details.lb summary::before{content:"▸";color:var(--green);margin-right:8px;display:inline-block}
+details.lb[open] summary::before{content:"▾"}
+.lbd{padding:2px 14px 14px;color:var(--muted);white-space:pre-wrap;font-size:12.5px;line-height:1.5}
+.lbd b,.lbd strong{color:var(--green2);font-weight:700}
+button.cp{background:#16241d;border:1px solid var(--line);color:var(--green2);padding:6px 11px;border-radius:8px;
+font-size:11.5px;font-weight:700;cursor:pointer;margin:0 14px 12px}
+button.cp:hover{background:#22362c}
+details.lb summary{position:relative;padding-right:44px}
+button.cpt{margin:0;padding:2px 8px;font-size:13px;line-height:1.2;position:absolute;top:8px;right:8px}
+</style></head><body>
+<div class=bar>
+<div class=brand>
+<img src="https://aktienow.com/wp-content/uploads/2026/04/Logo_Aktie-Now_Cor_Branco-2.png" alt="Aktie Now" onerror="this.style.display='none'">
+<div class=t>ZD AUTO CONFIG<small>we own the outcome</small></div>
+</div>
+<div class=who>{{USER}} · <a href=/logout>sair</a></div>
+</div>
+<div class=wrap>
+<div class=cols>
+
+<div class=main>
+<div class=card>
+<h2><span class=n>1</span> Planilha da demo</h2>
+<input type=file id=file accept=".xlsx">
+<button class=sec id=btnAnalyze>Analisar</button>
+<div id=resumo class=muted style="margin-top:10px"></div>
+<div id=secoesWrap style="margin-top:14px;display:none"><div class=muted style="margin-bottom:6px">O que provisionar (desmarque o que nao quiser):</div><div id=secoes></div></div>
+</div>
+
+<div class=card>
+<h2><span class=n>2</span> Ambiente Zendesk</h2>
+<label>Ambiente salvo</label>
+<div class=rowf>
+<div><select id=envSel><option value="">— novo (preencher abaixo) —</option></select></div>
+<div style="flex:0 0 auto"><button class=sec id=btnDelEnv>Excluir</button></div>
+</div>
+<div class=rowf>
+<div><label>Subdomínio</label><input id=sub placeholder="minhaconta"></div>
+<div><label>Autenticação</label>
+<select id=authMode>
+<option value=oauth>OAuth — Client Credentials (recomendado)</option>
+<option value=token>Token de API (legado, até 2027)</option>
+</select></div>
+</div>
+<div id=grpOauth>
+<label>Client ID <span class=muted id=cidHint></span></label>
+<input id=clientId placeholder="OAuth client identifier">
+<label>Client Secret <span class=muted id=csecHint></span></label>
+<input id=clientSecret type=password placeholder="OAuth client secret">
+<div class=muted style="margin-top:6px">Registre em Admin Center › Apps and integrations › APIs › OAuth clients (client <b>confidential</b>). Escopo usado: <b>read write</b>.</div>
+</div>
+<div id=grpToken style="display:none">
+<label>E-mail do admin</label><input id=email placeholder="admin@empresa.com">
+<label>Token de API <span class=muted id=tokHint></span></label>
+<input id=token type=password placeholder="token (não é salvo, exceto se você salvar o ambiente)">
+</div>
+<label>Salvar este ambiente como (opcional)</label>
+<input id=saveAs placeholder="ex: Sandbox / Prod Aktie">
+<div class=chk><input type=checkbox id=apply><label style="margin:0;color:var(--muted)">Executar de verdade (desmarcado = simulação)</label></div>
+<div class=chk><input type=checkbox id=force><label style="margin:0;color:var(--muted)">Prosseguir mesmo com colisões</label></div>
+<button id=btnRun disabled>Provisionar</button>
+<a id=openHC target=_blank rel=noopener>Abrir página de ativação do Help Center</a>
+<button id=resume>Ativei o Help Center — Continuar</button>
+</div>
+
+<div class=card>
+<h2><span class=n>3</span> Progresso</h2>
+<div id=log></div>
+<button id=stop class=danger>Interromper e desfazer</button>
+<button id=undo class=danger>Desfazer tudo (rollback)</button>
+</div>
+</div>
+
+<aside class=side>
+<div class=card>
+<h2><span class=n>!</span> Passos manuais</h2>
+<div class=muted style="margin-bottom:8px">O que a ferramenta NÃO faz sozinha — clique para expandir:</div>
+<div id=lembretesEmpty class=muted>Rode a análise para ver os passos pendentes.</div>
+<div id=lembretes></div>
+</div>
+
+<div class=card>
+<h2><span class=n>C</span> Copilot</h2>
+<div class=muted style="margin-bottom:8px">Procedures para o agente humano — configure na UI e copie o texto:</div>
+<div id=copilotsEmpty class=muted>Rode a análise para ver as sugestões.</div>
+<div id=copilots></div>
+</div>
+
+<div class=card>
+<h2><span class=n>A</span> AI Agents</h2>
+<div class=muted style="margin-bottom:8px">Fluxos do bot voltado ao cliente — configure na UI e copie o prompt:</div>
+<div id=aiAgentsEmpty class=muted>Rode a análise para ver as sugestões.</div>
+<div id=aiAgents></div>
+</div>
+</aside>
+
+</div>
+</div>
+
+<script>
+let uploadId=null, jobId=null, es=null, usingEnv="";
+const $=id=>document.getElementById(id);
+const logEl=$("log");
+const esc=t=>(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+// destaca rotulos no inicio de linha (ex.: "ONDE:", "PROMPT PARA COLAR (App Builder / IA):")
+const boldLabels=t=>t.replace(/^([A-Za-zÀ-Ýa-ÿ][^\n:]{0,45}:)/gm,'<strong>$1</strong>');
+function log(t){logEl.textContent+=t+"\n";logEl.scrollTop=logEl.scrollHeight;}
+
+async function loadEnvs(){
+  const j=await (await fetch("/api/envs")).json();
+  const sel=$("envSel");sel.innerHTML='<option value="">— novo (preencher abaixo) —</option>';
+  j.envs.forEach(e=>{const o=document.createElement("option");o.value=e.id;
+    o.textContent=e.nome+"  ("+e.subdomain+")";o._e=e;sel.appendChild(o);});
+}
+loadEnvs();
+
+function applyMode(){
+  const m=$("authMode").value;
+  $("grpOauth").style.display = m==="oauth" ? "block":"none";
+  $("grpToken").style.display = m==="token" ? "block":"none";
+}
+$("authMode").onchange=applyMode; applyMode();
+
+$("envSel").onchange=()=>{
+  const o=$("envSel").selectedOptions[0];usingEnv=$("envSel").value;
+  if(o&&o._e){
+    const e=o._e; $("sub").value=e.subdomain||"";
+    $("authMode").value=e.auth||"token"; applyMode();
+    if((e.auth||"token")==="oauth"){
+      $("clientId").value=e.client_id||""; $("clientSecret").value="";
+      $("clientSecret").placeholder="usar credenciais salvas"; $("csecHint").textContent="(usando credenciais salvas)";
+    }else{
+      $("email").value=e.email||""; $("token").value="";
+      $("token").placeholder="usar token salvo"; $("tokHint").textContent="(usando token salvo)";
+    }
+  }else{
+    $("tokHint").textContent=""; $("csecHint").textContent="";
+    $("token").placeholder="token"; $("clientSecret").placeholder="OAuth client secret";
+  }
+};
+$("btnDelEnv").onclick=async()=>{if(!usingEnv)return;
+  if(!confirm("Excluir ambiente "+$("envSel").selectedOptions[0].textContent+"?"))return;
+  await fetch("/api/envs/"+encodeURIComponent(usingEnv),{method:"DELETE"});usingEnv="";loadEnvs();};
+
+$("btnAnalyze").onclick=async()=>{
+  if(!$("file").files[0]){alert("Escolha a planilha.");return;}
+  const fd=new FormData();fd.append("file",$("file").files[0]);
+  $("resumo").textContent="Analisando...";
+  const r=await fetch("/api/analyze",{method:"POST",body:fd});
+  if(!r.ok){$("resumo").textContent="Erro ao analisar.";return;}
+  const j=await r.json();uploadId=j.upload_id;const s=j.resumo;
+  $("resumo").innerHTML="Cliente: <b>"+s.cliente+"</b> "+
+    ["id "+s.identificador,"idioma "+s.idioma,"grupos "+s.grupos,"campos "+s.campos,
+     "condicionais "+s.condicionais,"views "+s.views,"gatilhos "+s.gatilhos,"macros "+s.macros,
+     "seções "+s.secoes,"artigos "+s.artigos].map(x=>'<span class=pill>'+x+'</span>').join("");
+  const secs=(s.secoes_disp||[]);
+  const box=$("secoes"); box.innerHTML="";
+  if(secs.length){$("secoesWrap").style.display="block";
+    secs.forEach(x=>{const id="sec_"+x.key;
+      box.insertAdjacentHTML("beforeend",
+        '<label class=chk style="margin:5px 0"><input type=checkbox id="'+id+'" '+(x.default?"checked":"")+'> '
+        +x.label+' <span class=muted>('+x.qtd+')</span></label>');});}
+  else{$("secoesWrap").style.display="none";}
+  const lb=(s.lembretes||[]);
+  const lbBox=$("lembretes");
+  if(lb.length){$("lembretesEmpty").style.display="none";
+    lbBox.innerHTML=lb.map(x=>'<details class=lb><summary>'+esc(x.titulo)+'</summary>'
+      +'<div class=lbd>'+boldLabels(esc(x.detalhe||''))+'</div></details>').join("");}
+  else{lbBox.innerHTML="";$("lembretesEmpty").style.display="block";}
+
+  window._cpData=(s.copilots||[]);
+  const cpBox=$("copilots");
+  if(window._cpData.length){$("copilotsEmpty").style.display="none";
+    cpBox.innerHTML=window._cpData.map((x,i)=>'<details class=lb><summary>'+esc(x.titulo)
+      +'<button class="cp cpt" data-k=cptitle data-i="'+i+'" title="Copiar titulo">⧉</button></summary>'
+      +(x.quando_utilizar?'<div class=lbd><b>Quando utilizar</b>\n'+esc(x.quando_utilizar)+'</div>':'')
+      +'<div class=lbd>'+esc(x.corpo||'')+'</div>'
+      +'<button class=cp data-k=cp data-i="'+i+'">Copiar procedure</button></details>').join("");}
+  else{cpBox.innerHTML="";$("copilotsEmpty").style.display="block";}
+
+  window._aiData=(s.ai_agents||[]);
+  const aiBox=$("aiAgents");
+  if(window._aiData.length){$("aiAgentsEmpty").style.display="none";
+    aiBox.innerHTML=window._aiData.map((x,i)=>'<details class=lb><summary>'+esc(x.nome)
+      +'<button class="cp cpt" data-k=aititle data-i="'+i+'" title="Copiar nome">⧉</button></summary>'
+      +(x.descricao?'<div class=lbd><b>Descrição do caso de uso</b>\n'+esc(x.descricao)+'</div>':'')
+      +'<div class=lbd><b>Prompt</b>\n'+esc(x.prompt||'')+'</div>'
+      +'<button class=cp data-k=ai data-i="'+i+'">Copiar prompt</button></details>').join("");}
+  else{aiBox.innerHTML="";$("aiAgentsEmpty").style.display="block";}
+
+  $("btnRun").disabled=false;
+};
+
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button.cp"); if(!b)return;
+  const i=+b.dataset.i, k=b.dataset.k; let txt="";
+  if(k==="cptitle"||k==="aititle"){e.preventDefault();e.stopPropagation();
+    const x=(k==="cptitle"?(window._cpData||[]):(window._aiData||[]))[i]||{};
+    txt=(k==="cptitle"?x.titulo:x.nome)||"";}
+  else if(k==="cp"){const x=(window._cpData||[])[i]||{};
+    txt=(x.titulo||"")+"\n\n"+(x.quando_utilizar?("Quando utilizar\n"+x.quando_utilizar+"\n\n"):"")+(x.corpo||"");}
+  else{const x=(window._aiData||[])[i]||{};
+    txt="Nome do caso de uso: "+(x.nome||"")+"\nDescrição do caso de uso: "+(x.descricao||"")+"\n\nPrompt:\n"+(x.prompt||"");}
+  navigator.clipboard.writeText(txt).then(()=>{const t=b.textContent;b.textContent=(k==="cptitle"||k==="aititle")?"✓":"Copiado!";setTimeout(()=>b.textContent=t,1200);});
+});
+
+function openStream(){
+  es=new EventSource("/api/stream/"+jobId);
+  const D=e=>{try{return JSON.parse(e.data)}catch(_){return e.data}};
+  es.addEventListener("log",e=>log(D(e)));
+  es.addEventListener("waiting",e=>{
+    const url=D(e);
+    $("resume").style.display="inline-block";
+    const a=$("openHC"); a.href=url; a.style.display="inline-block";
+    log("[aguardando ativação do Help Center] abrindo a página de ativação em nova aba...");
+    try{ window.open(url,"_blank","noopener"); }catch(_){}
+  });
+  es.addEventListener("done",ev=>{const e={data:D(ev)};log("== "+e.data.toUpperCase()+" ==");es.close();
+    $("btnRun").disabled=false;$("resume").style.display="none";$("openHC").style.display="none";
+    $("stop").style.display="none";
+    if($("apply").checked && e.data==="ok"){$("undo").style.display="inline-block";}
+    if(e.data==="rollback"||e.data==="cancelado"){$("undo").style.display="none";}});
+}
+
+$("btnRun").onclick=async()=>{
+  if(!uploadId){alert("Analise a planilha primeiro.");return;}
+  $("btnRun").disabled=true;$("undo").style.display="none";logEl.textContent="";
+  const sections={};
+  document.querySelectorAll('[id^="sec_"]').forEach(el=>{sections[el.id.slice(4)]=el.checked;});
+  const body={upload_id:uploadId,apply:$("apply").checked,force:$("force").checked,save_as:$("saveAs").value,sections:sections};
+  if(usingEnv){body.env_id=usingEnv;}
+  else{
+    body.subdomain=$("sub").value; body.auth=$("authMode").value;
+    if($("authMode").value==="oauth"){body.client_id=$("clientId").value;body.client_secret=$("clientSecret").value;}
+    else{body.email=$("email").value;body.token=$("token").value;}
+  }
+  const r=await fetch("/api/provision",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  const j=await r.json();jobId=j.job_id;openStream();
+  if($("apply").checked){$("stop").style.display="inline-block";}
+  if($("saveAs").value){loadEnvs();}
+};
+
+$("resume").onclick=async()=>{$("resume").style.display="none";$("openHC").style.display="none";await fetch("/api/resume/"+jobId,{method:"POST"});};
+$("stop").onclick=async()=>{
+  if(!jobId)return;
+  if(!confirm("Interromper a configuração e desfazer o que já foi criado?"))return;
+  $("stop").style.display="none";
+  log("Interrompendo... aguardando o rollback do que já foi criado.");
+  await fetch("/api/cancel/"+jobId,{method:"POST"});
+};
+$("undo").onclick=async()=>{
+  if(!confirm("Desfazer tudo que foi criado nesta execução?"))return;
+  $("undo").style.display="none";
+  const r=await fetch("/api/rollback/"+jobId,{method:"POST"});
+  if(r.ok){openStream();}
+};
+</script></body></html>
