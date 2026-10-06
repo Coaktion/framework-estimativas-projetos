@@ -26,7 +26,7 @@ Segue o mesmo padrão do ZD Auto Config dentro do Tool Center.
 
 1. Push na `development` → o Netlify publica em `development--aktienowtc.netlify.app`.
    O build roda `prisma db push`, que cria as tabelas `psops_*`.
-2. Entrar com um usuário ADMIN → menu **Pre-Sales Ops**.
+2. Entrar com um usuário ADMIN → menu **Radar** (no topo do portal).
 3. **Coletar agora**: semeia fontes e artefatos (idempotente) e busca as
    novidades. Uma release note semanal costuma render de 20 a 60 sinais; se vier
    bem menos, o parser (`lib/psops/ingest/parser.ts`, H2 = produto, H4 =
