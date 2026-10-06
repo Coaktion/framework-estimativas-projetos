@@ -7,6 +7,7 @@ export default withAuth({
 });
 
 export const config = {
-  // Protege a raiz e todas as sub-rotas, exceto login e api de auth
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico).*)"],
+  // Protege a raiz e todas as sub-rotas, exceto login, api de auth e os temas
+  // do Help Center do ZD Auto Config (arquivos públicos que o próprio servidor baixa)
+  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|zdcfg/temas).*)"],
 };

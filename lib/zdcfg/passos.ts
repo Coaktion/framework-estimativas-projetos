@@ -531,9 +531,19 @@ export async function executarPasso(
     case 'theme_start': {
       if (!ctx.brandId) { log('tema: sem marca criada - pulando'); return out({ fimModulo: true }); }
       if (c.dryRun) { log(`tema: (dry-run) importaria '${passo.arquivo}' na marca ${ctx.brandId}`); return out({ fimModulo: true }); }
-      const zipResp = await fetch(new URL(`/zdcfg/temas/${encodeURIComponent(passo.arquivo)}`, origem), { signal: AbortSignal.timeout(15_000) });
-      if (!zipResp.ok) { log(`tema: arquivo nao encontrado '${passo.arquivo}' - pulando`); return out({ fimModulo: true }); }
+      // redirect: 'manual' -> se algo exigir login, vem 3xx em vez da página de login com 200
+      const zipResp = await fetch(new URL(`/zdcfg/temas/${encodeURIComponent(passo.arquivo)}`, origem),
+        { signal: AbortSignal.timeout(15_000), redirect: 'manual', cache: 'no-store' });
+      if (zipResp.status !== 200) {
+        log(`tema: arquivo nao encontrado '${passo.arquivo}' (HTTP ${zipResp.status}) - pulando`);
+        return out({ fimModulo: true });
+      }
       const zip = await zipResp.arrayBuffer();
+      const cab = new Uint8Array(zip.slice(0, 4));
+      if (cab[0] !== 0x50 || cab[1] !== 0x4b) {
+        log(`tema: '${passo.arquivo}' nao e um .zip valido (${zip.byteLength} bytes, ${zipResp.headers.get('content-type')}) - pulando`);
+        return out({ fimModulo: true });
+      }
       const r = await c.post('/guide/theming/jobs/themes/imports', { job: { attributes: { brand_id: String(ctx.brandId), format: 'zip' } } });
       const job = r.job || r;
       const data = job.data || {};
