@@ -167,6 +167,21 @@ const AE_SEGMENTS: readonly Segment[] = [
  */
 const SIMPLIFIED_AE_TABLE_SEGMENTS: readonly Segment[] = ['AE'];
 
+/**
+ * Quem enxerga o ZD Auto Config (provisionador de ambientes de demonstração
+ * Zendesk). A ferramenta cria marcas, campos, macros e artigos em contas reais,
+ * por isso fica restrita a quem desenha e apresenta demo: ADMIN e SC.
+ */
+const ZD_AUTO_CONFIG_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/**
+ * Quem enxerga o Pre-Sales Ops (monitoramento das novidades do Zendesk e o
+ * backlog que elas geram para demo, framework de estimativa e escopo). É a
+ * ferramenta de manutenção dos ativos de pré-venda: mesma regra do ZD Auto
+ * Config. Dentro do módulo, coletar e definir donos de artefato é só ADMIN.
+ */
+const PRE_SALES_OPS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
 /** A tabela de resultado deve esconder quantidades e horas deste leitor? */
 export function usesSimplifiedAETable(
   user?: { role?: string | null } | null,
@@ -198,4 +213,20 @@ export function canAccessScopes(user?: { isAdmin?: boolean; role?: string | null
 export function canAccessAE(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
   if (!user) return false;
   return Boolean(user.isAdmin) || AE_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/** Quem enxerga o ZD Auto Config. */
+export function canAccessZdAutoConfig(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || ZD_AUTO_CONFIG_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/** Quem enxerga o Pre-Sales Ops. */
+export function canAccessPreSalesOps(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || PRE_SALES_OPS_SEGMENTS.includes(normalizeSegment(user.role));
 }
