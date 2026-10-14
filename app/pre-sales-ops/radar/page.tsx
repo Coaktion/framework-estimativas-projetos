@@ -9,10 +9,10 @@ export default async function Pagina() {
   return (
     <>
       <div className="mb-6">
-        <div className="mb-1.5 text-[9px] font-black uppercase tracking-widest text-psops-tinta">
+        <div className="mb-1.5 text-caption font-medium text-psops-tinta">
           {t('psops.linha.editoria')}
         </div>
-        <h2 className="font-heading text-2xl font-black uppercase tracking-tight text-psops-texto">
+        <h2 className="font-heading text-section text-psops-texto">
           {t('psops.linha.titulo')}
         </h2>
         <p className="mt-1.5 max-w-[720px] text-[13px] leading-relaxed text-psops-muted">

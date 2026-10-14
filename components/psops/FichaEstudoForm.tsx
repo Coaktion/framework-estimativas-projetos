@@ -122,8 +122,8 @@ export function FichaEstudoForm({
   );
 
   return (
-    <section className="rounded-[1.5rem] border border-psops-linha p-5">
-      <h3 className="mb-1 font-heading text-sm font-black uppercase tracking-tight text-psops-texto">
+    <section className="rounded-2xl border border-psops-linha p-5">
+      <h3 className="mb-1 text-psops-texto text-title font-bold">
         {t('psops.ficha.titulo')}
       </h3>
       <p className="mb-4 text-[11.5px] text-psops-muted">{t('psops.ficha.explicacao')}</p>

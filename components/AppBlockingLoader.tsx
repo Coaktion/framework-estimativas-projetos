@@ -350,7 +350,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
       className="fixed inset-0 z-[9999] flex items-center justify-center"
     >
       {/* Scrim (blocks clicks / interactions for the whole page) */}
-      <div className="absolute inset-0 bg-white/60 dark:bg-[#0A120C]/70 backdrop-blur-sm transition-opacity duration-200 animate-in fade-in" />
+      <div className="absolute inset-0 bg-white/60 dark:bg-[color:var(--bg-card)] backdrop-blur-sm transition-opacity duration-200 animate-in fade-in" />
       {/* Spinner card */}
       <div
         className={`
@@ -378,7 +378,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
         <div className="flex flex-col items-start leading-tight">
           <span
             className={`
-              text-[10px] font-black uppercase tracking-[0.22em]
+              text-label font-medium  
               ${isDark ? 'text-[color:var(--text-muted,#8ca092)]' : 'text-slate-400'}
             `}
           >
@@ -386,7 +386,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
           </span>
           <span
             className={`
-              text-sm font-black tracking-tight mt-1
+              text-body font-bold tracking-tight mt-1
               ${isDark ? 'text-[color:var(--text-main,#E6F0EA)]' : 'text-brand-dark'}
             `}
           >

@@ -291,7 +291,7 @@ function Conteudo({ admin }: { admin: boolean }) {
       className={
         nuncaColetou
           ? btnPrimario
-          : 'inline-flex items-center gap-1.5 rounded-xl border border-psops-forte px-2.5 py-1.5 text-[9px] font-black uppercase tracking-widest text-psops-tinta transition hover:border-psops-tinta disabled:opacity-50'
+          : 'inline-flex items-center gap-1.5 rounded-xl border border-psops-forte px-2.5 py-1.5 text-caption font-medium text-psops-tinta transition hover:border-psops-tinta disabled:opacity-50'
       }
     >
       <RefreshCw size={11} className={coletando ? 'animate-spin' : ''} aria-hidden />

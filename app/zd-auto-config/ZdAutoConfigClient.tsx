@@ -65,24 +65,24 @@ const EMPTY_FORM: EnvForm = {
 /* -------------------------------------------------------------------------- */
 
 const card =
-  'bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] rounded-[2rem] border border-slate-300 dark:border-[color:var(--border-main)] shadow-xl';
+  'bg-white dark:bg-[color:var(--bg-card-solid)] rounded-3xl border border-slate-300 dark:border-[color:var(--border-main)] shadow-xl';
 const cardHead =
   'px-8 py-5 border-b border-slate-100 dark:border-[color:var(--border-main)] flex items-center gap-4';
-const iconBox = 'w-10 h-10 rounded-2xl brand-bg-primary flex items-center justify-center text-white shadow-lg shrink-0';
-const h2 = 'text-lg font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tight';
-const sub = 'text-[10px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest mt-0.5';
-const label = 'block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1 mb-2';
+const iconBox = 'w-10 h-10 rounded-2xl brand-bg-primary flex items-center justify-center text-brand-ink shadow-lg shrink-0';
+const h2 = 'text-brand-dark dark:text-[color:var(--text-main)] text-title font-bold';
+const sub = 'text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5';
+const label = 'block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1 mb-2';
 const input =
-  'w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-2xl px-4 py-3 text-sm font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all placeholder:text-slate-300 dark:placeholder:text-[color:var(--text-muted)] disabled:opacity-50 dark:[color-scheme:dark] [&_option]:bg-white [&_option]:text-slate-800 dark:[&_option]:bg-[color:var(--bg-input-solid)] dark:[&_option]:text-[color:var(--text-main)] [&_optgroup]:bg-white dark:[&_optgroup]:bg-[color:var(--bg-card-solid)] [&_optgroup]:text-slate-500 dark:[&_optgroup]:text-[color:var(--text-muted)]';
+  'w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-2xl px-4 py-3 text-body font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all placeholder:text-slate-300 dark:placeholder:text-[color:var(--text-muted)] disabled:opacity-50 dark:[color-scheme:dark] [&_option]:bg-white [&_option]:text-slate-800 dark:[&_option]:bg-[color:var(--bg-input-solid)] dark:[&_option]:text-[color:var(--text-main)] [&_optgroup]:bg-white dark:[&_optgroup]:bg-[color:var(--bg-card-solid)] [&_optgroup]:text-slate-500 dark:[&_optgroup]:text-[color:var(--text-muted)]';
 const btn =
-  'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all disabled:opacity-40 disabled:cursor-not-allowed';
-const btnPrimary = `${btn} brand-bg-primary text-white btn-premium`;
+  'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-label font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed';
+const btnPrimary = `${btn} brand-bg-primary text-brand-ink btn-premium`;
 const btnGhost = `${btn} bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-500 dark:text-[color:var(--text-muted)] border border-slate-200 dark:border-[color:var(--border-main)] hover:text-brand-primary`;
 const btnDanger = `${btn} bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-300 border border-red-100 dark:border-red-500/30 hover:bg-red-100`;
 const pill =
-  'inline-flex items-center px-3 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)]';
-const muted = 'text-xs text-slate-500 dark:text-[color:var(--text-muted)]';
-const detail = 'text-sm leading-relaxed text-slate-600 dark:text-[color:var(--text-muted)]';
+  'inline-flex items-center px-3 py-1 rounded-xl text-label font-medium bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)]';
+const muted = 'text-label text-slate-500 dark:text-[color:var(--text-muted)]';
+const detail = 'text-body leading-relaxed text-slate-600 dark:text-[color:var(--text-muted)]';
 
 /* -------------------------------------------------------------------------- */
 
@@ -324,10 +324,10 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
     <div className="relative left-1/2 -translate-x-1/2 w-[min(1600px,calc(100vw-3rem))] space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Título */}
       <div className="space-y-2">
-        <h1 className="text-5xl font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tighter font-heading uppercase leading-none">
+        <h1 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-page leading-none">
           ZD <span className="text-brand-primary dark:text-[color:var(--primary)]">Auto Config</span>
         </h1>
-        <p className="text-slate-500 dark:text-[color:var(--text-muted)] text-xs font-bold uppercase tracking-[0.2em]">
+        <p className="text-slate-500 dark:text-[color:var(--text-muted)] text-label font-medium ">
           {t('zdcfg.subtitle', 'Provisionador de ambientes de demonstração Zendesk')}
         </p>
       </div>
@@ -364,12 +364,12 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
                   {t('zdcfg.analyze', 'Analisar')}
                 </button>
               </div>
-              {analyzeErr && <p className="text-xs font-bold text-red-500">{analyzeErr}</p>}
+              {analyzeErr && <p className="text-label font-bold text-red-500">{analyzeErr}</p>}
 
               {resumo && (
                 <>
                   <div className="flex flex-wrap gap-2 items-center">
-                    <span className="text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] mr-2">{resumo.cliente}</span>
+                    <span className="text-body font-bold text-brand-dark dark:text-[color:var(--text-main)] mr-2">{resumo.cliente}</span>
                     {[
                       `id ${resumo.identificador}`, resumo.idioma,
                       `${resumo.grupos} ${t('zdcfg.groups', 'grupos')}`,
@@ -387,7 +387,7 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
                       <span className={label}>{t('zdcfg.whatToProvision', 'O que provisionar')}</span>
                       <div className="grid sm:grid-cols-2 gap-2">
                         {resumo.secoes_disp.map((s) => (
-                          <label key={s.key} className="flex items-center gap-3 text-sm text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
+                          <label key={s.key} className="flex items-center gap-3 text-body text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
                             <input
                               type="checkbox"
                               checked={Boolean(secoes[s.key])}
@@ -486,12 +486,12 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
                       </div>
                     </div>
                   )}
-                  <label className="flex items-center gap-3 text-sm text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
+                  <label className="flex items-center gap-3 text-body text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
                     <input type="checkbox" className="w-4 h-4 accent-[color:var(--primary)]" checked={form.compartilhado}
                       onChange={(e) => setForm({ ...form, compartilhado: e.target.checked })} />
                     {t('zdcfg.shareWithTeam', 'Compartilhar com o time (todos os ADMIN e SC poderão usar)')}
                   </label>
-                  {envMsg && <p className="text-xs font-bold text-red-500">{envMsg}</p>}
+                  {envMsg && <p className="text-label font-bold text-red-500">{envMsg}</p>}
                   <div className="flex gap-2">
                     <button className={btnPrimary} onClick={saveEnv} disabled={savingEnv}>
                       {savingEnv && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -503,11 +503,11 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
               )}
 
               <div className="space-y-2 pt-2">
-                <label className="flex items-center gap-3 text-sm text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
+                <label className="flex items-center gap-3 text-body text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 accent-[color:var(--primary)]" checked={apply} onChange={(e) => setApply(e.target.checked)} />
                   {t('zdcfg.applyForReal', 'Executar de verdade (desmarcado = simulação)')}
                 </label>
-                <label className="flex items-center gap-3 text-sm text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
+                <label className="flex items-center gap-3 text-body text-brand-dark dark:text-[color:var(--text-main)] cursor-pointer">
                   <input type="checkbox" className="w-4 h-4 accent-[color:var(--primary)]" checked={force} onChange={(e) => setForce(e.target.checked)} />
                   {t('zdcfg.force', 'Prosseguir mesmo com colisões')}
                 </label>
@@ -542,7 +542,7 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
             </div>
             <div className="p-8 space-y-4">
               <pre ref={logRef}
-                className="h-80 overflow-auto rounded-2xl bg-slate-950 text-emerald-100/90 border border-slate-800 p-4 text-xs leading-relaxed whitespace-pre-wrap font-mono">
+                className="h-80 overflow-auto rounded-2xl bg-slate-950 text-emerald-100/90 border border-slate-800 p-4 text-label leading-relaxed whitespace-pre-wrap font-mono">
                 {log || t('zdcfg.noLog', 'Nada executado ainda.')}
               </pre>
               <div className="flex flex-wrap gap-3">
@@ -622,11 +622,11 @@ function SideCard({ icon, title, empty, emptyText, children }: {
 function Details({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <details className="group rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input-solid)]">
-      <summary className="cursor-pointer list-none px-5 py-3.5 text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] flex items-center gap-2">
+      <summary className="cursor-pointer list-none px-5 py-3.5 text-body font-bold text-brand-dark dark:text-[color:var(--text-main)] flex items-center gap-2">
         <span className="text-brand-primary transition-transform group-open:rotate-90">▸</span>
         {title}
       </summary>
-      <div className="px-5 pb-5 text-sm leading-relaxed">{children}</div>
+      <div className="px-5 pb-5 text-body leading-relaxed">{children}</div>
     </details>
   );
 }
@@ -695,7 +695,7 @@ function EnvPicker({ value, onChange, placeholder, groups, showOwner }: {
           {all.length === 0 && <p className={`${muted} px-3 py-2`}>—</p>}
           {groups.filter((g) => g.envs.length > 0).map((g) => (
             <div key={g.label} className="py-1">
-              <p className="px-3 pt-1 pb-1.5 text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+              <p className="px-3 pt-1 pb-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                 {g.label}
               </p>
               {g.envs.map((e) => {
@@ -707,7 +707,7 @@ function EnvPicker({ value, onChange, placeholder, groups, showOwner }: {
                     role="option"
                     aria-selected={ativo}
                     onClick={() => pick(e.id)}
-                    className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
+                    className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-body transition-colors ${
                       ativo
                         ? 'bg-[rgba(43,221,102,0.14)] text-brand-dark dark:text-[color:var(--text-main)]'
                         : 'text-brand-dark dark:text-[color:var(--text-main)] hover:bg-slate-50 dark:hover:bg-[color:var(--bg-input-solid)]'
@@ -717,7 +717,7 @@ function EnvPicker({ value, onChange, placeholder, groups, showOwner }: {
                       ? <Users className="w-3.5 h-3.5 shrink-0 text-brand-primary" />
                       : <Lock className="w-3.5 h-3.5 shrink-0 text-slate-400" />}
                     <span className="font-bold truncate">{e.nome}</span>
-                    <span className="text-xs text-slate-400 dark:text-[color:var(--text-muted)] truncate">
+                    <span className="text-label text-slate-400 dark:text-[color:var(--text-muted)] truncate">
                       {e.subdomain}{showOwner(e) ? ` · ${e.dono}` : ''}
                     </span>
                     {ativo && <Check className="w-4 h-4 ml-auto shrink-0 text-brand-primary" />}

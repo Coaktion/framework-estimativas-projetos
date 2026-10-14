@@ -11,7 +11,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('common.sessionExpired')}</p>
+      <p className="text-slate-400 font-bold ">{t('common.sessionExpired')}</p>
     </div>
   );
 
@@ -19,7 +19,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const id = parseInt(rawId);
   if (Number.isNaN(id) || id <= 0) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('aeView.notFound')}</p>
+      <p className="text-slate-400 font-bold ">{t('aeView.notFound')}</p>
     </div>
   );
 
@@ -44,7 +44,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const canView = Boolean(estimate) && (isAdmin || Number(estimate?.createdBy) === userId);
   if (!canView) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('aeView.notFoundOrNoPermission')}</p>
+      <p className="text-slate-400 font-bold ">{t('aeView.notFoundOrNoPermission')}</p>
     </div>
   );
 

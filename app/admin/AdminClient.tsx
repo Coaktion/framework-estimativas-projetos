@@ -338,14 +338,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-brand-dark tracking-tighter font-heading uppercase">{t('admin.title')}</h1>
-          <p className="text-slate-400 text-xs mt-2 font-bold uppercase tracking-widest">{t('admin.subtitle')}</p>
+          <h1 className="text-brand-dark font-heading text-page ">{t('admin.title')}</h1>
+          <p className="text-slate-400 text-label mt-2 font-medium ">{t('admin.subtitle')}</p>
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
           <button 
             onClick={handleReseed}
             disabled={isPending}
-            className="flex-1 md:flex-none bg-amber-50 text-amber-600 border border-amber-200 px-6 py-4 rounded-2xl font-black hover:bg-amber-100 transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest disabled:opacity-50"
+            className="flex-1 md:flex-none bg-amber-50 text-amber-600 border border-amber-200 px-6 py-4 rounded-2xl font-medium hover:bg-amber-100 transition-all flex items-center justify-center space-x-3 text-label disabled:opacity-50"
             title={t('admin.restoreLibrary')}
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -354,19 +354,19 @@ export default function AdminClient({ packages, categories, skills, variables, v
           <button 
             onClick={handleCreateSnapshot}
             disabled={isPending}
-            className="flex-1 md:flex-none brand-bg-primary text-white px-8 py-4 rounded-2xl font-black hover:opacity-90 shadow-xl btn-premium transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest disabled:opacity-50"
+            className="flex-1 md:flex-none brand-bg-primary text-brand-ink px-8 py-4 rounded-2xl font-medium hover:opacity-90 shadow-xl btn-premium transition-all flex items-center justify-center space-x-3 text-label disabled:opacity-50"
           >
             {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             <span>{t('admin.newSnapshot')}</span>
           </button>
-          <button className="flex-1 md:flex-none bg-brand-dark text-white px-8 py-4 rounded-2xl font-black hover:bg-slate-800 transition-all flex items-center justify-center space-x-3 text-xs uppercase tracking-widest shadow-xl">
+          <button className="flex-1 md:flex-none bg-brand-dark text-[color:var(--bg-main)] px-8 py-4 rounded-2xl font-medium hover:opacity-90 transition-all flex items-center justify-center space-x-3 text-label shadow-xl">
             <Download className="w-4 h-4" />
             <span>{t('admin.exportData')}</span>
           </button>
         </div>
       </div>
 
-      <div className="bg-slate-50/50 p-2 rounded-[2rem] border border-slate-300 w-fit mx-auto md:mx-0 shadow-sm">
+      <div className="bg-slate-50/50 p-2 rounded-3xl border border-slate-300 w-fit mx-auto md:mx-0 shadow-sm">
         <nav className="flex space-x-1">
           {[
             { id: 'versions', label: t('admin.tabVersions'), icon: History },
@@ -377,9 +377,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-8 py-3.5 rounded-3xl text-[10px] font-black transition-all duration-500 uppercase tracking-widest flex items-center space-x-2 ${
+              className={`px-8 py-3.5 rounded-3xl text-label font-medium transition-all duration-500 flex items-center space-x-2 ${
                 activeTab === tab.id
-                  ? 'brand-bg-primary text-white shadow-xl'
+                  ? 'brand-bg-primary text-brand-ink shadow-xl'
                   : 'text-slate-400 hover:bg-white hover:text-brand-dark'
               }`}
             >
@@ -392,29 +392,29 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
       <div className="tab-content">
         {activeTab === 'versions' && (
-          <div className="bg-white rounded-[3rem] border border-slate-50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="bg-white rounded-3xl border border-slate-50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="px-12 py-8 bg-slate-50/30 border-b border-slate-50 flex items-center space-x-4">
-              <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
+              <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-brand-ink shadow-lg">
                 <History className="w-5 h-5" />
               </div>
-              <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.snapshotHistory')}</h2>
+              <h2 className="text-brand-dark text-title font-bold">{t('admin.snapshotHistory')}</h2>
             </div>
             <ul className="divide-y divide-slate-50">
               {versions.map((version: any) => (
                 <li key={version.id} className="px-12 py-8 hover:bg-slate-50/50 transition-all group">
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
-                      <div className="text-base font-black text-brand-dark group-hover:text-brand-primary transition-all uppercase tracking-tight">
+                      <div className="text-base font-bold text-brand-dark group-hover:text-brand-primary transition-all tracking-tight">
                         {version.versionName}
                       </div>
-                      <div className="flex items-center text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                        <span className="bg-brand-dark text-white px-3 py-1 rounded-lg mr-4">{version.type}</span>
+                      <div className="flex items-center text-label font-medium text-slate-400 ">
+                        <span className="bg-brand-dark text-[color:var(--bg-main)] px-3 py-1 rounded-lg mr-4">{version.type}</span>
                         <span>{new Date(version.createdAt).toLocaleString(dateLocale)}</span>
                       </div>
                     </div>
                     <button 
                       onClick={() => handleRestore(version.id, version.versionName)}
-                      className="bg-white text-brand-primary px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest border border-slate-100 hover:bg-brand-primary hover:text-white transition-all shadow-sm"
+                      className="bg-white text-brand-primary px-6 py-2.5 rounded-2xl text-label font-medium border border-slate-100 hover:bg-brand-primary hover:text-brand-ink transition-all shadow-sm"
                     >
                       {t('admin.restore')}
                     </button>
@@ -423,7 +423,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
               ))}
               {versions.length === 0 && (
                 <li className="px-12 py-24 text-center">
-                  <p className="text-slate-400 text-xs font-black uppercase tracking-widest italic">{t('admin.noRecords')}</p>
+                  <p className="text-slate-400 text-label font-medium italic">{t('admin.noRecords')}</p>
                 </li>
               )}
             </ul>
@@ -442,7 +442,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                 <button
                   key={sub.id}
                   onClick={() => setActiveLibraryTab(sub.id)}
-                  className={`px-6 py-4 text-[10px] font-black uppercase tracking-widest transition-all relative ${
+                  className={`px-6 py-4 text-label font-medium transition-all relative ${
                     activeLibraryTab === sub.id ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
                   }`}
                 >
@@ -459,52 +459,52 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
             {activeLibraryTab === 'items' && (
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-10">
-                <div className="lg:col-span-1 bg-white p-8 rounded-[2.5rem] border border-slate-50 shadow-2xl h-fit sticky top-24">
+                <div className="lg:col-span-1 bg-white p-8 rounded-3xl border border-slate-50 shadow-2xl h-fit sticky top-24">
                   <div className="flex items-center space-x-4 mb-6">
-                    <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-white shadow-lg">
+                    <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-brand-ink shadow-lg">
                       <Plus className="w-4 h-4" />
                     </div>
-                    <h3 className="text-lg font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.newItem')}</h3>
+                    <h3 className="text-brand-dark text-title font-bold">{t('admin.newItem')}</h3>
                   </div>
                   <form onSubmit={handleAddPackage} className="space-y-4">
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.namePt')}</label>
-                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" required />
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.namePt')}</label>
+                      <input type="text" value={newItemName} onChange={(e) => setNewItemName(e.target.value)} placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all" required />
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.nameEn')}</label>
-                      <input type="text" value={newItemNameEn} onChange={(e) => setNewItemNameEn(e.target.value)} placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all" />
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.nameEn')}</label>
+                      <input type="text" value={newItemNameEn} onChange={(e) => setNewItemNameEn(e.target.value)} placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('common.hours')}</label>
-                        <input type="number" step="0.01" min="0" value={newItemHours} onChange={(e) => setNewItemHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all text-center" required />
+                        <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('common.hours')}</label>
+                        <input type="number" step="0.01" min="0" value={newItemHours} onChange={(e) => setNewItemHours(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all text-center" required />
                       </div>
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.skill')}</label>
-                        <select value={newItemSkill} onChange={(e) => setNewItemSkill(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
+                        <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.skill')}</label>
+                        <select value={newItemSkill} onChange={(e) => setNewItemSkill(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-caption font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all appearance-none cursor-pointer ">
                           {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                         </select>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('common.category')}</label>
-                      <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase" required>
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('common.category')}</label>
+                      <select value={newItemCategory} onChange={(e) => setNewItemCategory(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-caption font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all appearance-none cursor-pointer " required>
                         <option value="">{t('common.select')}</option>
                         {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.dependsOn')}</label>
-                      <select value={newItemDependsOn} onChange={(e) => setNewItemDependsOn(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-[9px] font-black focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all appearance-none cursor-pointer uppercase">
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.dependsOn')}</label>
+                      <select value={newItemDependsOn} onChange={(e) => setNewItemDependsOn(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-caption font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all appearance-none cursor-pointer ">
                         <option value="">{t('common.none')}</option>
                         {packages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
                     </div>
-                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
+                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200">
                       <div>
-                        <div className="text-[9px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">{t('admin.sdDiscovery')}</div>
-                        <div className="text-[8px] uppercase tracking-widest text-slate-400 dark:text-[#8a8a8a]">{t('admin.sdDiscoveryHint')}</div>
+                        <div className="text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">{t('admin.sdDiscovery')}</div>
+                        <div className="text-caption text-slate-400 dark:text-[color:var(--text-muted)]">{t('admin.sdDiscoveryHint')}</div>
                       </div>
                       <label className="inline-flex items-center cursor-pointer">
                         <input
@@ -513,13 +513,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           onChange={(e) => setNewItemSdDiscovery(e.target.checked)}
                           className="sr-only peer"
                         />
-                        <div className="relative w-11 h-6 bg-slate-200 dark:bg-[#1f1f1f] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[#0a0a0a] after:border-slate-300 dark:after:border-[#1f1f1f] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
+                        <div className="relative w-11 h-6 bg-slate-200 dark:bg-[color:var(--bg-input-solid)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[color:var(--bg-card)] after:border-slate-300 dark:after:border-[color:var(--border-main)] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
                       </label>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('plans.minPlanCS')}</label>
-                        <select value={newItemMinPlanCS} onChange={(e) => setNewItemMinPlanCS(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
+                        <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('plans.minPlanCS')}</label>
+                        <select value={newItemMinPlanCS} onChange={(e) => setNewItemMinPlanCS(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-3 py-3 text-label font-medium tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
                           <option value="">{t('plans.noRestriction')}</option>
                           {ZENDESK_PLANS.map((plan) => (
                             <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
@@ -527,8 +527,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('plans.minPlanES')}</label>
-                        <select value={newItemMinPlanES} onChange={(e) => setNewItemMinPlanES(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-3 py-3 text-[10px] font-black uppercase tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
+                        <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('plans.minPlanES')}</label>
+                        <select value={newItemMinPlanES} onChange={(e) => setNewItemMinPlanES(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-3 py-3 text-label font-medium tracking-tight outline-none focus:ring-2 focus:ring-brand-primary transition-all">
                           <option value="">{t('plans.noRestriction')}</option>
                           {ZENDESK_PLANS.map((plan) => (
                             <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
@@ -537,14 +537,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       </div>
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.tooltipPt')}</label>
-                      <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all h-20 resize-none" />
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.tooltipPt')}</label>
+                      <textarea value={newItemTooltip} onChange={(e) => setNewItemTooltip(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all h-20 resize-none" />
                     </div>
                     <div>
-                      <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">{t('admin.tooltipEn')}</label>
-                      <textarea value={newItemTooltipEn} onChange={(e) => setNewItemTooltipEn(e.target.value)} className="w-full bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-xl px-4 py-3 text-xs font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none transition-all h-20 resize-none" />
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.tooltipEn')}</label>
+                      <textarea value={newItemTooltipEn} onChange={(e) => setNewItemTooltipEn(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all h-20 resize-none" />
                     </div>
-                    <button type="submit" disabled={isPending} className="w-full brand-bg-primary text-white py-4 rounded-xl font-black uppercase tracking-widest hover:opacity-90 shadow-xl text-[10px] disabled:opacity-50">
+                    <button type="submit" disabled={isPending} className="w-full brand-bg-primary text-brand-ink py-4 rounded-xl font-medium hover:opacity-90 shadow-xl text-label disabled:opacity-50">
                       {isPending ? t('common.processing') : t('admin.addItem')}
                     </button>
                   </form>
@@ -555,8 +555,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   <div className="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap gap-1 overflow-x-auto">
                     <button
                       onClick={() => setFilterCategory('')}
-                      className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        filterCategory === '' ? 'brand-bg-primary text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'
+                      className={`px-6 py-2.5 rounded-xl text-label font-medium transition-all ${
+                        filterCategory === '' ? 'brand-bg-primary text-brand-ink shadow-md' : 'text-slate-400 hover:bg-slate-50'
                       }`}
                     >
                       {t('common.all')}
@@ -565,8 +565,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       <button
                         key={c.id}
                         onClick={() => setFilterCategory(c.name)}
-                        className={`px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                          filterCategory === c.name ? 'brand-bg-primary text-white shadow-md' : 'text-slate-400 hover:bg-slate-50'
+                        className={`px-6 py-2.5 rounded-xl text-label font-medium transition-all ${
+                          filterCategory === c.name ? 'brand-bg-primary text-brand-ink shadow-md' : 'text-slate-400 hover:bg-slate-50'
                         }`}
                       >
                         {c.name}
@@ -575,7 +575,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   </div>
 
                   {/* Filtros e Busca */}
-                  <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-xl flex flex-wrap items-center gap-4">
+                  <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl flex flex-wrap items-center gap-4">
                     <div className="relative flex-1 min-w-[200px]">
                       <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
                       <input 
@@ -583,17 +583,17 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         value={searchQuery} 
                         onChange={(e) => setSearchQuery(e.target.value)}
                         placeholder={t('admin.searchAllLanguages')} 
-                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                        className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                       />
                     </div>
-                    <select value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-[10px] font-black uppercase tracking-widest outline-none">
+                    <select value={filterSkill} onChange={(e) => setFilterSkill(e.target.value)} className="px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-label font-medium outline-none">
                       <option value="">{t('admin.allSkills')}</option>
                       {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                     </select>
                     <button 
                       onClick={() => setShowAllConditional(!showAllConditional)}
-                      className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                        showAllConditional ? 'bg-brand-primary text-white border-brand-primary' : 'bg-white text-slate-400 border-slate-200'
+                      className={`px-4 py-3 rounded-xl text-label font-medium transition-all border ${
+                        showAllConditional ? 'bg-brand-primary text-brand-ink border-brand-primary' : 'bg-white text-slate-400 border-slate-200'
                       }`}
                     >
                       Ignorar Condicionais: {showAllConditional ? 'ON' : 'OFF'}
@@ -601,19 +601,19 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   </div>
 
                   {/* Tabela com Edição Inline */}
-                  <div className="bg-white dark:bg-[#0a0a0a] dark:border-[#1f1f1f] rounded-[2.5rem] border border-slate-100 shadow-2xl overflow-hidden">
+                  <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-100 shadow-2xl overflow-hidden">
                     <table className="min-w-full">
-                      <thead className="bg-slate-50/50 dark:bg-[#141414]/70 border-b border-slate-100 dark:border-[#1f1f1f]">
+                      <thead className="bg-slate-50/50 dark:bg-[color:var(--bg-input-solid)] border-b border-slate-100 dark:border-[color:var(--border-main)]">
                         <tr>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.item')}</th>
-                          <th className="px-8 py-5 text-center text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest w-24">{t('common.hours')}</th>
-                          <th className="px-8 py-5 text-left text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.organization')}</th>
-                          <th className="px-8 py-5 text-right text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{t('common.actions')}</th>
+                          <th className="px-8 py-5 text-left text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.item')}</th>
+                          <th className="px-8 py-5 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] w-24">{t('common.hours')}</th>
+                          <th className="px-8 py-5 text-left text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>
+                          <th className="px-8 py-5 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.actions')}</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-50 dark:divide-[#141414]">
+                      <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
                         {filteredPackages.map((pkg: any) => (
-                          <tr key={pkg.id} className={`hover:bg-slate-50/30 dark:hover:bg-[#141414]/50 transition-all group ${editingId === pkg.id ? 'bg-brand-primary/5 dark:bg-brand-primary/10' : ''}`}>
+                          <tr key={pkg.id} className={`hover:bg-slate-50/30 dark:hover:bg-[color:var(--bg-input-solid)] transition-all group ${editingId === pkg.id ? 'bg-brand-primary/5 dark:bg-brand-primary/10' : ''}`}>
                             <td className="px-8 py-6">
                               {editingId === pkg.id ? (
                                 <div className="space-y-2">
@@ -621,35 +621,35 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     type="text" 
                                     value={editValues.name} 
                                     onChange={(e) => setEditValues({ ...editValues, name: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-3 py-1.5 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                                   />
                                   <input 
                                     type="text" 
                                     placeholder={t('admin.nameEnPlaceholder')}
                                     value={editValues.nameEn || ''} 
                                     onChange={(e) => setEditValues({ ...editValues, nameEn: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                                   />
                                   <input 
                                     type="text" 
                                     placeholder={t('admin.tooltipPt')}
                                     value={editValues.tooltip} 
                                     onChange={(e) => setEditValues({ ...editValues, tooltip: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none transition-all"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1 text-label outline-none transition-all"
                                   />
                                   <input 
                                     type="text" 
                                     placeholder={t('admin.tooltipEn')}
                                     value={editValues.tooltipEn || ''} 
                                     onChange={(e) => setEditValues({ ...editValues, tooltipEn: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-3 py-1 text-[10px] outline-none transition-all"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1 text-label outline-none transition-all"
                                   />
                                   <div className="grid grid-cols-2 gap-2 pt-1">
                                     <select
                                       value={editValues.minPlanCS || ''}
                                       onChange={(e) => setEditValues({ ...editValues, minPlanCS: e.target.value })}
                                       title={t('plans.minPlanCS')}
-                                      className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none"
+                                      className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-caption font-medium outline-none"
                                     >
                                       <option value="">CS · {t('plans.noRestriction')}</option>
                                       {ZENDESK_PLANS.map((plan) => (
@@ -660,7 +660,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       value={editValues.minPlanES || ''}
                                       onChange={(e) => setEditValues({ ...editValues, minPlanES: e.target.value })}
                                       title={t('plans.minPlanES')}
-                                      className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-black uppercase outline-none"
+                                      className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-caption font-medium outline-none"
                                     >
                                       <option value="">ES · {t('plans.noRestriction')}</option>
                                       {ZENDESK_PLANS.map((plan) => (
@@ -671,26 +671,26 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 </div>
                               ) : (
                                 <div className="flex items-center space-x-2">
-                                  <div className="text-sm font-black text-brand-dark dark:text-[#ffffff] uppercase tracking-tight">{packageName(pkg, language)}</div>
+                                  <div className="text-body font-bold text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{packageName(pkg, language)}</div>
                                   {minPlanBadge(pkg, 'CS') && (
-                                    <span title={t('plans.minPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 border border-sky-100 text-[7px] font-black uppercase tracking-widest">
+                                    <span title={t('plans.minPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-brand-dark border border-slate-200 text-caption font-medium ">
                                       CS {minPlanBadge(pkg, 'CS')}
                                     </span>
                                   )}
                                   {minPlanBadge(pkg, 'ES') && (
-                                    <span title={t('plans.minPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[7px] font-black uppercase tracking-widest">
+                                    <span title={t('plans.minPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-brand-dark border border-slate-200 text-caption font-medium ">
                                       ES {minPlanBadge(pkg, 'ES')}
                                     </span>
                                   )}
                                   {!String(pkg.nameEn || '').trim() && (
-                                    <span title={t('admin.missingTranslationHint')} className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-[7px] font-black uppercase tracking-widest">
+                                    <span title={t('admin.missingTranslationHint')} className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-caption font-medium ">
                                       {t('admin.missingTranslation')}
                                     </span>
                                   )}
                                   {packageTooltip(pkg, language) && (
                                     <div className="group/tooltip relative cursor-help">
                                       <Info className="w-3 h-3 text-slate-300 hover:text-brand-primary transition-colors" />
-                                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark dark:bg-[#141414] text-white dark:text-[#ffffff] dark:border dark:border-[#1f1f1f] text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
+                                      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark dark:bg-[color:var(--bg-input-solid)] text-[color:var(--bg-main)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)] text-caption font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
                                         {packageTooltip(pkg, language)}
                                       </div>
                                     </div>
@@ -705,10 +705,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   step="0.01"
                                   value={editValues.hours} 
                                   onChange={(e) => setEditValues({ ...editValues, hours: e.target.value })}
-                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1.5 text-xs font-black text-center outline-none transition-all"
+                                  className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1.5 text-label font-medium text-center outline-none transition-all"
                                 />
                               ) : (
-                                <span className="bg-brand-dark dark:bg-[#141414] dark:border dark:border-[#1f1f1f] text-white dark:text-[#ffffff] px-3 py-1 rounded-lg text-[10px] font-black tracking-tighter">{pkg.hours}H</span>
+                                <span className="bg-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:border dark:border-[color:var(--border-main)] text-[color:var(--bg-main)] dark:text-[color:var(--text-main)] px-3 py-1 rounded-lg text-label font-medium ">{pkg.hours}H</span>
                               )}
                             </td>
                             <td className="px-8 py-6">
@@ -717,28 +717,28 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   <select 
                                     value={editValues.categoryName} 
                                     onChange={(e) => setEditValues({ ...editValues, categoryName: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium "
                                   >
                                     {categories.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
                                   </select>
                                   <select 
                                     value={editValues.skillName} 
                                     onChange={(e) => setEditValues({ ...editValues, skillName: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium "
                                   >
                                     {skills.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
                                   </select>
                                   <select 
                                     value={editValues.dependsOnItemId} 
                                     onChange={(e) => setEditValues({ ...editValues, dependsOnItemId: e.target.value })}
-                                    className="w-full bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-brand-primary/30 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium "
                                   >
                                     <option value="">{t('admin.noDependency')}</option>
                                     {packages.filter((p: any) => p.id !== pkg.id).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                                   </select>
                                   
                                   <div className="space-y-1.5 pt-1">
-                                    <label className="block text-[7px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest ml-1">{t('admin.excludeFromPct')}</label>
+                                    <label className="block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1">{t('admin.excludeFromPct')}</label>
                                     <div className="flex flex-wrap gap-1.5">
                                       {variables.filter((v: any) => v.type === 'PERCENT' || v.type === 'MIXED').map((v: any) => (
                                         <button
@@ -751,10 +751,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                               : [...current, v.key];
                                             setEditValues({ ...editValues, excludedFromVariables: next });
                                           }}
-                                          className={`px-2 py-0.5 rounded text-[7px] font-black uppercase transition-all border ${
+                                          className={`px-2 py-0.5 rounded text-caption font-medium transition-all border ${
                                             (editValues.excludedFromVariables || []).includes(v.key)
                                               ? 'bg-red-50 dark:bg-[#3b1414] text-red-500 dark:text-[#ff7676] border-red-200 dark:border-[#5a1e1e]'
-                                              : 'bg-slate-50 dark:bg-[#141414] text-slate-400 dark:text-[#8a8a8a] border-slate-200 dark:border-[#1f1f1f] hover:border-slate-300'
+                                              : 'bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-400 dark:text-[color:var(--text-muted)] border-slate-200 dark:border-[color:var(--border-main)] hover:border-slate-300'
                                           }`}
                                         >
                                           {v.key.replace('_STANDARD', '')}
@@ -763,9 +763,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 dark:bg-[#141414] dark:border-[#1f1f1f] border border-slate-200">
+                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200">
                                     <div className="flex items-center gap-2">
-                                      <span className="text-[8px] font-black uppercase tracking-widest text-brand-dark dark:text-[#ffffff]">{t('admin.sdDiscovery')}</span>
+                                      <span className="text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">{t('admin.sdDiscovery')}</span>
                                     </div>
                                     <label className="inline-flex items-center cursor-pointer">
                                       <input
@@ -774,22 +774,22 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                         onChange={(e) => setEditValues({ ...editValues, sdDiscovery: e.target.checked })}
                                         className="sr-only peer"
                                       />
-                                      <div className="relative w-9 h-5 bg-slate-200 dark:bg-[#1f1f1f] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[#0a0a0a] after:border-slate-300 dark:after:border-[#1f1f1f] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
+                                      <div className="relative w-9 h-5 bg-slate-200 dark:bg-[color:var(--bg-input-solid)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[color:var(--bg-card)] after:border-slate-300 dark:after:border-[color:var(--border-main)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
                                     </label>
                                   </div>
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
-                                  <span className="text-[9px] font-black text-slate-400 dark:text-[#8a8a8a] uppercase tracking-widest">{pkg.categoryName}</span>
-                                  <span className="text-[8px] bg-slate-100 dark:bg-[#141414] dark:text-[#e8e8e8] text-slate-500 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit">{pkg.skillName}</span>
+                                  <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{pkg.categoryName}</span>
+                                  <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] text-slate-500 px-2 py-0.5 rounded-md font-medium w-fit">{pkg.skillName}</span>
                                   {pkg.sdDiscovery && (
-                                    <span className="text-[8px] bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
+                                    <span className="text-caption bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-medium w-fit flex items-center gap-1">
                                       {t('admin.sdDiscovery')}
                                     </span>
                                   )}
                                   {pkg.dependsOnItemId && (
-                                    <span className="text-[8px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-black uppercase tracking-tighter w-fit flex items-center gap-1">
-                                      <Settings className="w-2 h-2" />
+                                    <span className="text-caption bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-medium w-fit flex items-center gap-1">
+                                      <Settings className="w-3.5 h-3.5" />
                                       DEP: {packages.find((p: any) => p.id === pkg.dependsOnItemId)?.name}
                                     </span>
                                   )}
@@ -819,17 +819,17 @@ export default function AdminClient({ packages, categories, skills, variables, v
             )}
 
             {activeLibraryTab === 'categories' && (
-              <div className="bg-white rounded-[2.5rem] border border-slate-50 shadow-2xl p-10">
+              <div className="bg-white rounded-3xl border border-slate-50 shadow-2xl p-10">
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('admin.categoryManagement')}</h3>
-                  <button onClick={handleAddCategory} className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
+                  <h3 className="text-xl font-bold text-brand-dark tracking-tight">{t('admin.categoryManagement')}</h3>
+                  <button onClick={handleAddCategory} className="bg-brand-primary text-brand-ink px-6 py-3 rounded-xl text-label font-medium hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
                     <Plus className="w-4 h-4" />
                     <span>{t('admin.newCategory')}</span>
                   </button>
                 </div>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="lg:col-span-1 space-y-4">
-                    <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('admin.defaultOrderDrag')}</div>
+                    <div className="text-caption font-medium text-slate-400 ">{t('admin.defaultOrderDrag')}</div>
                     <div className="space-y-2">
                       {orderedCategories.map((c: any) => (
                         <div
@@ -847,19 +847,19 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0">
-                              <div className="text-xs font-black uppercase tracking-tight truncate">{categoryLabelOf(c, language)}</div>
-                              <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">
+                              <div className="text-label font-medium tracking-tight truncate">{categoryLabelOf(c, language)}</div>
+                              <div className="text-caption font-medium text-slate-400 truncate">
                                 {c.name}{c.parentName ? ` → ${(categories.find((x: any) => x.name === c.parentName)?.displayName || c.parentName)}` : ''}
                               </div>
                               {(categoryMinPlanBadge(c, 'CS') || categoryMinPlanBadge(c, 'ES')) && (
                                 <div className="flex items-center gap-1.5 mt-1.5">
                                   {categoryMinPlanBadge(c, 'CS') && (
-                                    <span title={t('plans.categoryMinPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600 border border-sky-100 text-[7px] font-black uppercase tracking-widest">
+                                    <span title={t('plans.categoryMinPlanCS')} className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-brand-dark border border-slate-200 text-caption font-medium ">
                                       CS {categoryMinPlanBadge(c, 'CS')}
                                     </span>
                                   )}
                                   {categoryMinPlanBadge(c, 'ES') && (
-                                    <span title={t('plans.categoryMinPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-violet-50 text-violet-600 border border-violet-100 text-[7px] font-black uppercase tracking-widest">
+                                    <span title={t('plans.categoryMinPlanES')} className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-brand-dark border border-slate-200 text-caption font-medium ">
                                       ES {categoryMinPlanBadge(c, 'ES')}
                                     </span>
                                   )}
@@ -875,18 +875,18 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                   <div className="lg:col-span-2 space-y-6">
                     {!selectedCategory ? (
-                      <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-10 text-center">
-                        <div className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      <div className="bg-slate-50 border border-slate-100 rounded-3xl p-10 text-center">
+                        <div className="text-label font-medium text-slate-400">
                           {t('admin.selectCategoryToEdit')}
                         </div>
                       </div>
                     ) : (
-                      <div className="bg-white border border-slate-100 rounded-[2rem] p-8 shadow-xl space-y-8">
+                      <div className="bg-white border border-slate-100 rounded-3xl p-8 shadow-xl space-y-8">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                           <div className="space-y-1">
-                            <div className="text-xs font-black uppercase tracking-widest text-slate-400">{t('common.category')}</div>
-                            <div className="text-xl font-black text-brand-dark uppercase tracking-tight">{categoryLabelOf(selectedCategory, language)}</div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-slate-300">{selectedCategory.name}</div>
+                            <div className="text-label font-medium text-slate-400">{t('common.category')}</div>
+                            <div className="text-xl font-bold text-brand-dark tracking-tight">{categoryLabelOf(selectedCategory, language)}</div>
+                            <div className="text-caption font-medium text-slate-300">{selectedCategory.name}</div>
                           </div>
                           <div className="flex items-center gap-2">
                             <button
@@ -895,7 +895,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   await updateCategoryAction(selectedCategory.id, categoryEditValues);
                                 });
                               }}
-                              className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center gap-2 shadow-lg"
+                              className="bg-brand-primary text-brand-ink px-6 py-3 rounded-xl text-label font-medium hover:opacity-90 transition-all flex items-center gap-2 shadow-lg"
                               disabled={isPending}
                             >
                               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
@@ -909,7 +909,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                   });
                                 }
                               }}
-                              className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all flex items-center gap-2"
+                              className="bg-red-50 text-red-600 border border-red-100 px-6 py-3 rounded-xl text-label font-medium hover:bg-red-100 transition-all flex items-center gap-2"
                               disabled={isPending}
                             >
                               <Trash2 className="w-4 h-4" />
@@ -920,31 +920,31 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.displayNamePt')}</label>
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.displayNamePt')}</label>
                             <input
                               type="text"
                               value={categoryEditValues.displayName || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayName: e.target.value })}
                               placeholder={selectedCategory.name}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none"
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.displayNameEn')}</label>
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.displayNameEn')}</label>
                             <input
                               type="text"
                               value={categoryEditValues.displayNameEn || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayNameEn: e.target.value })}
                               placeholder={t('admin.nameEnPlaceholder')}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none"
                             />
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.parentCategory')}</label>
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.parentCategory')}</label>
                             <select
                               value={categoryEditValues.parentName || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, parentName: e.target.value })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none"
                             >
                               <option value="">{t('admin.noneRootCategory')}</option>
                               {categories
@@ -957,11 +957,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             </select>
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('plans.categoryMinPlanCS')}</label>
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('plans.categoryMinPlanCS')}</label>
                             <select
                               value={categoryEditValues.minPlanCS || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, minPlanCS: e.target.value })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none"
                             >
                               <option value="">{t('plans.noRestriction')}</option>
                               {ZENDESK_PLANS.map((plan) => (
@@ -970,11 +970,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             </select>
                           </div>
                           <div className="space-y-2">
-                            <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('plans.categoryMinPlanES')}</label>
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('plans.categoryMinPlanES')}</label>
                             <select
                               value={categoryEditValues.minPlanES || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, minPlanES: e.target.value })}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none"
                             >
                               <option value="">{t('plans.noRestriction')}</option>
                               {ZENDESK_PLANS.map((plan) => (
@@ -983,30 +983,30 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             </select>
                           </div>
                           <div className="md:col-span-2">
-                            <p className="text-[9px] font-bold text-slate-400 leading-relaxed">
+                            <p className="text-caption font-bold text-slate-400 leading-relaxed">
                               {t('plans.categoryGateHint')}
                             </p>
                           </div>
                         </div>
 
-                        <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-6 space-y-4">
+                        <div className="bg-slate-50 border border-slate-100 rounded-3xl p-6 space-y-4">
                           <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="space-y-1">
-                              <div className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('admin.bulkManagement')}</div>
-                              <div className="text-xs font-black uppercase tracking-tight text-brand-dark">{packagesInSelectedCategory.length} item(ns) nesta categoria</div>
+                              <div className="text-caption font-medium text-slate-400">{t('admin.bulkManagement')}</div>
+                              <div className="text-label font-medium tracking-tight text-brand-dark">{packagesInSelectedCategory.length} item(ns) nesta categoria</div>
                             </div>
                             <div className="flex items-center gap-2">
                               <button
                                 type="button"
                                 onClick={selectAllBulkPackages}
-                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-caption font-medium text-slate-500 hover:text-brand-primary transition-all"
                               >
                                 {t('admin.selectAll')}
                               </button>
                               <button
                                 type="button"
                                 onClick={clearBulkPackages}
-                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-[9px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all"
+                                className="px-4 py-2 rounded-xl bg-white border border-slate-200 text-caption font-medium text-slate-500 hover:text-brand-primary transition-all"
                               >
                                 {t('admin.clear')}
                               </button>
@@ -1015,7 +1015,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                           <div className="max-h-64 overflow-y-auto bg-white border border-slate-200 rounded-2xl">
                             {packagesInSelectedCategory.length === 0 ? (
-                              <div className="p-8 text-center text-[9px] font-black uppercase tracking-widest text-slate-300">
+                              <div className="p-8 text-center text-caption font-medium text-slate-300">
                                 {t('admin.noItemsInCategory')}
                               </div>
                             ) : (
@@ -1029,8 +1029,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                                     />
                                     <div className="min-w-0">
-                                      <div className="text-[10px] font-black uppercase tracking-tight text-brand-dark truncate">{pkg.name}</div>
-                                      <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">{pkg.skillName}</div>
+                                      <div className="text-label font-medium tracking-tight text-brand-dark truncate">{pkg.name}</div>
+                                      <div className="text-caption font-medium text-slate-400 truncate">{pkg.skillName}</div>
                                     </div>
                                   </label>
                                 ))}
@@ -1040,11 +1040,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.moveSelectedTo')}</label>
+                              <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.moveSelectedTo')}</label>
                               <select
                                 value={bulkTargetCategoryName}
                                 onChange={(e) => setBulkTargetCategoryName(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none"
                               >
                                 <option value="">{t('common.select')}</option>
                                 {categories
@@ -1066,7 +1066,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     await bulkMovePackagesAction(bulkSelectedPackageIds, bulkTargetCategoryName);
                                   });
                                 }}
-                                className="flex-1 bg-brand-dark text-white px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all disabled:opacity-50"
+                                className="flex-1 bg-brand-dark text-[color:var(--bg-main)] px-6 py-4 rounded-2xl text-label font-medium hover:opacity-90 transition-all disabled:opacity-50"
                                 disabled={isPending || !bulkTargetCategoryName || bulkSelectedPackageIds.length === 0}
                               >
                                 {t('admin.move')}
@@ -1082,7 +1082,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     await bulkMovePackagesAction(bulkSelectedPackageIds, name);
                                   });
                                 }}
-                                className="px-6 py-4 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-slate-500 hover:text-brand-primary transition-all disabled:opacity-50"
+                                className="px-6 py-4 rounded-2xl bg-white border border-slate-200 text-label font-medium text-slate-500 hover:text-brand-primary transition-all disabled:opacity-50"
                                 disabled={isPending || bulkSelectedPackageIds.length === 0}
                               >
                                 {t('common.new')}
@@ -1092,11 +1092,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('admin.mergeCategoryInto')}</label>
+                              <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.mergeCategoryInto')}</label>
                               <select
                                 value={mergeTargetCategoryName}
                                 onChange={(e) => setMergeTargetCategoryName(e.target.value)}
-                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-[10px] font-black uppercase tracking-widest outline-none"
+                                className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none"
                               >
                                 <option value="">{t('common.select')}</option>
                                 {categories
@@ -1119,7 +1119,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     });
                                   }
                                 }}
-                                className="w-full bg-red-50 text-red-600 border border-red-100 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-red-100 transition-all disabled:opacity-50"
+                                className="w-full bg-red-50 text-red-600 border border-red-100 px-6 py-4 rounded-2xl text-label font-medium hover:bg-red-100 transition-all disabled:opacity-50"
                                 disabled={isPending || !mergeTargetCategoryName}
                               >
                                 {t('admin.mergeAndDeactivate')}
@@ -1135,10 +1135,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
             )}
 
             {activeLibraryTab === 'skills' && (
-              <div className="bg-white rounded-[2.5rem] border border-slate-50 shadow-2xl p-10">
+              <div className="bg-white rounded-3xl border border-slate-50 shadow-2xl p-10">
                 <div className="flex justify-between items-center mb-8">
-                  <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('admin.skillManagement')}</h3>
-                  <button onClick={handleAddSkill} className="bg-brand-primary text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
+                  <h3 className="text-xl font-bold text-brand-dark tracking-tight">{t('admin.skillManagement')}</h3>
+                  <button onClick={handleAddSkill} className="bg-brand-primary text-brand-ink px-6 py-3 rounded-xl text-label font-medium hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg">
                     <Plus className="w-4 h-4" />
                     <span>{t('admin.newSkill')}</span>
                   </button>
@@ -1147,7 +1147,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   {skills.map((s: any) => (
                     <div key={s.id} className="group bg-slate-50 p-6 rounded-2xl border border-slate-100 flex justify-between items-center hover:border-brand-primary transition-all">
                       <div className="min-w-0 flex-1 mr-3">
-                        <div className="text-sm font-black text-brand-dark uppercase tracking-tight truncate">{skillLabelOf(s, language)}</div>
+                        <div className="text-body font-bold text-brand-dark tracking-tight truncate">{skillLabelOf(s, language)}</div>
                         <input
                           type="text"
                           defaultValue={s.nameEn || ''}
@@ -1158,7 +1158,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               startTransition(() => updateSkillAction(s.id, next));
                             }
                           }}
-                          className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                          className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                         />
                       </div>
                       <button onClick={() => startTransition(() => deleteSkillAction(s.id))} className="text-slate-300 hover:text-red-500 transition-colors">
@@ -1174,68 +1174,68 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
         {activeTab === 'variables' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            <div className="lg:col-span-1 bg-white p-10 rounded-[3rem] border border-slate-50 shadow-2xl h-fit">
+            <div className="lg:col-span-1 bg-white p-10 rounded-3xl border border-slate-50 shadow-2xl h-fit">
               <div className="flex items-center space-x-4 mb-8">
-                <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
+                <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-brand-ink shadow-lg">
                   <Plus className="w-5 h-5" />
                 </div>
-                <h3 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.newVariable')}</h3>
+                <h3 className="text-brand-dark text-title font-bold">{t('admin.newVariable')}</h3>
               </div>
               <form action={addVariableAction} className="space-y-6">
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableKey')}</label>
-                  <input type="text" name="key" placeholder={t('admin.variableKeyPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all uppercase" required />
+                  <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.variableKey')}</label>
+                  <input type="text" name="key" placeholder={t('admin.variableKeyPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all " required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableLabelPt')}</label>
-                    <input type="text" name="label" placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
+                    <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.variableLabelPt')}</label>
+                    <input type="text" name="label" placeholder={t('admin.namePtPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-label font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.variableLabelEn')}</label>
-                    <input type="text" name="labelEn" placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
+                    <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.variableLabelEn')}</label>
+                    <input type="text" name="labelEn" placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-label font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.valuePercentage')}</label>
-                  <input type="text" name="value" placeholder={t('admin.valuePlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
+                  <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.valuePercentage')}</label>
+                  <input type="text" name="value" placeholder={t('admin.valuePlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('common.type')}</label>
-                    <select name="type" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-xs font-black uppercase tracking-widest outline-none">
+                    <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('common.type')}</label>
+                    <select name="type" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-label font-medium outline-none">
                       <option value="PERCENT">{t('admin.typePercent')}</option>
                       <option value="FLAT">{t('admin.typeFlat')}</option>
                       <option value="MIXED">{t('admin.typeMixed')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('admin.typeFlat')}</label>
-                    <input type="number" step="0.01" name="flatValue" placeholder="0.00" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
+                    <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.typeFlat')}</label>
+                    <input type="number" step="0.01" name="flatValue" placeholder="0.00" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-3">{t('common.category')}</label>
-                  <input type="text" name="category" list="var-categories" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
+                  <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('common.category')}</label>
+                  <input type="text" name="category" list="var-categories" className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" required />
                   <datalist id="var-categories">
                     <option value="Preços" />
                     <option value="Configurações" />
                     <option value="Limites" />
                   </datalist>
                 </div>
-                <button type="submit" className="w-full brand-bg-primary text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] hover:opacity-90 shadow-xl btn-premium text-xs">
+                <button type="submit" className="w-full brand-bg-primary text-brand-ink py-5 rounded-2xl font-medium hover:opacity-90 shadow-xl btn-premium text-label">
                   {t('admin.saveVariable')}
                 </button>
               </form>
             </div>
 
-            <div className="lg:col-span-2 bg-white rounded-[3rem] border border-slate-50 shadow-2xl overflow-hidden">
+            <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-50 shadow-2xl overflow-hidden">
               <table className="min-w-full">
                 <thead className="bg-slate-50/30 border-b border-slate-50">
                   <tr>
-                    <th className="px-10 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.keyCategory')}</th>
-                    <th className="px-10 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.value')}</th>
-                    <th className="px-10 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.actions')}</th>
+                    <th className="px-10 py-6 text-left text-caption font-medium text-slate-400 ">{t('admin.keyCategory')}</th>
+                    <th className="px-10 py-6 text-center text-caption font-medium text-slate-400 ">{t('common.value')}</th>
+                    <th className="px-10 py-6 text-right text-caption font-medium text-slate-400 ">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1248,32 +1248,32 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               type="text" 
                               value={editVariableValues.key} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, key: e.target.value.toUpperCase() })}
-                              className="w-full bg-white border border-brand-primary/30 rounded-lg px-3 py-2 text-xs font-black uppercase outline-none"
+                              className="w-full bg-white border border-brand-primary/30 rounded-lg px-3 py-2 text-label font-medium outline-none"
                             />
                             <input 
                               type="text" 
                               value={editVariableValues.label || ''} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, label: e.target.value })}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none"
                               placeholder={t('admin.variableLabelPt')}
                             />
                             <input 
                               type="text" 
                               value={editVariableValues.labelEn || ''} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, labelEn: e.target.value })}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none"
                               placeholder={t('admin.variableLabelEn')}
                             />
                             <input 
                               type="text" 
                               value={editVariableValues.category} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, category: e.target.value })}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1 text-[10px] font-bold outline-none"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1 text-label font-bold outline-none"
                               placeholder={t('admin.categoryPlaceholder')}
                             />
                             
                             <div className="space-y-2 border-t pt-4">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.incidenceItems')}</label>
+                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.incidenceItems')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {packages.map((pkg: any) => (
                                   <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1288,14 +1288,14 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       }}
                                       className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                                     />
-                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">{pkg.name}</span>
+                                    <span className="text-caption font-medium text-slate-600 ">{pkg.name}</span>
                                   </label>
                                 ))}
                               </div>
                             </div>
 
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.incidenceCategories')}</label>
+                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.incidenceCategories')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {categories.map((cat: any) => (
                                   <label key={cat.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1310,13 +1310,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       }}
                                       className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
                                     />
-                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">{cat.name}</span>
+                                    <span className="text-caption font-medium text-slate-600 ">{cat.name}</span>
                                   </label>
                                 ))}
                               </div>
                             </div>
                             <div className="space-y-2">
-                              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-widest">{t('admin.excludedItems')}</label>
+                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.excludedItems')}</label>
                               <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
                                 {packages.map((pkg: any) => (
                                   <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
@@ -1331,7 +1331,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       }}
                                       className="rounded border-slate-300 text-red-500 focus:ring-red-500"
                                     />
-                                    <span className="text-[9px] font-bold text-slate-600 uppercase tracking-tighter">{pkg.name}</span>
+                                    <span className="text-caption font-medium text-slate-600 ">{pkg.name}</span>
                                   </label>
                                 ))}
                               </div>
@@ -1339,22 +1339,22 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           </div>
                         ) : (
                           <>
-                            <div className="text-sm font-black text-brand-dark group-hover:text-brand-primary transition-all uppercase tracking-tight">{variableLabel(v, language)}</div>
-                            <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest mt-0.5">{v.key}</div>
-                            <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-1">{v.category}</div>
+                            <div className="text-body font-bold text-brand-dark group-hover:text-brand-primary transition-all tracking-tight">{variableLabel(v, language)}</div>
+                            <div className="text-caption font-medium text-slate-300 mt-0.5">{v.key}</div>
+                            <div className="text-caption font-medium text-slate-400 mt-1">{v.category}</div>
                             <div className="mt-3 flex flex-wrap gap-1">
                               {JSON.parse(v.targetItems || '[]').length > 0 && (
-                                <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border border-blue-100">
+                                <span className="bg-slate-100 text-brand-dark px-2 py-0.5 rounded-md text-caption font-medium border border-slate-200">
                                   {JSON.parse(v.targetItems || '[]').length} Itens
                                 </span>
                               )}
                               {JSON.parse(v.targetCategories || '[]').length > 0 && (
-                                <span className="bg-purple-50 text-purple-600 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border border-purple-100">
+                                <span className="bg-slate-100 text-brand-dark px-2 py-0.5 rounded-md text-caption font-medium border border-slate-200">
                                   {JSON.parse(v.targetCategories || '[]').length} Cats
                                 </span>
                               )}
                               {JSON.parse(v.excludedItems || '[]').length > 0 && (
-                                <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter border border-red-100">
+                                <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md text-caption font-medium border border-red-100">
                                   {JSON.parse(v.excludedItems || '[]').length} Excluídos
                                 </span>
                               )}
@@ -1368,7 +1368,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             <select 
                               value={editVariableValues.type} 
                               onChange={(e) => setEditVariableValues({ ...editVariableValues, type: e.target.value })}
-                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-[9px] font-black uppercase"
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-caption font-medium "
                             >
                               <option value="PERCENT">PERCENT</option>
                               <option value="FLAT">FLAT</option>
@@ -1379,7 +1379,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 type="text" 
                                 value={editVariableValues.value} 
                                 onChange={(e) => setEditVariableValues({ ...editVariableValues, value: e.target.value })}
-                                className="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                                className="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-center"
                                 placeholder="%"
                               />
                               <input 
@@ -1387,24 +1387,24 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                 step="0.01"
                                 value={editVariableValues.flatValue} 
                                 onChange={(e) => setEditVariableValues({ ...editVariableValues, flatValue: e.target.value })}
-                                className="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                                className="w-1/2 bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-center"
                                 placeholder="H"
                               />
                             </div>
                           </div>
                         ) : (
                           <div className="flex flex-col items-center space-y-1">
-                            <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                            <span className={`text-caption font-medium px-2 py-0.5 rounded ${
                               v.type === 'PERCENT' ? 'bg-green-50 text-green-600' : 
-                              v.type === 'FLAT' ? 'bg-blue-50 text-blue-600' : 
+                              v.type === 'FLAT' ? 'bg-slate-100 text-brand-dark' : 
                               'bg-amber-50 text-amber-600'
                             }`}>
                               {v.type}
                             </span>
                             <div className="flex items-center gap-1">
-                              {v.type !== 'FLAT' && <span className="bg-slate-100 text-brand-dark px-3 py-1 rounded-xl text-xs font-black tracking-tighter border border-slate-200">{v.value}%</span>}
-                              {v.type === 'MIXED' && <span className="text-slate-300 font-black">+</span>}
-                              {v.type !== 'PERCENT' && <span className="bg-slate-800 text-white px-3 py-1 rounded-xl text-xs font-black tracking-tighter">{v.flatValue}H</span>}
+                              {v.type !== 'FLAT' && <span className="bg-slate-100 text-brand-dark px-3 py-1 rounded-xl text-label font-medium border border-slate-200">{v.value}%</span>}
+                              {v.type === 'MIXED' && <span className="text-slate-300 font-bold">+</span>}
+                              {v.type !== 'PERCENT' && <span className="bg-slate-800 text-white px-3 py-1 rounded-xl text-label font-medium ">{v.flatValue}H</span>}
                             </div>
                           </div>
                         )}
@@ -1442,21 +1442,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
         )}
 
         {activeTab === 'users' && (
-          <div className="bg-white rounded-[3rem] border border-slate-50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="bg-white rounded-3xl border border-slate-50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="px-12 py-8 bg-slate-50/30 border-b border-slate-50 flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-white shadow-lg">
+                <div className="w-10 h-10 brand-bg-primary rounded-2xl flex items-center justify-center text-brand-ink shadow-lg">
                   <Users className="w-5 h-5" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark font-heading uppercase tracking-tight">{t('admin.teamManagement')}</h2>
+                <h2 className="text-brand-dark text-title font-bold">{t('admin.teamManagement')}</h2>
               </div>
               <div className="flex items-center space-x-4">
-                <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                <div className="text-caption font-medium text-slate-400 ">
                   {users.length} Membros da Equipe
                 </div>
                 <button
                   onClick={() => { resetNewUserForm(); setShowNewUser(true); }}
-                  className="flex items-center space-x-2 px-5 py-2.5 brand-bg-primary text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
+                  className="flex items-center space-x-2 px-5 py-2.5 brand-bg-primary text-brand-ink rounded-2xl font-medium text-label shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all"
                 >
                   <Plus className="w-4 h-4" />
                   <span>{t('admin.createUser')}</span>
@@ -1468,8 +1468,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <div className="px-12 py-8 border-b border-slate-50 bg-brand-primary/[0.02]">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <div className="text-sm font-black uppercase tracking-tight text-brand-dark">{t('admin.newUser')}</div>
-                    <div className="text-[10px] font-bold text-slate-400 mt-1">{t('admin.newUserSubtitle')}</div>
+                    <div className="text-body font-bold tracking-tight text-brand-dark">{t('admin.newUser')}</div>
+                    <div className="text-label font-bold text-slate-400 mt-1">{t('admin.newUserSubtitle')}</div>
                   </div>
                   <button
                     onClick={() => { setShowNewUser(false); resetNewUserForm(); }}
@@ -1481,41 +1481,41 @@ export default function AdminClient({ packages, categories, skills, variables, v
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.emailRequired')}</label>
+                    <label className="text-caption font-medium text-slate-400 mb-2 block">{t('admin.emailRequired')}</label>
                     <input
                       type="email"
                       value={newUserEmail}
                       onChange={(e) => setNewUserEmail(e.target.value)}
                       placeholder={t('admin.emailPlaceholder')}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.displayNameField')}</label>
+                    <label className="text-caption font-medium text-slate-400 mb-2 block">{t('admin.displayNameField')}</label>
                     <input
                       type="text"
                       value={newUserName}
                       onChange={(e) => setNewUserName(e.target.value)}
                       placeholder={t('admin.fullNamePlaceholder')}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('admin.passwordRequired')}</label>
+                    <label className="text-caption font-medium text-slate-400 mb-2 block">{t('admin.passwordRequired')}</label>
                     <input
                       type="password"
                       value={newUserPassword}
                       onChange={(e) => setNewUserPassword(e.target.value)}
                       placeholder={t('admin.passwordPlaceholder')}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-2 block">{t('segment.label')}</label>
+                    <label className="text-caption font-medium text-slate-400 mb-2 block">{t('segment.label')}</label>
                     <select
                       value={newUserRole}
                       onChange={(e) => setNewUserRole(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     >
                       {SEGMENTS.map((seg) => (
                         <option key={seg} value={seg}>{t(SEGMENT_LABEL_KEYS[seg])}</option>
@@ -1530,8 +1530,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     newUserRole === 'ADMIN' ? 'border-brand-primary' : 'border-slate-200'
                   }`}>
                     <div>
-                      <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark">{t('admin.adminPrivilege')}</div>
-                      <div className="text-[9px] font-bold text-slate-400">{t('segment.adminHint')}</div>
+                      <div className="text-label font-medium text-brand-dark">{t('admin.adminPrivilege')}</div>
+                      <div className="text-caption font-bold text-slate-400">{t('segment.adminHint')}</div>
                     </div>
                     <ShieldCheck className={`w-4 h-4 ml-2 ${newUserRole === 'ADMIN' ? 'text-brand-primary' : 'text-slate-300'}`} />
                   </div>
@@ -1540,7 +1540,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <button
                       onClick={() => { setShowNewUser(false); resetNewUserForm(); }}
                       disabled={isPending}
-                      className="px-5 py-3 border border-slate-200 text-slate-500 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all disabled:opacity-60"
+                      className="px-5 py-3 border border-slate-200 text-slate-500 rounded-xl text-label font-medium hover:bg-slate-50 transition-all disabled:opacity-60"
                     >
                       {t('common.cancel')}
                     </button>
@@ -1566,7 +1566,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         });
                       }}
                       disabled={isPending}
-                      className="px-5 py-3 brand-bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-60 flex items-center space-x-2"
+                      className="px-5 py-3 brand-bg-primary text-brand-ink rounded-xl text-label font-medium shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all disabled:opacity-60 flex items-center space-x-2"
                     >
                       {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserCog className="w-4 h-4" />}
                       <span>{t('admin.createUser')}</span>
@@ -1580,10 +1580,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
               <table className="min-w-full">
                 <thead className="bg-slate-50/10 border-b border-slate-50">
                   <tr>
-                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.member')}</th>
-                    <th className="px-12 py-6 text-left text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('segment.label')}</th>
-                    <th className="px-12 py-6 text-center text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('admin.access')}</th>
-                    <th className="px-12 py-6 text-right text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">{t('common.actions')}</th>
+                    <th className="px-12 py-6 text-left text-caption font-medium text-slate-400 ">{t('admin.member')}</th>
+                    <th className="px-12 py-6 text-left text-caption font-medium text-slate-400 ">{t('segment.label')}</th>
+                    <th className="px-12 py-6 text-center text-caption font-medium text-slate-400 ">{t('admin.access')}</th>
+                    <th className="px-12 py-6 text-right text-caption font-medium text-slate-400 ">{t('common.actions')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
@@ -1591,12 +1591,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <tr key={user.id} className="hover:bg-slate-50/30 transition-all group">
                       <td className="px-12 py-8">
                         <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 rounded-2xl brand-bg-primary flex items-center justify-center text-white font-black text-sm shadow-md group-hover:scale-110 transition-transform uppercase">
+                          <div className="w-10 h-10 rounded-2xl brand-bg-primary flex items-center justify-center text-brand-ink font-bold text-body shadow-md group-hover:scale-110 transition-transform ">
                             {user.name?.[0] || user.email[0]}
                           </div>
                           <div>
-                            <div className="text-sm font-black text-brand-dark uppercase tracking-tight">{user.name || t('admin.noName')}</div>
-                            <div className="flex items-center text-[10px] font-bold text-slate-400 mt-1">
+                            <div className="text-body font-bold text-brand-dark tracking-tight">{user.name || t('admin.noName')}</div>
+                            <div className="flex items-center text-label font-bold text-slate-400 mt-1">
                               <Mail className="w-3 h-3 mr-1.5" />
                               {user.email}
                             </div>
@@ -1609,7 +1609,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           onChange={(e) => handleUpdateSegment(user, e.target.value)}
                           disabled={!canManageSegments || isPending}
                           title={canManageSegments ? undefined : t('segment.onlyAdminsCanChange')}
-                          className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2 text-label font-medium outline-none focus:ring-2 focus:ring-brand-primary transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {SEGMENTS.map((seg) => (
                             <option key={seg} value={seg}>{t(SEGMENT_LABEL_KEYS[seg])}</option>
@@ -1618,7 +1618,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                       </td>
                       <td className="px-12 py-8 text-center">
                         <div className="flex flex-col items-center">
-                          <div className="flex items-center text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                          <div className="flex items-center text-caption font-medium text-slate-400 ">
                             <Calendar className="w-3 h-3 mr-1.5" />
                             {t('admin.memberSince', { date: new Date(user.createdAt).toLocaleDateString(dateLocale) })}
                           </div>

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useTransition, useMemo } from 'react';
+import { useState, useTransition, useMemo, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search } from 'lucide-react';
+import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search, List, LayoutGrid, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createProjectAction, deleteProjectAction } from './actions';
@@ -17,6 +17,17 @@ function formatHours(value: number): string {
     : rounded.toFixed(1).replace('.', ',');
   return `${text}h`;
 }
+
+// Estilos compartilhados (identidade Aktie Now: rótulos 13/12px, sem caixa alta).
+const SEGMENTED = 'inline-flex items-center gap-0.5 p-[3px] h-11 rounded-full border border-slate-300 bg-white';
+const SEGMENT_BTN = 'h-full px-4 rounded-full inline-flex items-center gap-1.5 text-body font-medium transition-colors';
+const SEGMENT_ON = 'bg-brand-dark text-[color:var(--bg-main)]';
+const SEGMENT_OFF = 'text-slate-500 hover:text-brand-dark';
+const TH = 'px-4 py-3 text-left text-label font-medium text-slate-500 whitespace-nowrap';
+const BADGE = 'inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full bg-slate-100 text-brand-dark text-label font-medium whitespace-nowrap';
+const CHIP = 'inline-flex items-center h-7 px-2.5 rounded-lg border text-label font-medium whitespace-nowrap transition-colors';
+const CHIP_LATEST = 'brand-bg-primary border-transparent';
+const CHIP_OLD = 'bg-white border-slate-300 text-brand-dark hover:border-slate-500';
 
 type ProjectVersionChip = {
   id: number;
@@ -35,6 +46,18 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
   const [isDeletingProject, startDeletingProject] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
   const [projectScope, setProjectScope] = useState<'mine' | 'all'>('mine');
+  // Lista (tabela) é o padrão; a visualização em cards continua disponível e fica lembrada no navegador.
+  const [view, setView] = useState<'list' | 'cards'>('list');
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('tc-sc-view');
+      if (saved === 'cards' || saved === 'list') setView(saved);
+    } catch {}
+  }, []);
+  const changeView = (next: 'list' | 'cards') => {
+    setView(next);
+    try { window.localStorage.setItem('tc-sc-view', next); } catch {}
+  };
 
   const handleCreateSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -83,52 +106,53 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
     }
   };
 
+  const viewToggle = (
+    <div className={`${SEGMENTED} h-9`} role="group" aria-label={`${t('sc.viewList')} / ${t('sc.viewCards')}`}>
+      <button type="button" aria-pressed={view === 'list'} onClick={() => changeView('list')} className={`${SEGMENT_BTN} ${view === 'list' ? SEGMENT_ON : SEGMENT_OFF}`}>
+        <List className="w-4 h-4" />{t('sc.viewList')}
+      </button>
+      <button type="button" aria-pressed={view === 'cards'} onClick={() => changeView('cards')} className={`${SEGMENT_BTN} ${view === 'cards' ? SEGMENT_ON : SEGMENT_OFF}`}>
+        <LayoutGrid className="w-4 h-4" />{t('sc.viewCards')}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="space-y-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8">
-        <div>
-          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">{t('sc.title')}</h1>
-          <p className="text-slate-400 text-xs mt-3 font-bold uppercase tracking-[0.2em]">{t('sc.subtitle')}</p>
+    <div className="space-y-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+        <div className="min-w-0">
+          <h1 className="text-brand-dark font-heading text-page">{t('sc.title')}</h1>
+          <p className="text-slate-500 text-[18px] font-light mt-2">{t('sc.subtitle')}</p>
         </div>
-        <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-          <div className="flex items-center bg-white border border-slate-300 rounded-[1.5rem] p-1 w-full md:w-auto">
-            <button
-              type="button"
-              onClick={() => setProjectScope('mine')}
-              className={`px-6 py-3 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex-1 md:flex-none ${
-                projectScope === 'mine'
-                  ? 'bg-brand-primary text-white shadow-lg shadow-green-900/10'
-                  : 'text-slate-400 hover:text-brand-primary'
-              }`}
-            >
-              {t('common.mine')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setProjectScope('all')}
-              className={`px-6 py-3 rounded-[1.25rem] text-[10px] font-black uppercase tracking-widest transition-all flex-1 md:flex-none ${
-                projectScope === 'all'
-                  ? 'bg-brand-primary text-white shadow-lg shadow-green-900/10'
-                  : 'text-slate-400 hover:text-brand-primary'
-              }`}
-            >
-              {t('common.all')}
-            </button>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
+          <div className={SEGMENTED} role="group" aria-label={t('sc.title')}>
+            {(['mine', 'all'] as const).map((scope) => (
+              <button
+                key={scope}
+                type="button"
+                aria-pressed={projectScope === scope}
+                onClick={() => setProjectScope(scope)}
+                className={`${SEGMENT_BTN} ${projectScope === scope ? SEGMENT_ON : SEGMENT_OFF}`}
+              >
+                {scope === 'mine' ? t('common.mine') : t('common.all')}
+              </button>
+            ))}
           </div>
-          <div className="relative w-full md:w-80 group">
-            <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-brand-primary transition-colors" />
-            <input 
-              type="text"
+          <label className="relative w-full sm:w-72">
+            <span className="sr-only">{t('sc.searchPlaceholder')}</span>
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <input
+              type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t('sc.searchPlaceholder')}
-              className="w-full bg-white border border-slate-500 rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 focus:border-brand-primary transition-all placeholder:text-slate-500"
+              className="w-full h-11 bg-white border border-slate-300 rounded-[10px] pl-10 pr-3 text-body outline-none focus:border-brand-primary focus:ring-[3px] focus:ring-[color:var(--focus-ring)] transition-colors placeholder:text-slate-500"
             />
-          </div>
-          <button 
+          </label>
+          <button
             onClick={() => !isCreatingProject && !isDeletingProject && setIsModalOpen(true)}
             disabled={isCreatingProject || isDeletingProject}
-            className="w-full md:w-auto brand-bg-primary text-white px-10 py-5 rounded-[2rem] font-black hover:opacity-90 shadow-2xl btn-premium transition-all flex items-center justify-center space-x-4 text-xs uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-11 brand-bg-primary px-5 rounded-full text-body font-medium btn-premium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="w-5 h-5 shrink-0" />
             <span>{t('sc.newProject')}</span>
@@ -137,36 +161,125 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
       </div>
 
       {filteredProjects.length === 0 ? (
-        <div className="py-24 bg-white rounded-[3rem] border-4 border-dashed border-slate-50 text-center">
+        <div className="py-24 bg-white rounded-3xl border-4 border-dashed border-slate-50 text-center">
           <div className="brand-bg-primary w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
             <Search className="w-10 h-10 text-white" />
           </div>
-          <p className="text-slate-400 font-bold uppercase tracking-widest">{t('sc.emptyState')}</p>
+          <p className="text-slate-400 font-bold ">{t('sc.emptyState')}</p>
+        </div>
+      ) : view === 'list' ? (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+            <span className="text-label text-slate-500">{t('sc.count', { count: filteredProjects.length })}</span>
+            {viewToggle}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full tabular-nums">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className={TH}>{t('sc.colProject')}</th>
+                  <th className={TH}>{t('sc.colVisibility')}</th>
+                  <th className={TH}>{t('sc.versions')}</th>
+                  <th className={TH}>{t('sc.colUpdated')}</th>
+                  <th className={TH}><span className="sr-only">{t('common.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProjects.map((project: any) => {
+                  const versions = [...((project.versions || []) as ProjectVersionChip[])].sort((a, b) => b.ordinal - a.ordinal);
+                  return (
+                    <tr key={project.id} className="border-b border-slate-200 last:border-b-0 hover:bg-[color:var(--accent-tint)] transition-colors">
+                      <td className="px-4 py-3.5 min-w-[240px]">
+                        <Link href={`/sc/project/${project.id}`} title={t('sc.openLatestVersion')} className="block font-medium text-brand-dark hover:underline decoration-[color:var(--primary)] decoration-2 underline-offset-[3px]">
+                          {project.name}
+                        </Link>
+                        {project.owner?.name && (
+                          <span className="text-label text-slate-500">{t('sc.createdBy', { name: project.owner.name })}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <div className="flex flex-wrap gap-1.5">
+                          <span className={BADGE}>
+                            {project.isPrivate ? <Lock className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                            {project.isPrivate ? t('common.private') : t('common.public')}
+                          </span>
+                          {project.status === 'AE_ESTIMATE' && (
+                            <span className={BADGE}>
+                              <span className="w-2 h-2 rounded-full bg-[color:var(--warning)]" />
+                              {t('sc.legacyAE')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        {versions.length === 0 ? (
+                          <span className="text-label text-slate-500">{t('sc.noVersions')}</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {versions.map((v, index) => (
+                              <Link
+                                key={String(v.id)}
+                                href={`/sc/project/${project.id}?version_id=${v.id}`}
+                                title={v.versionName || undefined}
+                                className={`${CHIP} ${index === 0 ? CHIP_LATEST : CHIP_OLD}`}
+                              >
+                                V{v.ordinal}{v.totalHours > 0 ? ` · ${formatHours(v.totalHours)}` : ''}
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap text-body">{new Date(project.updatedAt).toLocaleDateString(dateLocale)}</td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <Link href={`/sc/project/${project.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium text-brand-dark hover:bg-slate-100 whitespace-nowrap">
+                            {t('sc.editScope')}
+                            <ChevronRight className="w-4 h-4" />
+                          </Link>
+                          <button
+                            onClick={() => handleDelete(project.id, project.name)}
+                            disabled={isDeletingProject}
+                            className="p-2 rounded-lg text-slate-500 hover:text-[color:var(--danger)] hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            title={t('common.delete')}
+                            aria-label={`${t('common.delete')}: ${project.name}`}
+                          >
+                            {isDeletingProject ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <>
+        <div className="flex justify-end -mt-2 mb-4">{viewToggle}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredProjects.map((project: any) => (
-            <div key={project.id} className="group bg-white rounded-[3rem] border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-xl hover:shadow-2xl overflow-hidden flex flex-col">
+            <div key={project.id} className="group bg-white rounded-3xl border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-xl hover:shadow-2xl overflow-hidden flex flex-col">
               <div className="p-10 space-y-6 flex-1">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
-                    <span className={`px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border flex items-center space-x-2 ${
+                    <span className={`px-4 py-1.5 rounded-xl text-caption font-medium border flex items-center space-x-2 ${
                       project.isPrivate ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                     }`}>
-                      {project.isPrivate ? <Lock className="w-2 h-2 shrink-0" /> : <Globe className="w-2 h-2 shrink-0" />}
+                      {project.isPrivate ? <Lock className="w-3.5 h-3.5 shrink-0" /> : <Globe className="w-3.5 h-3.5 shrink-0" />}
                       <span>{project.isPrivate ? t('common.private') : t('common.public')}</span>
                     </span>
                     {project.status === 'AE_ESTIMATE' && (
-                      <span className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-purple-50 text-purple-600 border-purple-100 flex items-center space-x-2">
-                        <Zap className="w-2 h-2 shrink-0" />
+                      <span className="px-4 py-1.5 rounded-xl text-caption font-medium border bg-slate-100 text-brand-dark border-slate-200 flex items-center space-x-2">
+                        <Zap className="w-3.5 h-3.5 shrink-0" />
                         <span>{t('sc.legacyAE')}</span>
                       </span>
                     )}
                   </div>
-                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{new Date(project.updatedAt).toLocaleDateString(dateLocale)}</span>
+                  <span className="text-caption font-medium text-slate-300 ">{new Date(project.updatedAt).toLocaleDateString(dateLocale)}</span>
                 </div>
                 
-                <h3 className="text-2xl font-black text-brand-dark group-hover:text-brand-primary transition-colors uppercase tracking-tight leading-tight">
+                <h3 className="text-2xl font-bold text-brand-dark group-hover:text-brand-primary transition-colors tracking-tight leading-tight">
                   {project.name}
                 </h3>
 
@@ -175,11 +288,11 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                     chips existem para pular direto para uma versão anterior sem
                     passar pelo editor. Ordem DECRESCENTE: a mais nova primeiro. */}
                 <div className="pt-4 mt-4 border-t border-slate-100">
-                  <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400 mb-2.5">
+                  <p className="text-caption font-medium text-slate-400 mb-2.5">
                     {t('sc.versions')}
                   </p>
                   {(project.versions || []).length === 0 ? (
-                    <span className="text-[9px] font-bold uppercase tracking-widest text-slate-300">
+                    <span className="text-caption font-medium text-slate-300">
                       {t('sc.noVersions')}
                     </span>
                   ) : (
@@ -194,9 +307,9 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                               href={`/sc/project/${project.id}?version_id=${v.id}`}
                               title={v.versionName || undefined}
                               className={`
-                                inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all
+                                inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-caption font-medium   border transition-all
                                 ${isLatest
-                                  ? 'brand-bg-primary text-white border-brand-primary shadow-md shadow-green-900/10'
+                                  ? 'brand-bg-primary text-brand-ink border-brand-primary shadow-md shadow-green-900/10'
                                   : 'bg-slate-50 text-slate-500 border-slate-200 hover:border-brand-primary hover:text-brand-primary'
                                 }
                               `}
@@ -217,7 +330,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                 <Link
                   href={`/sc/project/${project.id}`}
                   title={t('sc.openLatestVersion')}
-                  className="text-[10px] font-black text-brand-dark hover:text-brand-primary uppercase tracking-widest flex items-center space-x-2 transition-all"
+                  className="text-label font-medium text-brand-dark hover:text-brand-primary flex items-center space-x-2 transition-all"
                 >
                     <span>{t('sc.editScope')}</span>
                     <ExternalLink className="w-3 h-3 shrink-0" />
@@ -234,39 +347,40 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
             </div>
           ))}
         </div>
+        </>
       )}
 
       {/* Modal de Novo Projeto */}
       {isModalOpen && (
         <div
-          className="fixed inset-0 bg-brand-dark/80 backdrop-blur-md flex items-center justify-center z-[60] p-4"
+          className="fixed inset-0 bg-[rgb(3_14_1/0.8)] backdrop-blur-md flex items-center justify-center z-[60] p-4"
           onClick={(e) => { if (!isCreatingProject && e.target === e.currentTarget) setIsModalOpen(false); }}
         >
-          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] shadow-2xl max-w-md w-full overflow-hidden border border-white/20 relative">
-            <div className="brand-bg-primary p-10 flex justify-between items-center">
+          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/20 relative">
+            <div className="px-8 pt-8 flex justify-between items-start gap-4">
               <div>
-                <h3 className="text-2xl font-black text-white font-heading uppercase tracking-tight">{t('sc.newProject')}</h3>
-                <p className="text-white/60 text-xs mt-2 font-bold uppercase tracking-widest">{t('sc.modalSubtitle')}</p>
+                <h3 className="text-brand-dark font-heading text-section">{t('sc.newProject')}</h3>
+                <p className="text-slate-500 text-body mt-1">{t('sc.modalSubtitle')}</p>
               </div>
               <button
                 type="button"
                 onClick={() => !isCreatingProject && setIsModalOpen(false)}
                 disabled={isCreatingProject}
-                className="text-white/60 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
+                className="text-slate-500 hover:text-brand-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
                 aria-label={t('common.close')}
               >
                 <X className="w-6 h-6 shrink-0" />
               </button>
             </div>
             
-            <form onSubmit={handleCreateSubmit} className="p-10 space-y-8">
-              <div className="space-y-4">
-                <label className="block text-[9px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest ml-1">{t('sc.projectName')}</label>
+            <form onSubmit={handleCreateSubmit} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="block text-label font-medium text-brand-dark">{t('sc.projectName')}</label>
                 <input
                   type="text"
                   name="name"
                   placeholder={t('sc.projectNamePlaceholder')}
-                  className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-[10px] px-4 h-11 text-body focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed"
                   required
                   disabled={isCreatingProject}
                   autoFocus
@@ -275,8 +389,8 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
 
               <div className="flex items-center space-x-4 bg-slate-50 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)] p-6 rounded-2xl border border-slate-100">
                 <div className="flex-1 min-w-0">
-                  <label htmlFor="isPrivate" className={`block text-sm font-black tracking-tight ${isCreatingProject ? 'text-slate-400 dark:text-[color:var(--text-muted)]' : 'text-brand-dark dark:text-[color:var(--text-main)]'}`}>{t('sc.privacy')}</label>
-                  <p className="text-[10px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-wider mt-0.5">{t('sc.privacyHint')}</p>
+                  <label htmlFor="isPrivate" className={`block text-body font-bold tracking-tight ${isCreatingProject ? 'text-slate-400 dark:text-[color:var(--text-muted)]' : 'text-brand-dark dark:text-[color:var(--text-main)]'}`}>{t('sc.privacy')}</label>
+                  <p className="text-label text-slate-400 dark:text-[color:var(--text-muted)] font-medium mt-0.5">{t('sc.privacyHint')}</p>
                 </div>
                 <div className={`relative inline-block w-12 h-6 transition duration-200 ease-in-out rounded-full shrink-0 ${isCreatingProject ? 'opacity-50 cursor-not-allowed' : ''} bg-slate-200 dark:bg-[color:var(--bg-input)] dark:border dark:border-[color:var(--border-main)]`}>
                   <input
@@ -293,7 +407,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                 <button
                   type="submit"
                   disabled={isCreatingProject}
-                  className="w-full brand-bg-primary text-white py-5 rounded-2xl text-xs font-black hover:opacity-90 shadow-xl btn-premium transition-all uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full brand-bg-primary text-brand-ink py-5 rounded-2xl text-label font-medium hover:opacity-90 shadow-xl btn-premium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <Loader2 className={`w-4 h-4 shrink-0 animate-spin ${isCreatingProject ? 'opacity-100' : 'opacity-0'}`} style={{ width: isCreatingProject ? '1rem' : 0, height: isCreatingProject ? '1rem' : 0 }} />
                   <span className="truncate">{t('sc.createProject')}</span>
@@ -302,7 +416,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                   type="button"
                   onClick={() => !isCreatingProject && setIsModalOpen(false)}
                   disabled={isCreatingProject}
-                  className="w-full py-4 text-[10px] font-black text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors uppercase tracking-[0.2em] disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full py-4 text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {t('common.cancel')}
                 </button>

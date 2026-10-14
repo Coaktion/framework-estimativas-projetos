@@ -27,12 +27,10 @@ export default function UserMenu() {
     return (
       <Link 
         href="/login"
-        className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl hover:border-brand-primary transition-all duration-500 group border border-slate-300 shadow-sm hover:shadow-xl"
+        className="inline-flex items-center gap-2 h-9 px-4 rounded-full brand-bg-primary hover:bg-[color:var(--primary-hover)] transition-colors"
       >
-        <div className="w-8 h-8 rounded-xl brand-bg-primary flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-all">
-          <LogIn className="w-4 h-4" />
-        </div>
-        <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest">{t('userMenu.signIn')}</span>
+        <LogIn className="w-4 h-4" />
+        <span className="text-label font-medium">{t('userMenu.signIn')}</span>
       </Link>
     );
   }
@@ -45,35 +43,36 @@ export default function UserMenu() {
     <div className="relative" ref={menuRef}>
       <button 
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-3 bg-white px-4 py-2.5 rounded-2xl hover:border-brand-primary transition-all duration-500 group border border-slate-300 shadow-sm hover:shadow-xl"
+        className="flex items-center gap-2.5 h-10 pl-1 pr-2.5 rounded-full border border-slate-200 bg-white hover:border-slate-400 transition-colors"
+        aria-expanded={isOpen}
       >
-        <div className="w-8 h-8 rounded-xl brand-bg-primary flex items-center justify-center text-xs font-black text-white shadow-lg group-hover:scale-105 transition-all">
+        <div className="w-8 h-8 rounded-full bg-brand-soft text-brand-soft-fg flex items-center justify-center text-label font-bold">
           {initials}
         </div>
-        <div className="flex flex-col items-start">
-          <span className="text-[10px] font-black text-brand-dark uppercase tracking-widest leading-none">
+        <div className="hidden lg:flex flex-col items-start leading-tight">
+          <span className="text-label font-medium text-brand-dark">
             {session.user.name?.split(' ')[0] || t('userMenu.user')}
           </span>
-          <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-1">
+          <span className="text-caption text-slate-500">
             {session.user.role || t('userMenu.member')}
           </span>
         </div>
-        <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`w-4 h-4 text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-3 w-48 bg-white rounded-3xl border border-slate-300 shadow-2xl p-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
-          <div className="px-4 py-3 border-b border-slate-50 mb-1">
-            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t('userMenu.signedInAs')}</p>
-            <p className="text-[10px] font-bold text-brand-dark truncate mt-1">{session.user.email}</p>
+        <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-[60] animate-in fade-in zoom-in-95 duration-200 origin-top-right">
+          <div className="px-3 py-2.5 border-b border-slate-200 mb-1">
+            <p className="text-caption text-slate-500">{t('userMenu.signedInAs')}</p>
+            <p className="text-label font-medium text-brand-dark truncate mt-0.5">{session.user.email}</p>
           </div>
           
           <button 
             onClick={() => signOut({ callbackUrl: 'https://aktienowtc.netlify.app/login' })}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-2xl text-red-500 hover:bg-red-50 transition-all group"
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[color:var(--danger)] hover:bg-slate-100 transition-colors"
           >
-            <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{t('userMenu.signOut')}</span>
+            <LogOut className="w-4 h-4" />
+            <span className="text-body font-medium">{t('userMenu.signOut')}</span>
           </button>
         </div>
       )}

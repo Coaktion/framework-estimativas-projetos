@@ -3,11 +3,15 @@
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Moon, Sun, Maximize, Minimize } from "lucide-react";
+import { Moon, Sun, Maximize2, Minimize2 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
 import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps } from "@/lib/segments";
+
+/** Botão de ícone do cabeçalho (densidade, tema). Mesmo visual do LanguageToggle e do FeedbackButton. */
+export const HEADER_ICON_BUTTON =
+  "inline-flex items-center justify-center h-9 min-w-[36px] px-2 rounded-[10px] border border-slate-200 bg-white text-slate-500 hover:text-brand-dark hover:border-slate-400 transition-colors";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -20,85 +24,54 @@ export default function Navbar() {
   const user = session.user as any;
   const isAdmin = session.user.isAdmin;
 
-  const showScopes = canAccessScopes(user);
-  const showAE = canAccessAE(user);
-  const showZdCfg = canAccessZdAutoConfig(user);
-  const showPsOps = canAccessPreSalesOps(user);
+  const links = [
+    { show: canAccessScopes(user), href: '/sc', match: '/sc', label: t('nav.projects') },
+    { show: canAccessAE(user), href: '/ae/history', match: '/ae', label: t('nav.history') },
+    { show: canAccessZdAutoConfig(user), href: '/zd-auto-config', match: '/zd-auto-config', label: t('nav.zdAutoConfig'), title: t('nav.zdAutoConfigTitle') },
+    { show: canAccessPreSalesOps(user), href: '/pre-sales-ops', match: '/pre-sales-ops', label: t('nav.preSalesOps'), title: t('nav.preSalesOpsTitle') },
+    { show: isAdmin, href: '/admin', match: '/admin', label: t('nav.admin') },
+  ].filter((l) => l.show);
 
   return (
-    <div className="hidden md:flex items-center space-x-8">
-      <div className="flex items-center space-x-8 mr-8 border-r border-slate-200 pr-8">
-        {showScopes && (
-          <Link 
-            href="/sc" 
-            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
-              pathname.startsWith('/sc') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
-            }`}
-          >
-            {t('nav.projects')}
-          </Link>
-        )}
-        
-        {showAE && (
-          <Link 
-            href="/ae/history" 
-            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
-              pathname.startsWith('/ae/history') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
-            }`}
-          >
-            {t('nav.history')}
-          </Link>
-        )}
-
-        {showZdCfg && (
-          <Link
-            href="/zd-auto-config"
-            title={t('nav.zdAutoConfigTitle')}
-            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
-              pathname.startsWith('/zd-auto-config') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
-            }`}
-          >
-            {t('nav.zdAutoConfig')}
-          </Link>
-        )}
-
-        {showPsOps && (
-          <Link
-            href="/pre-sales-ops"
-            title={t('nav.preSalesOpsTitle')}
-            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
-              pathname.startsWith('/pre-sales-ops') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
-            }`}
-          >
-            {t('nav.preSalesOps')}
-          </Link>
-        )}
-
-        {isAdmin && (
-          <Link 
-            href="/admin" 
-            className={`text-[10px] font-black uppercase tracking-widest transition-all ${
-              pathname.startsWith('/admin') ? 'text-brand-primary' : 'text-slate-400 hover:text-brand-dark'
-            }`}
-          >
-            {t('nav.admin')}
-          </Link>
-        )}
+    <div className="hidden md:flex items-center gap-6 min-w-0 flex-1">
+      <div className="flex items-center gap-1 min-w-0 overflow-x-auto">
+        {links.map((l) => {
+          const active = pathname.startsWith(l.match);
+          return (
+            <Link
+              key={l.href}
+              href={l.href}
+              title={l.title}
+              aria-current={active ? 'page' : undefined}
+              className={`px-3 py-2 text-body font-medium whitespace-nowrap transition-colors ${
+                active
+                  ? 'text-brand-dark rounded-t-lg shadow-[inset_0_-2px_0_var(--primary)]'
+                  : 'text-slate-500 rounded-lg hover:text-brand-dark hover:bg-slate-100'
+              }`}
+            >
+              {l.label}
+            </Link>
+          );
+        })}
       </div>
 
-      <div className="flex items-center space-x-3">
+      <div className="flex items-center gap-2 ml-auto shrink-0">
         <LanguageToggle />
-        <button 
+        <button
+          type="button"
           onClick={toggleCompact}
-          className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-brand-primary transition-all"
+          className={HEADER_ICON_BUTTON}
           title={isCompact ? t('nav.normalMode') : t('nav.compactMode')}
+          aria-label={isCompact ? t('nav.normalMode') : t('nav.compactMode')}
         >
-          {isCompact ? <Maximize className="w-4 h-4" /> : <Minimize className="w-4 h-4" />}
+          {isCompact ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
         </button>
-        <button 
+        <button
+          type="button"
           onClick={toggleTheme}
-          className="p-2 rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-brand-primary transition-all"
+          className={HEADER_ICON_BUTTON}
           title={theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')}
+          aria-label={theme === 'dark' ? t('nav.lightMode') : t('nav.darkMode')}
         >
           {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
         </button>

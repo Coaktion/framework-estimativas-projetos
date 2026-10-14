@@ -123,7 +123,7 @@ function Conteudo() {
   if (!dados) return <Carregando texto={t('psops.carregando')} />;
 
   const chip = (ativo: boolean) =>
-    `inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-widest transition ${
+    `inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-label font-medium transition ${
       ativo
         ? 'border-psops-acento bg-psops-acento/10 text-psops-tinta'
         : 'border-psops-linha bg-psops-surf1 text-psops-muted hover:text-psops-texto'
@@ -206,13 +206,13 @@ function Conteudo() {
             return (
               <section
                 key={col}
-                className="rounded-[2rem] border border-psops-linha bg-psops-surf2 p-3"
+                className="rounded-3xl border border-psops-linha bg-psops-surf2 p-3"
               >
                 <header className="mb-3 flex items-center justify-between px-2 pt-1">
-                  <h3 className="font-heading text-sm font-black uppercase tracking-tight text-psops-texto">
+                  <h3 className="text-psops-texto text-title font-bold">
                     {t(`psops.backlog.coluna.${col}`)}
                   </h3>
-                  <span className="text-[11px] font-bold text-psops-muted">{daColuna.length}</span>
+                  <span className="text-label font-bold text-psops-muted">{daColuna.length}</span>
                 </header>
                 {mostradas.length === 0 ? (
                   <p className="px-2 pb-3 text-[12px] text-psops-muted">
@@ -228,7 +228,7 @@ function Conteudo() {
                   </ul>
                 )}
                 {col === 'DONE' && daColuna.length > MAX_CONCLUIDAS ? (
-                  <p className="px-2 pt-2 text-[11px] text-psops-muted">
+                  <p className="px-2 pt-2 text-label text-psops-muted">
                     {t('psops.backlog.maisConcluidas', { n: daColuna.length - MAX_CONCLUIDAS })}
                   </p>
                 ) : null}
@@ -270,15 +270,15 @@ function CardAtividade({ a, onAbrir }: { a: Atividade; onAbrir: () => void }) {
       <div className="mb-1.5 text-[12.5px] font-bold leading-snug text-psops-texto">
         {texto.titulo}
       </div>
-      <div className="mb-3 text-[11px] text-psops-muted">
+      <div className="mb-3 text-label text-psops-muted">
         {a.artifact?.nome ?? t('psops.backlog.fichaDaFeature')}
       </div>
       <div className="flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-1.5 text-[11px] text-psops-muted">
+        <span className="flex min-w-0 items-center gap-1.5 text-label text-psops-muted">
           <Avatar iniciais={a.responsavelIniciais ?? '?'} indefinido={!a.responsavelId} />
           <span className="truncate">{a.responsavelNome ?? t('psops.triagem.semResponsavel')}</span>
         </span>
-        <span className="flex shrink-0 items-center gap-2 text-[10px] font-bold text-psops-muted">
+        <span className="flex shrink-0 items-center gap-2 text-label font-bold text-psops-muted">
           <span className="h-1.5 w-14 overflow-hidden rounded-full bg-psops-surf3" aria-hidden>
             <span className="block h-full bg-psops-acento" style={{ width: `${pct}%` }} />
           </span>
@@ -392,7 +392,7 @@ function DetalheAtividade({
 
           <h2
             id="psops-titulo-atividade"
-            className="mb-2 text-[18px] font-black leading-tight tracking-tight text-psops-texto"
+            className="mb-2 text-[18px] font-bold leading-tight tracking-tight text-psops-texto"
           >
             {texto.titulo}
           </h2>
@@ -470,7 +470,7 @@ function DetalheAtividade({
                 {item.exigeEvidencia ? (
                   <div className="mt-2 pl-6">
                     {item.d && item.evidencia ? (
-                      <span className="break-all text-[11px] text-psops-tinta">
+                      <span className="break-all text-label text-psops-tinta">
                         {t('psops.backlog.evidencia')}: {item.evidencia}
                       </span>
                     ) : (
@@ -520,7 +520,7 @@ function DetalheAtividade({
                   {t('psops.backlog.concluir')}
                 </button>
                 {!podeConcluir ? (
-                  <span className="text-[11px] text-psops-muted">
+                  <span className="text-label text-psops-muted">
                     {t('psops.backlog.faltam', {
                       itens: a.pendencias.faltamCheck,
                       evidencias: a.pendencias.faltamEvidencia,

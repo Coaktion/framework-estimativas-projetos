@@ -66,7 +66,7 @@ export function LinhaDoTempo() {
   }, [carregar]);
 
   const chip = (ativo: boolean) =>
-    `inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-[10px] font-black uppercase tracking-widest transition ${
+    `inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-label font-medium transition ${
       ativo
         ? 'border-psops-acento bg-psops-acento/10 text-psops-tinta'
         : 'border-psops-linha bg-psops-surf1 text-psops-muted hover:text-psops-texto'
@@ -134,17 +134,17 @@ export function LinhaDoTempo() {
           {dados.semanas.map((s) => (
             <section key={s.semana}>
               <h3 className="mb-2.5 flex items-baseline gap-3 px-1">
-                <span className="font-heading text-sm font-black uppercase tracking-tight text-psops-texto">
+                <span className="text-psops-texto text-title font-bold">
                   {t('psops.linha.semanaDe', { data: data(s.inicio, { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' }) })}
                 </span>
-                <span className="text-[11px] font-bold text-psops-muted">{t('psops.linha.nSinais', { count: s.itens.length })}</span>
+                <span className="text-label font-bold text-psops-muted">{t('psops.linha.nSinais', { count: s.itens.length })}</span>
               </h3>
-              <ul className="overflow-hidden rounded-[1.5rem] border border-psops-linha bg-psops-surf1">
+              <ul className="overflow-hidden rounded-2xl border border-psops-linha bg-psops-surf1">
                 {s.itens.map((sinal) => {
                   const texto = textoDoSinal(sinal, language);
                   return (
                     <li key={sinal.id} className="flex flex-col gap-2 border-b border-psops-linha px-5 py-3.5 last:border-b-0 sm:flex-row sm:items-start sm:gap-4">
-                      <span className="w-[52px] shrink-0 pt-0.5 text-[11px] font-bold text-psops-muted">
+                      <span className="w-[52px] shrink-0 pt-0.5 text-label font-bold text-psops-muted">
                         {data(sinal.publicadoEm, { day: '2-digit', month: '2-digit' })}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -164,7 +164,7 @@ export function LinhaDoTempo() {
                         href={sinal.fonteUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex shrink-0 items-center gap-1.5 self-start text-[11px] font-bold text-psops-tinta hover:underline"
+                        className="inline-flex shrink-0 items-center gap-1.5 self-start text-label font-bold text-psops-tinta hover:underline"
                       >
                         <ExternalLink size={12} aria-hidden />
                         {t('psops.linha.abrirNota')}

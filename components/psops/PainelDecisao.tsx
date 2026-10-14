@@ -47,7 +47,7 @@ export function PainelDecisao({
 
   return (
     <div className="px-6 py-5">
-      <h3 className="mb-3 text-[19px] font-black leading-tight tracking-tight text-psops-texto">
+      <h3 className="mb-3 text-[19px] font-bold leading-tight tracking-tight text-psops-texto">
         {texto.titulo}
       </h3>
 
@@ -131,16 +131,16 @@ export function PainelDecisao({
                   >
                     {marcado ? <Check size={11} strokeWidth={3} /> : null}
                   </span>
-                  <span className="text-[11px] font-black uppercase tracking-wider text-psops-texto">
+                  <span className="text-label font-medium text-psops-texto">
                     {t(`psops.impacto.${k}.nome`)}
                   </span>
                 </span>
-                <span className="text-[11px] leading-snug text-psops-muted">
+                <span className="text-label leading-snug text-psops-muted">
                   {t(`psops.impacto.${k}.pergunta`)}
                 </span>
                 <kbd className="absolute right-2.5 top-2.5">{ATALHO_IMPACTO[k]}</kbd>
                 {sugerido ? (
-                  <span className="absolute bottom-2 right-2.5 text-[8.5px] font-black uppercase tracking-wider text-psops-tinta">
+                  <span className="absolute bottom-2 right-2.5 text-[8.5px] font-bold text-psops-tinta">
                     {t('psops.triagem.sugerido')}
                   </span>
                 ) : null}
@@ -160,25 +160,25 @@ export function PainelDecisao({
             <Carregando texto={t('psops.triagem.calculando')} />
           ) : (
             <>
-              <p className="mb-2.5 text-[9px] font-black uppercase tracking-widest text-psops-tinta">
+              <p className="mb-2.5 text-caption font-medium text-psops-tinta">
                 {t('psops.triagem.atividades', { count: impactos.length })} ·{' '}
                 {t('psops.triagem.responsavelHerdado')}
               </p>
               <ul className="flex flex-col gap-2">
                 {alvos.map((p) => (
                   <li key={p.impacto} className="flex items-baseline gap-2.5 text-[12px] text-psops-texto">
-                    <span className="w-[74px] shrink-0 text-[10px] font-black uppercase tracking-wider text-psops-tinta">
+                    <span className="w-[74px] shrink-0 text-label font-medium text-psops-tinta">
                       {t(`psops.impacto.${p.impacto}.nome`)}
                     </span>
                     <span className="flex-1">
                       {p.artefatoNome}
                       {!p.artefatoExiste && p.artefatoChave ? (
-                        <span className="ml-1.5 text-[10px] font-bold uppercase tracking-wider text-psops-muted">
+                        <span className="ml-1.5 text-label font-medium text-psops-muted">
                           ({t('psops.triagem.artefatoNovo')})
                         </span>
                       ) : null}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px] text-psops-muted">
+                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-label text-psops-muted">
                       {p.artefatoChave ? (
                         <>
                           <Avatar

@@ -17,7 +17,7 @@ export default async function AEHistoryPage({
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return (
     <div className="p-12 text-center">
-      <p className="text-slate-400 font-bold uppercase tracking-widest">{t('common.sessionExpired')}</p>
+      <p className="text-slate-400 font-bold ">{t('common.sessionExpired')}</p>
     </div>
   );
 

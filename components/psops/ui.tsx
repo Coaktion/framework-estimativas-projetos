@@ -12,12 +12,12 @@ import type { SignalTipo } from '@/lib/psops/client/tipos';
 
 /** Classes de botão reaproveitadas pelas telas. */
 export const btn =
-  'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-[10px] font-black uppercase tracking-widest transition-all disabled:cursor-not-allowed disabled:opacity-40';
+  'inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-label font-medium transition-all disabled:cursor-not-allowed disabled:opacity-40';
 export const btnPrimario = `${btn} bg-psops-acento text-psops-sobre hover:brightness-105`;
 export const btnSecundario = `${btn} border border-psops-forte bg-psops-surf2 text-psops-muted hover:border-psops-tinta hover:text-psops-tinta`;
 
 /** Rótulo pequeno em caixa alta — o "label" do Tool Center. */
-export const rotulo = 'text-[9px] font-black uppercase tracking-widest text-psops-muted';
+export const rotulo = 'text-caption font-medium text-psops-muted';
 
 type VarianteBadge = 'neutro' | 'produto' | 'ga' | 'eap' | 'deprecation' | 'alerta' | 'discreto';
 
@@ -43,7 +43,7 @@ export function Badge({
   return (
     <span
       title={titulo}
-      className={`inline-block whitespace-nowrap rounded-full border px-2 py-[3px] text-[9px] font-black uppercase tracking-wider ${CLASSES_BADGE[variante]}`}
+      className={`inline-block whitespace-nowrap rounded-full border px-2 py-[3px] text-caption font-medium ${CLASSES_BADGE[variante]}`}
     >
       {children}
     </span>
@@ -78,13 +78,13 @@ export function StatTile({
         {acao}
       </div>
       <div
-        className={`font-heading text-[32px] font-black leading-none tracking-tight ${
+        className={`font-heading text-section leading-none ${
           destaque ? 'text-psops-tinta' : 'text-psops-texto'
         }`}
       >
         {valor}
       </div>
-      {sub ? <div className="mt-1.5 text-[11px] text-psops-muted">{sub}</div> : null}
+      {sub ? <div className="mt-1.5 text-label text-psops-muted">{sub}</div> : null}
     </div>
   );
 }
@@ -102,10 +102,10 @@ export function Painel({
 }) {
   return (
     <section
-      className={`overflow-hidden rounded-[2rem] border border-psops-linha bg-psops-surf1 ${className}`}
+      className={`overflow-hidden rounded-3xl border border-psops-linha bg-psops-surf1 ${className}`}
     >
       <header className="flex flex-wrap items-center gap-3 border-b border-psops-linha px-6 py-4">
-        <h2 className="font-heading text-sm font-black uppercase tracking-tight text-psops-texto">
+        <h2 className="text-psops-texto text-title font-bold">
           {titulo}
         </h2>
         {dica ? <div className="ml-auto text-[10.5px] text-psops-muted">{dica}</div> : null}
@@ -126,7 +126,7 @@ export function CaixaVazia({
 }) {
   return (
     <div className="px-6 py-14 text-center">
-      <div className="mb-1.5 font-heading text-xl font-black uppercase tracking-tight text-psops-tinta">
+      <div className="mb-1.5 text-psops-tinta text-title font-bold">
         {titulo}
       </div>
       <p className="mx-auto max-w-[360px] text-[12.5px] text-psops-muted">{texto}</p>
@@ -153,7 +153,7 @@ export function CaixaErro({
     >
       <div className="mb-2 flex items-center gap-2.5">
         <AlertTriangle size={17} className="shrink-0 text-psops-alertatinta" aria-hidden />
-        <h2 className="font-heading text-base font-black uppercase tracking-tight text-psops-texto">
+        <h2 className="text-psops-texto text-title font-bold">
           {titulo}
         </h2>
       </div>
@@ -171,7 +171,7 @@ export function Avatar({ iniciais, indefinido = false }: { iniciais: string; ind
   return (
     <span
       aria-hidden
-      className={`inline-flex h-[20px] w-[20px] items-center justify-center rounded-full border bg-psops-surf3 text-[8.5px] font-black ${
+      className={`inline-flex h-[20px] w-[20px] items-center justify-center rounded-full border bg-psops-surf3 text-[8.5px] font-bold ${
         indefinido ? 'border-dashed border-psops-forte text-psops-muted' : 'border-psops-forte text-psops-tinta'
       }`}
     >

@@ -89,14 +89,14 @@ export default function AEHistoryClient(
     <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div>
-          <h1 className="text-6xl font-black text-brand-dark dark:text-[color:var(--text-main)] tracking-tighter font-heading uppercase leading-none">
+          <h1 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-page leading-none">
             {t('aeHistory.title')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('aeHistory.titleAccent')}</span>
           </h1>
-          <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-xs mt-4 font-bold uppercase tracking-[0.2em]">
+          <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-label mt-4 font-medium ">
             {t('aeHistory.projectsLabel')} ({t('aeHistory.clientCount', { count: filteredGroups.length })}{filteredGroups.length ? ` · ${t('aeHistory.versionCount', { count: filteredGroups.reduce((s, g) => s + Number(g.count || 0), 0) })}` : ''})
           </p>
           {sessionIsAdmin && (
-            <p className="mt-3 inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-[color:var(--text-muted)]">
+            <p className="mt-3 inline-flex items-center gap-2 text-label font-medium text-slate-500 dark:text-[color:var(--text-muted)]">
               <Filter className="w-3 h-3" />
               <span>
                 Visualizando estimativas de{' '}
@@ -111,13 +111,13 @@ export default function AEHistoryClient(
         </div>
         <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
           {sessionIsAdmin && (
-            <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-[1.5rem] p-1.5 shadow-sm self-start md:self-end">
+            <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-2xl p-1.5 shadow-sm self-start md:self-end">
               <button
                 type="button"
                 onClick={() => setScope('mine')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-[1.25rem] text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-caption font-medium transition-all duration-300 ${
                   projectScope === 'mine'
-                    ? 'brand-bg-primary text-white shadow-md shadow-green-900/10'
+                    ? 'brand-bg-primary text-brand-ink shadow-md shadow-green-900/10'
                     : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
                 }`}
               >
@@ -127,9 +127,9 @@ export default function AEHistoryClient(
               <button
                 type="button"
                 onClick={() => setScope('all')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-[1.25rem] text-[9px] font-black uppercase tracking-widest transition-all duration-300 ${
+                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-caption font-medium transition-all duration-300 ${
                   projectScope === 'all'
-                    ? 'brand-bg-primary text-white shadow-md shadow-green-900/10'
+                    ? 'brand-bg-primary text-brand-ink shadow-md shadow-green-900/10'
                     : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
                 }`}
               >
@@ -146,12 +146,12 @@ export default function AEHistoryClient(
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={t('aeHistory.searchPlaceholder')}
-                className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-[1.5rem] pl-14 pr-6 py-4 text-xs font-bold uppercase tracking-widest outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
+                className="w-full bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-2xl pl-14 pr-6 py-4 text-label font-medium outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
               />
             </div>
             <Link
               href="/ae"
-              className="w-full md:w-auto bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-[2rem] text-[10px] font-black uppercase tracking-widest flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
+              className="w-full md:w-auto bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-3xl text-label font-medium flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
             >
               <span>{t('aeHistory.newEstimate')}</span>
             </Link>
@@ -161,11 +161,11 @@ export default function AEHistoryClient(
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredGroups.length === 0 ? (
-          <div className="col-span-full py-24 bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] rounded-[3rem] border-4 border-dashed border-slate-50 dark:border-[color:var(--border-main)] text-center">
+          <div className="col-span-full py-24 bg-white dark:bg-[color:var(--bg-card-solid)] rounded-3xl border-4 border-dashed border-slate-50 dark:border-[color:var(--border-main)] text-center">
             <div className="brand-bg-primary w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
               {searchQuery ? <Search className="w-10 h-10 text-white" /> : <Zap className="w-10 h-10 text-white" />}
             </div>
-            <p className="text-slate-400 dark:text-[color:var(--text-muted)] font-bold uppercase tracking-widest">
+            <p className="text-slate-400 dark:text-[color:var(--text-muted)] font-bold ">
               {searchQuery ? t('aeHistory.emptySearch') : t('aeHistory.emptyState')}
             </p>
           </div>
@@ -190,33 +190,33 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
 
   return (
     <div className="group block relative">
-      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] rounded-[3rem] border border-slate-300 dark:border-[color:var(--border-main)] hover:border-brand-primary dark:hover:border-[color:var(--primary)] transition-all duration-500 shadow-xl hover:shadow-2xl overflow-hidden">
+      <div className="bg-white dark:bg-[color:var(--bg-card-solid)] rounded-3xl border border-slate-300 dark:border-[color:var(--border-main)] hover:border-brand-primary dark:hover:border-[color:var(--primary)] transition-all duration-500 shadow-xl hover:shadow-2xl overflow-hidden">
         <div className="p-10 space-y-6">
           {/* Linha 1: Data (última versão) + Tag Versão (sintética) */}
           <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-300 border-purple-100 dark:border-purple-500/30 flex items-center space-x-2">
-              <Clock className="w-2 h-2" />
+            <span className="px-4 py-1.5 rounded-xl text-caption font-medium border bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)] border-slate-200 dark:border-[color:var(--border-main)] flex items-center space-x-2">
+              <Clock className="w-3.5 h-3.5" />
               <span>{new Date(group.latestCreatedAt).toLocaleDateString(dateLocale)}</span>
             </span>
 
-            <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-600 dark:text-[color:var(--text-main)] border-slate-200 dark:border-[color:var(--border-main)]">
-              <Clock className="w-2 h-2" />
+            <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-caption font-medium border bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-600 dark:text-[color:var(--text-main)] border-slate-200 dark:border-[color:var(--border-main)]">
+              <Clock className="w-3.5 h-3.5" />
               <span>V{group.latestVersion} · {group.count} versões</span>
             </span>
           </div>
 
           {/* Nome do projeto (cliente) — clique abre a ÚLTIMA versão */}
           <Link href={`/ae/${group.latestId}`} className="block">
-            <h3 className="text-2xl font-black text-brand-dark dark:text-[color:var(--text-main)] group-hover:text-brand-primary dark:group-hover:text-[color:var(--primary)] transition-colors uppercase tracking-tight leading-tight break-words">
+            <h3 className="text-2xl font-bold text-brand-dark dark:text-[color:var(--text-main)] group-hover:text-brand-primary dark:group-hover:text-[color:var(--primary)] transition-colors tracking-tight leading-tight break-words">
               {group.clientName}
             </h3>
           </Link>
 
           {/* chip do owner do projeto — EXCLUSIVO para admins */}
           {showOwnerChip && group.owner && (
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
-              <Shield className="w-2 h-2 shrink-0" />
-              <span className="text-[8px] font-black uppercase tracking-[0.22em]">
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-100 text-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]">
+              <Shield className="w-3.5 h-3.5 shrink-0" />
+              <span className="text-caption font-medium ">
                 {String(group.owner.name || group.owner.email || t('common.unknown') || 'Desconhecido')}
                 {group.owner.role ? ` (${group.owner.role})` : ''}
               </span>
@@ -224,12 +224,12 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
           )}
 
           {/* Tag Needs SC / AE Estimate (baseada na última versão) */}
-          <span className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border ${
+          <span className={`inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-caption font-medium border ${
             group.latestNeedsSC
               ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300 border-amber-100 dark:border-amber-500/30'
               : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300 border-emerald-100 dark:border-emerald-500/30'
           }`}>
-            {group.latestNeedsSC ? (<AlertTriangle className="w-2 h-2" />) : (<CheckCircle2 className="w-2 h-2" />)}
+            {group.latestNeedsSC ? (<AlertTriangle className="w-3.5 h-3.5" />) : (<CheckCircle2 className="w-3.5 h-3.5" />)}
             <span>
               {group.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
               {/* Estimativa que exige SE não tem número fechado — mostrar horas
@@ -242,7 +242,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
 
           {/* Lista resumida das versões (chips clicáveis) */}
           <div className="pt-4 mt-4 border-t border-slate-100 dark:border-[color:var(--border-main)]">
-            <p className="text-[8px] font-black uppercase tracking-[0.22em] text-slate-400 dark:text-[color:var(--text-muted)] mb-2.5">
+            <p className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] mb-2.5">
               {t('common.versions')}
             </p>
             <div className="flex flex-wrap gap-2">
@@ -253,9 +253,9 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
                     key={String(v.id)}
                     href={`/ae/${v.id}`}
                     className={`
-                      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border transition-all
+                      inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-caption font-medium   border transition-all
                       ${latest
-                        ? 'brand-bg-primary text-white border-brand-primary shadow-md shadow-green-900/10'
+                        ? 'brand-bg-primary text-brand-ink border-brand-primary shadow-md shadow-green-900/10'
                         : v.needsSC
                           ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300 border-amber-100 dark:border-amber-500/30 hover:border-amber-400 dark:hover:border-amber-500 hover:text-amber-700 dark:hover:text-amber-200'
                           : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300 border-emerald-100 dark:border-emerald-500/30 hover:border-emerald-400 dark:hover:border-emerald-500 hover:text-emerald-700 dark:hover:text-emerald-200'
@@ -263,8 +263,8 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
                     `}
                   >
                     {v.needsSC
-                      ? <AlertTriangle className="w-1.5 h-1.5" />
-                      : <CheckCircle2 className="w-1.5 h-1.5" />}
+                      ? <AlertTriangle className="w-3.5 h-3.5" />
+                      : <CheckCircle2 className="w-3.5 h-3.5" />}
                     <span>
                       V{v.version}
                       {v.needsSC

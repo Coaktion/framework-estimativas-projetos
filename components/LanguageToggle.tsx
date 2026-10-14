@@ -21,10 +21,10 @@ export default function LanguageToggle() {
       onClick={toggleLanguage}
       title={next === 'en' ? t('nav.switchToEnglish') : t('nav.switchToPortuguese')}
       aria-label={t('nav.language')}
-      className="flex items-center space-x-2 py-2 px-3 rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-brand-primary transition-all"
+      className="inline-flex items-center gap-1.5 h-9 px-2.5 rounded-[10px] border border-slate-200 bg-white text-slate-500 hover:text-brand-dark hover:border-slate-400 transition-colors"
     >
       <Languages className="w-4 h-4" />
-      <span className="text-[10px] font-black uppercase tracking-widest leading-none">
+      <span className="text-label font-medium leading-none">
         {LANGUAGE_LABELS[language].short}
       </span>
     </button>
