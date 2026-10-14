@@ -69,13 +69,13 @@ export function ListaSinais({
 
               <span className="w-10 shrink-0 pt-0.5 text-center">
                 <span
-                  className={`block font-heading text-[20px] font-black leading-none ${
+                  className={`block leading-none text-title font-bold${
                     s.score >= 80 ? 'text-psops-tinta' : 'text-psops-muted'
                   }`}
                 >
                   {s.score}
                 </span>
-                <span className="mt-1 block text-[8px] font-black uppercase tracking-widest text-psops-muted opacity-70">
+                <span className="mt-1 block text-caption font-medium text-psops-muted opacity-70">
                   {t('psops.triagem.score')}
                 </span>
               </span>

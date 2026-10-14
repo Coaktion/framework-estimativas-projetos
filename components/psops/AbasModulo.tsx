@@ -32,7 +32,7 @@ export function AbasModulo() {
             key={aba.href}
             href={aba.href}
             aria-current={ativa ? 'page' : undefined}
-            className={`rounded-xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest transition-all ${
+            className={`rounded-xl px-4 py-2.5 text-label font-medium transition-all ${
               ativa
                 ? 'bg-psops-surf1 text-psops-tinta ring-1 ring-psops-linha'
                 : 'text-psops-muted hover:text-psops-texto'

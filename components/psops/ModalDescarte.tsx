@@ -46,10 +46,10 @@ export function ModalDescarte({
           if (e.target === e.currentTarget) onCancelar();
         }}
       >
-        <div className="psops w-full max-w-[520px] rounded-[2rem] border border-psops-linha bg-psops-surf1 p-7">
+        <div className="psops w-full max-w-[520px] rounded-3xl border border-psops-linha bg-psops-surf1 p-7">
           <h2
             id="psops-titulo-descarte"
-            className="mb-2 font-heading text-lg font-black uppercase tracking-tight text-psops-texto"
+            className="mb-2 text-psops-texto text-title font-bold"
           >
             {t('psops.descarte.titulo')}
           </h2>

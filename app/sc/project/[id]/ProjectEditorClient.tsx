@@ -101,19 +101,19 @@ const BREAKDOWN_VARIABLE_COLUMNS = [
     key: 'discovery' as const,
     labelKey: 'ae.discovery',
     shortKey: 'ae.discovery',
-    textClass: 'text-amber-600',
-    dotClass: 'bg-amber-500',
+    textClass: 'text-brand-dark',
+    dotClass: 'bg-[#a9e29a]',
     chipClass:
-      'border-amber-200 dark:border-amber-500/30 bg-amber-50/70 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300',
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)]',
   },
   {
     key: 'validation' as const,
     labelKey: 'ae.validation',
     shortKey: 'ae.validation',
-    textClass: 'text-blue-600',
-    dotClass: 'bg-blue-500',
+    textClass: 'text-brand-dark',
+    dotClass: 'bg-[#2f7a2a]',
     chipClass:
-      'border-blue-200 dark:border-blue-500/30 bg-blue-50/70 dark:bg-blue-500/10 text-blue-700 dark:text-blue-300',
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)]',
   },
   {
     key: 'gp' as const,
@@ -122,7 +122,7 @@ const BREAKDOWN_VARIABLE_COLUMNS = [
     textClass: 'text-brand-secondary dark:text-[color:var(--secondary)]',
     dotClass: 'bg-brand-secondary',
     chipClass:
-      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[#141414] text-brand-secondary dark:text-[color:var(--secondary)]',
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-brand-secondary dark:text-[color:var(--secondary)]',
   },
 ];
 
@@ -152,10 +152,10 @@ function BreakdownCell({
   const tone = muted ? 'text-slate-400 dark:text-[color:var(--text-muted)]' : className;
   return (
     <span className="flex items-baseline justify-end gap-1 shrink-0">
-      <span className="md:hidden text-[7px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-[color:var(--text-muted)]">
+      <span className="md:hidden text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
         {t(labelKey)}
       </span>
-      <span className={`${small ? 'text-[9px]' : 'text-[10px]'} font-black tabular-nums ${tone}`}>
+      <span className={`${small ? 'text-caption' : 'text-label'} font-medium tabular-nums ${tone}`}>
         {prefix}{Number(value || 0).toFixed(1)}
       </span>
     </span>
@@ -1959,26 +1959,26 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return (
       <div className="space-y-8 pb-12 animate-in fade-in duration-500">
         {/* Header AE */}
-        <div className="bg-white p-8 rounded-[2rem] border border-slate-300 shadow-sm">
+        <div className="bg-white p-8 rounded-3xl border border-slate-300 shadow-sm">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
             <div className="space-y-3">
               <div className="flex items-center space-x-4">
-                <div className="bg-purple-600 p-2 rounded-xl shadow-lg shadow-purple-900/10">
-                  <Zap className="w-5 h-5 text-white" />
+                <div className="bg-brand-soft text-brand-soft-fg p-2 rounded-xl">
+                  <Zap className="w-5 h-5" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-black text-brand-dark tracking-tighter font-heading uppercase">{project.name}</h1>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t('editor.clientFolder')}</p>
+                  <h1 className="text-brand-dark font-heading text-section ">{project.name}</h1>
+                  <p className="text-label font-medium text-slate-400 ">{t('editor.clientFolder')}</p>
                 </div>
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">{t('editor.selectedSimulation')}</span>
+                <span className="text-caption font-medium text-slate-400 pl-2">{t('editor.selectedSimulation')}</span>
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
                     onChange={(e) => router.push(`/sc/project/${project.id}?version_id=${e.target.value}`)}
-                    className="bg-white border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
+                    className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {allVersions.map((v: any) => (
                       <option key={v.id} value={v.id}>{v.versionName}</option>
@@ -1992,7 +1992,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             <div className="flex items-center gap-3 w-full lg:w-auto">
               <Link 
                 href={`/ae?client=${encodeURIComponent(project.name)}`}
-                className="flex-1 lg:flex-none bg-brand-primary text-white px-8 py-4 rounded-2xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center space-x-3 text-[11px] uppercase tracking-widest"
+                className="flex-1 lg:flex-none bg-brand-primary text-brand-ink px-8 py-4 rounded-2xl font-medium hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center space-x-3 text-label "
               >
                 <Plus className="w-4 h-4" />
                 <span>{t('editor.newEstimate')}</span>
@@ -2004,37 +2004,37 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         {/* AE Summary Content */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-xl shadow-slate-200/50 space-y-10">
+            <div className="bg-white p-10 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 space-y-10">
               <div className="flex items-center space-x-4 border-b border-slate-50 pb-6">
                 <div className="bg-slate-100 p-3 rounded-2xl text-slate-400">
                   <Layout className="w-6 h-6" />
                 </div>
-                <h3 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('editor.configSummary')}</h3>
+                <h3 className="text-xl font-bold text-brand-dark tracking-tight">{t('editor.configSummary')}</h3>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.agents')}</span>
-                  <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.agents || 0}</div>
+                  <span className="text-label font-medium text-slate-400 block">{t('editor.agents')}</span>
+                  <div className="text-3xl font-bold text-brand-dark ">{aeData.agents || 0}</div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.brands')}</span>
-                  <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.brands || 0}</div>
+                  <span className="text-label font-medium text-slate-400 block">{t('editor.brands')}</span>
+                  <div className="text-3xl font-bold text-brand-dark ">{aeData.brands || 0}</div>
                 </div>
                 <div className="space-y-2">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.clientAreas')}</span>
-                  <div className="text-3xl font-black text-brand-dark tracking-tighter">{aeData.areas || 0}</div>
+                  <span className="text-label font-medium text-slate-400 block">{t('editor.clientAreas')}</span>
+                  <div className="text-3xl font-bold text-brand-dark ">{aeData.areas || 0}</div>
                 </div>
               </div>
 
               <div className="space-y-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">{t('editor.activeChannels')}</span>
+                <span className="text-label font-medium text-slate-400 block">{t('editor.activeChannels')}</span>
                 <div className="flex flex-wrap gap-2">
                   {aeData.channels?.length > 0 ? aeData.channels.map((c: string) => (
-                    <span key={c} className="bg-brand-primary/10 text-brand-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-brand-primary/20">
+                    <span key={c} className="bg-brand-primary/10 text-brand-primary px-4 py-2 rounded-xl text-label font-medium border border-brand-primary/20">
                       {c}
                     </span>
-                  )) : <span className="text-slate-300 italic text-xs">{t('editor.noChannelSelected')}</span>}
+                  )) : <span className="text-slate-300 italic text-label">{t('editor.noChannelSelected')}</span>}
                 </div>
               </div>
 
@@ -2049,33 +2049,33 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 ].map((feat) => (
                   <div key={feat.label} className={`p-4 rounded-2xl border flex items-center space-x-3 ${feat.active ? 'bg-emerald-50 border-emerald-100 text-emerald-700' : 'bg-slate-50 border-slate-100 text-slate-300'}`}>
                     <feat.icon className="w-4 h-4" />
-                    <span className="text-[9px] font-black uppercase tracking-widest">{feat.label}</span>
+                    <span className="text-caption font-medium ">{feat.label}</span>
                   </div>
                 ))}
               </div>
 
               {aeData.hasCopilot && (
-                <div className="bg-purple-50 border border-purple-100 p-6 rounded-[2rem] flex items-center justify-between">
+                <div className="bg-slate-100 border border-slate-200 p-6 rounded-3xl flex items-center justify-between">
                   <div className="flex items-center space-x-4">
-                    <div className="bg-purple-600 p-2.5 rounded-xl text-white">
+                    <div className="bg-brand-soft text-brand-soft-fg p-2.5 rounded-xl">
                       <MessageSquare className="w-5 h-5" />
                     </div>
                     <div>
-                      <span className="text-[10px] font-black text-purple-400 uppercase tracking-widest block">{t('editor.zendeskCopilot')}</span>
-                      <span className="text-xs font-black text-purple-700 uppercase tracking-widest">
+                      <span className="text-label font-medium text-brand-dark block">{t('editor.zendeskCopilot')}</span>
+                      <span className="text-label font-medium text-brand-dark ">
                         {aeData.copilotType === 'with_api' ? t('editor.withExternalConnection') : t('editor.withoutExternalConnection')}
                       </span>
                     </div>
                   </div>
-                  <CheckCircle2 className="w-6 h-6 text-purple-600" />
+                  <CheckCircle2 className="w-6 h-6 text-brand-dark" />
                 </div>
               )}
             </div>
           </div>
 
           <div className="space-y-8">
-            <div className={`p-10 rounded-[3rem] shadow-2xl relative overflow-hidden text-center space-y-8 ${
-              formData.needsSC ? 'bg-amber-50 border-4 border-amber-200' : 'bg-brand-dark text-white'
+            <div className={`p-10 rounded-3xl shadow-2xl relative overflow-hidden text-center space-y-8 ${
+              formData.needsSC ? 'bg-amber-50 border-4 border-amber-200' : 'bg-brand-dark text-[color:var(--bg-main)]'
             }`}>
               <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
                 {formData.needsSC ? <AlertTriangle className="w-32 h-32 text-amber-500" /> : <ShieldCheck className="w-32 h-32 text-white" />}
@@ -2084,26 +2084,26 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <div className="relative z-10 space-y-6">
                 <div className="flex flex-col items-center space-y-3">
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-xl ${
-                    formData.needsSC ? 'bg-amber-200 text-amber-700' : 'brand-bg-primary text-white'
+                    formData.needsSC ? 'bg-amber-200 text-amber-700' : 'brand-bg-primary text-brand-ink'
                   }`}>
                     {formData.needsSC ? <AlertTriangle className="w-6 h-6" /> : <CheckCircle2 className="w-6 h-6" />}
                   </div>
-                  <h3 className={`text-[10px] font-black uppercase tracking-[0.2em] ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
+                  <h3 className={`text-label font-medium ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
                     {t('editor.calculatedEffort')}
                   </h3>
                 </div>
 
                 <div className="space-y-1">
-                  <div className={`text-6xl font-black tracking-tighter ${formData.needsSC ? 'text-amber-700' : 'text-brand-accent'}`}>
+                  <div className={`text-6xl font-bold ${formData.needsSC ? 'text-amber-700' : 'text-brand-accent'}`}>
                     {formData.needsSC ? t('editor.consultSC') : `${(formData.resultHours || 0).toFixed(0)}H`}
                   </div>
-                  <p className={`text-xs font-bold uppercase tracking-widest ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
+                  <p className={`text-label font-medium ${formData.needsSC ? 'text-amber-600' : 'text-slate-400'}`}>
                     {formData.needsSC ? t('editor.needsSCSupport') : t('editor.totalEstimated')}
                   </p>
                 </div>
 
                 {!formData.needsSC && (
-                  <div className="pt-6 border-t border-white/10 flex items-center justify-center space-x-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                  <div className="pt-6 border-t border-white/10 flex items-center justify-center space-x-3 text-label font-medium text-slate-400">
                     <span>Inclui GP ({((variables?.find((v:any)=>v.key==='AE_GP_PERCENTAGE')?.value || 0.15)*100).toFixed(0)}%)</span>
                   </div>
                 )}
@@ -2118,7 +2118,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   return (
     <form className="space-y-8 pb-12" onSubmit={(e) => e.preventDefault()}>
       {/* Header: Project Controls */}
-      <div className="bg-white p-8 rounded-[2rem] border border-slate-300 mb-8 shadow-sm">
+      <div className="bg-white p-8 rounded-3xl border border-slate-300 mb-8 shadow-sm">
         <div className="flex flex-col space-y-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 border-b border-slate-50 pb-6">
             <div className="space-y-3">
@@ -2126,16 +2126,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="brand-bg-primary p-2 rounded-xl shadow-lg shadow-green-900/10">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-2xl font-black text-brand-dark tracking-tighter font-heading uppercase">{project.name}</h1>
+                <h1 className="text-brand-dark font-heading text-section ">{project.name}</h1>
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2">{t('editor.activeVersion')}</span>
+                <span className="text-caption font-medium text-slate-400 pl-2">{t('editor.activeVersion')}</span>
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
                     onChange={(e) => router.push(`/sc/project/${project.id}?version_id=${e.target.value}`)}
-                    className="bg-white border border-slate-200 rounded-lg text-[9px] font-black uppercase tracking-widest p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
+                    className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
                     {allVersions.map((v: any) => (
@@ -2152,7 +2152,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 type="button" 
                 onClick={handleSave}
                 disabled={isPending}
-                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 bg-brand-primary text-white px-4 lg:px-6 py-3.5 rounded-xl font-black hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden"
+                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 bg-brand-primary text-brand-ink px-4 lg:px-6 py-3.5 rounded-xl font-medium hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden"
               >
                 {isPending ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Check className="w-3.5 h-3.5 shrink-0" />}
                 <span className="truncate">{t('common.save')}</span>
@@ -2161,7 +2161,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 type="button" 
                 onClick={handleClone}
                 disabled={isPending || !currentVersion}
-                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 border-2 border-brand-primary text-brand-primary px-4 lg:px-6 py-3.5 rounded-xl font-black hover:bg-brand-primary hover:text-white transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden"
+                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 border-2 border-brand-primary text-brand-primary px-4 lg:px-6 py-3.5 rounded-xl font-medium hover:bg-brand-primary hover:text-brand-ink transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden"
               >
                 <Copy className="w-3.5 h-3.5 shrink-0" />
                 <span className="truncate">{t('editor.clone')}</span>
@@ -2174,10 +2174,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 onClick={handleCopyScopePrompt}
                 disabled={isPending || !currentVersion}
                 title={currentVersion ? t('editor.copyScopePromptHint') : t('editor.scopePromptNeedsSave')}
-                className={`shrink-1 min-w-0 lg:flex-none lg:shrink-0 px-4 lg:px-6 py-3.5 rounded-xl font-black transition-all flex items-center justify-center gap-2 text-[10px] uppercase tracking-widest disabled:opacity-50 overflow-hidden ${
+                className={`shrink-1 min-w-0 lg:flex-none lg:shrink-0 px-4 lg:px-6 py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden ${
                   scopePromptCopied
-                    ? 'bg-brand-primary text-white'
-                    : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white'
+                    ? 'bg-brand-primary text-brand-ink'
+                    : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]'
                 }`}
               >
                 {scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
@@ -2188,22 +2188,22 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 pt-8 border-t border-slate-200 dark:border-[color:var(--border-main)]">
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('plans.sku')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('plans.sku')}</label>
               <select
                 value={skuType}
                 onChange={(e) => setSkuType(normalizeSkuType(e.target.value))}
-                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-black uppercase tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-medium tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
               >
                 <option value="CS">{t('plans.customerService')}</option>
                 <option value="ES">{t('plans.employeeService')}</option>
               </select>
             </div>
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('plans.tier')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('plans.tier')}</label>
               <select
                 value={planTier}
                 onChange={(e) => setPlanTier(normalizePlanTier(e.target.value))}
-                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-black uppercase tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-medium tracking-tight focus:ring-2 focus:ring-brand-primary outline-none transition-all"
               >
                 {ZENDESK_PLANS.map((plan) => (
                   <option key={plan} value={plan}>{PLAN_LABEL[plan]}</option>
@@ -2211,14 +2211,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </select>
             </div>
             <div className="md:col-span-2 space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.deploymentType')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.deploymentType')}</label>
               <div className="flex bg-slate-100 dark:bg-[color:var(--bg-input)] p-1 rounded-xl max-w-md">
                 <button
                   type="button"
                   onClick={() => setDeploymentType('new')}
-                  className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  className={`flex-1 py-2.5 rounded-lg text-caption font-medium transition-all ${
                     deploymentType === 'new'
-                      ? 'bg-brand-primary text-white shadow-sm'
+                      ? 'bg-brand-primary text-brand-ink shadow-sm'
                       : 'text-slate-400 dark:text-[color:var(--text-muted)] hover:text-slate-600'
                   }`}
                 >
@@ -2227,9 +2227,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <button
                   type="button"
                   onClick={() => setDeploymentType('optimization')}
-                  className={`flex-1 py-2.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                  className={`flex-1 py-2.5 rounded-lg text-caption font-medium transition-all ${
                     deploymentType === 'optimization'
-                      ? 'bg-brand-primary text-white shadow-sm'
+                      ? 'bg-brand-primary text-brand-ink shadow-sm'
                       : 'text-slate-400 dark:text-[color:var(--text-muted)] hover:text-slate-600'
                   }`}
                 >
@@ -2238,18 +2238,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </div>
             </div>
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
-              <p className="text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+              <p className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
                 {t('plans.filterHint')}
               </p>
               {planExcludedCount > 0 && (
-                <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[8px] font-black uppercase tracking-widest">
+                <span className="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-caption font-medium ">
                   {t('plans.excludedCount', { count: planExcludedCount })}
                 </span>
               )}
               {planExcludedCategories.length > 0 && (
                 <span
                   title={planExcludedCategories.map((cat: string) => catLabelOf(cat)).join(' · ')}
-                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-[8px] font-black uppercase tracking-widest"
+                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 border border-rose-100 text-caption font-medium "
                 >
                   {t('plans.excludedCategories', {
                     count: planExcludedCategories.length,
@@ -2262,17 +2262,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.versionIdentification')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
               <input 
                 type="text" 
                 value={versionName}
                 onChange={(e) => setVersionName(e.target.value)}
                 placeholder={t('editor.versionNamePlaceholder')} 
-                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
+                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
               />
             </div>
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.techScopeLink')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.techScopeLink')}</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                   <LinkIcon className="w-4 h-4" />
@@ -2282,12 +2282,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   value={techLink}
                   onChange={(e) => setTechLink(e.target.value)}
                   placeholder="https://docs.google.com/..." 
-                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
                 />
               </div>
             </div>
             <div className="space-y-2">
-              <label className="block text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] ml-1">{t('editor.requestLink')}</label>
+              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.requestLink')}</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                   <Search className="w-4 h-4" />
@@ -2297,7 +2297,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   value={zohoLink}
                   onChange={(e) => setZohoLink(e.target.value)}
                   placeholder="https://crm.zoho.com/..." 
-                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-xs font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
+                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
                 />
               </div>
             </div>
@@ -2306,15 +2306,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       </div>
 
       {/* Area Selection */}
-      <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] p-10 rounded-[2.5rem] border border-slate-300 shadow-sm">
+      <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] p-10 rounded-3xl border border-slate-300 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
           <div className="flex items-center space-x-4">
-            <div className="brand-bg-primary p-2.5 rounded-2xl shadow-lg shadow-green-900/10 text-white">
+            <div className="brand-bg-primary p-2.5 rounded-2xl shadow-lg shadow-green-900/10 text-brand-ink">
               <Layout className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="text-2xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading tracking-tight uppercase">{t('editor.projectModules')}</h3>
-              <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-[10px] font-bold uppercase tracking-widest mt-1">{t('editor.projectModulesHint')}</p>
+              <h3 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section ">{t('editor.projectModules')}</h3>
+              <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-label font-medium mt-1">{t('editor.projectModulesHint')}</p>
             </div>
           </div>
           <div className="flex items-center space-x-2">
@@ -2328,27 +2328,27 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <Settings className="w-4 h-4" />
               </button>
               {showPresets && (
-                <div className="absolute right-0 mt-2 w-72 bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-2xl p-6 z-[60] space-y-4 animate-in fade-in slide-in-from-top-2 backdrop-blur-none">
+                <div className="absolute right-0 mt-2 w-72 bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-2xl p-6 z-[60] space-y-4 animate-in fade-in slide-in-from-top-2 backdrop-blur-none">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">{t('editor.myPresets')}</h4>
+                    <h4 className="text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)]">{t('editor.myPresets')}</h4>
                     <Users className="w-3 h-3 text-slate-300 dark:text-[color:var(--text-muted)]" />
                   </div>
                   
                   <div className="space-y-2 max-h-40 overflow-y-auto">
                     {presets.length === 0 ? (
                       <div className="py-6 text-center">
-                        <p className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] uppercase leading-relaxed">{t('editor.noPresets')}</p>
+                        <p className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">{t('editor.noPresets')}</p>
                       </div>
                     ) : (
                       presets.map((p: any, i: number) => (
                         <div key={i} className="flex items-center gap-2 group/preset">
                           <button
                             onClick={() => applyPreset(p)}
-                            className="flex-1 text-left p-3 rounded-xl hover:bg-[#F0F7F3] dark:hover:bg-[color:var(--bg-input-solid)] border border-transparent hover:border-slate-100 dark:hover:border-[color:var(--border-main)] text-[10px] font-bold text-brand-dark dark:text-[color:var(--text-main)] uppercase transition-all flex items-center justify-between"
+                            className="flex-1 text-left p-3 rounded-xl hover:bg-[color:var(--bg-input)] dark:hover:bg-[color:var(--bg-input-solid)] border border-transparent hover:border-slate-100 dark:hover:border-[color:var(--border-main)] text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] transition-all flex items-center justify-between"
                           >
                             <div className="flex flex-col">
                               <span>{packageName(p, language)}</span>
-                              <span className="text-[7px] text-slate-300 dark:text-[color:var(--text-muted)] font-black">{Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0} itens ocultos</span>
+                              <span className="text-caption text-slate-300 dark:text-[color:var(--text-muted)] font-medium">{Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0} itens ocultos</span>
                             </div>
                             <Check className="w-3 h-3 text-emerald-500 opacity-0 group-hover/preset:opacity-100 transition-opacity" />
                           </button>
@@ -2366,23 +2366,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                   <div className="pt-4 border-t border-slate-100 dark:border-[color:var(--border-main)] space-y-3">
                     <div>
-                      <label className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest mb-1.5 block ml-1">{t('editor.saveCurrentConfig')}</label>
+                      <label className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] mb-1.5 block ml-1">{t('editor.saveCurrentConfig')}</label>
                       <input 
                         type="text" 
                         value={presetName}
                         onChange={(e) => setPresetName(e.target.value)}
                         placeholder={t('editor.presetNamePlaceholder')}
-                        className="w-full bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)]! dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                        className="w-full bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)]! dark:text-[color:var(--text-main)] dark:placeholder:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-2.5 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                       />
                     </div>
                     <button 
                       onClick={handleSavePreset}
-                      className="w-full bg-brand-primary text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-green-900/10 hover:opacity-90 transition-all flex items-center justify-center space-x-2"
+                      className="w-full bg-brand-primary text-brand-ink py-3 rounded-xl text-caption font-medium shadow-lg shadow-green-900/10 hover:opacity-90 transition-all flex items-center justify-center space-x-2"
                     >
                       <Save className="w-3 h-3" />
                       <span>{t('editor.savePreset')}</span>
                     </button>
-                    <p className="text-[7px] text-slate-400 dark:text-[color:var(--text-muted)] text-center font-bold uppercase tracking-widest">{t('editor.presetsPrivateNote')}</p>
+                    <p className="text-caption text-slate-400 dark:text-[color:var(--text-muted)] text-center font-medium ">{t('editor.presetsPrivateNote')}</p>
                   </div>
                 </div>
               )}
@@ -2396,16 +2396,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <button
                 type="button"
                 onClick={() => setIsModuleSelectOpen((v) => !v)}
-                className="w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] px-5 py-4 rounded-3xl border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-sm hover:shadow-xl flex items-center justify-between gap-4"
+                className="w-full bg-white dark:bg-[color:var(--bg-card-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] px-5 py-4 rounded-3xl border border-slate-300 hover:border-brand-primary transition-all duration-500 shadow-sm hover:shadow-xl flex items-center justify-between gap-4"
               >
                 <div className="flex flex-col items-start">
-                  <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">{t('editor.projectModules')}</span>
-                  <span className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight mt-1">
+                  <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.projectModules')}</span>
+                  <span className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] tracking-tight mt-1">
                     {t('editor.selectModules')}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+                  <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length}
                   </span>
                   <ChevronDown className={`w-4 h-4 text-slate-400 dark:text-[color:var(--text-muted)] transition-transform ${isModuleSelectOpen ? 'rotate-180' : ''}`} />
@@ -2413,7 +2413,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </button>
 
               {isModuleSelectOpen && (
-                <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-300 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-none">
+                <div className="absolute z-50 mt-2 w-full bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-300 rounded-3xl shadow-2xl overflow-hidden backdrop-blur-none">
                   <div className="max-h-[360px] overflow-auto divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
                     {visibleCategories.map((cat: string, index: number) => {
                       const isChecked = formData[`check_area_${cat}`] === 'on';
@@ -2425,21 +2425,21 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             setCategoryChecked(cat, !isChecked);
                             setShowHiddenTab(false);
                           }}
-                          className="w-full px-4 py-3 hover:bg-[#F0F7F3] dark:hover:bg-[color:var(--bg-input-solid)] transition-colors flex items-center justify-between gap-3"
+                          className="w-full px-4 py-3 hover:bg-[color:var(--bg-input)] dark:hover:bg-[color:var(--bg-input-solid)] transition-colors flex items-center justify-between gap-3"
                         >
                           <div className="flex items-center gap-3">
                             <div className={`w-8 h-8 rounded-2xl border flex items-center justify-center transition-colors ${
                               isChecked
-                                ? 'brand-bg-primary border-brand-primary text-white'
-                                : 'bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border-slate-200 text-slate-300'
+                                ? 'brand-bg-primary border-brand-primary text-brand-ink'
+                                : 'bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border-slate-200 text-slate-300'
                             }`}>
                               <Check className="w-4 h-4" />
                             </div>
                             <div className="flex flex-col items-start">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-brand-dark dark:text-[color:var(--text-main)]">
+                              <span className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                                 {catLabelOf(cat)}
                               </span>
-                              <span className="text-[8px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)] mt-0.5">
+                              <span className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] mt-0.5">
                                 {isChecked ? t('common.selected') : t('common.notSelected')}
                               </span>
                             </div>
@@ -2453,7 +2453,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 void reorderCategory(cat, 'up');
                               }}
                               disabled={index === 0}
-                              className="p-2 rounded-2xl bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                              className="p-2 rounded-2xl bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
                               title={t('editor.moveCategoryUp')}
                             >
                               <ChevronDown className="w-3 h-3 rotate-180" />
@@ -2465,7 +2465,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 void reorderCategory(cat, 'down');
                               }}
                               disabled={index === visibleCategories.length - 1}
-                              className="p-2 rounded-2xl bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                              className="p-2 rounded-2xl bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
                               title={t('editor.moveCategoryDown')}
                             >
                               <ChevronDown className="w-3 h-3" />
@@ -2482,22 +2482,22 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             <button
               type="button"
               onClick={() => setShowHiddenTab(!showHiddenTab)}
-              className={`w-full sm:w-auto bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] px-5 py-4 rounded-3xl border transition-all duration-500 shadow-sm hover:shadow-xl flex items-center justify-between sm:justify-start gap-4 ${
+              className={`w-full sm:w-auto bg-white dark:bg-[color:var(--bg-card-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] px-5 py-4 rounded-3xl border transition-all duration-500 shadow-sm hover:shadow-xl flex items-center justify-between sm:justify-start gap-4 ${
                 showHiddenTab ? 'border-red-500' : 'border-slate-300 hover:border-red-500/60'
               }`}
             >
               <div className={`w-8 h-8 rounded-2xl flex items-center justify-center border transition-colors ${
                 showHiddenTab
                   ? 'bg-red-500 border-red-500 text-white'
-                  : 'bg-[#F0F7F3] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border-slate-200 text-slate-400'
+                  : 'bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border-slate-200 text-slate-400'
               }`}>
                 <EyeOff className="w-4 h-4" />
               </div>
               <div className="flex flex-col items-start">
-                <span className="text-[8px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.3em]">{t('editor.visibility')}</span>
-                <span className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight mt-1">{t('editor.hiddenItemsShort')}</span>
+                <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.visibility')}</span>
+                <span className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] tracking-tight mt-1">{t('editor.hiddenItemsShort')}</span>
               </div>
-              <span className={`ml-auto sm:ml-0 text-[9px] font-black uppercase tracking-widest ${
+              <span className={`ml-auto sm:ml-0 text-caption font-medium ${
                 showHiddenTab ? 'text-red-500' : 'text-slate-400 dark:text-[color:var(--text-muted)]'
               }`}>
                 {hiddenItems.length}
@@ -2507,7 +2507,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           <div className="flex flex-wrap gap-2">
             {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
-              <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400">
+              <div className="text-caption font-medium text-slate-400">
                 {t('editor.noModuleSelected')}
               </div>
             ) : (
@@ -2518,7 +2518,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     key={cat}
                     type="button"
                     onClick={() => setCategoryChecked(cat, false)}
-                    className="inline-flex items-center gap-2 bg-brand-primary text-white px-3 py-1.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-sm hover:opacity-90 transition-all"
+                    className="inline-flex items-center gap-2 bg-brand-primary text-brand-ink px-3 py-1.5 rounded-2xl text-caption font-medium shadow-sm hover:opacity-90 transition-all"
                     title={t('editor.removeModule')}
                   >
                     <span>{catLabelOf(cat)}</span>
@@ -2530,7 +2530,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
 
         <div className="mt-6 relative">
-          <div className="flex items-center gap-3 bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-3 bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl px-4 py-3 shadow-sm">
             <Search className="w-4 h-4 text-slate-300 dark:text-[color:var(--text-muted)]" />
             <input
               value={searchQuery}
@@ -2541,14 +2541,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               onFocus={() => setIsSearchOpen(true)}
               onBlur={() => setTimeout(() => setIsSearchOpen(false), 150)}
               placeholder={t('editor.searchPlaceholder')}
-              className="w-full bg-transparent outline-none text-[11px] font-bold text-brand-dark dark:text-[color:var(--text-main)] placeholder:text-slate-300 dark:placeholder:text-[color:var(--text-muted)]"
+              className="w-full bg-transparent outline-none text-label font-bold text-brand-dark dark:text-[color:var(--text-main)] placeholder:text-slate-300 dark:placeholder:text-[color:var(--text-muted)]"
             />
           </div>
 
           {isSearchOpen && searchQuery.trim() && (
-            <div className="absolute z-50 mt-2 w-full bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-xl overflow-hidden backdrop-blur-none">
+            <div className="absolute z-50 mt-2 w-full bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-2xl shadow-xl overflow-hidden backdrop-blur-none">
               {searchResults.length === 0 ? (
-                <div className="px-4 py-3 text-[10px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">
+                <div className="px-4 py-3 text-label font-medium text-slate-300 dark:text-[color:var(--text-muted)]">
                   {t('editor.noResults')}
                 </div>
               ) : (
@@ -2559,31 +2559,31 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       type="button"
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => void goToSearchResult(r)}
-                      className="w-full text-left px-4 py-3 hover:bg-[#F0F7F3] dark:hover:bg-[color:var(--bg-input-solid)] transition-colors"
+                      className="w-full text-left px-4 py-3 hover:bg-[color:var(--bg-input)] dark:hover:bg-[color:var(--bg-input-solid)] transition-colors"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex flex-col">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-brand-dark dark:text-[color:var(--text-main)]">
+                          <div className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                             {r.label}
                           </div>
                           {r.subtitle && (
-                            <div className="text-[8px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)] mt-0.5">
+                            <div className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] mt-0.5">
                               {r.subtitle}
                             </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
                           {r.type === 'category' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.category')}</span>
+                            <span className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.category')}</span>
                           )}
                           {r.type === 'subcategory' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('editor.subcategory')}</span>
+                            <span className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)]">{t('editor.subcategory')}</span>
                           )}
                           {r.type === 'item' && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.item')}</span>
+                            <span className="text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)]">{t('common.item')}</span>
                           )}
                           {r.isHidden && (
-                            <span className="text-[7px] font-black uppercase tracking-widest text-red-400">{t('common.hidden')}</span>
+                            <span className="text-caption font-medium text-red-400">{t('common.hidden')}</span>
                           )}
                         </div>
                       </div>
@@ -2600,15 +2600,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       <div className="space-y-6">
         {/* Renderização da aba de itens ocultos */}
         {showHiddenTab && (
-          <div className="bg-white rounded-[2rem] border-2 border-red-100 shadow-xl shadow-red-900/5 overflow-hidden transition-all duration-300">
+          <div className="bg-white rounded-3xl border-2 border-red-100 shadow-xl shadow-red-900/5 overflow-hidden transition-all duration-300">
             <div className="bg-red-50/50 px-8 py-5 border-b border-red-100 flex justify-between items-center">
               <div className="flex items-center space-x-4">
                 <div className="w-8 h-8 bg-red-500 rounded-xl flex items-center justify-center text-white shadow-sm">
                   <EyeOff className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-black text-red-700 font-heading uppercase tracking-tight">{t('editor.hiddenItems')}</h3>
-                  <p className="text-[8px] font-bold text-red-400 uppercase tracking-widest">{t('editor.hiddenItemsHint')}</p>
+                  <h3 className="text-red-700 text-title font-bold">{t('editor.hiddenItems')}</h3>
+                  <p className="text-caption font-medium text-red-400 ">{t('editor.hiddenItemsHint')}</p>
                 </div>
               </div>
               <button 
@@ -2625,16 +2625,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto text-slate-200">
                     <CheckCircle2 className="w-6 h-6" />
                   </div>
-                  <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{t('editor.noHiddenItems')}</p>
+                  <p className="text-label font-medium text-slate-300 ">{t('editor.noHiddenItems')}</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full">
                     <thead>
                       <tr className="border-b border-slate-100">
-                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.item')}</th>
-                        <th className="pb-3 text-left text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.category')}</th>
-                        <th className="pb-3 text-right text-[7px] font-black text-slate-400 uppercase tracking-[0.2em]">{t('common.actions')}</th>
+                        <th className="pb-3 text-left text-caption font-medium text-slate-400 ">{t('common.item')}</th>
+                        <th className="pb-3 text-left text-caption font-medium text-slate-400 ">{t('common.category')}</th>
+                        <th className="pb-3 text-right text-caption font-medium text-slate-400 ">{t('common.actions')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -2643,11 +2643,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                         .map((p: any) => (
                           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
                             <td className="py-4">
-                              <div className="font-black text-brand-dark text-xs tracking-tight uppercase">{packageName(p, language)}</div>
-                              <div className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">{p.skillName || p.skill}</div>
+                              <div className="font-medium text-brand-dark text-label tracking-tight ">{packageName(p, language)}</div>
+                              <div className="text-caption text-slate-400 font-medium ">{p.skillName || p.skill}</div>
                             </td>
                             <td className="py-4">
-                    <span className="text-[8px] bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">
+                    <span className="text-caption bg-slate-100 text-slate-500 px-2 py-1 rounded-lg font-medium ">
                       {catLabelOf(p.categoryName)}
                     </span>
                             </td>
@@ -2655,7 +2655,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                               <button 
                                 type="button"
                                 onClick={() => toggleHideItem(p.id)}
-                                className="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg text-[8px] font-black uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all"
+                                className="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-lg text-caption font-medium hover:bg-emerald-600 hover:text-white transition-all"
                               >
                                 <Eye className="w-3 h-3" />
                                 <span>{t('editor.unhide')}</span>
@@ -2673,19 +2673,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
         {visibleCategories.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
-            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-[2rem] border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
+            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
               <div 
                 className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] px-8 py-5 border-b border-slate-50 flex justify-between items-center cursor-pointer select-none group"
                 onClick={() => toggleSection(cat)}
               >
                 <div className="flex items-center space-x-4">
-                  <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-white shadow-sm group-hover:scale-105 transition-transform">
+                  <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-brand-ink shadow-sm group-hover:scale-105 transition-transform">
                     <Box className="w-4 h-4" />
                   </div>
-                  <h3 className="text-base font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tight">{catLabelOf(cat)}</h3>
+                  <h3 className="text-brand-dark dark:text-[color:var(--text-main)] text-title font-bold">{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center space-x-2 text-slate-400 dark:text-[color:var(--text-muted)] group-hover:text-brand-primary transition-colors">
-                  <span className="text-[9px] font-black uppercase tracking-[0.15em]">{t('editor.configureItems')}</span>
+                  <span className="text-caption font-medium ">{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
               </div>
@@ -2696,12 +2696,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     <table className="min-w-full">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-[color:var(--border-main)]">
-                          <th className="pb-3 text-left text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.items')}</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('editor.unitHours')}</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em] w-32">{t('common.quantity')}</th>
-                          <th className="pb-3 text-center text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.organization')}</th>
-                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('editor.manualAdjustment')}</th>
-                          <th className="pb-3 text-right text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-[0.2em]">{t('common.subtotal')}</th>
+                          <th className="pb-3 text-left text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.items')}</th>
+                          <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.unitHours')}</th>
+                          <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] w-32">{t('common.quantity')}</th>
+                          <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>
+                          <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.manualAdjustment')}</th>
+                          <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.subtotal')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
@@ -2714,10 +2714,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 <td colSpan={6} className="py-3 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     <div className="flex items-center gap-2">
-                                      <span className="px-3 py-1 rounded-lg bg-white dark:bg-[color:var(--bg-card)] border border-slate-200 dark:border-[color:var(--border-main)] text-[8px] font-black uppercase tracking-widest text-slate-700 dark:text-[color:var(--text-main)]">
+                                      <span className="px-3 py-1 rounded-lg bg-white dark:bg-[color:var(--bg-card)] border border-slate-200 dark:border-[color:var(--border-main)] text-caption font-medium text-slate-700 dark:text-[color:var(--text-main)]">
                                         {subcategoryLabel(t, subcategory)}
                                       </span>
-                                      <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-[color:var(--text-muted)]">
+                                      <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)]">
                                         {orderedPackages.length} item(ns)
                                       </span>
                                     </div>
@@ -2747,7 +2747,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                               {orderedPackages.length === 0 ? (
                                 <tr key={`${cat}_${subcategory}_empty`} className="bg-white dark:bg-[color:var(--bg-card)]">
-                                  <td colSpan={6} className="py-4 px-4 text-[9px] font-bold uppercase tracking-widest text-slate-300 dark:text-[color:var(--text-muted)] text-center">
+                                  <td colSpan={6} className="py-4 px-4 text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] text-center">
                                     {t('editor.noItemsInSubcategory')}
                                   </td>
                                 </tr>
@@ -2770,7 +2770,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     <tr key={p.id} className="hover:bg-slate-50/20 dark:hover:bg-[color:var(--bg-input)] transition-colors group">
                                       <td className="py-4 pr-4">
                                         <div className="flex items-center space-x-2">
-                                          <div className="font-black text-brand-dark dark:text-[color:var(--text-main)] text-xs mb-0.5 tracking-tight uppercase">{packageName(p, language)}</div>
+                                          <div className="font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label mb-0.5 tracking-tight ">{packageName(p, language)}</div>
                                           <button
                                             type="button"
                                             onClick={() => toggleHideItem(p.id)}
@@ -2781,26 +2781,26 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                           </button>
                                           {packageTooltip(p, language) && (
                                             <div className="group/tooltip relative cursor-help">
-                                              <div className="w-3 h-3 bg-slate-100 dark:bg-[color:var(--bg-input)] text-slate-400 dark:text-[color:var(--text-muted)] rounded-full flex items-center justify-center text-[8px] font-black group-hover/tooltip:bg-brand-primary group-hover/tooltip:text-white transition-colors">?</div>
-                                              <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)] text-[9px] font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
+                                              <div className="w-3 h-3 bg-slate-100 dark:bg-[color:var(--bg-input)] text-slate-400 dark:text-[color:var(--text-muted)] rounded-full flex items-center justify-center text-caption font-medium group-hover/tooltip:bg-brand-primary group-hover/tooltip:text-brand-ink transition-colors">?</div>
+                                              <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 bg-brand-dark text-[color:var(--bg-main)] dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)] text-caption font-bold p-3 rounded-xl w-48 shadow-2xl opacity-0 group-hover/tooltip:opacity-100 transition-all pointer-events-none z-50">
                                                 {packageTooltip(p, language)}
                                               </div>
                                             </div>
                                           )}
                                         </div>
                                         <div className="flex items-center space-x-2 mb-1">
-                                          <span className="text-[8px] bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 py-1 rounded-lg font-black uppercase tracking-widest">{p.skillName || p.skill}</span>
+                                          <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 py-1 rounded-lg font-medium ">{p.skillName || p.skill}</span>
                                           {p.dependsOnItemId && (
-                                            <span className="text-[8px] bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 py-1 rounded-lg font-black uppercase tracking-widest">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
+                                            <span className="text-caption bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 py-1 rounded-lg font-medium ">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
                                           )}
                                         </div>
-                                        <div className="text-[9px] text-slate-400 dark:text-[color:var(--text-muted)] font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
+                                        <div className="text-caption text-slate-400 dark:text-[color:var(--text-muted)] font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
                                           {p.scopeIncluded}
                                         </div>
                                       </td>
-                                      <td className="py-4 text-center text-[10px] font-black text-slate-400 dark:text-[#e8e8e8] tracking-tighter">
+                                      <td className="py-4 text-center text-label font-medium text-slate-400 dark:text-[color:var(--text-main)] ">
                                         <div>{p.hours}</div>
-                                        <div className="text-[8px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
+                                        <div className="text-caption font-bold text-slate-300 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
                                           {formatHoursMinutes(p.hours)}
                                         </div>
                                       </td>
@@ -2813,7 +2813,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             value={formData[`item_${p.id}_qty`] || ''}
                                             onChange={handleInputChange}
                                             onKeyDown={handleKeyDown}
-                                            className="w-16 bg-slate-50 dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[#0a0a0a] outline-none transition-all"
+                                            className="w-16 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all"
                                           />
                                         </div>
                                       </td>
@@ -2822,7 +2822,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                           <select
                                             value={subcategory}
                                             onChange={(e) => void moveItemToSubcategory(cat, itemId, e.target.value)}
-                                            className="bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-[8px] font-black uppercase outline-none"
+                                            className="bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-caption font-medium outline-none"
                                           >
                                             {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((option) => (
                                               <option key={option} value={option}>{option}</option>
@@ -2865,7 +2865,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                                 formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
                                               }`} />
                                             </div>
-                                            <span className="ml-1.5 text-[7px] font-black text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors uppercase tracking-widest">{t('common.manual')}</span>
+                                            <span className="ml-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors ">{t('common.manual')}</span>
                                           </label>
                                           {formData[`item_override_check_${p.id}`] === 'on' && (
                                             <input
@@ -2876,14 +2876,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                               value={formData[`item_override_val_${p.id}`] || ''}
                                               onChange={handleInputChange}
                                               placeholder="0.0"
-                                              className="w-16 bg-purple-50/50 dark:bg-purple-900/20 dark:text-[color:var(--text-main)] dark:border-purple-400/40 border border-purple-100 rounded-lg px-2 py-1 text-[10px] font-black text-right focus:ring-2 focus:ring-brand-secondary outline-none"
+                                              className="w-16 bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-right focus:ring-2 focus:ring-brand-secondary outline-none"
                                             />
                                           )}
                                         </div>
                                       </td>
-                                      <td className="py-4 text-right font-black text-brand-dark dark:text-[color:var(--text-main)] text-xs tracking-tighter">
+                                      <td className="py-4 text-right font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label ">
                                         <div>{rowTotal.toFixed(1)}</div>
-                                        <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
+                                        <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
                                           {formatHoursMinutes(rowTotal)}
                                         </div>
                                       </td>
@@ -2903,19 +2903,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                           return (
                             <tr key={pkg.id} className="bg-white hover:bg-slate-50/20 transition-colors">
-                              <td className="py-4 text-sm align-top pr-4">
+                              <td className="py-4 text-body align-top pr-4">
                                 <input 
                                   type="text" 
                                   value={pkg.name}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'name', e.target.value)}
                                   placeholder={t('editor.customPackageName')} 
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs mb-2 font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-label mb-2 font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                                 />
                                 <div className="flex items-center space-x-2 mb-2">
                                   <select 
                                     value={pkg.skill}
                                     onChange={(e) => updateCustomPackage(pkg.id, 'skill', e.target.value)}
-                                    className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-[9px] font-black uppercase tracking-tight outline-none focus:ring-1 focus:ring-brand-primary"
+                                    className="bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-caption font-medium tracking-tight outline-none focus:ring-1 focus:ring-brand-primary"
                                   >
                                     <option value="Implantação">{t('editor.skillImplementation')}</option>
                                     <option value="GP">{t('editor.skillGP')}</option>
@@ -2929,17 +2929,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     value={pkg.scopeIn}
                                     onChange={(e) => updateCustomPackage(pkg.id, 'scopeIn', e.target.value)}
                                     placeholder={t('editor.included')} rows={1} 
-                                    className="text-[9px] font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
+                                    className="text-caption font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
                                   />
                                   <textarea 
                                     value={pkg.scopeOut}
                                     onChange={(e) => updateCustomPackage(pkg.id, 'scopeOut', e.target.value)}
                                     placeholder={t('editor.notIncluded')} rows={1} 
-                                    className="text-[9px] font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
+                                    className="text-caption font-bold w-1/2 bg-white border border-slate-300 rounded-lg p-2 focus:ring-1 focus:ring-brand-primary outline-none transition-all"
                                   />
                                 </div>
                               </td>
-                              <td className="py-4 text-xs align-top text-center pt-6 font-black text-slate-400 dark:text-[#e8e8e8]">
+                              <td className="py-4 text-label align-top text-center pt-6 font-medium text-slate-400 dark:text-[color:var(--text-main)]">
                                 <input 
                                   type="number" 
                                   min="0"
@@ -2947,24 +2947,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   value={pkg.hours || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'hours', e.target.value)}
                                   placeholder="0.0" 
-                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none"
+                                  className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none"
                                 />
                               </td>
-                              <td className="py-4 text-xs align-top text-center pt-6">
+                              <td className="py-4 text-label align-top text-center pt-6">
                                 <input 
                                   type="number" 
                                   min="0"
                                   value={pkg.qty || ''}
                                   onChange={(e) => updateCustomPackage(pkg.id, 'qty', e.target.value)}
-                                  className="w-16 bg-white dark:bg-[#141414] dark:text-[#ffffff] dark:border-[#1f1f1f] border border-slate-200 rounded-lg px-2 py-1.5 text-xs font-black text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[#0a0a0a] outline-none"
+                                  className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none"
                                 />
                               </td>
                               <td className="py-4 text-center align-top pt-6">
-                                <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-[8px] font-black uppercase tracking-widest text-slate-400">
+                                <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-caption font-medium text-slate-400">
                                   {t('common.custom')}
                                 </span>
                               </td>
-                              <td className="py-4 text-xs align-top text-right pt-6">
+                              <td className="py-4 text-label align-top text-right pt-6">
                                 <div className="flex items-center justify-end space-x-2">
                                   <label className="flex items-center cursor-pointer group/toggle">
                                     <input 
@@ -2980,7 +2980,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         pkg.overrideCheck ? 'translate-x-3.5' : ''
                                       }`} />
                                     </div>
-                                    <span className="ml-2 text-[8px] font-black text-slate-400 group-hover/toggle:text-brand-secondary transition-colors uppercase tracking-widest">{t('common.manual')}</span>
+                                    <span className="ml-2 text-caption font-medium text-slate-400 group-hover/toggle:text-brand-secondary transition-colors ">{t('common.manual')}</span>
                                   </label>
                                   {pkg.overrideCheck && (
                                     <input 
@@ -2990,7 +2990,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       value={pkg.overrideVal || ''}
                                       onChange={(e) => updateCustomPackage(pkg.id, 'overrideVal', e.target.value)}
                                       placeholder={t('common.total')} 
-                                      className="w-16 bg-purple-50 border border-purple-100 rounded-lg px-2 py-1.5 text-[10px] font-black text-right focus:ring-2 focus:ring-brand-secondary outline-none"
+                                      className="w-16 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-right focus:ring-2 focus:ring-brand-secondary outline-none"
                                     />
                                   )}
                                   <button 
@@ -3006,7 +3006,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   </button>
                                 </div>
                               </td>
-                              <td className="py-4 text-sm font-black text-brand-dark align-top pt-6 text-right tracking-tighter">
+                              <td className="py-4 text-body font-bold text-brand-dark align-top pt-6 text-right ">
                                 {total.toFixed(1)}
                               </td>
                             </tr>
@@ -3020,7 +3020,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     <button 
                       type="button" 
                       onClick={() => addCustomPackage(cat)}
-                      className="inline-flex items-center px-5 py-2.5 rounded-xl bg-brand-dark dark:bg-[color:var(--primary)] dark:text-white text-white text-[8px] font-black hover:bg-slate-800 dark:hover:opacity-90 transition-all group uppercase tracking-widest shadow-md"
+                      className="inline-flex items-center px-5 py-2.5 rounded-xl bg-brand-dark dark:bg-[color:var(--primary)] dark:text-brand-ink text-[color:var(--bg-main)] text-caption font-medium hover:opacity-90 dark:hover:opacity-90 transition-all group shadow-md"
                     >
                       <div className="w-5 h-5 bg-brand-primary/20 dark:bg-white/20 rounded-lg flex items-center justify-center mr-2 group-hover:scale-105 transition-transform">
                         <Plus className="w-3 h-3 text-brand-primary dark:text-white" />
@@ -3037,14 +3037,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             <Plus className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-[10px] font-black uppercase tracking-widest text-brand-dark">{t('editor.marketplaceApps')}</h4>
-                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter">{t('editor.marketplaceFlatNote')}</p>
+                            <h4 className="text-label font-medium text-brand-dark">{t('editor.marketplaceApps')}</h4>
+                            <p className="text-caption font-medium text-slate-400 ">{t('editor.marketplaceFlatNote')}</p>
                           </div>
                         </div>
                         <button 
                           type="button"
                           onClick={addMarketplaceApp}
-                          className="bg-brand-primary text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg shadow-green-900/10"
+                          className="bg-brand-primary text-brand-ink px-4 py-2 rounded-xl text-caption font-medium hover:opacity-90 transition-all flex items-center space-x-2 shadow-lg shadow-green-900/10"
                         >
                           <Plus className="w-3 h-3" />
                           <span>{t('editor.addAnotherApp')}</span>
@@ -3056,23 +3056,23 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           <div key={app.id} className="bg-slate-50/50 border border-slate-200 p-4 rounded-2xl flex items-start space-x-4 relative group">
                             <div className="flex-1 space-y-3">
                               <div className="space-y-1">
-                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('editor.appName')}</label>
+                                <label className="text-caption font-medium text-slate-400 ml-1">{t('editor.appName')}</label>
                                 <input 
                                   type="text"
                                   value={app.name}
                                   onChange={(e) => updateMarketplaceApp(app.id, 'name', e.target.value)}
                                   placeholder={t('editor.appNamePlaceholder')}
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                                 />
                               </div>
                               <div className="space-y-1">
-                                <label className="text-[7px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('editor.marketplaceLink')}</label>
+                                <label className="text-caption font-medium text-slate-400 ml-1">{t('editor.marketplaceLink')}</label>
                                 <input 
                                   type="url"
                                   value={app.link}
                                   onChange={(e) => updateMarketplaceApp(app.id, 'link', e.target.value)}
                                   placeholder="https://zendesk.com/marketplace/..."
-                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-[10px] font-black text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
+                                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-medium text-brand-dark focus:ring-2 focus:ring-brand-primary outline-none transition-all"
                                 />
                               </div>
                             </div>
@@ -3083,7 +3083,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                            <div className="absolute top-4 right-14 bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded text-[8px] font-black uppercase">
+                            <div className="absolute top-4 right-14 bg-brand-primary/10 text-brand-primary px-2 py-0.5 rounded text-caption font-medium ">
                               {t('editor.flat5h')}
                             </div>
                           </div>
@@ -3092,9 +3092,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       
                       {marketplaceApps.length > 0 && (
                         <div className="flex justify-end pt-2">
-                          <div className="bg-brand-dark text-white px-4 py-2 rounded-xl flex items-center space-x-3">
-                            <span className="text-[8px] font-black uppercase tracking-widest">{t('editor.marketplaceFlatTotal')}</span>
-                            <span className="text-sm font-black text-brand-accent">{marketplaceApps.length * 5}H</span>
+                          <div className="bg-brand-dark text-[color:var(--bg-main)] px-4 py-2 rounded-xl flex items-center space-x-3">
+                            <span className="text-caption font-medium ">{t('editor.marketplaceFlatTotal')}</span>
+                            <span className="text-body font-bold text-brand-accent">{marketplaceApps.length * 5}H</span>
                           </div>
                         </div>
                       )}
@@ -3108,10 +3108,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       </div>
 
       {/* Totals & Calculations Summary */}
-      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-[2rem] shadow-xl mt-12">
+      <div className="bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-3xl shadow-xl mt-12">
         <div className="max-w-7xl mx-auto flex flex-col space-y-8">
           <div className="flex items-center justify-between gap-4">
-            <h2 className="text-2xl md:text-3xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
+            <h2 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section leading-none">
               {t('editor.summaryOf')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('editor.summaryOfHours')}</span>
             </h2>
           </div>
@@ -3136,19 +3136,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           <div className="flex items-end justify-end gap-4 flex-wrap">
             <div className="w-full md:w-auto md:min-w-[340px]">
               <div className={`
-                rounded-[1.75rem] border-2 border-brand-primary
+                rounded-2xl border-2 border-brand-primary
                 px-6 md:px-10 py-5 md:py-7
-                bg-[#FFFFFF] dark:bg-[#0a0a0a]
+                bg-white dark:bg-[color:var(--bg-card)]
                 flex items-center justify-between gap-4
               `}>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.25em] text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('editor.grandTotal')}</p>
+                  <p className="text-label font-medium text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('editor.grandTotal')}</p>
                 </div>
                 <div className="flex items-baseline gap-2">
-                  <span className="text-4xl md:text-6xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter leading-none tabular-nums">
+                  <span className="text-brand-primary dark:text-[color:var(--primary)] font-heading text-kpi leading-none tabular-nums">
                     {Math.round(totals.grandTotal).toFixed(0)}
                   </span>
-                  <span className="text-[11px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('common.hours')}</span>
+                  <span className="text-label font-medium text-brand-primary dark:text-[color:var(--primary)] mb-1">{t('common.hours')}</span>
                 </div>
               </div>
             </div>
@@ -3160,7 +3160,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           Fica DEPOIS do Resumo de Horas: o número que fecha a conversa é o total
           geral, e o detalhamento existe para explicá-lo — não para antecedê-lo.
           Continua recolhido por padrão. */}
-      <div className="bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-[2rem] shadow-lg mt-12 overflow-hidden">
+      <div className="bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border border-slate-200 rounded-3xl shadow-lg mt-12 overflow-hidden">
         <button
           type="button"
           onClick={() => setCategoryBreakdownOpen((v) => !v)}
@@ -3168,19 +3168,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           className="w-full flex items-center justify-between gap-4 px-6 md:px-8 py-6 text-left hover:bg-slate-50/60 dark:hover:bg-[color:var(--bg-input)] transition-colors"
         >
           <div className="min-w-0">
-            <h2 className="text-lg md:text-xl font-black text-brand-dark dark:text-[color:var(--text-main)] font-heading uppercase tracking-tighter leading-none">
+            <h2 className="text-brand-dark dark:text-[color:var(--text-main)] leading-none text-title font-bold">
               {t('editor.categoryBreakdown')}
             </h2>
-            <p className="text-[9px] font-bold uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)] mt-1.5">
+            <p className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] mt-1.5">
               {t('editor.categoryBreakdownHint')}
             </p>
           </div>
           <div className="flex items-center gap-4 shrink-0">
             <div className="text-right">
-              <div className="text-xl font-black text-brand-primary dark:text-[color:var(--primary)] font-heading tracking-tighter tabular-nums leading-none">
-                {breakdownGrand.toFixed(1)}<span className="text-[10px] ml-0.5">h</span>
+              <div className="text-brand-primary dark:text-[color:var(--primary)] font-heading text-[22px] tabular-nums leading-none">
+                {breakdownGrand.toFixed(1)}<span className="text-label ml-0.5">h</span>
               </div>
-              <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+              <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
                 {formatHoursMinutes(breakdownGrand)}
               </div>
             </div>
@@ -3193,13 +3193,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         {categoryBreakdownOpen && (
           <div className="px-6 md:px-8 pb-8 animate-in fade-in slide-in-from-top-2 duration-300">
             {/* Toggle: somar as horas proporcionais de Discovery, GP e Validação */}
-            <div className="mb-5 rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50/60 dark:bg-[#0f0f0f] px-4 py-3.5">
+            <div className="mb-5 rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50/60 dark:bg-[color:var(--bg-card)] px-4 py-3.5">
               <label className="flex items-start justify-between gap-4 cursor-pointer">
                 <span className="min-w-0">
-                  <span className="block text-[10px] font-black uppercase tracking-widest text-brand-dark dark:text-[color:var(--text-main)]">
+                  <span className="block text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                     {t('editor.includeProportionalVariables')}
                   </span>
-                  <span className="block text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-1 leading-relaxed">
+                  <span className="block text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-1 leading-relaxed">
                     {t('editor.includeProportionalVariablesHint')}
                   </span>
                 </span>
@@ -3210,7 +3210,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     onChange={(e) => setBreakdownWithVariables(e.target.checked)}
                     className="sr-only peer"
                   />
-                  <span className="relative w-11 h-6 bg-slate-200 dark:bg-[#1f1f1f] rounded-full peer peer-focus:ring-2 peer-focus:ring-brand-primary peer-checked:brand-bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:border-slate-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
+                  <span className="relative w-11 h-6 bg-slate-200 dark:bg-[color:var(--bg-input-solid)] rounded-full peer peer-focus:ring-2 peer-focus:ring-brand-primary peer-checked:brand-bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border after:border-slate-300 after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full peer-checked:after:border-white" />
                 </span>
               </label>
 
@@ -3223,11 +3223,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     >
                       <div className="flex items-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${col.dotClass}`} />
-                        <span className="text-[8px] font-black uppercase tracking-[0.2em] opacity-80">
+                        <span className="text-caption font-medium opacity-80">
                           {t(col.labelKey)} · {percents[col.key]}%
                         </span>
                       </div>
-                      <div className="text-sm font-black tabular-nums tracking-tighter mt-1">
+                      <div className="text-body font-bold tabular-nums mt-1">
                         {categoryBreakdown.varTotals[col.key].toFixed(1)}h
                       </div>
                     </div>
@@ -3237,7 +3237,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </div>
 
             {categoryBreakdown.rows.length === 0 ? (
-              <div className="py-8 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+              <div className="py-8 text-center text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                 {t('editor.categoryBreakdownEmpty')}
               </div>
             ) : (
@@ -3246,14 +3246,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <button
                     type="button"
                     onClick={() => setOpenBreakdownCats(Object.fromEntries(categoryBreakdown.rows.map((r) => [r.cat, true])))}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors"
+                    className="text-caption font-medium text-slate-400 hover:text-brand-primary transition-colors"
                   >
                     {t('editor.expandAll')}
                   </button>
                   <button
                     type="button"
                     onClick={() => setOpenBreakdownCats({})}
-                    className="text-[9px] font-black uppercase tracking-widest text-slate-400 hover:text-brand-primary transition-colors"
+                    className="text-caption font-medium text-slate-400 hover:text-brand-primary transition-colors"
                   >
                     {t('editor.collapseAll')}
                   </button>
@@ -3264,25 +3264,25 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     coloridos empilhados à direita, legíveis apenas contra a
                     legenda do toggle. */}
                 <div className={`hidden md:grid ${breakdownGridClass} gap-x-4 px-4 pb-2 mb-1 border-b border-slate-200 dark:border-[color:var(--border-main)]`}>
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                  <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     {t('editor.breakdownColCategory')}
                   </span>
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                  <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     {t('editor.breakdownColShare')}
                   </span>
                   {breakdownWithVariables && (
                     <>
-                      <span className="text-right text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                      <span className="text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                         {t('editor.breakdownColBase')}
                       </span>
                       {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
-                        <span key={col.key} className={`text-right text-[8px] font-black uppercase tracking-[0.2em] ${col.textClass}`}>
+                        <span key={col.key} className={`text-right text-caption font-medium ${col.textClass}`}>
                           {t(col.shortKey)}
                         </span>
                       ))}
                     </>
                   )}
-                  <span className="text-right text-[8px] font-black uppercase tracking-[0.2em] text-brand-dark dark:text-[color:var(--text-main)]">
+                  <span className="text-right text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                     {t('editor.breakdownColTotal')}
                   </span>
                 </div>
@@ -3298,14 +3298,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           type="button"
                           onClick={() => setOpenBreakdownCats((prev) => ({ ...prev, [row.cat]: !prev[row.cat] }))}
                           aria-expanded={isOpen}
-                          className={`w-full md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-3 bg-slate-50/70 dark:bg-[#0f0f0f] hover:bg-slate-100/70 dark:hover:bg-[#141414] transition-colors text-left`}
+                          className={`w-full md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-3 bg-slate-50/70 dark:bg-[color:var(--bg-card)] hover:bg-slate-100/70 dark:hover:bg-[color:var(--bg-input-solid)] transition-colors text-left`}
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <ChevronRight className={`w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
-                            <span className="text-[11px] font-black uppercase tracking-tight text-brand-dark dark:text-[color:var(--text-main)] truncate">
+                            <span className="text-label font-medium tracking-tight text-brand-dark dark:text-[color:var(--text-main)] truncate">
                               {catLabelOf(row.cat)}
                             </span>
-                            <span className="shrink-0 text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
+                            <span className="shrink-0 text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)]">
                               {t('editor.breakdownSubcategories', { count: row.subs.length })}
                             </span>
                           </div>
@@ -3313,13 +3313,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           {/* Barra de participação: ocupa o espaço vazio do meio e
                               torna a proporção legível sem ler número nenhum. */}
                           <div className="hidden md:flex items-center gap-2 min-w-0">
-                            <div className="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-[#1f1f1f] overflow-hidden">
+                            <div className="h-1.5 flex-1 rounded-full bg-slate-200 dark:bg-[color:var(--bg-input-solid)] overflow-hidden">
                               <div
                                 className="h-full rounded-full brand-bg-primary"
                                 style={{ width: `${Math.min(100, Math.max(0, share))}%` }}
                               />
                             </div>
-                            <span className="shrink-0 w-9 text-right text-[9px] font-black tabular-nums text-slate-400 dark:text-[color:var(--text-muted)]">
+                            <span className="shrink-0 w-9 text-right text-caption font-medium tabular-nums text-slate-400 dark:text-[color:var(--text-muted)]">
                               {share.toFixed(0)}%
                             </span>
                           </div>
@@ -3340,10 +3340,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           )}
 
                           <div className="text-right shrink-0">
-                            <div className="text-sm font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter leading-none">
-                              {rowValue.toFixed(1)}<span className="text-[9px] ml-0.5">h</span>
+                            <div className="text-body font-bold text-brand-dark dark:text-[color:var(--text-main)] tabular-nums leading-none">
+                              {rowValue.toFixed(1)}<span className="text-caption ml-0.5">h</span>
                             </div>
-                            <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+                            <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
                               {formatHoursMinutes(rowValue)}
                             </div>
                           </div>
@@ -3359,18 +3359,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   key={sub}
                                   className={`md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-2.5 md:pl-10`}
                                 >
-                                  <span className="text-[10px] font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
+                                  <span className="text-label font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
                                     {subcategoryLabel(t, sub)}
                                   </span>
 
                                   <div className="hidden md:flex items-center gap-2 min-w-0">
-                                    <div className="h-1 flex-1 rounded-full bg-slate-100 dark:bg-[#141414] overflow-hidden">
+                                    <div className="h-1 flex-1 rounded-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] overflow-hidden">
                                       <div
-                                        className="h-full rounded-full bg-slate-300 dark:bg-[#2a2a2a]"
+                                        className="h-full rounded-full bg-slate-300 dark:bg-[color:var(--bg-input-solid)]"
                                         style={{ width: `${Math.min(100, Math.max(0, subShare))}%` }}
                                       />
                                     </div>
-                                    <span className="shrink-0 w-9 text-right text-[8px] font-bold tabular-nums text-slate-300 dark:text-[color:var(--text-muted)]">
+                                    <span className="shrink-0 w-9 text-right text-caption font-bold tabular-nums text-slate-300 dark:text-[color:var(--text-muted)]">
                                       {subShare.toFixed(0)}%
                                     </span>
                                   </div>
@@ -3392,10 +3392,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   )}
 
                                   <div className="text-right shrink-0">
-                                    <div className="text-[11px] font-black text-brand-dark dark:text-[color:var(--text-main)] tabular-nums tracking-tighter leading-none">
-                                      {subValue.toFixed(1)}<span className="text-[8px] ml-0.5">h</span>
+                                    <div className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] tabular-nums leading-none">
+                                      {subValue.toFixed(1)}<span className="text-caption ml-0.5">h</span>
                                     </div>
-                                    <div className="text-[8px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
+                                    <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] mt-0.5">
                                       {formatHoursMinutes(subValue)}
                                     </div>
                                   </div>
@@ -3412,7 +3412,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 {/* Rodapé de fechamento: o detalhamento tem de bater com o resumo,
                     e agora o leitor consegue conferir isso sem somar linha a linha. */}
                 <div className={`hidden md:grid ${breakdownGridClass} gap-x-4 items-center px-4 pt-3 mt-2 border-t-2 border-brand-primary/30`}>
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-brand-dark dark:text-[color:var(--text-main)]">
+                  <span className="text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                     {t('editor.breakdownTotalLabel')}
                   </span>
                   <span />
@@ -3430,7 +3430,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       ))}
                     </>
                   )}
-                  <span className="text-right text-sm font-black text-brand-primary dark:text-[color:var(--primary)] tabular-nums tracking-tighter">
+                  <span className="text-right text-body font-bold text-brand-primary dark:text-[color:var(--primary)] tabular-nums ">
                     {breakdownGrand.toFixed(1)}h
                   </span>
                 </div>
@@ -3473,9 +3473,9 @@ function SkillCard({
   return (
     <div className={`
       flex flex-col
-      bg-[#F0F7F3] dark:bg-[#141414]
-      rounded-[1.75rem]
-      border-2 border-slate-300 dark:border-[#1f1f1f]
+      bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)]
+      rounded-2xl
+      border-2 border-slate-300 dark:border-[color:var(--border-main)]
       overflow-hidden
       ${compact ? '' : 'h-full'}
     `}>
@@ -3483,21 +3483,21 @@ function SkillCard({
       <div className={`
         flex flex-col gap-2
         px-4 pt-4 pb-3
-        border-b border-slate-300/40 dark:border-[#1f1f1f]
-        bg-white/60 dark:bg-[#0a0a0a]
+        border-b border-slate-300/40 dark:border-[color:var(--border-main)]
+        bg-white/60 dark:bg-[color:var(--bg-card)]
       `}>
         <div className="flex items-baseline justify-between gap-2">
-          <span className="text-[9px] font-black text-slate-500 dark:text-[#bfbfbf] uppercase tracking-[0.22em]">
+          <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] ">
             {skillLabel(t, skill)}
           </span>
           <div className="flex flex-col items-end">
             <div className="flex items-baseline gap-1">
-              <span className="text-2xl md:text-[1.75rem] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
+              <span className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section leading-none tabular-nums">
                 {totalValue.toFixed(1)}
               </span>
-              <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf] mb-0.5">h</span>
+              <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] mb-0.5">h</span>
             </div>
-            <span className="text-[8px] font-bold text-slate-400 dark:text-[#bfbfbf] tracking-normal mt-0.5">
+            <span className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal mt-0.5">
               {formatHoursMinutes(totalValue)}
             </span>
           </div>
@@ -3534,7 +3534,7 @@ function SkillCard({
 
       {/* Subitens */}
       {subitems.length > 0 ? (
-        <div className={`divide-y divide-slate-300/30 dark:divide-[#1f1f1f] ${isGP ? '' : 'flex-1'}`}>
+        <div className={`divide-y divide-slate-300/30 dark:divide-[color:var(--border-main)] ${isGP ? '' : 'flex-1'}`}>
           {subitems.map(sub => {
             const val = Number(breakBy[sub.source] ?? 0) || 0;
             const isDiscovery = sub.source === 'implantacao_discovery' || sub.source === 'sd_discovery';
@@ -3543,31 +3543,31 @@ function SkillCard({
             return (
               <div
                 key={sub.key}
-                className="flex items-center justify-between px-4 py-2.5 hover:bg-white/80 dark:hover:bg-[#0a0a0a] transition-colors"
+                className="flex items-center justify-between px-4 py-2.5 hover:bg-white/80 dark:hover:bg-[color:var(--bg-card)] transition-colors"
               >
                 <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-2">
                   <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                    isDiscovery ? 'bg-cyan-500' :
-                      isValidation ? 'bg-indigo-500' :
+                    isDiscovery ? 'bg-[#a9e29a]' :
+                      isValidation ? 'bg-[#2f7a2a]' :
                         'bg-slate-400 dark:bg-slate-400'
                   }`} />
-                  <span className="text-[8px] font-black uppercase tracking-widest text-slate-600 dark:text-[#e8e8e8] truncate">
+                  <span className="text-caption font-medium text-slate-600 dark:text-[color:var(--text-main)] truncate">
                     {subitemLabel(t, sub.key, sub.label)}
                   </span>
                   {hasOverride && (
-                    <span className={`shrink-0 text-[6px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border ${
+                    <span className={`shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-md border ${
                       overrides.discovery !== null
-                        ? 'bg-cyan-500/10 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border-cyan-500/30 dark:border-cyan-400/30'
-                        : 'bg-white dark:bg-[#0a0a0a] text-slate-500 dark:text-[#bfbfbf] border-slate-200 dark:border-[#1f1f1f]'
+                        ? 'bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)] border-[#a9e29a] dark:border-[color:var(--border-main)]'
+                        : 'bg-white dark:bg-[color:var(--bg-card)] text-slate-500 dark:text-[color:var(--text-muted)] border-slate-200 dark:border-[color:var(--border-main)]'
                     }`}>
                       {overrides.discovery !== null ? 'M' : 'P'}
                     </span>
                   )}
                   {isImpl && isValidation && (
-                    <span className={`shrink-0 text-[6px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border ${
+                    <span className={`shrink-0 text-caption font-medium px-1.5 py-0.5 rounded-md border ${
                       overrides.validation !== null
-                        ? 'bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 dark:border-indigo-400/30'
-                        : 'bg-white dark:bg-[#0a0a0a] text-slate-500 dark:text-[#bfbfbf] border-slate-200 dark:border-[#1f1f1f]'
+                        ? 'bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)] border-[#2f7a2a] dark:border-[color:var(--border-main)]'
+                        : 'bg-white dark:bg-[color:var(--bg-card)] text-slate-500 dark:text-[color:var(--text-muted)] border-slate-200 dark:border-[color:var(--border-main)]'
                     }`}>
                       {overrides.validation !== null ? 'M' : 'P'}
                     </span>
@@ -3581,14 +3581,14 @@ function SkillCard({
                       className={`
                         relative shrink-0 w-8 h-[18px] rounded-full border-2 transition-all
                         ${overrides.discovery !== null
-                          ? 'bg-cyan-500 border-cyan-500 shadow shadow-cyan-900/20'
-                          : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
+                          ? 'bg-[#a9e29a] border-[#a9e29a] shadow '
+                          : 'bg-slate-200 dark:bg-[color:var(--bg-input-solid)] border-slate-300 dark:border-[color:var(--border-main)]'}
                       `}
                       title={overrides.discovery !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
                     >
                       <span className={`
                         absolute top-[1px] left-[1px] h-[12px] w-[12px] rounded-full transition-all shadow
-                        bg-white dark:bg-[#0a0a0a]
+                        bg-white dark:bg-[color:var(--bg-card)]
                         ${overrides.discovery !== null ? 'translate-x-[13px]' : ''}
                       `} />
                     </button>
@@ -3600,14 +3600,14 @@ function SkillCard({
                       className={`
                         relative shrink-0 w-8 h-[18px] rounded-full border-2 transition-all
                         ${overrides.validation !== null
-                          ? 'bg-indigo-500 border-indigo-500 shadow shadow-indigo-900/20'
-                          : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
+                          ? 'bg-[#2f7a2a] border-[#2f7a2a] shadow '
+                          : 'bg-slate-200 dark:bg-[color:var(--bg-input-solid)] border-slate-300 dark:border-[color:var(--border-main)]'}
                       `}
                       title={overrides.validation !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
                     >
                       <span className={`
                         absolute top-[1px] left-[1px] h-[12px] w-[12px] rounded-full transition-all shadow
-                        bg-white dark:bg-[#0a0a0a]
+                        bg-white dark:bg-[color:var(--bg-card)]
                         ${overrides.validation !== null ? 'translate-x-[13px]' : ''}
                       `} />
                     </button>
@@ -3622,7 +3622,7 @@ function SkillCard({
                             step="0.1"
                             value={overrides.discovery}
                             onChange={(e) => setOverrides(o => ({ ...o, discovery: Math.max(0, parseFloat(e.target.value) || 0) }))}
-                            className="w-full bg-purple-50 dark:bg-purple-900/30 dark:border-purple-400/40 border border-purple-100 rounded-md px-1.5 py-1 text-[9px] font-black text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
+                            className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-1.5 py-1 text-caption font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
                           />
                         ) : (isImpl && isValidation && overrides.validation !== null) ? (
                           <input
@@ -3631,24 +3631,24 @@ function SkillCard({
                             step="0.1"
                             value={overrides.validation}
                             onChange={(e) => setOverrides(o => ({ ...o, validation: Math.max(0, parseFloat(e.target.value) || 0) }))}
-                            className="w-full bg-purple-50 dark:bg-purple-900/30 dark:border-purple-400/40 border border-purple-100 rounded-md px-1.5 py-1 text-[9px] font-black text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
+                            className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-1.5 py-1 text-caption font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
                           />
                         ) : (
                           <div className="flex items-baseline justify-end gap-0.5">
-                            <span className="text-[11px] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
+                            <span className="text-brand-dark dark:text-[color:var(--text-main)] leading-none tabular-nums text-body font-bold">
                               {val.toFixed(1)}
                             </span>
-                            <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf]">h</span>
+                            <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)]">h</span>
                           </div>
                         )
                       }
                     </div>
                   ) : (
                     <div className="w-[48px] shrink-0 flex items-baseline justify-end gap-0.5">
-                      <span className="text-[11px] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
+                      <span className="text-brand-dark dark:text-[color:var(--text-main)] leading-none tabular-nums text-body font-bold">
                         {val.toFixed(1)}
                       </span>
-                      <span className="text-[7px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf]">h</span>
+                      <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)]">h</span>
                     </div>
                   )}
                 </div>
@@ -3661,12 +3661,12 @@ function SkillCard({
       {/* Roda pé GP */}
       {isGP && (
         <div className={`
-          px-4 py-3 border-t border-slate-300/40 dark:border-[#1f1f1f]
-          bg-white/70 dark:bg-[#0a0a0a]
+          px-4 py-3 border-t border-slate-300/40 dark:border-[color:var(--border-main)]
+          bg-white/70 dark:bg-[color:var(--bg-card)]
           flex items-center justify-between gap-3
         `}>
           <div className="flex items-center gap-2">
-            <span className={`text-[7px] font-black uppercase tracking-widest transition-colors ${overrides.gp !== null ? 'text-brand-primary dark:text-[color:var(--primary)]' : 'text-slate-500 dark:text-[#bfbfbf]'}`}>
+            <span className={`text-caption font-medium transition-colors ${overrides.gp !== null ? 'text-brand-primary dark:text-[color:var(--primary)]' : 'text-slate-500 dark:text-[color:var(--text-muted)]'}`}>
               {overrides.gp !== null ? t('common.manual') : t('common.default')}
             </span>
             <button
@@ -3676,13 +3676,13 @@ function SkillCard({
                 relative shrink-0 w-10 h-5 rounded-full border-2 transition-all
                 ${overrides.gp !== null
                   ? 'bg-brand-primary border-brand-primary shadow shadow-green-900/20'
-                  : 'bg-slate-200 dark:bg-[#1a1a1a] border-slate-300 dark:border-[#262626]'}
+                  : 'bg-slate-200 dark:bg-[color:var(--bg-input-solid)] border-slate-300 dark:border-[color:var(--border-main)]'}
               `}
               title={overrides.gp !== null ? t('editor.backToDefaultPct') : t('editor.lockAbsoluteValue')}
             >
               <span className={`
                 absolute top-[1px] left-[1px] h-[14px] w-[14px] rounded-full transition-all shadow
-                bg-white dark:bg-[#0a0a0a]
+                bg-white dark:bg-[color:var(--bg-card)]
                 ${overrides.gp !== null ? 'translate-x-[17px]' : ''}
               `} />
             </button>
@@ -3690,10 +3690,10 @@ function SkillCard({
           <div className="w-[68px] shrink-0 text-right">
             {overrides.gp === null ? (
               <div className="flex items-baseline justify-end gap-0.5">
-                <span className="text-[13px] font-black text-brand-dark dark:text-[#ffffff] font-heading tracking-tighter leading-none tabular-nums">
+                <span className="text-brand-dark dark:text-[color:var(--text-main)] leading-none tabular-nums text-body font-bold">
                   {totals.gpVal.toFixed(1)}
                 </span>
-                <span className="text-[8px] font-black uppercase tracking-widest text-slate-500 dark:text-[#bfbfbf] mb-0.5">h</span>
+                <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] mb-0.5">h</span>
               </div>
             ) : (
               <input
@@ -3702,7 +3702,7 @@ function SkillCard({
                 step="0.1"
                 value={overrides.gp}
                 onChange={(e) => setOverrides(o => ({ ...o, gp: Math.max(0, parseFloat(e.target.value) || 0) }))}
-                className="w-full bg-purple-50 dark:bg-purple-900/30 dark:border-purple-400/40 border border-purple-100 rounded-md px-2 py-1 text-[10px] font-black text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
+                className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-2 py-1 text-label font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
               />
             )}
           </div>
@@ -3727,8 +3727,8 @@ function InlinePercentCtrl({
 }) {
   const { t } = useTranslation();
   return (
-    <div className={`flex items-center gap-1.5 rounded-xl border-2 px-2 py-1.5 bg-[#F0F7F3] dark:bg-[#141414] border-slate-300 dark:border-[#1f1f1f] ${full ? 'w-full justify-between' : ''}`}>
-      <span className="shrink-0 text-[7px] font-black uppercase tracking-widest text-slate-600 dark:text-[#cfcfcf] whitespace-nowrap">
+    <div className={`flex items-center gap-1.5 rounded-xl border-2 px-2 py-1.5 bg-[color:var(--bg-input)] dark:bg-[color:var(--bg-input-solid)] border-slate-300 dark:border-[color:var(--border-main)] ${full ? 'w-full justify-between' : ''}`}>
+      <span className="shrink-0 text-caption font-medium text-slate-600 dark:text-[color:var(--text-main)] whitespace-nowrap">
         {label}
       </span>
       <div className="flex items-center justify-end gap-1 ml-auto">
@@ -3737,17 +3737,17 @@ function InlinePercentCtrl({
           min="0"
           value={value}
           onChange={(e) => onChange(Math.max(0, parseFloat(e.target.value) || 0))}
-          className="w-10 md:w-12 bg-white dark:bg-[#0a0a0a] border border-slate-300 dark:border-[#262626] rounded-md px-1.5 py-1 text-[9px] font-black outline-none text-center text-brand-dark dark:text-[#ffffff] tabular-nums"
+          className="w-10 md:w-12 bg-white dark:bg-[color:var(--bg-card)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-md px-1.5 py-1 text-caption font-medium outline-none text-center text-brand-dark dark:text-[color:var(--text-main)] tabular-nums"
         />
-        <span className="text-brand-secondary dark:text-[color:var(--secondary)] text-[8px] font-black">%</span>
+        <span className="text-brand-secondary dark:text-[color:var(--secondary)] text-caption font-medium">%</span>
       </div>
       <button
         type="button"
         onClick={onReset}
-        className="p-1 rounded-md text-slate-400 dark:text-[#cfcfcf] hover:text-brand-primary dark:hover:text-[color:var(--primary)] hover:bg-slate-100 dark:hover:bg-[#1f1f1f] transition-all shrink-0"
+        className="p-1 rounded-md text-slate-400 dark:text-[color:var(--text-main)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] hover:bg-slate-100 dark:hover:bg-[color:var(--bg-input-solid)] transition-all shrink-0"
         title={t('editor.resetLabel', { label })}
       >
-        <RotateCcw className="w-2.5 h-2.5" />
+        <RotateCcw className="w-3.5 h-3.5.5" />
       </button>
     </div>
   );

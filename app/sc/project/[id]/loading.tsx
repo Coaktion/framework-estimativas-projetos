@@ -11,10 +11,10 @@ export default function Loading() {
           </div>
         </div>
         <div className="flex flex-col items-center gap-2 text-center">
-          <p className="text-brand-dark text-2xl font-black uppercase tracking-tighter font-heading leading-none">
+          <p className="text-brand-dark font-heading text-section leading-none">
             Carregando versão
           </p>
-          <p className="text-slate-400 text-[11px] font-bold uppercase tracking-[0.22em]">
+          <p className="text-slate-400 text-label font-medium ">
             Buscando itens e totais do escopo técnico
           </p>
         </div>

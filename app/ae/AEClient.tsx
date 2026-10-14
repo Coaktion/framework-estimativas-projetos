@@ -1241,14 +1241,14 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
     <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
           <div className="space-y-4">
-            <h1 className="text-6xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none">
+            <h1 className="text-brand-dark font-heading text-page leading-none">
               {t('ae.titleCalculator')} <span className="text-brand-primary">{t('ae.titleAE')}</span>
             </h1>
-            <p className="text-slate-400 text-xs mt-4 font-bold uppercase tracking-[0.2em]">{t('ae.subtitle')}</p>
+            <p className="text-slate-400 text-label mt-4 font-medium ">{t('ae.subtitle')}</p>
             {initialVersion != null && (
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary/10 border border-brand-primary/20 rounded-2xl">
                 <BookOpen className="w-3.5 h-3.5 text-brand-primary" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-brand-primary">
+                <span className="text-label font-medium text-brand-primary">
                   {cloneFromId ? t('ae.newVersionFrom', { version: initialVersion }) : t('ae.versionBadge', { version: initialVersion })}
                 </span>
               </div>
@@ -1257,7 +1257,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
           <div className="flex items-center space-x-4">
             <Link 
               href="/ae/history"
-              className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
+              className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
             >
               <Clock className="w-4 h-4" />
               <span>{t('ae.myHistory')}</span>
@@ -1265,7 +1265,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
             {showResult && (
               <button 
                 onClick={handleNewSimulation}
-                className="text-brand-primary font-black text-[10px] uppercase tracking-widest flex items-center space-x-2 hover:opacity-70 transition-all"
+                className="text-brand-primary font-medium text-label flex items-center space-x-2 hover:opacity-70 transition-all"
               >
                 <Plus className="w-4 h-4 rotate-45" />
                 <span>{t('ae.newSimulation')}</span>
@@ -1278,27 +1278,27 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
           {/* Left Column: Strategic & Operation */}
           <div className="space-y-8">
-            <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
+            <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
               <div className="flex items-center space-x-4 border-b border-slate-50 pb-6">
                 <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
                   <ShieldCheck className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.strategicInfo')}</h2>
+                <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('ae.strategicInfo')}</h2>
               </div>
               
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.clientName')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.clientName')}</label>
                   <input 
                     type="text" 
                     value={clientName}
                     onChange={(e) => setClientName(e.target.value)}
                     placeholder={t('ae.clientNamePlaceholder')}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.dealLink')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.dealLink')}</label>
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
                       <Search className="w-4 h-4" />
@@ -1308,48 +1308,48 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                       value={zohoLink}
                       onChange={(e) => setZohoLink(e.target.value)}
                       placeholder="https://crm.zoho.com/..." 
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-6 py-4 text-sm font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300" 
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.clientObjectives')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.clientObjectives')}</label>
                   <textarea 
                     value={clientObjectives}
                     onChange={(e) => setClientObjectives(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.successIndicators')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.successIndicators')}</label>
                   <textarea 
                     value={successIndicators}
                     onChange={(e) => setSuccessIndicators(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
               </div>
             </div>
 
-            <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
+            <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
               <div className="flex items-center space-x-4 border-b border-slate-50 pb-6">
                 <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary">
                   <Layers className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.modulesSection')}</h2>
+                <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('ae.modulesSection')}</h2>
               </div>
 
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.modules')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.modules')}</label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                     {availableModules.map(m => (
                       <button
                         key={m}
                         onClick={() => toggleModule(m)}
-                        className={`p-3 rounded-xl border text-[9px] font-black uppercase tracking-tight transition-all ${
+                        className={`p-3 rounded-xl border text-caption font-medium tracking-tight transition-all ${
                           selectedModules.includes(m)
-                            ? 'bg-brand-primary border-brand-primary text-white shadow-lg'
+                            ? 'bg-brand-primary border-brand-primary text-brand-ink shadow-lg'
                             : 'bg-slate-50 border-slate-200 text-slate-400 hover:border-brand-primary/30'
                         }`}
                       >
@@ -1365,15 +1365,15 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.operationType')}</label>
+                    <label className="text-label font-medium text-slate-400 ml-1">{t('ae.operationType')}</label>
                     <div className="flex flex-wrap gap-2">
                       {['B2C', 'B2B', 'B2E'].map(t => (
                         <button
                           key={t}
                           onClick={() => toggleOperationType(t)}
-                          className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
+                          className={`px-4 py-2 rounded-xl border text-caption font-medium transition-all ${
                             operationTypes.includes(t)
-                              ? 'bg-brand-primary border-brand-primary text-white shadow-lg shadow-brand-primary/20'
+                              ? 'bg-brand-primary border-brand-primary text-brand-ink shadow-lg shadow-brand-primary/20'
                               : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                           }`}
                         >
@@ -1383,24 +1383,24 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.sku')}</label>
+                    <label className="text-label font-medium text-slate-400 ml-1">{t('ae.sku')}</label>
                     <div className="flex bg-slate-100 p-1 rounded-xl">
-                      <button onClick={() => setSkuType('customer_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'customer_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuCustomer')}</button>
-                      <button onClick={() => setSkuType('employee_service')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${skuType === 'employee_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuEmployee')}</button>
+                      <button onClick={() => setSkuType('customer_service')} className={`flex-1 py-2 rounded-lg text-caption font-medium transition-all ${skuType === 'customer_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuCustomer')}</button>
+                      <button onClick={() => setSkuType('employee_service')} className={`flex-1 py-2 rounded-lg text-caption font-medium transition-all ${skuType === 'employee_service' ? 'bg-white text-brand-dark shadow-sm' : 'text-slate-400'}`}>{t('ae.skuEmployee')}</button>
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.deployment')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.deployment')}</label>
                   <div className="flex bg-slate-100 p-1 rounded-xl">
-                    <button onClick={() => setDeploymentType('new')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'new' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentNew')}</button>
-                    <button onClick={() => setDeploymentType('optimization')} className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase transition-all ${deploymentType === 'optimization' ? 'bg-brand-primary text-white shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentOptimization')}</button>
+                    <button onClick={() => setDeploymentType('new')} className={`flex-1 py-2 rounded-lg text-caption font-medium transition-all ${deploymentType === 'new' ? 'bg-brand-primary text-brand-ink shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentNew')}</button>
+                    <button onClick={() => setDeploymentType('optimization')} className={`flex-1 py-2 rounded-lg text-caption font-medium transition-all ${deploymentType === 'optimization' ? 'bg-brand-primary text-brand-ink shadow-sm' : 'text-slate-400'}`}>{t('ae.deploymentOptimization')}</button>
                   </div>
                 </div>
 
                 <div className="space-y-6 pt-6 border-t border-slate-100">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.additionalServices')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.additionalServices')}</label>
                   
                   {/* Support Additional Services */}
                   {selectedModules.includes('Support') && (
@@ -1418,14 +1418,14 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                           <label key={item.id} className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${item.state ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60'}`}>
                             <div className="flex items-center space-x-3">
                               <item.icon className={`w-4 h-4 ${item.state ? 'text-brand-primary' : 'text-slate-400'}`} />
-                              <span className={`text-[9px] font-black uppercase tracking-widest ${item.state ? 'text-brand-dark' : 'text-slate-500'}`}>{item.label}</span>
+                              <span className={`text-caption font-medium ${item.state ? 'text-brand-dark' : 'text-slate-500'}`}>{item.label}</span>
                             </div>
                             <input type="checkbox" checked={item.state} onChange={(e) => item.setter(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                           </label>
                         ))}
                       </div>
                       {!canUseSideConversations && (
-                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest px-1">
+                        <p className="text-caption font-medium text-slate-400 px-1">
                           {t('ae.sideConvNotice')}
                         </p>
                       )}
@@ -1438,21 +1438,21 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                       <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
                         <div className="flex items-center space-x-3">
                           <BookOpen className="w-4 h-4 text-slate-400" />
-                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{t('ae.articleCount')}</span>
+                          <span className="text-caption font-medium text-slate-500">{t('ae.articleCount')}</span>
                         </div>
                         <input 
                           type="number" 
                           min="0" 
                           value={knowledgeArticles} 
                           onChange={(e) => setKnowledgeArticles(Math.max(0, parseInt(e.target.value) || 0))}
-                          className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                          className="w-16 bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-center"
                         />
                       </div>
                     </div>
                   )}
 
                   {!selectedModules.includes('Support') && !selectedModules.includes('Knowledge') && (
-                    <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center py-4 italic">
+                    <p className="text-caption font-medium text-slate-400 text-center py-4 italic">
                       {t('ae.selectSupportHint')}
                     </p>
                   )}
@@ -1463,31 +1463,31 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
           {/* Right Column: Volume, Channels & Zendesk */}
           <div className="space-y-8">
-            <div className="bg-slate-50/50 rounded-[3rem] border border-slate-200 p-10 shadow-inner space-y-8">
+            <div className="bg-slate-50/50 rounded-3xl border border-slate-200 p-10 shadow-inner space-y-8">
               <div className="flex items-center space-x-4 border-b border-slate-200/50 pb-6">
-                <div className="bg-brand-dark p-3 rounded-2xl text-white">
+                <div className="bg-brand-soft text-brand-soft-fg p-3 rounded-2xl">
                   <Users className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.volumeAndChannels')}</h2>
+                <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('ae.volumeAndChannels')}</h2>
               </div>
 
               <div className="grid grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.agents')}</label>
-                  <input type="number" min="1" value={agents} onChange={(e) => setAgents(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <label className="text-caption font-medium text-slate-400 ml-1">{t('ae.agents')}</label>
+                  <input type="number" min="1" value={agents} onChange={(e) => setAgents(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.brands')}</label>
-                  <input type="number" min="1" value={brands} onChange={(e) => setBrands(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <label className="text-caption font-medium text-slate-400 ml-1">{t('ae.brands')}</label>
+                  <input type="number" min="1" value={brands} onChange={(e) => setBrands(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.areas')}</label>
-                  <input type="number" min="1" value={areas} onChange={(e) => setAreas(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black focus:ring-2 focus:ring-brand-primary outline-none" />
+                  <label className="text-caption font-medium text-slate-400 ml-1">{t('ae.areas')}</label>
+                  <input type="number" min="1" value={areas} onChange={(e) => setAreas(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none" />
                 </div>
               </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.activeChannels')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.activeChannels')}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {channelOptions.map((opt) => (
                       <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
@@ -1495,19 +1495,19 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                       }`}>
                         <button
                           onClick={() => toggleChannel(opt.id)}
-                          className={`flex-1 text-left text-[9px] font-black uppercase tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
+                          className={`flex-1 text-left text-caption font-medium tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
                         >
                           {opt.label}
                         </button>
                         {selectedChannels.includes(opt.id) && (
                           <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                            <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
+                            <span className="text-caption font-medium text-slate-300 ">{t('common.qtyShort')}</span>
                             <input 
                               type="number" 
                               min="0"
                               value={channelQuantities[opt.id] ?? 1} 
                               onChange={(e) => handleChannelQtyChange(opt.id, parseInt(e.target.value) ?? 0)}
-                              className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                              className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-label font-medium text-center"
                             />
                           </div>
                         )}
@@ -1519,7 +1519,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                   <div className="mt-4">
                     <button
                       onClick={() => setShowExtraChannels(!showExtraChannels)}
-                      className="text-[9px] font-black text-brand-primary uppercase tracking-widest flex items-center space-x-2 hover:opacity-70 transition-all ml-1"
+                      className="text-caption font-medium text-brand-primary flex items-center space-x-2 hover:opacity-70 transition-all ml-1"
                     >
                       <Plus className={`w-3 h-3 transition-transform duration-300 ${showExtraChannels ? 'rotate-45' : ''}`} />
                       <span>{showExtraChannels ? t('ae.showFewerChannels') : t('ae.showMoreChannels')}</span>
@@ -1533,19 +1533,19 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                           }`}>
                             <button
                               onClick={() => toggleChannel(opt.id)}
-                              className={`flex-1 text-left text-[9px] font-black uppercase tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
+                              className={`flex-1 text-left text-caption font-medium tracking-tight ${selectedChannels.includes(opt.id) ? 'text-brand-dark' : 'text-slate-400'}`}
                             >
                               {opt.label}
                             </button>
                             {selectedChannels.includes(opt.id) && (
                               <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                                <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
+                                <span className="text-caption font-medium text-slate-300 ">{t('common.qtyShort')}</span>
                                 <input 
                                   type="number" 
                                   min="0"
                                   value={channelQuantities[opt.id] ?? 1} 
                                   onChange={(e) => handleChannelQtyChange(opt.id, parseInt(e.target.value) ?? 0)}
-                                  className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-[10px] font-black text-center"
+                                  className="w-12 bg-slate-50 border border-slate-100 rounded-lg px-2 py-1 text-label font-medium text-center"
                                 />
                               </div>
                             )}
@@ -1557,18 +1557,18 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 </div>
             </div>
 
-            <div className="bg-white rounded-[3rem] border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
+            <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
               <div className="flex items-center space-x-4 border-b border-slate-50 pb-6">
                 <div className="bg-brand-secondary/10 p-3 rounded-2xl text-brand-secondary">
                   <Settings className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('ae.zendeskEcosystem')}</h2>
+                <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('ae.zendeskEcosystem')}</h2>
               </div>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.zendeskPlan')}</label>
-                  <select value={zendeskPlan} onChange={(e) => setZendeskPlan(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black uppercase outline-none focus:ring-2 focus:ring-brand-primary transition-all">
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.zendeskPlan')}</label>
+                  <select value={zendeskPlan} onChange={(e) => setZendeskPlan(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold outline-none focus:ring-2 focus:ring-brand-primary transition-all">
                     <option value="team">{t('ae.planTeam')}</option>
                     <option value="growth">{t('ae.planGrowth')}</option>
                     <option value="professional">{t('ae.planProfessional')}</option>
@@ -1577,12 +1577,12 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.actionFlow')}</label>
-                  <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4">
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.actionFlow')}</label>
+                  <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4">
                     <select
                       value=""
                       onChange={(e) => addActionFlow(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm font-black outline-none focus:ring-2 focus:ring-brand-primary transition-all"
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold outline-none focus:ring-2 focus:ring-brand-primary transition-all"
                     >
                       <option value="" disabled>
                         {t('ae.selectActionFlow')}
@@ -1600,7 +1600,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                           <button
                             key={flow}
                             onClick={() => toggleActionFlow(flow)}
-                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-[9px] font-black uppercase transition-all hover:opacity-90 dark:bg-[color:var(--bg-input)] dark:border-[color:var(--border-main)] dark:text-[color:var(--accent)]"
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-brand-primary/30 bg-brand-primary/10 text-brand-primary text-caption font-medium transition-all hover:opacity-90 dark:bg-[color:var(--bg-input)] dark:border-[color:var(--border-main)] dark:text-[color:var(--accent)]"
                           >
                             <span>{flow}</span>
                             <X className="w-3 h-3" />
@@ -1613,19 +1613,19 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 </div>
 
                 <div className="space-y-4">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.aktieApps')}</label>
+                  <label className="text-label font-medium text-slate-400 ml-1">{t('ae.aktieApps')}</label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${hasAppCondicionais ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60 hover:border-brand-primary/30'}`}>
                       <div className="flex items-center space-x-3">
                         <Box className={`w-4 h-4 ${hasAppCondicionais ? 'text-brand-primary' : 'text-slate-400'}`} />
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppCondicionais ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.advancedConditionals')}</span>
+                        <span className={`text-caption font-medium ${hasAppCondicionais ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.advancedConditionals')}</span>
                       </div>
                       <input type="checkbox" checked={hasAppCondicionais} onChange={(e) => setHasAppCondicionais(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                     </label>
                     <label className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all ${hasAppTicketManager ? 'bg-brand-primary/5 border-brand-primary' : 'bg-slate-50 border-slate-200 opacity-60 hover:border-brand-primary/30'}`}>
                       <div className="flex items-center space-x-3">
                         <Box className={`w-4 h-4 ${hasAppTicketManager ? 'text-brand-primary' : 'text-slate-400'}`} />
-                        <span className={`text-[9px] font-black uppercase tracking-widest ${hasAppTicketManager ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.ticketManager')}</span>
+                        <span className={`text-caption font-medium ${hasAppTicketManager ? 'text-brand-dark' : 'text-slate-500'}`}>{t('ae.ticketManager')}</span>
                       </div>
                       <input type="checkbox" checked={hasAppTicketManager} onChange={(e) => setHasAppTicketManager(e.target.checked)} className="w-5 h-5 rounded border-slate-300 text-brand-primary focus:ring-brand-primary" />
                     </label>
@@ -1634,39 +1634,39 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.marketplaceApps')}</label>
+                    <label className="text-label font-medium text-slate-400 ml-1">{t('ae.marketplaceApps')}</label>
                     {!hasAppsMarketplace && (
                       <button
                         type="button"
                         onClick={() => setHasAppsMarketplace(true)}
-                        className="text-[9px] font-black text-brand-primary uppercase tracking-widest hover:opacity-70 transition-all"
+                        className="text-caption font-medium text-brand-primary hover:opacity-70 transition-all"
                       >
                         {t('ae.enableSelection')}
                       </button>
                     )}
                   </div>
                   {hasAppsMarketplace && (
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex flex-wrap gap-2">
                         {marketplaceOptions.map(({ value: app, label: appLabel }) => (
                           <div key={app} className="flex items-center space-x-2">
                             <button
                               onClick={() => toggleApp(app)}
-                              className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
-                                selectedApps.includes(app) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                              className={`px-4 py-2 rounded-xl border text-caption font-medium transition-all ${
+                                selectedApps.includes(app) ? 'bg-brand-primary border-brand-primary text-brand-ink shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                               }`}
                             >
                               {appLabel}
                             </button>
                             {selectedApps.includes(app) && (app === 'SweetHawk' || app === 'Outros') && (
                               <div className="flex items-center space-x-2 animate-in zoom-in-90 duration-300">
-                                <span className="text-[8px] font-black text-slate-300 uppercase">{t('common.qtyShort')}</span>
+                                <span className="text-caption font-medium text-slate-300 ">{t('common.qtyShort')}</span>
                                 <input 
                                   type="number" 
                                   min="0"
                                   value={appQuantities[app] ?? 1} 
                                   onChange={(e) => handleAppQtyChange(app, parseInt(e.target.value) ?? 0)}
-                                  className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-black text-center text-brand-dark focus:ring-1 focus:ring-brand-primary outline-none"
+                                  className="w-12 bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-center text-brand-dark focus:ring-1 focus:ring-brand-primary outline-none"
                                 />
                               </div>
                             )}
@@ -1674,7 +1674,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                         ))}
                       </div>
                       {selectedApps.includes('Outros') && (
-                        <input type="text" value={otherApp} onChange={(e) => setOtherApp(e.target.value)} placeholder={t('ae.otherAppsPlaceholder')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold" />
+                        <input type="text" value={otherApp} onChange={(e) => setOtherApp(e.target.value)} placeholder={t('ae.otherAppsPlaceholder')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-label font-bold" />
                       )}
                     </div>
                   )}
@@ -1682,26 +1682,26 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('ae.nativeConnections')}</label>
+                    <label className="text-label font-medium text-slate-400 ml-1">{t('ae.nativeConnections')}</label>
                     {!hasNativeConnections && (
                       <button
                         type="button"
                         onClick={() => setHasNativeConnections(true)}
-                        className="text-[9px] font-black text-brand-primary uppercase tracking-widest hover:opacity-70 transition-all"
+                        className="text-caption font-medium text-brand-primary hover:opacity-70 transition-all"
                       >
                         {t('ae.enableSelection')}
                       </button>
                     )}
                   </div>
                   {hasNativeConnections && (
-                    <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-200 space-y-4 animate-in fade-in slide-in-from-top-2">
                       <div className="flex flex-wrap gap-2">
                         {nativeConnectionOptions.map(({ value: conn, label: connLabel }) => (
                           <button
                             key={conn}
                             onClick={() => toggleNativeConnection(conn)}
-                            className={`px-4 py-2 rounded-xl border text-[9px] font-black uppercase transition-all ${
-                              selectedNativeConnections.includes(conn) ? 'bg-brand-primary border-brand-primary text-white shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
+                            className={`px-4 py-2 rounded-xl border text-caption font-medium transition-all ${
+                              selectedNativeConnections.includes(conn) ? 'bg-brand-primary border-brand-primary text-brand-ink shadow-lg' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary/30'
                             }`}
                           >
                             {connLabel}
@@ -1714,23 +1714,23 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               </div>
             </div>
 
-            <div className="bg-brand-dark dark:bg-[color:var(--bg-card)] rounded-[3rem] p-10 space-y-8 text-white shadow-2xl dark:border dark:border-[color:var(--border-main)] dark:text-[color:var(--text-main)]">
+            <div className="bg-brand-dark dark:bg-[color:var(--bg-card)] rounded-3xl p-10 space-y-8 text-[color:var(--bg-main)] shadow-2xl dark:border dark:border-[color:var(--border-main)] dark:text-[color:var(--text-main)]">
               <div className="flex items-center space-x-4 border-b border-white/10 dark:border-[color:var(--border-main)] pb-6">
-                <div className="brand-bg-primary p-3 rounded-2xl text-white">
+                <div className="brand-bg-primary p-3 rounded-2xl text-brand-ink">
                   <Zap className="w-6 h-6" />
                 </div>
-                <h2 className="text-xl font-black uppercase tracking-tight dark:text-[color:var(--text-main)]">{t('ae.finishEstimate')}</h2>
+                <h2 className="text-xl font-bold tracking-tight dark:text-[color:var(--text-main)]">{t('ae.finishEstimate')}</h2>
               </div>
 
               {!validation.valid && (validation.issues || []).length > 0 && (
                 <div className="space-y-2">
-                  <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">{t('ae.beforeCalculating')}</p>
+                  <p className="text-caption font-medium text-amber-400 ">{t('ae.beforeCalculating')}</p>
                   <ul className="space-y-1">
                     {/* As mensagens vêm do engine como CÓDIGO + parâmetros, não
                         como frase pronta — antes apareciam sempre em inglês,
                         mesmo com a interface em português. */}
                     {(validation.issues || []).map((issue, i) => (
-                      <li key={issue.code + i} className="text-[9px] font-bold text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">
+                      <li key={issue.code + i} className="text-caption font-bold text-slate-300 dark:text-[color:var(--text-muted)] leading-relaxed">
                         • {t(`aeValidation.${issue.code}`, { ...(issue.params || {}), defaultValue: issue.message })}
                       </li>
                     ))}
@@ -1738,14 +1738,14 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 </div>
               )}
               
-              <p className="text-[10px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] uppercase tracking-widest leading-relaxed">
+              <p className="text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)] leading-relaxed">
                 {t('ae.reviewNotice')}
               </p>
 
               <button
                 onClick={handleCalculate}
                 disabled={!clientName || isPending || !validation.valid}
-                className="w-full brand-bg-primary text-white p-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-xl hover:opacity-90 active:scale-95 transition-all flex items-center justify-center space-x-4 disabled:opacity-50 disabled:active:scale-100"
+                className="w-full brand-bg-primary text-brand-ink p-6 rounded-2xl font-medium text-label shadow-xl hover:opacity-90 active:scale-95 transition-all flex items-center justify-center space-x-4 disabled:opacity-50 disabled:active:scale-100"
               >
                 {isPending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Zap className="w-5 h-5" />}
                 <span>{t('ae.generateEstimate')}</span>
@@ -1758,7 +1758,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
           <div className={`rounded-[4rem] p-16 shadow-2xl relative overflow-hidden text-center space-y-12 ${
             shown.needsSC
               ? 'bg-amber-50 border-4 border-amber-200 text-amber-900 dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border-[color:var(--accent)]'
-              : 'bg-brand-dark text-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)]'
+              : 'bg-brand-dark text-[color:var(--bg-main)] dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border dark:border-[color:var(--border-main)]'
           }`}>
             <div className="absolute top-0 right-0 p-12 opacity-5 pointer-events-none">
               {shown.needsSC ? <AlertTriangle className="w-64 h-64 text-amber-500 dark:text-[color:var(--accent)]" /> : <ShieldCheck className="w-64 h-64 text-white dark:text-[color:var(--accent)]" />}
@@ -1769,12 +1769,12 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 <div className={`w-20 h-20 rounded-3xl flex items-center justify-center shadow-2xl ${
                   shown.needsSC
                     ? 'bg-amber-200 text-amber-700 dark:bg-[color:var(--accent)]/20 dark:text-[color:var(--accent)]'
-                    : 'brand-bg-primary text-white dark:bg-[color:var(--primary)] dark:text-white'
+                    : 'brand-bg-primary text-brand-ink dark:bg-[color:var(--primary)] dark:text-brand-ink'
                 }`}>
                   {shown.needsSC ? <AlertTriangle className="w-10 h-10" /> : <CheckCircle2 className="w-10 h-10" />}
                 </div>
                 <div>
-                  <h3 className={`text-sm font-black uppercase tracking-[0.3em] ${
+                  <h3 className={`text-body font-bold ${
                     shown.needsSC
                       ? 'text-amber-600 dark:text-[color:var(--accent)]'
                       : 'text-slate-400 dark:text-[color:var(--text-muted)]'
@@ -1785,14 +1785,14 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               </div>
 
               <div className="space-y-2">
-                <div className={`text-8xl font-black tracking-tighter ${
+                <div className={`text-8xl font-bold ${
                   shown.needsSC
                     ? 'text-amber-700 dark:text-[color:var(--accent)]'
                     : 'text-brand-accent dark:text-[color:var(--accent)]'
                 }`}>
                   {shown.needsSC ? t('ae.consultSC') : `${shown.total.toFixed(0)}H`}
                 </div>
-                <p className={`text-lg font-bold uppercase tracking-widest ${
+                <p className={`text-lg font-bold ${
                   shown.needsSC
                     ? 'text-amber-600 dark:text-[color:var(--accent)]'
                     : 'text-slate-400 dark:text-[color:var(--text-muted)]'
@@ -1804,28 +1804,28 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               {!shown.needsSC && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-6 max-w-2xl mx-auto pt-8 border-t border-white/10 dark:border-[color:var(--border-main)]">
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('editor.skillImplementation')}</span>
-                    <span className="text-xl font-black tracking-tight dark:text-[color:var(--text-main)]">{shown.techHours.toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('editor.skillImplementation')}</span>
+                    <span className="text-xl font-bold tracking-tight dark:text-[color:var(--text-main)]">{shown.techHours.toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.gp')}</span>
-                    <span className="text-xl font-black tracking-tight text-brand-secondary dark:text-[color:var(--secondary)]">{shownVar('gp').toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('ae.gp')}</span>
+                    <span className="text-xl font-bold tracking-tight text-brand-secondary dark:text-[color:var(--secondary)]">{shownVar('gp').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.discovery')}</span>
-                    <span className="text-xl font-black tracking-tight text-amber-500 dark:text-[color:var(--accent)]">{shownVar('discovery').toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('ae.discovery')}</span>
+                    <span className="text-xl font-bold tracking-tight text-amber-500 dark:text-[color:var(--accent)]">{shownVar('discovery').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.validation')}</span>
-                    <span className="text-xl font-black tracking-tight text-blue-500 dark:text-[color:var(--text-main)]">{shownVar('validation').toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('ae.validation')}</span>
+                    <span className="text-xl font-bold tracking-tight text-brand-dark dark:text-[color:var(--text-main)]">{shownVar('validation').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.techComm')}</span>
-                    <span className="text-xl font-black tracking-tight text-purple-500 dark:text-[color:var(--text-main)]">{shownVar('comunicacao_tecnica').toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('ae.techComm')}</span>
+                    <span className="text-xl font-bold tracking-tight text-brand-dark dark:text-[color:var(--text-main)]">{shownVar('comunicacao_tecnica').toFixed(1)}H</span>
                   </div>
                   <div className="text-center p-4 bg-white/5 dark:bg-[color:var(--bg-input)] rounded-2xl">
-                    <span className="text-[8px] font-black text-slate-500 dark:text-[color:var(--text-muted)] uppercase tracking-widest block mb-1">{t('ae.goLive')}</span>
-                    <span className="text-xl font-black tracking-tight text-green-500 dark:text-[color:var(--text-main)]">{shownVar('go_live').toFixed(1)}H</span>
+                    <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] block mb-1">{t('ae.goLive')}</span>
+                    <span className="text-xl font-bold tracking-tight text-green-500 dark:text-[color:var(--text-main)]">{shownVar('go_live').toFixed(1)}H</span>
                   </div>
                 </div>
               )}
@@ -1834,12 +1834,12 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
             <div className="relative z-10 pt-10">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 {isPending ? (
-                  <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-[color:var(--text-muted)]">
+                  <div className="flex items-center space-x-3 text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>{t('ae.savingRecord')}</span>
                   </div>
                 ) : (
-                  <div className="flex items-center space-x-3 text-[10px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)]">
+                  <div className="flex items-center space-x-3 text-label font-medium text-brand-primary dark:text-[color:var(--primary)]">
                     <CheckCircle2 className="w-4 h-4" />
                     <span>{t('ae.recordSaved')}</span>
                   </div>
@@ -1850,22 +1850,22 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
           {/* Tabela de itens considerados — detalhe conforme o segmento do LEITOR */}
           <div className="mt-12">
-            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] border border-slate-200 p-8 md:p-10 shadow-xl">
+            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl border border-slate-200 p-8 md:p-10 shadow-xl">
               <AEResultTable estimation={shown.engineResult} inputs={shown.engineInputs} />
 
               {/* Escopo Padrão: mesmo envelope do framework, template menor.
                   Cópia manual por decisão de projeto — sem chamada de API. */}
               <div className="mt-8 pt-8 border-t border-slate-100 dark:border-[color:var(--border-main)] flex flex-wrap items-center justify-between gap-4">
-                <p className="text-[9px] font-bold text-slate-400 dark:text-[color:var(--text-muted)] max-w-md leading-relaxed">
+                <p className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] max-w-md leading-relaxed">
                   {t('editor.copyScopePromptHint')}
                 </p>
                 <button
                   type="button"
                   onClick={handleCopyScopePrompt}
                   disabled={!scopePrompt}
-                  className={`shrink-0 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 disabled:opacity-50 ${
+                  className={`shrink-0 px-6 py-3 rounded-2xl text-label font-medium transition-all flex items-center gap-2 disabled:opacity-50 ${
                     scopePromptCopied
-                      ? 'brand-bg-primary text-white'
+                      ? 'brand-bg-primary text-brand-ink'
                       : 'bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)] hover:border-brand-primary hover:text-brand-primary'
                   }`}
                 >
@@ -1880,26 +1880,26 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               segmentos ficam com a tabela de resultado acima. */}
           {showExecutiveReport && (
           <div className="mt-12 space-y-12">
-            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-[3rem] border border-slate-200 p-10 shadow-xl overflow-hidden">
+            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl border border-slate-200 p-10 shadow-xl overflow-hidden">
               <div className="flex items-center justify-between mb-8 border-b border-slate-50 dark:border-[color:var(--border-main)] pb-6">
                 <div className="flex items-center space-x-4">
                   <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary dark:bg-[color:var(--primary)]/15 dark:text-[color:var(--primary)]">
                     <MessageSquare className="w-6 h-6" />
                   </div>
-                  <h2 className="text-xl font-black text-brand-dark dark:text-[color:var(--text-main)] uppercase tracking-tight">{t('ae.executiveReport')}</h2>
+                  <h2 className="text-xl font-bold text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{t('ae.executiveReport')}</h2>
                 </div>
                 <button 
                   onClick={() => {
                     navigator.clipboard.writeText(markdownReport);
                     alert(t('ae.reportCopied'));
                   }}
-                  className="bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:hover:opacity-90 dark:border dark:border-[color:var(--border-main)] px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center space-x-2"
+                  className="bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:hover:opacity-90 dark:border dark:border-[color:var(--border-main)] px-4 py-2 rounded-xl text-label font-medium transition-all flex items-center space-x-2"
                 >
                   <Copy className="w-3.5 h-3.5" />
                   <span>{t('ae.copyMarkdown')}</span>
                 </button>
               </div>
-              <div className="prose prose-slate max-w-none text-xs font-medium leading-relaxed whitespace-pre-wrap dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)]">
+              <div className="prose prose-slate max-w-none text-label font-medium leading-relaxed whitespace-pre-wrap dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)]">
                 {markdownReport}
               </div>
             </div>

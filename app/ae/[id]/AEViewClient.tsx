@@ -446,14 +446,14 @@ export default function AEViewClient(props: any) {
     <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 py-10">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-4">
-          <h1 className="text-5xl font-black text-brand-dark tracking-tighter font-heading uppercase leading-none break-words">
+          <h1 className="text-brand-dark font-heading text-page leading-none break-words">
             {String(clientName || '')}
           </h1>
-          <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">{t('aeView.savedBanner')}</p>
+          <p className="text-slate-400 text-label font-medium ">{t('aeView.savedBanner')}</p>
           {ownerChip && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-500/30">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 text-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]">
               <Shield className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[9px] font-black uppercase tracking-[0.22em]">
+              <span className="text-caption font-medium ">
                 {t('common.owner') || 'Responsável'} · {ownerChip.name || ownerChip.email || t('common.unknown') || 'Desconhecido'}
                 {ownerChip.role ? ` (${ownerChip.role})` : ''}
               </span>
@@ -465,21 +465,21 @@ export default function AEViewClient(props: any) {
               className="inline-flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 text-slate-500 rounded-2xl hover:border-brand-primary hover:text-brand-primary transition-all"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
-              <span className="text-[9px] font-black uppercase tracking-widest">{t('aeView.previousVersion')}</span>
+              <span className="text-caption font-medium ">{t('aeView.previousVersion')}</span>
             </Link>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-3 justify-start md:justify-end">
           <Link
             href="/ae/history"
-            className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
+            className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
           >
             <Clock className="w-4 h-4" />
             <span>{t('nav.history')}</span>
           </Link>
           <Link
             href="/ae"
-            className="bg-white border border-slate-200 text-slate-500 px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
+            className="bg-white border border-slate-200 text-slate-500 px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
           >
             <Plus className="w-4 h-4" />
             <span>{t('ae.newSimulation')}</span>
@@ -492,10 +492,10 @@ export default function AEViewClient(props: any) {
             onClick={handleCopyScopePrompt}
             disabled={!scopePrompt}
             title={t('aeView.copyScopePromptHint')}
-            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 transition-all disabled:opacity-50 ${
+            className={`px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 transition-all disabled:opacity-50 ${
               scopePromptCopied
-                ? 'brand-bg-primary text-white border-2 border-transparent'
-                : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-white'
+                ? 'brand-bg-primary text-brand-ink border-2 border-transparent'
+                : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]'
             }`}
           >
             {scopePromptCopied ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
@@ -503,7 +503,7 @@ export default function AEViewClient(props: any) {
           </button>
           <Link
             href={`/ae?cloneFrom=${estimateId}`}
-            className="brand-bg-primary text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center space-x-2 shadow-xl shadow-green-900/10 hover:scale-[1.02] transition-transform"
+            className="brand-bg-primary text-brand-ink px-8 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 shadow-xl shadow-green-900/10 hover:scale-[1.02] transition-transform"
           >
             <Zap className="w-4 h-4" />
             <span>{t('aeView.createNewVersion')}</span>
@@ -512,9 +512,9 @@ export default function AEViewClient(props: any) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="flex items-center space-x-2 bg-purple-50 text-purple-600 border border-purple-100 px-4 py-3 rounded-2xl">
+        <div className="flex items-center space-x-2 bg-slate-100 text-brand-dark border border-slate-200 px-4 py-3 rounded-2xl">
           <Clock className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">
+          <span className="text-caption font-medium ">
             {new Date(createdAt).toLocaleDateString(dateLocale)}
           </span>
         </div>
@@ -530,7 +530,7 @@ export default function AEViewClient(props: any) {
           >
             <span className="flex items-center space-x-2">
               <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[9px] font-black uppercase tracking-widest whitespace-nowrap">
+              <span className="text-caption font-medium whitespace-nowrap">
                 Versão {version ?? 1} de {versions.length}
               </span>
             </span>
@@ -548,7 +548,7 @@ export default function AEViewClient(props: any) {
               aria-label={t('aeView.selectVersion')}
               className="
                 absolute z-50 mt-3 w-full min-w-[280px]
-                bg-[#FFFFFF] dark:bg-[color:var(--bg-card-solid)]
+                bg-white dark:bg-[color:var(--bg-card-solid)]
                 border border-slate-200 dark:border-[color:var(--border-main)]
                 rounded-3xl shadow-2xl
                 overflow-hidden
@@ -562,15 +562,15 @@ export default function AEViewClient(props: any) {
                   <Layers className="w-4 h-4" />
                 </div>
                 <div className="flex flex-col items-start leading-tight">
-                  <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                  <p className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     {t('common.versions')}
                   </p>
-                  <p className="text-[10px] font-black tracking-wider text-brand-dark dark:text-[color:var(--text-main)]">
+                  <p className="text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
                     {String(clientName || t('common.client'))}
                   </p>
                 </div>
               </div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-brand-primary dark:text-[color:var(--primary)]">
+                <span className="text-caption font-medium text-brand-primary dark:text-[color:var(--primary)]">
                   {versions.length} {versions.length === 1 ? 'versão' : 'versões'}
                 </span>
               </div>
@@ -598,9 +598,9 @@ export default function AEViewClient(props: any) {
                         <div className="flex flex-col items-start leading-tight">
                           <div className="flex items-center gap-2 mb-1">
                             <span className={`
-                              inline-flex items-center px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest
+                              inline-flex items-center px-2.5 py-1 rounded-lg text-caption font-medium  
                               ${active
-                                ? 'brand-bg-primary text-white'
+                                ? 'brand-bg-primary text-brand-ink'
                                 : 'bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-slate-600 dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]'
                               }
                             `}>
@@ -608,24 +608,24 @@ export default function AEViewClient(props: any) {
                             </span>
                             {active && (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-brand-primary/10 dark:bg-[color:var(--primary)]/10 text-brand-primary dark:text-[color:var(--primary)] border border-brand-primary/20 dark:border-[color:var(--primary)]/30">
-                                <CheckCircle2 className="w-2.5 h-2.5" />
-                                <span className="text-[8px] font-black uppercase tracking-widest">{t('aeView.current')}</span>
+                                <CheckCircle2 className="w-3.5 h-3.5.5" />
+                                <span className="text-caption font-medium ">{t('aeView.current')}</span>
                               </span>
                             )}
                           </div>
-                          <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                          <p className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                             {new Date(v.createdAt).toLocaleDateString(dateLocale)}
                           </p>
                         </div>
 
                         <div className={`
-                          inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest border
+                          inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg text-caption font-medium   border
                           ${v.needsSC
                             ? 'bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-300 border-amber-100 dark:border-amber-500/30'
                             : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-300 border-emerald-100 dark:border-emerald-500/30'
                           }
                         `}>
-                          {v.needsSC ? <AlertTriangle className="w-2 h-2" /> : <CheckCircle2 className="w-2 h-2" />}
+                          {v.needsSC ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                           <span>{v.needsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}</span>
                         </div>
                       </div>
@@ -635,15 +635,15 @@ export default function AEViewClient(props: any) {
               </div>
 
               <div className="px-5 py-3 border-t border-slate-100 dark:border-[color:var(--border-main)] bg-slate-50/60 dark:bg-[color:var(--bg-input-solid)]/40 flex items-center justify-between gap-3">
-                <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-[color:var(--text-muted)]">
+                <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                   {t('aeView.newVersionFromThis')}
                 </span>
                 <Link
                   href={`/ae?cloneFrom=${estimateId}`}
                   onClick={() => setVersionPickerOpen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl brand-bg-primary text-white text-[9px] font-black uppercase tracking-widest shadow-lg hover:scale-[1.02] transition-transform"
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl brand-bg-primary text-brand-ink text-caption font-medium shadow-lg hover:scale-[1.02] transition-transform"
                 >
-                  <Plus className="w-2.5 h-2.5" />
+                  <Plus className="w-3.5 h-3.5.5" />
                   <span>Criar V{versions.length + 1}</span>
                 </Link>
               </div>
@@ -653,27 +653,27 @@ export default function AEViewClient(props: any) {
 
         <div className={`flex items-center space-x-2 border px-4 py-3 rounded-2xl ${needsSCFinal ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
           {needsSCFinal ? (<AlertTriangle className="w-3.5 h-3.5" />) : (<CheckCircle2 className="w-3.5 h-3.5" />)}
-          <span className="text-[9px] font-black uppercase tracking-widest">
+          <span className="text-caption font-medium ">
             {needsSCFinal ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
           </span>
         </div>
         <div className="flex items-center space-x-2 bg-brand-primary/5 text-brand-primary border border-brand-primary/10 px-4 py-3 rounded-2xl">
           <Hash className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">
+          <span className="text-caption font-medium ">
             {needsSCFinal ? t('aeView.consultSC') : `${total.toFixed(0)}H`}
           </span>
         </div>
       </div>
 
       {zohoLink ? (
-        <div className="bg-white rounded-[2.5rem] border border-slate-200 p-6 shadow-sm flex items-center justify-between flex-wrap gap-4">
+        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <div className="bg-brand-primary/10 p-2.5 rounded-2xl text-brand-primary">
               <ExternalLink className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">{t('aeView.zohoDeal')}</p>
-              <a href={zohoLink} target="_blank" rel="noreferrer" className="text-xs font-bold text-brand-dark hover:text-brand-primary break-all">
+              <p className="text-caption font-medium text-slate-400">{t('aeView.zohoDeal')}</p>
+              <a href={zohoLink} target="_blank" rel="noreferrer" className="text-label font-bold text-brand-dark hover:text-brand-primary break-all">
                 {zohoLink}
               </a>
             </div>
@@ -681,14 +681,14 @@ export default function AEViewClient(props: any) {
         </div>
       ) : null}
 
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl p-8 md:p-10 mb-8">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl p-8 md:p-10 mb-8">
         <AEResultTable estimation={engineResult} inputs={engineInputs} />
       </div>
 
       {showExecutiveReport && (
-      <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden">
+      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
         <div className="px-10 pt-8 pb-4 border-b border-slate-50 flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-xl font-black text-brand-dark uppercase tracking-tight">{t('aeView.reportTitle')}</h2>
+          <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('aeView.reportTitle')}</h2>
           <button
             onClick={() => {
               if (!report) return;
@@ -706,12 +706,12 @@ export default function AEViewClient(props: any) {
             className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-500 rounded-2xl hover:border-brand-primary hover:text-brand-primary transition-all"
           >
             <Copy className="w-3.5 h-3.5" />
-            <span className="text-[9px] font-black uppercase tracking-widest">{t('ae.copyMarkdown')}</span>
+            <span className="text-caption font-medium ">{t('ae.copyMarkdown')}</span>
           </button>
         </div>
         <div className="px-8 md:px-10 py-10">
           <div className="prose prose-slate max-w-none dark:prose-invert">
-            <pre className="whitespace-pre-wrap break-words bg-transparent border border-slate-100 p-6 rounded-3xl text-[11px] leading-6 text-slate-700 font-medium tracking-tight">
+            <pre className="whitespace-pre-wrap break-words bg-transparent border border-slate-100 p-6 rounded-3xl text-label leading-6 text-slate-700 font-medium tracking-tight">
 {report}
             </pre>
           </div>
