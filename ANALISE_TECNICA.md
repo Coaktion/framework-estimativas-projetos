@@ -2,7 +2,7 @@
 
 **Data:** 2026-04-17  
 **Versão analisada:** branch `main` (acc814b)  
-**Stack:** Next.js 14 · Prisma · NextAuth.js · SQLite/PostgreSQL · TypeScript · Tailwind CSS
+**Stack:** Next.js 14 · Prisma · NextAuth.js · SQLite/PostgreSQL · TypeScript · Tailwind CSS ...
 
 ---
 
