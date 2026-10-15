@@ -211,6 +211,15 @@ export function AppLoadingProvider({ children }: { children: React.ReactNode }) 
         if (me && (me.metaKey || me.ctrlKey || me.shiftKey || me.altKey || me.button === 1)) return;
         beginNavLock();
       } else {
+        // Botões de ação local (type="button": recolher, abrir menu, trocar
+        // aba...) não bloqueiam a tela — antes cada clique piscava o overlay.
+        // Quem precisar da trava mesmo sendo type="button" usa data-nav-lock.
+        const isLocalButton =
+          (tag === 'button' && (el as HTMLButtonElement).type === 'button') ||
+          tag === 'summary' ||
+          tag === 'label' ||
+          el.getAttribute('role') === 'button';
+        if (isLocalButton && !el.hasAttribute('data-nav-lock')) return;
         // Buttons / submits — lock the UI for 120ms minimum to avoid
         // double-submits, even for forms that trigger server actions.
         beginNavLock();
@@ -350,7 +359,7 @@ function AppBlockingOverlay({ loading, message }: { loading: boolean; message: s
       className="fixed inset-0 z-[9999] flex items-center justify-center"
     >
       {/* Scrim (blocks clicks / interactions for the whole page) */}
-      <div className="absolute inset-0 bg-white/60 dark:bg-[color:var(--bg-card)] backdrop-blur-sm transition-opacity duration-200 animate-in fade-in" />
+      <div className="absolute inset-0 bg-white/60 dark:bg-[rgb(3_14_1/0.7)] backdrop-blur-sm transition-opacity duration-200 animate-in fade-in" />
       {/* Spinner card */}
       <div
         className={`

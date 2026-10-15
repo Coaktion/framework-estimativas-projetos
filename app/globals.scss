@@ -380,6 +380,16 @@ html:not(.dark) .hover\:shadow-2xl:hover {
   }
 }
 
+/* Editor de escopo: espaço para a barra fixa do rodapé (links + Salvar). */
+body.has-editor-bar {
+  padding-bottom: 96px;
+}
+@media (max-width: 767px) {
+  body.has-editor-bar {
+    padding-bottom: 200px;
+  }
+}
+
 /* Custom transitions for Next.js app */
 .tab-content {
   @apply transition-all duration-700;

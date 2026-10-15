@@ -207,6 +207,15 @@ const SKILL_LABEL_KEYS: Record<string, string> = {
   'Design': 'editor.skillDesign',
 };
 
+/** Ordem das skills no resumo lateral. */
+const LIVE_SUMMARY_SKILLS = ['Implantação', 'Solution Design', 'Desenvolvimento', 'Design', 'GP'];
+
+/** Horas com uma casa no resumo lateral: 47,5h. */
+function fmtLiveHours(value: unknown): string {
+  const n = Number(value) || 0;
+  return `${(Math.round(n * 10) / 10).toFixed(1).replace('.', ',')}h`;
+}
+
 function skillLabel(t: TFunc, name: string): string {
   const key = SKILL_LABEL_KEYS[name];
   return key ? t(key) : name;
@@ -402,6 +411,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   // UI States
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+  // Subcategorias recolhidas, por chave categoria + subcategoria.
+  const [collapsedSubcats, setCollapsedSubcats] = useState<Record<string, boolean>>({});
   // Detalhamento por categoria: começa recolhido para não empurrar o resumo para baixo.
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   /**
@@ -1922,6 +1933,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     setCollapsedSections(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
 
+  const toggleSubcategory = (cat: string, subcategory: string) => {
+    const key = subcategoryKey(cat, subcategory);
+    setCollapsedSubcats(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
   const addMarketplaceApp = () => {
     setMarketplaceApps([...marketplaceApps, { id: Date.now(), name: '', link: '' }]);
   };
@@ -1953,6 +1969,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   const isAEEstimate = formData?.type === 'AE_ESTIMATE';
+
+  // A barra fixa do rodapé só existe no editor de escopo (não na visão AE):
+  // reserva espaço no fim da página para ela não cobrir conteúdo.
+  useEffect(() => {
+    if (isAEEstimate) return;
+    document.body.classList.add('has-editor-bar');
+    return () => document.body.classList.remove('has-editor-bar');
+  }, [isAEEstimate]);
 
   if (isAEEstimate) {
     const aeData = formData.formData || {};
@@ -2116,7 +2140,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   }
 
   return (
-    <form className="space-y-8 pb-12" onSubmit={(e) => e.preventDefault()}>
+    <form className="space-y-8 pb-12 xl:mx-[calc((100%_-_min(100vw_-_80px,1680px))/2)]" onSubmit={(e) => e.preventDefault()}>
       {/* Header: Project Controls */}
       <div className="bg-white p-8 rounded-3xl border border-slate-300 mb-8 shadow-sm">
         <div className="flex flex-col space-y-6">
@@ -2148,15 +2172,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </div>
             
             <div className="flex items-center gap-3 w-full lg:w-auto min-w-0">
-              <button 
-                type="button" 
-                onClick={handleSave}
-                disabled={isPending}
-                className="shrink-1 min-w-0 lg:flex-none lg:shrink-0 bg-brand-primary text-brand-ink px-4 lg:px-6 py-3.5 rounded-xl font-medium hover:opacity-90 shadow-lg shadow-green-900/10 transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden"
-              >
-                {isPending ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Check className="w-3.5 h-3.5 shrink-0" />}
-                <span className="truncate">{t('common.save')}</span>
-              </button>
               <button 
                 type="button" 
                 onClick={handleClone}
@@ -2260,51 +2275,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <div className="space-y-2">
-              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
-              <input 
-                type="text" 
-                value={versionName}
-                onChange={(e) => setVersionName(e.target.value)}
-                placeholder={t('editor.versionNamePlaceholder')} 
-                className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.techScopeLink')}</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
-                  <LinkIcon className="w-4 h-4" />
-                </div>
-                <input 
-                  type="url" 
-                  value={techLink}
-                  onChange={(e) => setTechLink(e.target.value)}
-                  placeholder="https://docs.google.com/..." 
-                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
-                />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.requestLink')}</label>
-              <div className="relative group">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-300 group-focus-within:text-brand-primary transition-colors">
-                  <Search className="w-4 h-4" />
-                </div>
-                <input 
-                  type="url" 
-                  value={zohoLink}
-                  onChange={(e) => setZohoLink(e.target.value)}
-                  placeholder="https://crm.zoho.com/..." 
-                  className="w-full bg-white border border-slate-300 rounded-xl pl-10 pr-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
-                />
-              </div>
-            </div>
+          {/* Os links do escopo e do Zoho ficam na barra fixa do rodapé, junto do Salvar. */}
+          <div className="max-w-md space-y-2">
+            <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
+            <input 
+              type="text" 
+              value={versionName}
+              onChange={(e) => setVersionName(e.target.value)}
+              placeholder={t('editor.versionNamePlaceholder')} 
+              className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
+            />
           </div>
         </div>
       </div>
 
+      {/* Grade do editor: conteúdo à esquerda e, a partir de xl, o resumo de horas
+          fixo à direita, atualizado a cada alteração da estimativa. */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
+      <div className="min-w-0 space-y-8">
       {/* Area Selection */}
       <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] p-10 rounded-3xl border border-slate-300 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between mb-10 gap-4">
@@ -2673,20 +2661,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
         {visibleCategories.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
-            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm overflow-hidden transition-all duration-300">
-              <div 
-                className="bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] px-8 py-5 border-b border-slate-50 flex justify-between items-center cursor-pointer select-none group"
+            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="scroll-mt-24 bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm transition-all duration-300">
+              {/* Cabeçalho da CATEGORIA (ex.: Zendesk Support): faixa verde-clara,
+                  título em Bebas e total da categoria. Fica preso no topo enquanto
+                  a lista da categoria rola, para saber sempre em que seção se está. */}
+              <div
+                className={`sticky top-[68px] z-20 bg-brand-soft text-brand-soft-fg px-6 md:px-8 py-4 flex justify-between items-center gap-4 cursor-pointer select-none group ${collapsedSections[cat] ? 'rounded-3xl' : 'rounded-t-3xl border-b border-slate-300'}`}
                 onClick={() => toggleSection(cat)}
               >
-                <div className="flex items-center space-x-4">
-                  <div className="w-8 h-8 brand-bg-primary rounded-xl flex items-center justify-center text-brand-ink shadow-sm group-hover:scale-105 transition-transform">
-                    <Box className="w-4 h-4" />
+                <div className="flex items-center gap-4 min-w-0">
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand-dark shrink-0">
+                    <Box className="w-5 h-5" />
                   </div>
-                  <h3 className="text-brand-dark dark:text-[color:var(--text-main)] text-title font-bold">{catLabelOf(cat)}</h3>
+                  <h3 className="font-heading text-section leading-none text-brand-dark truncate">{catLabelOf(cat)}</h3>
                 </div>
-                <div className="flex items-center space-x-2 text-slate-400 dark:text-[color:var(--text-muted)] group-hover:text-brand-primary transition-colors">
-                  <span className="text-caption font-medium ">{t('editor.configureItems')}</span>
-                  <ChevronDown className={`w-4 h-4 transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
+                <div className="flex items-center gap-4 shrink-0">
+                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtLiveHours(totals.catTotals?.[cat])}</span>
+                  <span className="hidden md:inline text-label font-medium text-brand-dark">{t('editor.configureItems')}</span>
+                  <ChevronDown className={`w-5 h-5 text-brand-dark transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
               </div>
               
@@ -2707,21 +2699,32 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
                         {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((subcategory, subcategoryIndex, allSubcategories) => {
                           const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory).filter(isAvailable);
+                          const subcategoryCollapsed = Boolean(collapsedSubcats[subcategoryKey(cat, subcategory)]);
+                          const subcategoryHours = orderedPackages.reduce((acc: number, pkg: any) => acc + (Number(totals.itemTotals?.[pkg.id]) || 0), 0);
 
                           return (
                             <Fragment key={`${cat}_${subcategory}`}>
-                              <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-100/80 dark:bg-[color:color-mix(in_srgb,var(--bg-input)_80%,var(--bg-card)_20%)] border-y border-slate-200 dark:border-[color:var(--border-main)]">
-                                <td colSpan={6} className="py-3 px-4">
+                              <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-100 dark:bg-[color:var(--bg-input-solid)] border-t-2 border-slate-300">
+                                <td colSpan={6} className="py-3.5 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-3 py-1 rounded-lg bg-white dark:bg-[color:var(--bg-card)] border border-slate-200 dark:border-[color:var(--border-main)] text-caption font-medium text-slate-700 dark:text-[color:var(--text-main)]">
+                                    {/* Cabeçalho da SUBCATEGORIA (ex.: Campos e Formulários) */}
+                                    {/* Clicar no nome também recolhe/expande a subcategoria */}
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleSubcategory(cat, subcategory)}
+                                      aria-expanded={!subcategoryCollapsed}
+                                      className="flex items-center gap-3 min-w-0 text-left"
+                                    >
+                                      <span aria-hidden className={`w-0 h-0 shrink-0 border-l-[9px] border-l-[color:var(--primary)] border-y-[6px] border-y-transparent transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-90'}`} />
+                                      <span className="text-title font-bold text-brand-dark truncate">
                                         {subcategoryLabel(t, subcategory)}
                                       </span>
-                                      <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)]">
+                                      <span className="text-label text-slate-500 whitespace-nowrap">
                                         {orderedPackages.length} item(ns)
                                       </span>
-                                    </div>
-                                    <div className="flex flex-wrap items-center gap-2">
+                                    </button>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <span className="text-body font-bold text-brand-dark tabular-nums mr-1">{fmtLiveHours(subcategoryHours)}</span>
                                       <button
                                         type="button"
                                         onClick={() => void reorderSubcategory(cat, subcategory, 'up')}
@@ -2740,12 +2743,21 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       >
                                         <ChevronDown className="w-3 h-3" />
                                       </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => toggleSubcategory(cat, subcategory)}
+                                        aria-expanded={!subcategoryCollapsed}
+                                        className="inline-flex items-center gap-1.5 h-8 pl-3 pr-2.5 rounded-full border border-slate-300 bg-white text-label font-medium text-brand-dark hover:border-slate-500 transition-colors"
+                                      >
+                                        {subcategoryCollapsed ? t('editor.expandSubcategory', 'Expandir') : t('editor.collapseSubcategory', 'Recolher')}
+                                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-180'}`} />
+                                      </button>
                                     </div>
                                   </div>
                                 </td>
                               </tr>
 
-                              {orderedPackages.length === 0 ? (
+                              {subcategoryCollapsed ? null : orderedPackages.length === 0 ? (
                                 <tr key={`${cat}_${subcategory}_empty`} className="bg-white dark:bg-[color:var(--bg-card)]">
                                   <td colSpan={6} className="py-4 px-4 text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] text-center">
                                     {t('editor.noItemsInSubcategory')}
@@ -3108,7 +3120,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       </div>
 
       {/* Totals & Calculations Summary */}
-      <div className="bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-3xl shadow-xl mt-12">
+      <div id="resumo-horas" className="scroll-mt-24 bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-3xl shadow-xl mt-12">
         <div className="max-w-7xl mx-auto flex flex-col space-y-8">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section leading-none">
@@ -3439,6 +3451,115 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         )}
       </div>
+      </div>
+
+      {/* Resumo de horas lateral (só leitura): acompanha a rolagem enquanto a
+          estimativa é montada. Os controles (percentuais, travas) continuam no
+          Resumo de Horas completo, mais abaixo. */}
+      <aside className="hidden xl:block" aria-label={`${t('editor.summaryOf')} ${t('editor.summaryOfHours')}`}>
+        <div className="sticky top-[88px] max-h-[calc(100vh-88px-112px)] overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-sm p-6 space-y-5">
+          <div>
+            <h2 className="font-heading text-[26px] leading-none text-brand-dark">
+              {t('editor.summaryOf')} <span className="text-brand-primary">{t('editor.summaryOfHours')}</span>
+            </h2>
+            <p className="text-caption text-slate-500 mt-1.5">{t('editor.liveSummaryHint', 'Atualiza enquanto você edita a estimativa.')}</p>
+          </div>
+          <div>
+            <div className="font-heading text-kpi leading-none text-brand-dark tabular-nums">
+              {Math.round(totals.grandTotal || 0)}<span className="text-[0.5em]">H</span>
+            </div>
+            <p className="text-label text-slate-500 mt-1">{t('editor.grandTotal')}</p>
+          </div>
+          <ul className="tabular-nums">
+            {LIVE_SUMMARY_SKILLS.map((skill) => (
+              <li key={skill} className="flex items-baseline justify-between gap-3 py-2 border-b border-slate-200 last:border-b-0">
+                <span className="text-body text-brand-dark">
+                  {skillLabel(t, skill)}
+                  {skill === 'GP' && <span className="text-label text-slate-500 ml-1.5">{percents.gp}%</span>}
+                </span>
+                <span className="text-body font-medium text-brand-dark">{fmtLiveHours(totals.skillTotals?.[skill])}</span>
+              </li>
+            ))}
+          </ul>
+          {categoryBreakdown.rows.length > 0 && breakdownGrand > 0 && (
+            <div>
+              <p className="text-label font-medium text-brand-dark mb-3">{t('editor.byCategory', 'Por categoria')}</p>
+              <div className="space-y-3">
+                {categoryBreakdown.rows.slice(0, 6).map((row) => {
+                  const value = breakdownWithVariables ? row.totalWithVariables : row.total;
+                  const pct = Math.max(0, Math.min(100, (value / breakdownGrand) * 100));
+                  return (
+                    <div key={row.cat}>
+                      <div className="flex justify-between gap-2 text-label tabular-nums mb-1">
+                        <span className="truncate text-brand-dark">{catLabelOf(row.cat)}</span>
+                        <span className="shrink-0 text-slate-500">{fmtLiveHours(value)}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          <a href="#resumo-horas" className="inline-flex items-center gap-1 text-label font-medium text-brand-dark hover:underline decoration-[color:var(--primary)] decoration-2 underline-offset-[3px]">
+            {t('editor.viewFullSummary', 'Ver resumo completo')}
+            <ChevronRight className="w-4 h-4" />
+          </a>
+        </div>
+      </aside>
+      </div>
+
+      {/* Barra fixa no rodapé: links da versão + Salvar, alcançáveis em qualquer
+          ponto da página. O body ganha padding (classe has-editor-bar) para que
+          nada fique escondido atrás dela. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-[color:var(--bg-navbar)] backdrop-blur-md pb-[env(safe-area-inset-bottom)]">
+        <div className="max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 py-3 flex flex-col md:flex-row md:items-end gap-3">
+          <label className="flex-1 min-w-0">
+            <span className="block text-caption font-medium text-slate-500 mb-1">{t('editor.techScopeLink')}</span>
+            <span className="relative block">
+              <LinkIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="url"
+                value={techLink}
+                onChange={(e) => setTechLink(e.target.value)}
+                placeholder="https://docs.google.com/..."
+                className="w-full h-10 bg-white border border-slate-300 rounded-[10px] pl-9 pr-3 text-body text-brand-dark outline-none focus:border-brand-primary focus:ring-[3px] focus:ring-[color:var(--focus-ring)] placeholder:text-slate-500"
+              />
+            </span>
+          </label>
+          <label className="flex-1 min-w-0">
+            <span className="block text-caption font-medium text-slate-500 mb-1">{t('editor.requestLink')}</span>
+            <span className="relative block">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="url"
+                value={zohoLink}
+                onChange={(e) => setZohoLink(e.target.value)}
+                placeholder="https://crm.zoho.com/..."
+                className="w-full h-10 bg-white border border-slate-300 rounded-[10px] pl-9 pr-3 text-body text-brand-dark outline-none focus:border-brand-primary focus:ring-[3px] focus:ring-[color:var(--focus-ring)] placeholder:text-slate-500"
+              />
+            </span>
+          </label>
+          <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+            {/* Sem a coluna lateral (telas menores), o total aparece aqui */}
+            <div className="xl:hidden leading-tight">
+              <span className="block text-caption text-slate-500">{t('editor.grandTotal')}</span>
+              <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{Math.round(totals.grandTotal || 0)}H</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={isPending}
+              className="h-10 px-6 rounded-full brand-bg-primary text-body font-medium btn-premium inline-flex items-center gap-2 disabled:opacity-50"
+            >
+              {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {t('common.save')}
+            </button>
+          </div>
+        </div>
+      </div>
     </form>
   );
 }
@@ -3504,7 +3625,7 @@ function SkillCard({
         </div>
 
         {isImpl && (
-          <div className="grid grid-cols-2 gap-1.5 w-full mt-1">
+          <div className="grid grid-cols-1 gap-1.5 w-full mt-1">
             <InlinePercentCtrl
               label={t('ae.discovery')}
               value={percents.discovery}
@@ -3613,7 +3734,7 @@ function SkillCard({
                     </button>
                   )}
                   {(hasOverride || (isImpl && isValidation)) ? (
-                    <div className="w-[48px] shrink-0 text-right">
+                    <div className="w-[72px] shrink-0 text-right">
                       {
                         (hasOverride && overrides.discovery !== null) ? (
                           <input
