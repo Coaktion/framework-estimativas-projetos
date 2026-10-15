@@ -27,7 +27,9 @@ export async function getUserPreferencesAction() {
 
 export async function updateUserPreferenceAction(data: any) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
+  // Sem sessão (ex.: alternar idioma/tema na tela de login) não há preferência
+  // para gravar: sai em silêncio em vez de lançar erro no servidor.
+  if (!session?.user?.id) return null;
 
   const userId = parseInt(session.user.id);
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut, signIn } from "next-auth/react";
-import { LogOut, User as UserIcon, ChevronDown, LogIn } from "lucide-react";
+import { LogOut, User as UserIcon, ChevronDown, LogIn, Key } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -67,6 +67,15 @@ export default function UserMenu() {
             <p className="text-label font-medium text-brand-dark truncate mt-0.5">{session.user.email}</p>
           </div>
           
+          <Link
+            href="/profile"
+            onClick={() => setIsOpen(false)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-dark hover:bg-slate-100 transition-colors"
+          >
+            <Key className="w-4 h-4" />
+            <span className="text-body font-medium">{t('userMenu.changePassword')}</span>
+          </Link>
+
           <button 
             onClick={() => signOut({ callbackUrl: 'https://aktienowtc.netlify.app/login' })}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[color:var(--danger)] hover:bg-slate-100 transition-colors"

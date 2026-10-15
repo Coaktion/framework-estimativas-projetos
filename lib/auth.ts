@@ -20,8 +20,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error(getServerT()('errors.emailPasswordRequired'));
         }
 
+        // E-mails são gravados em minúsculas; normalizamos a entrada para que
+        // maiúsculas/espaços digitados (ou preenchidos pelo autocomplete) não
+        // façam a busca falhar e a tela exibir "credenciais inválidas".
+        const email = String(credentials.email).trim().toLowerCase();
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email }
+          where: { email }
         });
 
         if (!user || !user.password) {
