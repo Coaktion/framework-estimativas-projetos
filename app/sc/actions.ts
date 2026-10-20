@@ -28,6 +28,26 @@ export async function createProjectAction(formData: FormData) {
   return { ok: true as const, projectId: project.id };
 }
 
+/** Renomeia um projeto (edição inline no cabeçalho do editor). */
+export async function renameProjectAction(projectId: number, rawName: string) {
+  const session = await getServerSession(authOptions);
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
+  }
+
+  const name = String(rawName || '').trim().slice(0, 120);
+  if (!name) throw new Error('Project name is required');
+
+  const project = await prisma.project.update({
+    where: { id: projectId },
+    data: { name },
+  });
+
+  revalidatePath("/sc");
+  revalidatePath(`/sc/project/${projectId}`);
+  return { name: project.name };
+}
+
 export async function deleteProjectAction(projectId: number) {
   const session = await getServerSession(authOptions);
   if (!canAccessScopes(session?.user as any)) {

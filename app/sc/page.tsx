@@ -54,6 +54,7 @@ export default async function ProjectDashboard() {
       id: v.id,
       ordinal: index + 1,
       versionName: v.versionName || '',
+      description: v.description || '',
       totalHours: Number(v.totalHours) || 0,
       createdAt: v.createdAt,
     })),

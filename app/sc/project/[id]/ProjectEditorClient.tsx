@@ -20,11 +20,14 @@ import {
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
-  CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight
+  CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
+  ArrowUp, ArrowDown, Pencil
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { saveProjectVersionAction, cloneProjectVersionAction } from './actions';
+import { nextVersionNumber, versionNameFor } from '@/lib/version-utils';
+import { renameProjectAction } from '../../actions';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
 type LayoutConfig = {
@@ -124,6 +127,16 @@ const BREAKDOWN_VARIABLE_COLUMNS = [
     chipClass:
       'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-brand-secondary dark:text-[color:var(--secondary)]',
   },
+  {
+    // DRN (SD > Desenvolvimento): % sobre as horas de Dev, repartido entre os itens de Dev.
+    key: 'drn' as const,
+    labelKey: 'editor.breakdownColDrn',
+    shortKey: 'editor.breakdownColDrn',
+    textClass: 'text-brand-dark',
+    dotClass: 'bg-cyan-500',
+    chipClass:
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)]',
+  },
 ];
 
 /**
@@ -214,6 +227,11 @@ const LIVE_SUMMARY_SKILLS = ['Implantação', 'Solution Design', 'Desenvolviment
 function fmtLiveHours(value: unknown): string {
   const n = Number(value) || 0;
   return `${(Math.round(n * 10) / 10).toFixed(1).replace('.', ',')}h`;
+}
+
+/** Horas inteiras no cabeçalho das categorias: 18h. */
+function fmtWholeHours(value: unknown): string {
+  return `${Math.round(Number(value) || 0)}h`;
 }
 
 function skillLabel(t: TFunc, name: string): string {
@@ -393,7 +411,48 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
   });
 
-  const [versionName, setVersionName] = useState(currentVersion?.versionName || 'V1');
+  // Nome do projeto editável no próprio título (clique → campo; Enter/fora salva, Esc cancela).
+  const [projectName, setProjectName] = useState<string>(project?.name || '');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const startEditingName = () => {
+    setNameDraft(projectName);
+    setIsEditingName(true);
+  };
+
+  const commitProjectName = async () => {
+    const next = nameDraft.trim();
+    setIsEditingName(false);
+    if (!next || next === projectName) return;
+    const previous = projectName;
+    setProjectName(next); // otimista: o título já mostra o nome novo
+    setIsRenaming(true);
+    try {
+      const result = await renameProjectAction(project.id, next);
+      setProjectName(result.name);
+    } catch (e) {
+      console.error(e);
+      setProjectName(previous);
+      alert(t('editor.projectRenameError'));
+    } finally {
+      setIsRenaming(false);
+    }
+  };
+
+  // Numeração automática: o nome da versão é sempre definido pelo servidor
+  // (V1, V2...). Aqui só calculamos o próximo número para exibir na janela de salvar.
+  const versionName: string = currentVersion?.versionName || '';
+  const nextVersionLabel = versionNameFor(
+    nextVersionNumber((allVersions || []).map((v: any) => v.versionName)),
+  );
+  const versionOptionLabel = (v: any) =>
+    v.description ? `${v.versionName} — ${v.description}` : v.versionName;
+  // Janela de salvar: atualizar a versão atual ou criar uma nova (com descrição).
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<'update' | 'new'>(currentVersion ? 'update' : 'new');
+  const [newVersionDescription, setNewVersionDescription] = useState('');
   const [techLink, setTechLink] = useState(currentVersion?.technicalScopeLink || '');
   const [zohoLink, setZohoLink] = useState(currentVersion?.zohoLink || '');
   
@@ -416,10 +475,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   // Detalhamento por categoria: começa recolhido para não empurrar o resumo para baixo.
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   /**
-   * Somar Discovery, GP e Validação proporcionais aos totais do detalhamento.
-   * Desligado = comportamento original (só horas de itens).
+   * Somar Discovery, Validação, GP e DRN proporcionais aos totais do detalhamento.
+   * Ligado por padrão: é a visão que fecha com o total geral do projeto.
+   * Desligado = só horas de itens.
    */
-  const [breakdownWithVariables, setBreakdownWithVariables] = useState(false);
+  const [breakdownWithVariables, setBreakdownWithVariables] = useState(true);
   // SKU e tier do Zendesk: definem quais itens da biblioteca estão disponíveis.
   // Persistidos dentro do JSON `data` da versão, então não exigem coluna nova.
   const [skuType, setSkuType] = useState<ZendeskSku>(() => {
@@ -867,8 +927,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // 🎛️  CONFIGURAÇÃO DE REGRAS SD / DRN (via painel Admin, fallback seguro)
     //     Cadastre as keys abaixo no Admin (tipo PERCENT) para ajustar sem deploy.
     // =========================================================================
+    // NOTA: SD_DISCOVERY_DEVOPS_PERCENT não é mais lida — o Discovery sobre Dev
+    // é todo feito pelo DRN (SD > Desenvolvimento), sem somar nada em SD > Discovery.
     const pctDRNDevops         = getVariableNumber(variables, ['SD_DRN_DEVOPS_PERCENT'],        15);
-    const pctDiscoveryDevopsSD = getVariableNumber(variables, ['SD_DISCOVERY_DEVOPS_PERCENT'],  15);
     const pctSdLiquidoParaSd   = getVariableNumber(variables, ['SD_LIQUID_TO_DISCOVERY_PCT'], 100);
 
     let subtotal = 0;
@@ -880,12 +941,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     };
     let hasSdDiscoveryOnAnyItem = false;
     let hasAnyDesenvolvimento = false;
-    // routedSdDiscoveryFromLib: horas de itens marcados sdDiscovery (skill ≠ Dev)
-    //   -> creditadas 100% no subitem SD > Discovery.
-    let routedSdDiscoveryFromLib = 0;
-    // routedSdDRNFromLib: mantido APENAS p/ debug histórico. NÃO COMPÕE sd_desenvolvimento
-    //   (a regra 2 substitui tudo por % pctDRNDevops sobre totalDevFull).
-    let routedSdDRNFromLib = 0;
+    // Horas de itens DEV: não aparecem no card de Implantação, só compõem a
+    // base de cálculo da Validação (setupBaseParaVariaveis).
+    let devHorasSetupContribuicao = 0;
+    // Horas efetivamente contadas de cada pacote personalizado (mesmo índice de
+    // `customPackages`), para o detalhamento por categoria usar o mesmo valor.
+    const customTotals: number[] = [];
     const implantationBreakdown: Record<string, number> = {
       implantacao_workshop: 0,
       implantacao_discovery: 0,
@@ -947,11 +1008,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
      */
     const setupExcluded = { discovery: 0, validation: 0 };
     let gpExcluded = 0;
+    // Parte de `setupExcluded.discovery` que veio de itens de Dev. Dev não compõe
+    // a base de Discovery (é coberto pelo DRN), então essa parte não pode ser
+    // descontada de novo da base.
+    let devSetupExcludedDiscovery = 0;
 
-    const trackExclusions = (pkg: any, rootCat: string, hours: number) => {
+    const trackExclusions = (pkg: any, rootCat: string, hours: number, isDev = false) => {
       if (!hours) return;
       const inSetup = bucketFor(rootCat) === 'implantacao_setup';
-      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) setupExcluded.discovery += hours;
+      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) {
+        setupExcluded.discovery += hours;
+        if (isDev) devSetupExcludedDiscovery += hours;
+      }
       if (inSetup && !variableEligibility.validation(pkg, rootCat)) setupExcluded.validation += hours;
       if (!variableEligibility.gp(pkg, rootCat)) gpExcluded += hours;
     };
@@ -986,7 +1054,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           // Tags de não incidência: registradas aqui, onde ainda se sabe o item
           // e a categoria de origem dele.
-          trackExclusions(pkg, cat, rowTotal);
+          trackExclusions(pkg, cat, rowTotal, skillKey === 'Desenvolvimento');
 
           if (sdDisc) hasSdDiscoveryOnAnyItem = true;
           if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
@@ -995,24 +1063,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           //  - Horas cheias do item CREDITADAS no skill Desenvolvimento (container próprio, card DEV normal)
           //  - Horas cheias do item TAMBÉM entram em Setup (implantação) PARA BASE DE CÁLCULO de % Validação
           //    (não aparecem como linha no card de Implantação visual — só compõem setupBaseParaVariaveis)
-          //  - No container SD > DRN - Desenvolvimento entra APENAS o %Discovery aplicado sobre as horas do item
+          //  - O discovery sobre Dev é o DRN (% sobre totalDevFull), calculado mais abaixo
           if (skillKey === 'Desenvolvimento') {
-            const drnPct = Number(percents.discovery) || 0;
-            routedSdDRNFromLib += rowTotal * (drnPct / 100);
             // Horas cheias seguem seu fluxo padrão de DEV:
             skillTotals['Desenvolvimento'] += rowTotal;
-            // Contabilizamos também no bucket de Setup para cálculo de validação% sobre DEV
-            assignImplantBucket(cat, rowTotal);
+            // Contabilizamos também na base de cálculo de validação% sobre DEV
+            devHorasSetupContribuicao += rowTotal;
             return;
           }
 
           // REGRA 2: item sdDiscovery marcado + skill != Desenvolvimento (ex: Implantação)
           //  - Horas da linha CONTAM em Setup (Implantação) → assignImplantBucket normal (base de cálculo geral)
-          //  - No container SD > Discovery entra APENAS o %Discovery (percents.discovery) aplicado sobre as horas do item
-          if (sdDisc) {
-            const discPct = Number(percents.discovery) || 0;
-            routedSdDiscoveryFromLib += rowTotal * (discPct / 100);
-          }
+          //  - A marcação faz o projeto "ter SD": o Discovery de Implantação (que já incide
+          //    sobre estas horas) é transferido inteiro para SD > Discovery
 
           if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += rowTotal;
           if (skillKey === 'Implantação') assignImplantBucket(cat, rowTotal);
@@ -1021,7 +1084,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
 
     // Custom Packages
-    customPackages.forEach(pkg => {
+    customPackages.forEach((pkg, idx) => {
+      customTotals[idx] = 0;
       if (formData[`check_area_${pkg.category}`] !== 'on') return;
 
       const qty = parseFloat(pkg.qty || 0);
@@ -1033,6 +1097,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         if (!isNaN(val)) total = val;
       }
       
+      customTotals[idx] = total;
       subtotal += total;
       catTotals[pkg.category] = (catTotals[pkg.category] || 0) + total;
       const skillKey = pkg.skillName || pkg.skill;
@@ -1045,15 +1110,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
 
       if (skillKey === 'Desenvolvimento') {
-        const drnPct = Number(percents.discovery) || 0;
-        routedSdDRNFromLib += total * (drnPct / 100);
         skillTotals['Desenvolvimento'] += total;
-        assignImplantBucket(pkg.category, total);
+        devHorasSetupContribuicao += total;
         return;
-      }
-      if (sdDisc) {
-        const discPct = Number(percents.discovery) || 0;
-        routedSdDiscoveryFromLib += total * (discPct / 100);
       }
       if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += total;
       if (skillKey === 'Implantação') assignImplantBucket(pkg.category, total);
@@ -1090,8 +1149,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     Object.keys(skillTotals).forEach(k => {
       if (skillLiquido[k] !== undefined) skillLiquido[k] = Number(skillTotals[k]) || 0;
     });
-    // Remover marketplace e GP que foram acrescentados acima só no skillTotals
-    skillLiquido['Implantação'] = Math.max(0, (skillLiquido['Implantação'] || 0) - (flatHoursMarketplace || 0));
+    // NOTA: o marketplace só é somado ao skillTotals mais abaixo, então não há o
+    // que descontar aqui (descontar fazia as horas de marketplace sumirem do Setup).
     skillLiquido['GP'] = 0; // GP é variável, não item catalogado
 
     // Nova lógica de buckets de Implantação:
@@ -1102,11 +1161,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // NÃO HÁ MAIS linha genérica "Implantação" → tudo é distribuído nos 6 buckets
     const safetyImplantacao = Number((safetyHours || {})['Implantação']) || 0;
 
-    // Para a base de cálculo de Validação% e Discovery%, queremos também considerar as horas
-    // de itens DEV (acumuladas em devHorasSetupContribuicao). Essas horas NÃO aparecem no
-    // card de Implantação; entram APENAS em setupBaseParaVariaveis.
-    let devHorasSetupContribuicao = 0;
-
     const implantacaoBuckets: Record<string, number> = {
       implantacao_workshop: implantationBreakdown.implantacao_workshop || 0,
       implantacao_discovery: implantationBreakdown.implantacao_discovery || 0,
@@ -1116,25 +1170,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       implantacao_golive: implantationBreakdown.implantacao_golive || 0,
     };
 
-    // Remove das horas de setup a contribuição de itens DEV que foram injetados via assignImplantBucket
-    // (não queremos que apareçam no card de Implantação, só na base de cálculo de %).
-    {
-      // Recalcula somente a parte de implantação líquida de setup para o fechamento abaixo:
-      // Como assignImplantBucket já distribuiu tudo, calculamos sobraDeDev =
-      //   valorJaAplicadoBruto - implantacaoTotalLiquido
-      const valorJaAplicadoBruto = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
-      const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
-      if (valorJaAplicadoBruto > implantacaoTotalLiquido + 0.0001) {
-        devHorasSetupContribuicao = roundHalfUp(Math.max(0, valorJaAplicadoBruto - implantacaoTotalLiquido), 1);
-        // Subtrai do bucket que recebeu as horas de DEV (Setup):
-        implantacaoBuckets['implantacao_setup'] = roundHalfUp(
-          Math.max(0, (implantacaoBuckets['implantacao_setup'] || 0) - devHorasSetupContribuicao),
-          1
-        );
-      }
-    }
-
-    // Fechamento normal (agora buckets só contém Implantação líquida, sem DEV)
+    // Fechamento normal (buckets só contêm Implantação; as horas de DEV ficam em
+    // devHorasSetupContribuicao, acumuladas na varredura dos itens)
     const valorJaAplicado = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
     const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
     if (valorJaAplicado < implantacaoTotalLiquido - 0.0001) {
@@ -1159,7 +1196,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
      * (`calculateVariable`) nunca era chamada, e Discovery/Validação incidiam
      * sobre TODO o Setup. Agora a configuração do painel Admin passa a valer.
      */
-    const baseDiscovery = Math.max(0, setupBaseParaVariaveis - setupExcluded.discovery);
+    // Discovery NÃO incide sobre Dev: o discovery de Dev é todo feito pelo DRN
+    // (SD > Desenvolvimento). Incluir Dev aqui contaria essas horas duas vezes.
+    const baseDiscovery = Math.max(0,
+      (implantacaoBuckets['implantacao_setup'] || 0)
+      - (setupExcluded.discovery - devSetupExcludedDiscovery)
+    );
     const baseValidation = Math.max(0, setupBaseParaVariaveis - setupExcluded.validation);
     // Recalcular discValRaw e validVal (mantendo overrides manuais se existirem)
     let discValRawFinal = 0;
@@ -1208,13 +1250,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const hasSD   = totalSdBruto > 0.0001 || hasSdDiscoveryOnAnyItem;
     const hasDEV  = totalDevFull  > 0.0001 || hasAnyDesenvolvimento;
 
-    // --- Regra 3 + Regra 4 (1): zerar Discovery de Implantação ---
-    // Zera se:
-    //  • existir item marcado sdDiscovery (implantação)  - OU -
-    //  • SD e Dev existirem juntos no projeto
-    const zeroImplantDiscovery = hasSdDiscoveryOnAnyItem || (hasSD && hasDEV);
+    // --- Discovery de Implantação ---
+    // Havendo QUALQUER hora de SD ou de Dev, o discovery deixa de ser de Implantação:
+    //  • com SD (com ou sem Dev) → transferido para SD > Discovery
+    //  • só com Dev             → transferido para SD > Desenvolvimento (DRN)
+    // Sem SD e sem Dev, permanece em Implantação.
+    const transferImplantDiscovery = hasSD || hasDEV;
 
-    if (zeroImplantDiscovery) {
+    if (transferImplantDiscovery) {
       implantacaoBuckets['implantacao_discovery'] = 0;
     } else {
       implantacaoBuckets['implantacao_discovery'] = roundHalfUp(
@@ -1240,22 +1283,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     let sd_discovery = 0;
     let sd_desenvolvimento = 0;
 
-    // (a) Itens sdDiscovery (skill ≠ Dev) — 100% creditados em SD > Discovery
-    sd_discovery += routedSdDiscoveryFromLib;
+    // SD > Discovery: SD bruto (líquido + safety), 100% configurável
+    sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
 
-    // --- Regra 2: DRN = pctDRNDevops % SOBRE TUDO que for Desenvolvimento (SEMPRE) ---
-    sd_desenvolvimento += totalDevFull * (pctDRNDevops / 100);
+    // SD > Desenvolvimento (DRN): pctDRNDevops % sobre TUDO que for Desenvolvimento (SEMPRE)
+    const drnValRaw = totalDevFull * (pctDRNDevops / 100);
+    sd_desenvolvimento += drnValRaw;
 
-    // --- Regra 4: se tivermos SD + Dev juntos ---
-    //   (4.2) Inclui pctDiscoveryDevopsSD % de discovery sobre Dev em SD > Discovery
-    //   (4.3) Inclui 100% (configurável) do SD bruto em SD > Discovery
-    if (hasSD && hasDEV) {
-      sd_discovery += totalDevFull * (pctDiscoveryDevopsSD / 100);
-      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd  / 100);
-    } else if (totalSdBruto > 0 && !hasDEV) {
-      // Fallback: "só SD, sem Dev" -> SD bruto 100% creditado em SD > Discovery (sem DRN)
-      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
-    }
+    // Discovery de Implantação transferido (ver acima): SD tem prioridade sobre Dev
+    if (hasSD) sd_discovery += discValRawFinal;
+    else if (hasDEV) sd_desenvolvimento += discValRawFinal;
 
     // Arredonda e evita negativo
     sd_discovery       = Math.max(0, roundHalfUp(sd_discovery,       1));
@@ -1342,7 +1379,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const discVal = roundHalfUp(discValRaw, 1);
     const validVal = roundHalfUp(validValRaw, 1);
     const totalSafety = roundHalfUp(totalSafetyRaw, 1);
-    const consolidatedBase = totalBaseGP + gpVal;
+    // Total geral: TODOS os containers + GP. Não parte de `totalBaseGP`, porque
+    // ela desconta os itens fora do GP — que não recebem GP, mas continuam
+    // sendo horas do projeto.
+    const consolidatedBase =
+      Number(skillTotals['Implantação'] || 0)
+      + Number(skillTotals['Solution Design'] || 0)
+      + Number(skillTotals['Desenvolvimento'] || 0)
+      + Number(skillTotals['Design'] || 0)
+      + gpVal;
     const grandTotal = roundHalfUp(consolidatedBase, 0);
 
     return {
@@ -1352,8 +1397,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Expostos para o detalhamento por categoria/subcategoria.
       itemTotals,
       catTotals,
+      customTotals,
       gpVal,
       discVal,
+      // DRN (% sobre Dev) — exposto para o detalhamento por categoria.
+      drnVal: roundHalfUp(drnValRaw, 1),
+      drnPct: pctDRNDevops,
+      safetyHours,
       // Bases efetivas e horas descontadas pelas tags de não incidência —
       // expostas para que a UI possa explicar de onde veio o número.
       baseDiscovery,
@@ -1378,21 +1428,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
    */
   const categoryBreakdown = useMemo(() => {
+    type VarKey = 'discovery' | 'validation' | 'gp' | 'drn';
+    type Elig = Record<VarKey, number>;
     type Bucket = {
       total: number;
       /** Base elegível a cada variável, para repartir proporcionalmente. */
-      elig: { discovery: number; validation: number; gp: number };
-      subs: Map<string, { hours: number; elig: { discovery: number; validation: number; gp: number } }>;
+      elig: Elig;
+      subs: Map<string, { hours: number; elig: Elig }>;
     };
+    const VAR_KEYS: VarKey[] = ['discovery', 'validation', 'gp', 'drn'];
 
     const byCategory = new Map<string, Bucket>();
-    const zero = () => ({ discovery: 0, validation: 0, gp: 0 });
+    const zero = (): Elig => ({ discovery: 0, validation: 0, gp: 0, drn: 0 });
 
     const bump = (
       cat: string,
       sub: string,
       hours: number,
-      elig: { discovery: boolean; validation: boolean; gp: boolean },
+      elig: Record<VarKey, boolean>,
     ) => {
       if (!hours) return;
       if (!byCategory.has(cat)) {
@@ -1404,7 +1457,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       const subEntry = entry.subs.get(sub)!;
       subEntry.hours += hours;
 
-      (['discovery', 'validation', 'gp'] as const).forEach((key) => {
+      VAR_KEYS.forEach((key) => {
         if (!elig[key]) return;
         entry.elig[key] += hours;
         subEntry.elig[key] += hours;
@@ -1419,22 +1472,27 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         const itemId = String(pkg.id);
         const sub =
           layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
+        const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
         bump(cat, sub, hours, {
-          discovery: variableEligibility.discovery(pkg, cat),
+          // Discovery não incide sobre Dev (o discovery de Dev é o DRN).
+          discovery: !isDev && variableEligibility.discovery(pkg, cat),
           validation: variableEligibility.validation(pkg, cat),
           gp: variableEligibility.gp(pkg, cat),
+          drn: isDev,
         });
       });
     });
 
     // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
-    // Não têm configuração de incidência, então entram elegíveis às três — é o
-    // mesmo tratamento que recebem na base de cálculo do resumo.
-    customPackages.forEach((pkg: any) => {
-      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
+    // Usa as horas que o resumo de fato contou (override e módulo marcado
+    // incluídos). Não têm configuração de incidência, então entram elegíveis
+    // às variáveis — mesmo tratamento da base de cálculo do resumo.
+    customPackages.forEach((pkg: any, idx: number) => {
+      const hours = Number(totals.customTotals?.[idx]) || 0;
       if (!hours) return;
+      const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
       bump(pkg.category || t('common.custom'), t('common.manual'), hours, {
-        discovery: true, validation: true, gp: true,
+        discovery: !isDev, validation: true, gp: true, drn: isDev,
       });
     });
 
@@ -1442,41 +1500,53 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // antes do cálculo de Discovery/Validação, logo incidem normalmente.
     if (totals.flatHoursMarketplace) {
       bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace, {
-        discovery: true, validation: true, gp: true,
+        discovery: true, validation: true, gp: true, drn: false,
       });
     }
+
+    // Horas de Safety por skill: entram no total geral, então precisam de uma
+    // linha própria. Recebem GP; o Safety de Dev também compõe a base do DRN.
+    Object.entries(totals.safetyHours || {}).forEach(([skill, raw]) => {
+      const hours = Number(raw) || 0;
+      if (!hours) return;
+      bump(t('editor.breakdownSafety'), skillLabel(t, skill), hours, {
+        discovery: false, validation: false, gp: true, drn: skill === 'Desenvolvimento',
+      });
+    });
 
     // ---- Repartição proporcional das variáveis --------------------------------
     // Os valores repartidos são os JÁ CALCULADOS no resumo (respeitando
     // overrides manuais e as tags de não incidência), então a soma das
     // contribuições fecha exatamente com o que o bloco "Resumo de horas" exibe.
-    const varTotals = {
+    const varTotals: Record<VarKey, number> = {
       discovery: Number(totals.discVal) || 0,
       validation: Number(totals.validVal) || 0,
       gp: Number(totals.gpVal) || 0,
+      drn: Number(totals.drnVal) || 0,
     };
 
     const eligibleGrand = zero();
     byCategory.forEach((entry) => {
-      eligibleGrand.discovery += entry.elig.discovery;
-      eligibleGrand.validation += entry.elig.validation;
-      eligibleGrand.gp += entry.elig.gp;
+      VAR_KEYS.forEach((key) => { eligibleGrand[key] += entry.elig[key]; });
     });
 
-    const share = (eligible: number, key: 'discovery' | 'validation' | 'gp') => {
+    const share = (eligible: number, key: VarKey) => {
       const denominator = eligibleGrand[key];
       if (!denominator) return 0;
       return varTotals[key] * (eligible / denominator);
     };
+    const contribOf = (elig: Elig): Record<VarKey, number> => ({
+      discovery: share(elig.discovery, 'discovery'),
+      validation: share(elig.validation, 'validation'),
+      gp: share(elig.gp, 'gp'),
+      drn: share(elig.drn, 'drn'),
+    });
+    const sumOf = (c: Record<VarKey, number>) => VAR_KEYS.reduce((acc, key) => acc + c[key], 0);
 
     const rows = Array.from(byCategory.entries())
       .map(([cat, entry]) => {
-        const contrib = {
-          discovery: share(entry.elig.discovery, 'discovery'),
-          validation: share(entry.elig.validation, 'validation'),
-          gp: share(entry.elig.gp, 'gp'),
-        };
-        const contribSum = contrib.discovery + contrib.validation + contrib.gp;
+        const contrib = contribOf(entry.elig);
+        const contribSum = sumOf(contrib);
 
         return {
           cat,
@@ -1485,17 +1555,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           totalWithVariables: entry.total + contribSum,
           subs: Array.from(entry.subs.entries())
             .map(([sub, subEntry]) => {
-              const subContrib = {
-                discovery: share(subEntry.elig.discovery, 'discovery'),
-                validation: share(subEntry.elig.validation, 'validation'),
-                gp: share(subEntry.elig.gp, 'gp'),
-              };
+              const subContrib = contribOf(subEntry.elig);
               return {
                 sub,
                 hours: subEntry.hours,
                 contrib: subContrib,
-                hoursWithVariables:
-                  subEntry.hours + subContrib.discovery + subContrib.validation + subContrib.gp,
+                hoursWithVariables: subEntry.hours + sumOf(subContrib),
               };
             })
             .sort((a, b) => b.hours - a.hours),
@@ -1509,10 +1574,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return { rows, grand, grandWithVariables, varTotals };
   }, [
     totals.itemTotals,
+    totals.customTotals,
+    totals.safetyHours,
     totals.flatHoursMarketplace,
     totals.discVal,
     totals.validVal,
     totals.gpVal,
+    totals.drnVal,
     packagesByCategory,
     layoutConfig.itemSubcategories,
     customPackages,
@@ -1539,7 +1607,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * concatenação não geraria CSS nenhum.
    */
   const breakdownGridClass = breakdownWithVariables
-    ? 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_4.5rem_6rem]'
+    ? 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_6rem]'
     : 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_6rem]';
 
   /* ------------------------------------------------------------------------ */
@@ -1639,9 +1707,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return buildScopePrompt({
       origin: 'framework',
       template: 'pacote-de-horas',
-      clientName: project?.name || '',
-      projectName: project?.name || '',
-      versionName: versionName || currentVersion?.versionName || 'v1',
+      clientName: projectName,
+      projectName,
+      versionName: versionName || 'V1',
       generatedAt: new Date(),
       technicalScopeLink: techLink,
       zohoLink,
@@ -1671,7 +1739,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       crm: null,
     });
   }, [
-    scopeItems, project, versionName, currentVersion, techLink, zohoLink,
+    scopeItems, project, projectName, versionName, currentVersion, techLink, zohoLink,
     totals.grandTotal, totals.skillTotals, percents, planTier, skuType,
     deploymentType, language,
     categoryBreakdown.rows, catLabelOf, t,
@@ -1740,11 +1808,25 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
   };
 
-  const handleSave = async () => {
-    if (!versionName || !techLink) {
+  /** Botão Salvar: valida e abre a janela de escolha (atualizar x nova versão). */
+  const handleSave = () => {
+    if (!techLink) {
       alert(t('editor.versionFieldsRequired'));
       return;
     }
+    setSaveMode(currentVersion ? 'update' : 'new');
+    setNewVersionDescription('');
+    setIsSaveDialogOpen(true);
+  };
+
+  const handleConfirmSave = () => {
+    const description = newVersionDescription.trim();
+    if (saveMode === 'new' && !description) {
+      alert(t('editor.versionDescriptionRequired'));
+      return;
+    }
+    if (saveMode === 'update' && !currentVersion) return;
+    setIsSaveDialogOpen(false);
 
     startTransition(async () => {
       try {
@@ -1782,7 +1864,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         debugCustomKeysFinal.forEach(k => console.log(`[DEBUG:SAVE]   ${k} =`, (mergedFormData as any)[k]));
 
         const payload = {
-          versionName,
+          saveMode,
+          versionId: saveMode === 'update' ? currentVersion?.id : null,
+          description: saveMode === 'new' ? description : null,
           technicalScopeLink: techLink,
           zohoLink,
           gpPercent: percents.gp,
@@ -1813,7 +1897,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             : JSON.stringify((result as any).data ?? null).slice(0, 300));
 
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
-        alert(t('editor.versionSaved'));
+        // Ao atualizar, a URL não muda: força a releitura da versão salva.
+        router.refresh();
+        alert(saveMode === 'update'
+          ? t('editor.versionUpdated', { name: result.versionName })
+          : t('editor.versionCreated', { name: result.versionName }));
       } catch (e) {
         console.error('[DEBUG:SAVE] saveProjectVersionAction ERROR:', e);
         alert(t('editor.versionSaveError'));
@@ -1827,9 +1915,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return;
     }
 
-    const newName = prompt(t('editor.promptCloneName'), t('editor.copyOf', { name: versionName }));
-    if (!newName) return;
-    
+    // A cópia vira uma NOVA versão com número automático; só a descrição é pedida.
+    const description = (prompt(
+      t('editor.promptCloneDescription', { name: nextVersionLabel }),
+      t('editor.copyOf', { name: versionName }),
+    ) || '').trim();
+    if (!description) return;
+
     const newLink = prompt(t('editor.promptCloneLink'), "");
     if (!newLink) {
       alert(t('editor.cloneLinkRequired'));
@@ -1838,7 +1930,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
     startTransition(async () => {
       try {
-        const result = await cloneProjectVersionAction(project.id, currentVersion.id, newName, newLink);
+        const result = await cloneProjectVersionAction(project.id, currentVersion.id, description, newLink);
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
         alert(t('editor.versionCloned'));
       } catch (e) {
@@ -1978,6 +2070,47 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return () => document.body.classList.remove('has-editor-bar');
   }, [isAEEstimate]);
 
+  // Navegação rápida (barra do rodapé): sabe se a página está no topo ou no
+  // fim para desabilitar o botão que não teria efeito.
+  const [scrollEdges, setScrollEdges] = useState({ atTop: true, atBottom: false });
+  useEffect(() => {
+    if (isAEEstimate) return;
+    const EDGE = 120;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const doc = document.documentElement;
+      const next = {
+        atTop: window.scrollY <= EDGE,
+        atBottom: window.scrollY + window.innerHeight >= doc.scrollHeight - EDGE,
+      };
+      setScrollEdges((prev) =>
+        prev.atTop === next.atTop && prev.atBottom === next.atBottom ? prev : next,
+      );
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    // A altura muda quando seções abrem/fecham, não só no scroll.
+    const observer = new ResizeObserver(schedule);
+    observer.observe(document.body);
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    update();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [isAEEstimate]);
+
+  const scrollPageTo = (where: 'top' | 'bottom') => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({
+      top: where === 'top' ? 0 : document.documentElement.scrollHeight,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  };
+
   if (isAEEstimate) {
     const aeData = formData.formData || {};
     return (
@@ -2005,7 +2138,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {allVersions.map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.versionName}</option>
+                      <option key={v.id} value={v.id}>{versionOptionLabel(v)}</option>
                     ))}
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -2150,7 +2283,37 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="brand-bg-primary p-2 rounded-xl shadow-lg shadow-green-900/10">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-brand-dark font-heading text-section ">{project.name}</h1>
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                      if (e.key === 'Escape') { e.preventDefault(); setIsEditingName(false); }
+                    }}
+                    onBlur={commitProjectName}
+                    onFocus={(e) => e.currentTarget.select()}
+                    maxLength={120}
+                    autoFocus
+                    aria-label={t('editor.projectName')}
+                    className="min-w-[16rem] max-w-full bg-white border-b-2 border-brand-primary text-brand-dark font-heading text-section outline-none px-1 -mx-1"
+                  />
+                ) : (
+                  <h1 className="text-brand-dark font-heading text-section ">
+                    <button
+                      type="button"
+                      onClick={startEditingName}
+                      title={t('editor.renameProject')}
+                      className="group inline-flex items-center gap-2 text-left rounded-lg px-1 -mx-1 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-primary outline-none transition-colors"
+                    >
+                      <span>{projectName}</span>
+                      {isRenaming
+                        ? <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" />
+                        : <Pencil className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity shrink-0" />}
+                    </button>
+                  </h1>
+                )}
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
@@ -2163,7 +2326,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   >
                     {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
                     {allVersions.map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.versionName}</option>
+                      <option key={v.id} value={v.id}>{versionOptionLabel(v)}</option>
                     ))}
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -2278,13 +2441,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           {/* Os links do escopo e do Zoho ficam na barra fixa do rodapé, junto do Salvar. */}
           <div className="max-w-md space-y-2">
             <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
-            <input 
-              type="text" 
-              value={versionName}
-              onChange={(e) => setVersionName(e.target.value)}
-              placeholder={t('editor.versionNamePlaceholder')} 
-              className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
-            />
+            {/* Somente leitura: a numeração das versões é automática. */}
+            <div className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-xl px-5 py-3 text-label">
+              <span className="font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                {versionName || t('editor.versionNotSaved', { name: nextVersionLabel })}
+              </span>
+              {currentVersion?.description && (
+                <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                  {currentVersion.description}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2676,7 +2843,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <h3 className="font-heading text-section leading-none text-brand-dark truncate">{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtLiveHours(totals.catTotals?.[cat])}</span>
+                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtWholeHours(totals.catTotals?.[cat])}</span>
                   <span className="hidden md:inline text-label font-medium text-brand-dark">{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-5 h-5 text-brand-dark transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
@@ -3227,7 +3394,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </label>
 
               {breakdownWithVariables && (
-                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
                     <div
                       key={col.key}
@@ -3236,7 +3403,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <div className="flex items-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${col.dotClass}`} />
                         <span className="text-caption font-medium opacity-80">
-                          {t(col.labelKey)} · {percents[col.key]}%
+                          {t(col.labelKey)} · {col.key === 'drn' ? totals.drnPct : percents[col.key]}%
                         </span>
                       </div>
                       <div className="text-body font-bold tabular-nums mt-1">
@@ -3543,6 +3710,30 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </span>
           </label>
           <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+            {/* Navegação rápida: ir ao topo / ao fim da página sem rolar tudo. */}
+            <div className="inline-flex items-center rounded-full border border-slate-300 bg-white overflow-hidden shrink-0" role="group" aria-label={t('editor.pageNavigation')}>
+              <button
+                type="button"
+                onClick={() => scrollPageTo('top')}
+                disabled={scrollEdges.atTop}
+                title={t('editor.scrollToTop')}
+                aria-label={t('editor.scrollToTop')}
+                className="h-10 w-10 inline-flex items-center justify-center text-brand-dark hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-default"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+              <span className="w-px h-5 bg-slate-300" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => scrollPageTo('bottom')}
+                disabled={scrollEdges.atBottom}
+                title={t('editor.scrollToBottom')}
+                aria-label={t('editor.scrollToBottom')}
+                className="h-10 w-10 inline-flex items-center justify-center text-brand-dark hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-default"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+            </div>
             {/* Sem a coluna lateral (telas menores), o total aparece aqui */}
             <div className="xl:hidden leading-tight">
               <span className="block text-caption text-slate-500">{t('editor.grandTotal')}</span>
@@ -3560,6 +3751,113 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         </div>
       </div>
+
+      {/* Janela de salvar: atualizar a versão aberta ou criar uma nova (numeração
+          automática, descrição obrigatória). Botões type="button" porque o
+          editor inteiro está dentro de um <form>. */}
+      {isSaveDialogOpen && (
+        <div
+          className="fixed inset-0 bg-[rgb(3_14_1/0.8)] backdrop-blur-md flex items-center justify-center z-[60] p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsSaveDialogOpen(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="save-version-title"
+        >
+          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
+            <div className="px-8 pt-8 flex justify-between items-start gap-4">
+              <div>
+                <h3 id="save-version-title" className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section">{t('editor.saveDialogTitle')}</h3>
+                <p className="text-slate-500 dark:text-[color:var(--text-muted)] text-body mt-1">{t('editor.saveDialogSubtitle')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSaveDialogOpen(false)}
+                className="text-slate-500 hover:text-brand-dark transition-colors p-1"
+                aria-label={t('common.close')}
+              >
+                <X className="w-6 h-6 shrink-0" />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-3">
+              {currentVersion && (
+                <label className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${saveMode === 'update' ? 'border-brand-primary bg-slate-50 dark:bg-[color:var(--bg-input)]' : 'border-slate-200 dark:border-[color:var(--border-main)]'}`}>
+                  <input
+                    type="radio"
+                    name="__saveMode"
+                    checked={saveMode === 'update'}
+                    onChange={() => setSaveMode('update')}
+                    className="mt-1 accent-[color:var(--primary)]"
+                  />
+                  <span>
+                    <span className="block text-body font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                      {t('editor.saveUpdateCurrent', { name: versionName })}
+                    </span>
+                    <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                      {t('editor.saveUpdateCurrentHint', { name: versionName })}
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              <label className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${saveMode === 'new' ? 'border-brand-primary bg-slate-50 dark:bg-[color:var(--bg-input)]' : 'border-slate-200 dark:border-[color:var(--border-main)]'}`}>
+                <input
+                  type="radio"
+                  name="__saveMode"
+                  checked={saveMode === 'new'}
+                  onChange={() => setSaveMode('new')}
+                  className="mt-1 accent-[color:var(--primary)]"
+                />
+                <span>
+                  <span className="block text-body font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.saveAsNew', { name: nextVersionLabel })}
+                  </span>
+                  <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                    {t('editor.saveAsNewHint')}
+                  </span>
+                </span>
+              </label>
+
+              {saveMode === 'new' && (
+                <div className="space-y-2 pt-2">
+                  <label htmlFor="new-version-description" className="block text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.versionDescription')} <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    id="new-version-description"
+                    value={newVersionDescription}
+                    onChange={(e) => setNewVersionDescription(e.target.value)}
+                    placeholder={t('editor.versionDescriptionPlaceholder')}
+                    rows={3}
+                    maxLength={300}
+                    autoFocus
+                    className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-[10px] px-4 py-3 text-body focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 resize-none"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsSaveDialogOpen(false)}
+                  className="h-10 px-5 rounded-full border border-slate-300 dark:border-[color:var(--border-main)] text-body font-medium text-brand-dark dark:text-[color:var(--text-main)] hover:bg-slate-50 dark:hover:bg-[color:var(--bg-input)] transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSave}
+                  disabled={isPending || (saveMode === 'new' && !newVersionDescription.trim())}
+                  className="h-10 px-6 rounded-full brand-bg-primary text-body font-medium btn-premium inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {saveMode === 'update' ? t('editor.saveConfirmUpdate') : t('editor.saveConfirmNew')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }
