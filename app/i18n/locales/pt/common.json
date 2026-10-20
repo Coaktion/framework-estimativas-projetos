@@ -649,7 +649,10 @@
     "saveConfirmNew": "Criar nova versão",
     "pageNavigation": "Navegação da página",
     "scrollToTop": "Ir para o topo",
-    "scrollToBottom": "Ir para o fim da página"
+    "scrollToBottom": "Ir para o fim da página",
+    "projectName": "Nome do projeto",
+    "renameProject": "Clique para renomear o projeto",
+    "projectRenameError": "Não foi possível renomear o projeto."
   },
   "errors": {
     "allFieldsRequired": "Todos os campos são obrigatórios.",

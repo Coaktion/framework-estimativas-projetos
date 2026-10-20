@@ -21,12 +21,13 @@ import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallb
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
   CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
-  ArrowUp, ArrowDown
+  ArrowUp, ArrowDown, Pencil
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { saveProjectVersionAction, cloneProjectVersionAction } from './actions';
 import { nextVersionNumber, versionNameFor } from '@/lib/version-utils';
+import { renameProjectAction } from '../../actions';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
 type LayoutConfig = {
@@ -409,6 +410,36 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return {};
     }
   });
+
+  // Nome do projeto editável no próprio título (clique → campo; Enter/fora salva, Esc cancela).
+  const [projectName, setProjectName] = useState<string>(project?.name || '');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
+
+  const startEditingName = () => {
+    setNameDraft(projectName);
+    setIsEditingName(true);
+  };
+
+  const commitProjectName = async () => {
+    const next = nameDraft.trim();
+    setIsEditingName(false);
+    if (!next || next === projectName) return;
+    const previous = projectName;
+    setProjectName(next); // otimista: o título já mostra o nome novo
+    setIsRenaming(true);
+    try {
+      const result = await renameProjectAction(project.id, next);
+      setProjectName(result.name);
+    } catch (e) {
+      console.error(e);
+      setProjectName(previous);
+      alert(t('editor.projectRenameError'));
+    } finally {
+      setIsRenaming(false);
+    }
+  };
 
   // Numeração automática: o nome da versão é sempre definido pelo servidor
   // (V1, V2...). Aqui só calculamos o próximo número para exibir na janela de salvar.
@@ -1676,8 +1707,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return buildScopePrompt({
       origin: 'framework',
       template: 'pacote-de-horas',
-      clientName: project?.name || '',
-      projectName: project?.name || '',
+      clientName: projectName,
+      projectName,
       versionName: versionName || 'V1',
       generatedAt: new Date(),
       technicalScopeLink: techLink,
@@ -1708,7 +1739,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       crm: null,
     });
   }, [
-    scopeItems, project, versionName, currentVersion, techLink, zohoLink,
+    scopeItems, project, projectName, versionName, currentVersion, techLink, zohoLink,
     totals.grandTotal, totals.skillTotals, percents, planTier, skuType,
     deploymentType, language,
     categoryBreakdown.rows, catLabelOf, t,
@@ -2252,7 +2283,37 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="brand-bg-primary p-2 rounded-xl shadow-lg shadow-green-900/10">
                   <Zap className="w-5 h-5 text-white" />
                 </div>
-                <h1 className="text-brand-dark font-heading text-section ">{project.name}</h1>
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={nameDraft}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); }
+                      if (e.key === 'Escape') { e.preventDefault(); setIsEditingName(false); }
+                    }}
+                    onBlur={commitProjectName}
+                    onFocus={(e) => e.currentTarget.select()}
+                    maxLength={120}
+                    autoFocus
+                    aria-label={t('editor.projectName')}
+                    className="min-w-[16rem] max-w-full bg-white border-b-2 border-brand-primary text-brand-dark font-heading text-section outline-none px-1 -mx-1"
+                  />
+                ) : (
+                  <h1 className="text-brand-dark font-heading text-section ">
+                    <button
+                      type="button"
+                      onClick={startEditingName}
+                      title={t('editor.renameProject')}
+                      className="group inline-flex items-center gap-2 text-left rounded-lg px-1 -mx-1 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-primary outline-none transition-colors"
+                    >
+                      <span>{projectName}</span>
+                      {isRenaming
+                        ? <Loader2 className="w-4 h-4 text-slate-400 animate-spin shrink-0" />
+                        : <Pencil className="w-4 h-4 text-slate-400 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity shrink-0" />}
+                    </button>
+                  </h1>
+                )}
               </div>
               
               <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
