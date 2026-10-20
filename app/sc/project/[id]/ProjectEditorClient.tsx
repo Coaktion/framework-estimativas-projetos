@@ -867,8 +867,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // 🎛️  CONFIGURAÇÃO DE REGRAS SD / DRN (via painel Admin, fallback seguro)
     //     Cadastre as keys abaixo no Admin (tipo PERCENT) para ajustar sem deploy.
     // =========================================================================
+    // NOTA: SD_DISCOVERY_DEVOPS_PERCENT não é mais lida — o Discovery sobre Dev
+    // é todo feito pelo DRN (SD > Desenvolvimento), sem somar nada em SD > Discovery.
     const pctDRNDevops         = getVariableNumber(variables, ['SD_DRN_DEVOPS_PERCENT'],        15);
-    const pctDiscoveryDevopsSD = getVariableNumber(variables, ['SD_DISCOVERY_DEVOPS_PERCENT'],  15);
     const pctSdLiquidoParaSd   = getVariableNumber(variables, ['SD_LIQUID_TO_DISCOVERY_PCT'], 100);
 
     let subtotal = 0;
@@ -880,12 +881,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     };
     let hasSdDiscoveryOnAnyItem = false;
     let hasAnyDesenvolvimento = false;
-    // routedSdDiscoveryFromLib: horas de itens marcados sdDiscovery (skill ≠ Dev)
-    //   -> creditadas 100% no subitem SD > Discovery.
-    let routedSdDiscoveryFromLib = 0;
-    // routedSdDRNFromLib: mantido APENAS p/ debug histórico. NÃO COMPÕE sd_desenvolvimento
-    //   (a regra 2 substitui tudo por % pctDRNDevops sobre totalDevFull).
-    let routedSdDRNFromLib = 0;
     const implantationBreakdown: Record<string, number> = {
       implantacao_workshop: 0,
       implantacao_discovery: 0,
@@ -947,11 +942,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
      */
     const setupExcluded = { discovery: 0, validation: 0 };
     let gpExcluded = 0;
+    // Parte de `setupExcluded.discovery` que veio de itens de Dev. Dev não compõe
+    // a base de Discovery (é coberto pelo DRN), então essa parte não pode ser
+    // descontada de novo da base.
+    let devSetupExcludedDiscovery = 0;
 
-    const trackExclusions = (pkg: any, rootCat: string, hours: number) => {
+    const trackExclusions = (pkg: any, rootCat: string, hours: number, isDev = false) => {
       if (!hours) return;
       const inSetup = bucketFor(rootCat) === 'implantacao_setup';
-      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) setupExcluded.discovery += hours;
+      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) {
+        setupExcluded.discovery += hours;
+        if (isDev) devSetupExcludedDiscovery += hours;
+      }
       if (inSetup && !variableEligibility.validation(pkg, rootCat)) setupExcluded.validation += hours;
       if (!variableEligibility.gp(pkg, rootCat)) gpExcluded += hours;
     };
@@ -986,7 +988,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           // Tags de não incidência: registradas aqui, onde ainda se sabe o item
           // e a categoria de origem dele.
-          trackExclusions(pkg, cat, rowTotal);
+          trackExclusions(pkg, cat, rowTotal, skillKey === 'Desenvolvimento');
 
           if (sdDisc) hasSdDiscoveryOnAnyItem = true;
           if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
@@ -995,10 +997,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           //  - Horas cheias do item CREDITADAS no skill Desenvolvimento (container próprio, card DEV normal)
           //  - Horas cheias do item TAMBÉM entram em Setup (implantação) PARA BASE DE CÁLCULO de % Validação
           //    (não aparecem como linha no card de Implantação visual — só compõem setupBaseParaVariaveis)
-          //  - No container SD > DRN - Desenvolvimento entra APENAS o %Discovery aplicado sobre as horas do item
+          //  - O discovery sobre Dev é o DRN (% sobre totalDevFull), calculado mais abaixo
           if (skillKey === 'Desenvolvimento') {
-            const drnPct = Number(percents.discovery) || 0;
-            routedSdDRNFromLib += rowTotal * (drnPct / 100);
             // Horas cheias seguem seu fluxo padrão de DEV:
             skillTotals['Desenvolvimento'] += rowTotal;
             // Contabilizamos também no bucket de Setup para cálculo de validação% sobre DEV
@@ -1008,11 +1008,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
           // REGRA 2: item sdDiscovery marcado + skill != Desenvolvimento (ex: Implantação)
           //  - Horas da linha CONTAM em Setup (Implantação) → assignImplantBucket normal (base de cálculo geral)
-          //  - No container SD > Discovery entra APENAS o %Discovery (percents.discovery) aplicado sobre as horas do item
-          if (sdDisc) {
-            const discPct = Number(percents.discovery) || 0;
-            routedSdDiscoveryFromLib += rowTotal * (discPct / 100);
-          }
+          //  - A marcação faz o projeto "ter SD": o Discovery de Implantação (que já incide
+          //    sobre estas horas) é transferido inteiro para SD > Discovery
 
           if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += rowTotal;
           if (skillKey === 'Implantação') assignImplantBucket(cat, rowTotal);
@@ -1045,15 +1042,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
 
       if (skillKey === 'Desenvolvimento') {
-        const drnPct = Number(percents.discovery) || 0;
-        routedSdDRNFromLib += total * (drnPct / 100);
         skillTotals['Desenvolvimento'] += total;
         assignImplantBucket(pkg.category, total);
         return;
-      }
-      if (sdDisc) {
-        const discPct = Number(percents.discovery) || 0;
-        routedSdDiscoveryFromLib += total * (discPct / 100);
       }
       if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += total;
       if (skillKey === 'Implantação') assignImplantBucket(pkg.category, total);
@@ -1159,7 +1150,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
      * (`calculateVariable`) nunca era chamada, e Discovery/Validação incidiam
      * sobre TODO o Setup. Agora a configuração do painel Admin passa a valer.
      */
-    const baseDiscovery = Math.max(0, setupBaseParaVariaveis - setupExcluded.discovery);
+    // Discovery NÃO incide sobre Dev: o discovery de Dev é todo feito pelo DRN
+    // (SD > Desenvolvimento). Incluir Dev aqui contaria essas horas duas vezes.
+    const baseDiscovery = Math.max(0,
+      (implantacaoBuckets['implantacao_setup'] || 0)
+      - (setupExcluded.discovery - devSetupExcludedDiscovery)
+    );
     const baseValidation = Math.max(0, setupBaseParaVariaveis - setupExcluded.validation);
     // Recalcular discValRaw e validVal (mantendo overrides manuais se existirem)
     let discValRawFinal = 0;
@@ -1208,13 +1204,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const hasSD   = totalSdBruto > 0.0001 || hasSdDiscoveryOnAnyItem;
     const hasDEV  = totalDevFull  > 0.0001 || hasAnyDesenvolvimento;
 
-    // --- Regra 3 + Regra 4 (1): zerar Discovery de Implantação ---
-    // Zera se:
-    //  • existir item marcado sdDiscovery (implantação)  - OU -
-    //  • SD e Dev existirem juntos no projeto
-    const zeroImplantDiscovery = hasSdDiscoveryOnAnyItem || (hasSD && hasDEV);
+    // --- Discovery de Implantação ---
+    // Havendo QUALQUER hora de SD ou de Dev, o discovery deixa de ser de Implantação:
+    //  • com SD (com ou sem Dev) → transferido para SD > Discovery
+    //  • só com Dev             → transferido para SD > Desenvolvimento (DRN)
+    // Sem SD e sem Dev, permanece em Implantação.
+    const transferImplantDiscovery = hasSD || hasDEV;
 
-    if (zeroImplantDiscovery) {
+    if (transferImplantDiscovery) {
       implantacaoBuckets['implantacao_discovery'] = 0;
     } else {
       implantacaoBuckets['implantacao_discovery'] = roundHalfUp(
@@ -1240,22 +1237,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     let sd_discovery = 0;
     let sd_desenvolvimento = 0;
 
-    // (a) Itens sdDiscovery (skill ≠ Dev) — 100% creditados em SD > Discovery
-    sd_discovery += routedSdDiscoveryFromLib;
+    // SD > Discovery: SD bruto (líquido + safety), 100% configurável
+    sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
 
-    // --- Regra 2: DRN = pctDRNDevops % SOBRE TUDO que for Desenvolvimento (SEMPRE) ---
+    // SD > Desenvolvimento (DRN): pctDRNDevops % sobre TUDO que for Desenvolvimento (SEMPRE)
     sd_desenvolvimento += totalDevFull * (pctDRNDevops / 100);
 
-    // --- Regra 4: se tivermos SD + Dev juntos ---
-    //   (4.2) Inclui pctDiscoveryDevopsSD % de discovery sobre Dev em SD > Discovery
-    //   (4.3) Inclui 100% (configurável) do SD bruto em SD > Discovery
-    if (hasSD && hasDEV) {
-      sd_discovery += totalDevFull * (pctDiscoveryDevopsSD / 100);
-      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd  / 100);
-    } else if (totalSdBruto > 0 && !hasDEV) {
-      // Fallback: "só SD, sem Dev" -> SD bruto 100% creditado em SD > Discovery (sem DRN)
-      sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
-    }
+    // Discovery de Implantação transferido (ver acima): SD tem prioridade sobre Dev
+    if (hasSD) sd_discovery += discValRawFinal;
+    else if (hasDEV) sd_desenvolvimento += discValRawFinal;
 
     // Arredonda e evita negativo
     sd_discovery       = Math.max(0, roundHalfUp(sd_discovery,       1));
