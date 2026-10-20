@@ -221,7 +221,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                               <Link
                                 key={String(v.id)}
                                 href={`/sc/project/${project.id}?version_id=${v.id}`}
-                                title={(v.description ? `${v.versionName} — ${v.description}` : v.versionName) || undefined}
+                                title={v.description || v.versionName || undefined}
                                 className={`${CHIP} ${index === 0 ? CHIP_LATEST : CHIP_OLD}`}
                               >
                                 V{v.ordinal}{v.totalHours > 0 ? ` · ${formatHours(v.totalHours)}` : ''}
@@ -306,7 +306,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                             <Link
                               key={String(v.id)}
                               href={`/sc/project/${project.id}?version_id=${v.id}`}
-                              title={(v.description ? `${v.versionName} — ${v.description}` : v.versionName) || undefined}
+                              title={v.description || v.versionName || undefined}
                               className={`
                                 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-caption font-medium   border transition-all
                                 ${isLatest
