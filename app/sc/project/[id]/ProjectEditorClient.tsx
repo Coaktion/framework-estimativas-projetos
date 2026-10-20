@@ -20,7 +20,8 @@ import {
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
-  CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight
+  CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
+  ArrowUp, ArrowDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -2033,6 +2034,47 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return () => document.body.classList.remove('has-editor-bar');
   }, [isAEEstimate]);
 
+  // Navegação rápida (barra do rodapé): sabe se a página está no topo ou no
+  // fim para desabilitar o botão que não teria efeito.
+  const [scrollEdges, setScrollEdges] = useState({ atTop: true, atBottom: false });
+  useEffect(() => {
+    if (isAEEstimate) return;
+    const EDGE = 120;
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const doc = document.documentElement;
+      const next = {
+        atTop: window.scrollY <= EDGE,
+        atBottom: window.scrollY + window.innerHeight >= doc.scrollHeight - EDGE,
+      };
+      setScrollEdges((prev) =>
+        prev.atTop === next.atTop && prev.atBottom === next.atBottom ? prev : next,
+      );
+    };
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update); };
+    // A altura muda quando seções abrem/fecham, não só no scroll.
+    const observer = new ResizeObserver(schedule);
+    observer.observe(document.body);
+    window.addEventListener('scroll', schedule, { passive: true });
+    window.addEventListener('resize', schedule);
+    update();
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('scroll', schedule);
+      window.removeEventListener('resize', schedule);
+    };
+  }, [isAEEstimate]);
+
+  const scrollPageTo = (where: 'top' | 'bottom') => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({
+      top: where === 'top' ? 0 : document.documentElement.scrollHeight,
+      behavior: reduceMotion ? 'auto' : 'smooth',
+    });
+  };
+
   if (isAEEstimate) {
     const aeData = formData.formData || {};
     return (
@@ -3602,6 +3644,30 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </span>
           </label>
           <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+            {/* Navegação rápida: ir ao topo / ao fim da página sem rolar tudo. */}
+            <div className="inline-flex items-center rounded-full border border-slate-300 bg-white overflow-hidden shrink-0" role="group" aria-label={t('editor.pageNavigation')}>
+              <button
+                type="button"
+                onClick={() => scrollPageTo('top')}
+                disabled={scrollEdges.atTop}
+                title={t('editor.scrollToTop')}
+                aria-label={t('editor.scrollToTop')}
+                className="h-10 w-10 inline-flex items-center justify-center text-brand-dark hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-default"
+              >
+                <ArrowUp className="w-4 h-4" />
+              </button>
+              <span className="w-px h-5 bg-slate-300" aria-hidden="true" />
+              <button
+                type="button"
+                onClick={() => scrollPageTo('bottom')}
+                disabled={scrollEdges.atBottom}
+                title={t('editor.scrollToBottom')}
+                aria-label={t('editor.scrollToBottom')}
+                className="h-10 w-10 inline-flex items-center justify-center text-brand-dark hover:bg-slate-100 transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:cursor-default"
+              >
+                <ArrowDown className="w-4 h-4" />
+              </button>
+            </div>
             {/* Sem a coluna lateral (telas menores), o total aparece aqui */}
             <div className="xl:hidden leading-tight">
               <span className="block text-caption text-slate-500">{t('editor.grandTotal')}</span>

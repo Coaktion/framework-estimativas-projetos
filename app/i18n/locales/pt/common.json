@@ -636,7 +636,10 @@
     "versionDescription": "Descrição da nova versão",
     "versionDescriptionPlaceholder": "Ex.: Ajuste de escopo após reunião com o cliente",
     "saveConfirmUpdate": "Atualizar versão",
-    "saveConfirmNew": "Criar nova versão"
+    "saveConfirmNew": "Criar nova versão",
+    "pageNavigation": "Navegação da página",
+    "scrollToTop": "Ir para o topo",
+    "scrollToBottom": "Ir para o fim da página"
   },
   "errors": {
     "allFieldsRequired": "Todos os campos são obrigatórios.",

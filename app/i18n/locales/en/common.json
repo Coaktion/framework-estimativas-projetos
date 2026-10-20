@@ -636,7 +636,10 @@
     "versionDescription": "New version description",
     "versionDescriptionPlaceholder": "e.g. Scope adjustment after client meeting",
     "saveConfirmUpdate": "Update version",
-    "saveConfirmNew": "Create new version"
+    "saveConfirmNew": "Create new version",
+    "pageNavigation": "Page navigation",
+    "scrollToTop": "Go to top",
+    "scrollToBottom": "Go to end of page"
   },
   "errors": {
     "allFieldsRequired": "All fields are required.",
