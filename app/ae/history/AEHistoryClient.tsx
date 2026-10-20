@@ -4,11 +4,26 @@ import { useLanguage } from '@/components/LanguageProvider';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from "next/link";
 import {
   Zap, Clock, Search, CheckCircle2, AlertTriangle, Shield, Filter, Lock, Globe,
+  List, LayoutGrid, ChevronRight, Plus,
 } from "lucide-react";
+
+// Estilos compartilhados com a lista de Projetos (/sc), para as duas telas
+// terem o mesmo comportamento visual.
+const SEGMENTED = 'inline-flex items-center gap-0.5 p-[3px] h-11 rounded-full border border-slate-300 bg-white';
+const SEGMENT_BTN = 'h-full px-4 rounded-full inline-flex items-center gap-1.5 text-body font-medium transition-colors';
+const SEGMENT_ON = 'bg-brand-dark text-[color:var(--bg-main)]';
+const SEGMENT_OFF = 'text-slate-500 hover:text-brand-dark';
+const TH = 'px-4 py-3 text-left text-label font-medium text-slate-500 whitespace-nowrap';
+const BADGE = 'inline-flex items-center gap-1.5 h-[26px] px-2.5 rounded-full bg-slate-100 text-brand-dark text-label font-medium whitespace-nowrap';
+const CHIP = 'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-lg border text-label font-medium whitespace-nowrap transition-colors';
+const CHIP_LATEST = 'brand-bg-primary border-transparent';
+const CHIP_OLD = 'bg-white border-slate-300 text-brand-dark hover:border-slate-500';
+const DOT_WARN = 'w-2 h-2 rounded-full bg-[color:var(--warning)] shrink-0';
+const DOT_OK = 'w-2 h-2 rounded-full bg-[#3f9d36] shrink-0';
 
 /** Horas em formato curto: 148h, 47,5h. Evita "47.66h" na listagem. */
 function formatHours(value: number): string {
@@ -77,6 +92,20 @@ export default function AEHistoryClient(
 
   const showOwnerChip = sessionIsAdmin && projectScope === 'all';
   const [searchQuery, setSearchQuery] = useState('');
+  const { dateLocale } = useLanguage();
+
+  // Lista (tabela) é o padrão, como em Projetos; a escolha fica lembrada no navegador.
+  const [view, setView] = useState<'list' | 'cards'>('list');
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('tc-ae-history-view');
+      if (saved === 'cards' || saved === 'list') setView(saved);
+    } catch {}
+  }, []);
+  const changeView = (next: 'list' | 'cards') => {
+    setView(next);
+    try { window.localStorage.setItem('tc-ae-history-view', next); } catch {}
+  };
 
   const filteredGroups = useMemo(() => {
     const arr = Array.isArray(groups) ? groups : [];
@@ -85,22 +114,35 @@ export default function AEHistoryClient(
     return arr.filter((g) => String(g.clientName || '').toLowerCase().includes(q));
   }, [groups, searchQuery]);
 
+  const totalVersions = filteredGroups.reduce((sum, g) => sum + Number(g.count || 0), 0);
+
+  const viewToggle = (
+    <div className={`${SEGMENTED} h-9`} role="group" aria-label={`${t('sc.viewList', 'Lista')} / ${t('sc.viewCards', 'Cards')}`}>
+      <button type="button" aria-pressed={view === 'list'} onClick={() => changeView('list')} className={`${SEGMENT_BTN} ${view === 'list' ? SEGMENT_ON : SEGMENT_OFF}`}>
+        <List className="w-4 h-4" />{t('sc.viewList', 'Lista')}
+      </button>
+      <button type="button" aria-pressed={view === 'cards'} onClick={() => changeView('cards')} className={`${SEGMENT_BTN} ${view === 'cards' ? SEGMENT_ON : SEGMENT_OFF}`}>
+        <LayoutGrid className="w-4 h-4" />{t('sc.viewCards', 'Cards')}
+      </button>
+    </div>
+  );
+
   return (
-    <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div>
-          <h1 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-page leading-none">
-            {t('aeHistory.title')} <span className="text-brand-primary dark:text-[color:var(--primary)]">{t('aeHistory.titleAccent')}</span>
+    <div className="space-y-8">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+        <div className="min-w-0">
+          <h1 className="text-brand-dark font-heading text-page">
+            {t('aeHistory.title')} <span className="text-brand-primary">{t('aeHistory.titleAccent')}</span>
           </h1>
-          <p className="text-slate-400 dark:text-[color:var(--text-muted)] text-label mt-4 font-medium ">
-            {t('aeHistory.projectsLabel')} ({t('aeHistory.clientCount', { count: filteredGroups.length })}{filteredGroups.length ? ` · ${t('aeHistory.versionCount', { count: filteredGroups.reduce((s, g) => s + Number(g.count || 0), 0) })}` : ''})
+          <p className="text-slate-500 text-[18px] font-light mt-2">
+            {t('aeHistory.subtitle', 'Estimativas da Calculadora AE, agrupadas por cliente.')}
           </p>
           {sessionIsAdmin && (
-            <p className="mt-3 inline-flex items-center gap-2 text-label font-medium text-slate-500 dark:text-[color:var(--text-muted)]">
-              <Filter className="w-3 h-3" />
+            <p className="mt-2 inline-flex items-center gap-2 text-label text-slate-500">
+              <Filter className="w-3.5 h-3.5" />
               <span>
-                Visualizando estimativas de{' '}
-                <span className="text-brand-primary dark:text-[color:var(--primary)]">
+                {t('aeHistory.viewingPrefix', 'Visualizando estimativas de')}{' '}
+                <span className="font-medium text-brand-dark">
                   {projectScope === 'all'
                     ? t('aeHistory.scopeAll', 'todos os AE')
                     : t('aeHistory.scopeMine', 'apenas as minhas')}
@@ -109,72 +151,145 @@ export default function AEHistoryClient(
             </p>
           )}
         </div>
-        <div className="flex flex-col md:flex-row items-end gap-4 w-full md:w-auto">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
           {sessionIsAdmin && (
-            <div className="inline-flex items-center gap-1 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-2xl p-1.5 shadow-sm self-start md:self-end">
-              <button
-                type="button"
-                onClick={() => setScope('mine')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-caption font-medium transition-all duration-300 ${
-                  projectScope === 'mine'
-                    ? 'brand-bg-primary text-brand-ink shadow-md shadow-green-900/10'
-                    : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
-                }`}
-              >
-                <Lock className="w-3 h-3" />
-                <span>{t('aeHistory.scopeMineBtn', 'Meus')}</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setScope('all')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-caption font-medium transition-all duration-300 ${
-                  projectScope === 'all'
-                    ? 'brand-bg-primary text-brand-ink shadow-md shadow-green-900/10'
-                    : 'text-slate-500 dark:text-[color:var(--text-muted)] hover:text-brand-dark dark:hover:text-[color:var(--text-main)]'
-                }`}
-              >
-                <Globe className="w-3 h-3" />
-                <span>{t('aeHistory.scopeAllBtn', 'Todos')}</span>
-              </button>
+            <div className={SEGMENTED} role="group" aria-label={t('aeHistory.title')}>
+              {(['mine', 'all'] as const).map((scope) => (
+                <button
+                  key={scope}
+                  type="button"
+                  aria-pressed={projectScope === scope}
+                  onClick={() => setScope(scope)}
+                  className={`${SEGMENT_BTN} ${projectScope === scope ? SEGMENT_ON : SEGMENT_OFF}`}
+                >
+                  {scope === 'mine' ? <Lock className="w-3.5 h-3.5" /> : <Globe className="w-3.5 h-3.5" />}
+                  {scope === 'mine' ? t('aeHistory.scopeMineBtn', 'Meus') : t('aeHistory.scopeAllBtn', 'Todos')}
+                </button>
+              ))}
             </div>
           )}
-          <div className="flex flex-col md:flex-row items-center gap-4 w-full md:w-auto">
-            <div className="relative w-full md:w-80 group">
-              <Search className="w-4 h-4 absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 dark:text-[color:var(--text-muted)] group-focus-within:text-brand-primary dark:group-focus-within:text-[color:var(--primary)] transition-colors" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t('aeHistory.searchPlaceholder')}
-                className="w-full bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-brand-dark dark:text-[color:var(--text-main)] rounded-2xl pl-14 pr-6 py-4 text-label font-medium outline-none focus:ring-2 focus:ring-brand-primary/20 dark:focus:ring-[color:var(--primary)]/20 focus:border-brand-primary dark:focus:border-[color:var(--primary)] transition-all placeholder:text-slate-500 dark:placeholder:text-[color:var(--text-muted)]"
-              />
-            </div>
-            <Link
-              href="/ae"
-              className="w-full md:w-auto bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-500 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-main)] px-8 py-5 rounded-3xl text-label font-medium flex items-center justify-center space-x-2 hover:border-brand-primary dark:hover:border-[color:var(--primary)] hover:text-brand-primary dark:hover:text-[color:var(--primary)] transition-all"
-            >
-              <span>{t('aeHistory.newEstimate')}</span>
-            </Link>
-          </div>
+          <label className="relative w-full sm:w-72">
+            <span className="sr-only">{t('aeHistory.searchPlaceholder')}</span>
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('aeHistory.searchPlaceholder')}
+              className="w-full h-11 bg-white border border-slate-300 rounded-[10px] pl-10 pr-3 text-body text-brand-dark outline-none focus:border-brand-primary focus:ring-[3px] focus:ring-[color:var(--focus-ring)] transition-colors placeholder:text-slate-500"
+            />
+          </label>
+          <Link
+            href="/ae"
+            className="h-11 brand-bg-primary px-5 rounded-full text-body font-medium btn-premium flex items-center justify-center gap-2"
+          >
+            <Plus className="w-5 h-5 shrink-0" />
+            <span>{t('aeHistory.newEstimate')}</span>
+          </Link>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredGroups.length === 0 ? (
-          <div className="col-span-full py-24 bg-white dark:bg-[color:var(--bg-card-solid)] rounded-3xl border-4 border-dashed border-slate-50 dark:border-[color:var(--border-main)] text-center">
-            <div className="brand-bg-primary w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-xl">
-              {searchQuery ? <Search className="w-10 h-10 text-white" /> : <Zap className="w-10 h-10 text-white" />}
-            </div>
-            <p className="text-slate-400 dark:text-[color:var(--text-muted)] font-bold ">
-              {searchQuery ? t('aeHistory.emptySearch') : t('aeHistory.emptyState')}
-            </p>
+      {filteredGroups.length === 0 ? (
+        <div className="py-20 bg-white rounded-2xl border border-slate-200 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-brand-soft text-brand-soft-fg flex items-center justify-center mx-auto mb-4">
+            {searchQuery ? <Search className="w-7 h-7" /> : <Zap className="w-7 h-7" />}
           </div>
-        ) : (
-          filteredGroups.map((g) => (
-            <ProjectCard key={g.clientName} group={g} canSeeOwner={showOwnerChip} />
-          ))
-        )}
-      </div>
+          <p className="text-body text-slate-500">
+            {searchQuery ? t('aeHistory.emptySearch') : t('aeHistory.emptyState')}
+          </p>
+        </div>
+      ) : view === 'list' ? (
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-slate-200">
+            <span className="text-label text-slate-500">
+              {t('aeHistory.clientCount', { count: filteredGroups.length })}
+              {totalVersions ? ` · ${t('aeHistory.versionCount', { count: totalVersions })}` : ''}
+            </span>
+            {viewToggle}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full tabular-nums">
+              <thead>
+                <tr className="border-b border-slate-300">
+                  <th className={TH}>{t('aeHistory.colClient', 'Cliente')}</th>
+                  <th className={TH}>{t('aeHistory.colStatus', 'Situação')}</th>
+                  <th className={TH}>{t('common.versions')}</th>
+                  <th className={TH}>{t('aeHistory.colUpdated', 'Última versão')}</th>
+                  <th className={TH}><span className="sr-only">{t('common.actions')}</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredGroups.map((g) => {
+                  const versions = [...(g.versions || [])].sort((a, b) => b.version - a.version);
+                  return (
+                    <tr key={g.clientName} className="border-b border-slate-200 last:border-b-0 hover:bg-[color:var(--accent-tint)] transition-colors">
+                      <td className="px-4 py-3.5 min-w-[220px]">
+                        <Link href={`/ae/${g.latestId}`} className="block font-medium text-brand-dark hover:underline decoration-[color:var(--primary)] decoration-2 underline-offset-[3px]">
+                          {g.clientName}
+                        </Link>
+                        {showOwnerChip && g.owner && (
+                          <span className="inline-flex items-center gap-1 text-label text-slate-500">
+                            <Shield className="w-3 h-3" />
+                            {String(g.owner.name || g.owner.email || t('common.unknown', 'Desconhecido'))}
+                            {g.owner.role ? ` (${g.owner.role})` : ''}
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap">
+                        <span className={BADGE}>
+                          <span className={g.latestNeedsSC ? DOT_WARN : DOT_OK} />
+                          {g.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
+                          {/* Estimativa que exige SE não tem número fechado: sem horas */}
+                          {!g.latestNeedsSC && g.latestHours > 0 ? ` · ${formatHours(g.latestHours)}` : ''}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {versions.map((v) => {
+                            const latest = Number(v.id) === Number(g.latestId);
+                            return (
+                              <Link
+                                key={String(v.id)}
+                                href={`/ae/${v.id}`}
+                                className={`${CHIP} ${latest ? CHIP_LATEST : CHIP_OLD}`}
+                                title={v.needsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
+                              >
+                                {!latest && <span className={v.needsSC ? DOT_WARN : DOT_OK} />}
+                                V{v.version}
+                                {v.needsSC ? ` · ${t('aeHistory.scShort')}` : v.hours > 0 ? ` · ${formatHours(v.hours)}` : ''}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 whitespace-nowrap text-body">
+                        {new Date(g.latestCreatedAt).toLocaleDateString(dateLocale)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="flex justify-end">
+                          <Link href={`/ae/${g.latestId}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium text-brand-dark hover:bg-slate-100 whitespace-nowrap">
+                            {t('aeHistory.open', 'Abrir')}
+                            <ChevronRight className="w-4 h-4" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end -mt-2 mb-4">{viewToggle}</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredGroups.map((g) => (
+              <ProjectCard key={g.clientName} group={g} canSeeOwner={showOwnerChip} />
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }
