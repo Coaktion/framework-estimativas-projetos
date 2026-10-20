@@ -532,8 +532,8 @@
     "hiddenItemsHint": "Estes itens não aparecerão na exportação final.",
     "hiddenItemsShort": "Itens ocultos",
     "hideItem": "Ocultar Item",
-    "includeProportionalVariables": "Incluir horas proporcionais de Discovery, GP e validação",
-    "includeProportionalVariablesHint": "Distribui as horas de Discovery, Validação e GP entre as categorias, na proporção das horas elegíveis de cada uma. Itens marcados como não incidentes a uma dessas variáveis ficam fora da divisão dela. A soma continua igual à do bloco Resumo de horas.",
+    "includeProportionalVariables": "Incluir horas proporcionais de Discovery, Validação, GP e DRN",
+    "includeProportionalVariablesHint": "Distribui as horas de Discovery, Validação, GP e DRN entre as categorias, na proporção das horas elegíveis de cada uma. O DRN é repartido entre os itens de Desenvolvimento. Itens marcados como não incidentes a uma variável ficam fora da divisão dela. Com esta opção ligada, a soma fecha com o total geral do projeto.",
     "included": "Incluso",
     "initialDraft": "Rascunho Inicial",
     "liveSummaryHint": "Atualiza enquanto você edita a estimativa.",
@@ -618,7 +618,9 @@
     "visibility": "Visibilidade",
     "withExternalConnection": "Com Conexão Externa",
     "withoutExternalConnection": "Sem Conexão Externa",
-    "zendeskCopilot": "Zendesk Copilot"
+    "zendeskCopilot": "Zendesk Copilot",
+    "breakdownColDrn": "DRN",
+    "breakdownSafety": "Safety"
   },
   "errors": {
     "allFieldsRequired": "Todos os campos são obrigatórios.",

@@ -124,6 +124,16 @@ const BREAKDOWN_VARIABLE_COLUMNS = [
     chipClass:
       'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-brand-secondary dark:text-[color:var(--secondary)]',
   },
+  {
+    // DRN (SD > Desenvolvimento): % sobre as horas de Dev, repartido entre os itens de Dev.
+    key: 'drn' as const,
+    labelKey: 'editor.breakdownColDrn',
+    shortKey: 'editor.breakdownColDrn',
+    textClass: 'text-brand-dark',
+    dotClass: 'bg-cyan-500',
+    chipClass:
+      'border-slate-200 dark:border-[color:var(--border-main)] bg-slate-100 dark:bg-[color:var(--bg-input-solid)] text-brand-dark dark:text-[color:var(--text-main)]',
+  },
 ];
 
 /**
@@ -416,10 +426,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   // Detalhamento por categoria: começa recolhido para não empurrar o resumo para baixo.
   const [categoryBreakdownOpen, setCategoryBreakdownOpen] = useState(false);
   /**
-   * Somar Discovery, GP e Validação proporcionais aos totais do detalhamento.
-   * Desligado = comportamento original (só horas de itens).
+   * Somar Discovery, Validação, GP e DRN proporcionais aos totais do detalhamento.
+   * Ligado por padrão: é a visão que fecha com o total geral do projeto.
+   * Desligado = só horas de itens.
    */
-  const [breakdownWithVariables, setBreakdownWithVariables] = useState(false);
+  const [breakdownWithVariables, setBreakdownWithVariables] = useState(true);
   // SKU e tier do Zendesk: definem quais itens da biblioteca estão disponíveis.
   // Persistidos dentro do JSON `data` da versão, então não exigem coluna nova.
   const [skuType, setSkuType] = useState<ZendeskSku>(() => {
@@ -881,6 +892,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     };
     let hasSdDiscoveryOnAnyItem = false;
     let hasAnyDesenvolvimento = false;
+    // Horas de itens DEV: não aparecem no card de Implantação, só compõem a
+    // base de cálculo da Validação (setupBaseParaVariaveis).
+    let devHorasSetupContribuicao = 0;
+    // Horas efetivamente contadas de cada pacote personalizado (mesmo índice de
+    // `customPackages`), para o detalhamento por categoria usar o mesmo valor.
+    const customTotals: number[] = [];
     const implantationBreakdown: Record<string, number> = {
       implantacao_workshop: 0,
       implantacao_discovery: 0,
@@ -1001,8 +1018,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           if (skillKey === 'Desenvolvimento') {
             // Horas cheias seguem seu fluxo padrão de DEV:
             skillTotals['Desenvolvimento'] += rowTotal;
-            // Contabilizamos também no bucket de Setup para cálculo de validação% sobre DEV
-            assignImplantBucket(cat, rowTotal);
+            // Contabilizamos também na base de cálculo de validação% sobre DEV
+            devHorasSetupContribuicao += rowTotal;
             return;
           }
 
@@ -1018,7 +1035,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     });
 
     // Custom Packages
-    customPackages.forEach(pkg => {
+    customPackages.forEach((pkg, idx) => {
+      customTotals[idx] = 0;
       if (formData[`check_area_${pkg.category}`] !== 'on') return;
 
       const qty = parseFloat(pkg.qty || 0);
@@ -1030,6 +1048,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         if (!isNaN(val)) total = val;
       }
       
+      customTotals[idx] = total;
       subtotal += total;
       catTotals[pkg.category] = (catTotals[pkg.category] || 0) + total;
       const skillKey = pkg.skillName || pkg.skill;
@@ -1043,7 +1062,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
       if (skillKey === 'Desenvolvimento') {
         skillTotals['Desenvolvimento'] += total;
-        assignImplantBucket(pkg.category, total);
+        devHorasSetupContribuicao += total;
         return;
       }
       if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += total;
@@ -1081,8 +1100,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     Object.keys(skillTotals).forEach(k => {
       if (skillLiquido[k] !== undefined) skillLiquido[k] = Number(skillTotals[k]) || 0;
     });
-    // Remover marketplace e GP que foram acrescentados acima só no skillTotals
-    skillLiquido['Implantação'] = Math.max(0, (skillLiquido['Implantação'] || 0) - (flatHoursMarketplace || 0));
+    // NOTA: o marketplace só é somado ao skillTotals mais abaixo, então não há o
+    // que descontar aqui (descontar fazia as horas de marketplace sumirem do Setup).
     skillLiquido['GP'] = 0; // GP é variável, não item catalogado
 
     // Nova lógica de buckets de Implantação:
@@ -1093,11 +1112,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // NÃO HÁ MAIS linha genérica "Implantação" → tudo é distribuído nos 6 buckets
     const safetyImplantacao = Number((safetyHours || {})['Implantação']) || 0;
 
-    // Para a base de cálculo de Validação% e Discovery%, queremos também considerar as horas
-    // de itens DEV (acumuladas em devHorasSetupContribuicao). Essas horas NÃO aparecem no
-    // card de Implantação; entram APENAS em setupBaseParaVariaveis.
-    let devHorasSetupContribuicao = 0;
-
     const implantacaoBuckets: Record<string, number> = {
       implantacao_workshop: implantationBreakdown.implantacao_workshop || 0,
       implantacao_discovery: implantationBreakdown.implantacao_discovery || 0,
@@ -1107,25 +1121,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       implantacao_golive: implantationBreakdown.implantacao_golive || 0,
     };
 
-    // Remove das horas de setup a contribuição de itens DEV que foram injetados via assignImplantBucket
-    // (não queremos que apareçam no card de Implantação, só na base de cálculo de %).
-    {
-      // Recalcula somente a parte de implantação líquida de setup para o fechamento abaixo:
-      // Como assignImplantBucket já distribuiu tudo, calculamos sobraDeDev =
-      //   valorJaAplicadoBruto - implantacaoTotalLiquido
-      const valorJaAplicadoBruto = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
-      const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
-      if (valorJaAplicadoBruto > implantacaoTotalLiquido + 0.0001) {
-        devHorasSetupContribuicao = roundHalfUp(Math.max(0, valorJaAplicadoBruto - implantacaoTotalLiquido), 1);
-        // Subtrai do bucket que recebeu as horas de DEV (Setup):
-        implantacaoBuckets['implantacao_setup'] = roundHalfUp(
-          Math.max(0, (implantacaoBuckets['implantacao_setup'] || 0) - devHorasSetupContribuicao),
-          1
-        );
-      }
-    }
-
-    // Fechamento normal (agora buckets só contém Implantação líquida, sem DEV)
+    // Fechamento normal (buckets só contêm Implantação; as horas de DEV ficam em
+    // devHorasSetupContribuicao, acumuladas na varredura dos itens)
     const valorJaAplicado = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
     const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
     if (valorJaAplicado < implantacaoTotalLiquido - 0.0001) {
@@ -1241,7 +1238,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
 
     // SD > Desenvolvimento (DRN): pctDRNDevops % sobre TUDO que for Desenvolvimento (SEMPRE)
-    sd_desenvolvimento += totalDevFull * (pctDRNDevops / 100);
+    const drnValRaw = totalDevFull * (pctDRNDevops / 100);
+    sd_desenvolvimento += drnValRaw;
 
     // Discovery de Implantação transferido (ver acima): SD tem prioridade sobre Dev
     if (hasSD) sd_discovery += discValRawFinal;
@@ -1332,7 +1330,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const discVal = roundHalfUp(discValRaw, 1);
     const validVal = roundHalfUp(validValRaw, 1);
     const totalSafety = roundHalfUp(totalSafetyRaw, 1);
-    const consolidatedBase = totalBaseGP + gpVal;
+    // Total geral: TODOS os containers + GP. Não parte de `totalBaseGP`, porque
+    // ela desconta os itens fora do GP — que não recebem GP, mas continuam
+    // sendo horas do projeto.
+    const consolidatedBase =
+      Number(skillTotals['Implantação'] || 0)
+      + Number(skillTotals['Solution Design'] || 0)
+      + Number(skillTotals['Desenvolvimento'] || 0)
+      + Number(skillTotals['Design'] || 0)
+      + gpVal;
     const grandTotal = roundHalfUp(consolidatedBase, 0);
 
     return {
@@ -1342,8 +1348,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Expostos para o detalhamento por categoria/subcategoria.
       itemTotals,
       catTotals,
+      customTotals,
       gpVal,
       discVal,
+      // DRN (% sobre Dev) — exposto para o detalhamento por categoria.
+      drnVal: roundHalfUp(drnValRaw, 1),
+      drnPct: pctDRNDevops,
+      safetyHours,
       // Bases efetivas e horas descontadas pelas tags de não incidência —
       // expostas para que a UI possa explicar de onde veio o número.
       baseDiscovery,
@@ -1368,21 +1379,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
    */
   const categoryBreakdown = useMemo(() => {
+    type VarKey = 'discovery' | 'validation' | 'gp' | 'drn';
+    type Elig = Record<VarKey, number>;
     type Bucket = {
       total: number;
       /** Base elegível a cada variável, para repartir proporcionalmente. */
-      elig: { discovery: number; validation: number; gp: number };
-      subs: Map<string, { hours: number; elig: { discovery: number; validation: number; gp: number } }>;
+      elig: Elig;
+      subs: Map<string, { hours: number; elig: Elig }>;
     };
+    const VAR_KEYS: VarKey[] = ['discovery', 'validation', 'gp', 'drn'];
 
     const byCategory = new Map<string, Bucket>();
-    const zero = () => ({ discovery: 0, validation: 0, gp: 0 });
+    const zero = (): Elig => ({ discovery: 0, validation: 0, gp: 0, drn: 0 });
 
     const bump = (
       cat: string,
       sub: string,
       hours: number,
-      elig: { discovery: boolean; validation: boolean; gp: boolean },
+      elig: Record<VarKey, boolean>,
     ) => {
       if (!hours) return;
       if (!byCategory.has(cat)) {
@@ -1394,7 +1408,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       const subEntry = entry.subs.get(sub)!;
       subEntry.hours += hours;
 
-      (['discovery', 'validation', 'gp'] as const).forEach((key) => {
+      VAR_KEYS.forEach((key) => {
         if (!elig[key]) return;
         entry.elig[key] += hours;
         subEntry.elig[key] += hours;
@@ -1409,22 +1423,27 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         const itemId = String(pkg.id);
         const sub =
           layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
+        const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
         bump(cat, sub, hours, {
-          discovery: variableEligibility.discovery(pkg, cat),
+          // Discovery não incide sobre Dev (o discovery de Dev é o DRN).
+          discovery: !isDev && variableEligibility.discovery(pkg, cat),
           validation: variableEligibility.validation(pkg, cat),
           gp: variableEligibility.gp(pkg, cat),
+          drn: isDev,
         });
       });
     });
 
     // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
-    // Não têm configuração de incidência, então entram elegíveis às três — é o
-    // mesmo tratamento que recebem na base de cálculo do resumo.
-    customPackages.forEach((pkg: any) => {
-      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
+    // Usa as horas que o resumo de fato contou (override e módulo marcado
+    // incluídos). Não têm configuração de incidência, então entram elegíveis
+    // às variáveis — mesmo tratamento da base de cálculo do resumo.
+    customPackages.forEach((pkg: any, idx: number) => {
+      const hours = Number(totals.customTotals?.[idx]) || 0;
       if (!hours) return;
+      const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
       bump(pkg.category || t('common.custom'), t('common.manual'), hours, {
-        discovery: true, validation: true, gp: true,
+        discovery: !isDev, validation: true, gp: true, drn: isDev,
       });
     });
 
@@ -1432,41 +1451,53 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     // antes do cálculo de Discovery/Validação, logo incidem normalmente.
     if (totals.flatHoursMarketplace) {
       bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace, {
-        discovery: true, validation: true, gp: true,
+        discovery: true, validation: true, gp: true, drn: false,
       });
     }
+
+    // Horas de Safety por skill: entram no total geral, então precisam de uma
+    // linha própria. Recebem GP; o Safety de Dev também compõe a base do DRN.
+    Object.entries(totals.safetyHours || {}).forEach(([skill, raw]) => {
+      const hours = Number(raw) || 0;
+      if (!hours) return;
+      bump(t('editor.breakdownSafety'), skillLabel(t, skill), hours, {
+        discovery: false, validation: false, gp: true, drn: skill === 'Desenvolvimento',
+      });
+    });
 
     // ---- Repartição proporcional das variáveis --------------------------------
     // Os valores repartidos são os JÁ CALCULADOS no resumo (respeitando
     // overrides manuais e as tags de não incidência), então a soma das
     // contribuições fecha exatamente com o que o bloco "Resumo de horas" exibe.
-    const varTotals = {
+    const varTotals: Record<VarKey, number> = {
       discovery: Number(totals.discVal) || 0,
       validation: Number(totals.validVal) || 0,
       gp: Number(totals.gpVal) || 0,
+      drn: Number(totals.drnVal) || 0,
     };
 
     const eligibleGrand = zero();
     byCategory.forEach((entry) => {
-      eligibleGrand.discovery += entry.elig.discovery;
-      eligibleGrand.validation += entry.elig.validation;
-      eligibleGrand.gp += entry.elig.gp;
+      VAR_KEYS.forEach((key) => { eligibleGrand[key] += entry.elig[key]; });
     });
 
-    const share = (eligible: number, key: 'discovery' | 'validation' | 'gp') => {
+    const share = (eligible: number, key: VarKey) => {
       const denominator = eligibleGrand[key];
       if (!denominator) return 0;
       return varTotals[key] * (eligible / denominator);
     };
+    const contribOf = (elig: Elig): Record<VarKey, number> => ({
+      discovery: share(elig.discovery, 'discovery'),
+      validation: share(elig.validation, 'validation'),
+      gp: share(elig.gp, 'gp'),
+      drn: share(elig.drn, 'drn'),
+    });
+    const sumOf = (c: Record<VarKey, number>) => VAR_KEYS.reduce((acc, key) => acc + c[key], 0);
 
     const rows = Array.from(byCategory.entries())
       .map(([cat, entry]) => {
-        const contrib = {
-          discovery: share(entry.elig.discovery, 'discovery'),
-          validation: share(entry.elig.validation, 'validation'),
-          gp: share(entry.elig.gp, 'gp'),
-        };
-        const contribSum = contrib.discovery + contrib.validation + contrib.gp;
+        const contrib = contribOf(entry.elig);
+        const contribSum = sumOf(contrib);
 
         return {
           cat,
@@ -1475,17 +1506,12 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           totalWithVariables: entry.total + contribSum,
           subs: Array.from(entry.subs.entries())
             .map(([sub, subEntry]) => {
-              const subContrib = {
-                discovery: share(subEntry.elig.discovery, 'discovery'),
-                validation: share(subEntry.elig.validation, 'validation'),
-                gp: share(subEntry.elig.gp, 'gp'),
-              };
+              const subContrib = contribOf(subEntry.elig);
               return {
                 sub,
                 hours: subEntry.hours,
                 contrib: subContrib,
-                hoursWithVariables:
-                  subEntry.hours + subContrib.discovery + subContrib.validation + subContrib.gp,
+                hoursWithVariables: subEntry.hours + sumOf(subContrib),
               };
             })
             .sort((a, b) => b.hours - a.hours),
@@ -1499,10 +1525,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return { rows, grand, grandWithVariables, varTotals };
   }, [
     totals.itemTotals,
+    totals.customTotals,
+    totals.safetyHours,
     totals.flatHoursMarketplace,
     totals.discVal,
     totals.validVal,
     totals.gpVal,
+    totals.drnVal,
     packagesByCategory,
     layoutConfig.itemSubcategories,
     customPackages,
@@ -1529,7 +1558,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * concatenação não geraria CSS nenhum.
    */
   const breakdownGridClass = breakdownWithVariables
-    ? 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_4.5rem_6rem]'
+    ? 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_4.5rem_4.5rem_4.5rem_4.5rem_4.5rem_6rem]'
     : 'md:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_6rem]';
 
   /* ------------------------------------------------------------------------ */
@@ -3217,7 +3246,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </label>
 
               {breakdownWithVariables && (
-                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="mt-3.5 pt-3.5 border-t border-slate-200 dark:border-[color:var(--border-main)] grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {BREAKDOWN_VARIABLE_COLUMNS.map((col) => (
                     <div
                       key={col.key}
@@ -3226,7 +3255,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <div className="flex items-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${col.dotClass}`} />
                         <span className="text-caption font-medium opacity-80">
-                          {t(col.labelKey)} · {percents[col.key]}%
+                          {t(col.labelKey)} · {col.key === 'drn' ? totals.drnPct : percents[col.key]}%
                         </span>
                       </div>
                       <div className="text-body font-bold tabular-nums mt-1">

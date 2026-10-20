@@ -532,8 +532,8 @@
     "hiddenItemsHint": "These items will not appear in the final export.",
     "hiddenItemsShort": "Hidden items",
     "hideItem": "Hide Item",
-    "includeProportionalVariables": "Include proportional Discovery, PM and validation hours",
-    "includeProportionalVariablesHint": "Spreads Discovery, Validation and PM hours across the categories, in proportion to each one's eligible hours. Items flagged as not subject to one of these variables are left out of that split. The total still matches the Summary of hours block.",
+    "includeProportionalVariables": "Include proportional Discovery, Validation, PM and DRN hours",
+    "includeProportionalVariablesHint": "Spreads Discovery, Validation, PM and DRN hours across the categories, in proportion to each one's eligible hours. DRN is split among the Development items. Items flagged as not subject to a variable are left out of that split. With this on, the sum matches the project's grand total.",
     "included": "Included",
     "initialDraft": "Initial Draft",
     "liveSummaryHint": "Updates as you edit the estimate.",
@@ -618,7 +618,9 @@
     "visibility": "Visibility",
     "withExternalConnection": "With External Connection",
     "withoutExternalConnection": "Without External Connection",
-    "zendeskCopilot": "Zendesk Copilot"
+    "zendeskCopilot": "Zendesk Copilot",
+    "breakdownColDrn": "DRN",
+    "breakdownSafety": "Safety"
   },
   "errors": {
     "allFieldsRequired": "All fields are required.",
