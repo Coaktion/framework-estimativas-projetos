@@ -25,6 +25,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { saveProjectVersionAction, cloneProjectVersionAction } from './actions';
+import { nextVersionNumber, versionNameFor } from '@/lib/version-utils';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
 type LayoutConfig = {
@@ -403,7 +404,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
   });
 
-  const [versionName, setVersionName] = useState(currentVersion?.versionName || 'V1');
+  // Numeração automática: o nome da versão é sempre definido pelo servidor
+  // (V1, V2...). Aqui só calculamos o próximo número para exibir na janela de salvar.
+  const versionName: string = currentVersion?.versionName || '';
+  const nextVersionLabel = versionNameFor(
+    nextVersionNumber((allVersions || []).map((v: any) => v.versionName)),
+  );
+  const versionOptionLabel = (v: any) =>
+    v.description ? `${v.versionName} — ${v.description}` : v.versionName;
+  // Janela de salvar: atualizar a versão atual ou criar uma nova (com descrição).
+  const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
+  const [saveMode, setSaveMode] = useState<'update' | 'new'>(currentVersion ? 'update' : 'new');
+  const [newVersionDescription, setNewVersionDescription] = useState('');
   const [techLink, setTechLink] = useState(currentVersion?.technicalScopeLink || '');
   const [zohoLink, setZohoLink] = useState(currentVersion?.zohoLink || '');
   
@@ -1660,7 +1672,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       template: 'pacote-de-horas',
       clientName: project?.name || '',
       projectName: project?.name || '',
-      versionName: versionName || currentVersion?.versionName || 'v1',
+      versionName: versionName || 'V1',
       generatedAt: new Date(),
       technicalScopeLink: techLink,
       zohoLink,
@@ -1759,11 +1771,25 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
   };
 
-  const handleSave = async () => {
-    if (!versionName || !techLink) {
+  /** Botão Salvar: valida e abre a janela de escolha (atualizar x nova versão). */
+  const handleSave = () => {
+    if (!techLink) {
       alert(t('editor.versionFieldsRequired'));
       return;
     }
+    setSaveMode(currentVersion ? 'update' : 'new');
+    setNewVersionDescription('');
+    setIsSaveDialogOpen(true);
+  };
+
+  const handleConfirmSave = () => {
+    const description = newVersionDescription.trim();
+    if (saveMode === 'new' && !description) {
+      alert(t('editor.versionDescriptionRequired'));
+      return;
+    }
+    if (saveMode === 'update' && !currentVersion) return;
+    setIsSaveDialogOpen(false);
 
     startTransition(async () => {
       try {
@@ -1801,7 +1827,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         debugCustomKeysFinal.forEach(k => console.log(`[DEBUG:SAVE]   ${k} =`, (mergedFormData as any)[k]));
 
         const payload = {
-          versionName,
+          saveMode,
+          versionId: saveMode === 'update' ? currentVersion?.id : null,
+          description: saveMode === 'new' ? description : null,
           technicalScopeLink: techLink,
           zohoLink,
           gpPercent: percents.gp,
@@ -1832,7 +1860,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             : JSON.stringify((result as any).data ?? null).slice(0, 300));
 
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
-        alert(t('editor.versionSaved'));
+        // Ao atualizar, a URL não muda: força a releitura da versão salva.
+        router.refresh();
+        alert(saveMode === 'update'
+          ? t('editor.versionUpdated', { name: result.versionName })
+          : t('editor.versionCreated', { name: result.versionName }));
       } catch (e) {
         console.error('[DEBUG:SAVE] saveProjectVersionAction ERROR:', e);
         alert(t('editor.versionSaveError'));
@@ -1846,9 +1878,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return;
     }
 
-    const newName = prompt(t('editor.promptCloneName'), t('editor.copyOf', { name: versionName }));
-    if (!newName) return;
-    
+    // A cópia vira uma NOVA versão com número automático; só a descrição é pedida.
+    const description = (prompt(
+      t('editor.promptCloneDescription', { name: nextVersionLabel }),
+      t('editor.copyOf', { name: versionName }),
+    ) || '').trim();
+    if (!description) return;
+
     const newLink = prompt(t('editor.promptCloneLink'), "");
     if (!newLink) {
       alert(t('editor.cloneLinkRequired'));
@@ -1857,7 +1893,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
     startTransition(async () => {
       try {
-        const result = await cloneProjectVersionAction(project.id, currentVersion.id, newName, newLink);
+        const result = await cloneProjectVersionAction(project.id, currentVersion.id, description, newLink);
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
         alert(t('editor.versionCloned'));
       } catch (e) {
@@ -2024,7 +2060,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {allVersions.map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.versionName}</option>
+                      <option key={v.id} value={v.id}>{versionOptionLabel(v)}</option>
                     ))}
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -2182,7 +2218,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   >
                     {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
                     {allVersions.map((v: any) => (
-                      <option key={v.id} value={v.id}>{v.versionName}</option>
+                      <option key={v.id} value={v.id}>{versionOptionLabel(v)}</option>
                     ))}
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
@@ -2297,13 +2333,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           {/* Os links do escopo e do Zoho ficam na barra fixa do rodapé, junto do Salvar. */}
           <div className="max-w-md space-y-2">
             <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
-            <input 
-              type="text" 
-              value={versionName}
-              onChange={(e) => setVersionName(e.target.value)}
-              placeholder={t('editor.versionNamePlaceholder')} 
-              className="w-full bg-white border border-slate-300 rounded-xl px-5 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary outline-none transition-all placeholder:text-slate-300" 
-            />
+            {/* Somente leitura: a numeração das versões é automática. */}
+            <div className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-xl px-5 py-3 text-label">
+              <span className="font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                {versionName || t('editor.versionNotSaved', { name: nextVersionLabel })}
+              </span>
+              {currentVersion?.description && (
+                <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                  {currentVersion.description}
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -3579,6 +3619,113 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         </div>
       </div>
+
+      {/* Janela de salvar: atualizar a versão aberta ou criar uma nova (numeração
+          automática, descrição obrigatória). Botões type="button" porque o
+          editor inteiro está dentro de um <form>. */}
+      {isSaveDialogOpen && (
+        <div
+          className="fixed inset-0 bg-[rgb(3_14_1/0.8)] backdrop-blur-md flex items-center justify-center z-[60] p-4"
+          onClick={(e) => { if (e.target === e.currentTarget) setIsSaveDialogOpen(false); }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="save-version-title"
+        >
+          <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl shadow-2xl max-w-md w-full overflow-hidden border border-white/20">
+            <div className="px-8 pt-8 flex justify-between items-start gap-4">
+              <div>
+                <h3 id="save-version-title" className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section">{t('editor.saveDialogTitle')}</h3>
+                <p className="text-slate-500 dark:text-[color:var(--text-muted)] text-body mt-1">{t('editor.saveDialogSubtitle')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSaveDialogOpen(false)}
+                className="text-slate-500 hover:text-brand-dark transition-colors p-1"
+                aria-label={t('common.close')}
+              >
+                <X className="w-6 h-6 shrink-0" />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-3">
+              {currentVersion && (
+                <label className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${saveMode === 'update' ? 'border-brand-primary bg-slate-50 dark:bg-[color:var(--bg-input)]' : 'border-slate-200 dark:border-[color:var(--border-main)]'}`}>
+                  <input
+                    type="radio"
+                    name="__saveMode"
+                    checked={saveMode === 'update'}
+                    onChange={() => setSaveMode('update')}
+                    className="mt-1 accent-[color:var(--primary)]"
+                  />
+                  <span>
+                    <span className="block text-body font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                      {t('editor.saveUpdateCurrent', { name: versionName })}
+                    </span>
+                    <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                      {t('editor.saveUpdateCurrentHint', { name: versionName })}
+                    </span>
+                  </span>
+                </label>
+              )}
+
+              <label className={`flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-colors ${saveMode === 'new' ? 'border-brand-primary bg-slate-50 dark:bg-[color:var(--bg-input)]' : 'border-slate-200 dark:border-[color:var(--border-main)]'}`}>
+                <input
+                  type="radio"
+                  name="__saveMode"
+                  checked={saveMode === 'new'}
+                  onChange={() => setSaveMode('new')}
+                  className="mt-1 accent-[color:var(--primary)]"
+                />
+                <span>
+                  <span className="block text-body font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.saveAsNew', { name: nextVersionLabel })}
+                  </span>
+                  <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
+                    {t('editor.saveAsNewHint')}
+                  </span>
+                </span>
+              </label>
+
+              {saveMode === 'new' && (
+                <div className="space-y-2 pt-2">
+                  <label htmlFor="new-version-description" className="block text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">
+                    {t('editor.versionDescription')} <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    id="new-version-description"
+                    value={newVersionDescription}
+                    onChange={(e) => setNewVersionDescription(e.target.value)}
+                    placeholder={t('editor.versionDescriptionPlaceholder')}
+                    rows={3}
+                    maxLength={300}
+                    autoFocus
+                    className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-[10px] px-4 py-3 text-body focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 resize-none"
+                  />
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsSaveDialogOpen(false)}
+                  className="h-10 px-5 rounded-full border border-slate-300 dark:border-[color:var(--border-main)] text-body font-medium text-brand-dark dark:text-[color:var(--text-main)] hover:bg-slate-50 dark:hover:bg-[color:var(--bg-input)] transition-colors"
+                >
+                  {t('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmSave}
+                  disabled={isPending || (saveMode === 'new' && !newVersionDescription.trim())}
+                  className="h-10 px-6 rounded-full brand-bg-primary text-body font-medium btn-premium inline-flex items-center gap-2 disabled:opacity-50"
+                >
+                  <Save className="w-4 h-4" />
+                  {saveMode === 'update' ? t('editor.saveConfirmUpdate') : t('editor.saveConfirmNew')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 }

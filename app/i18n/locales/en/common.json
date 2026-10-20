@@ -481,7 +481,8 @@
     "type": "Type",
     "value": "Value",
     "versions": "Versions",
-    "yes": "Yes"
+    "yes": "Yes",
+    "close": "Close"
   },
   "editor": {
     "activeChannels": "Active Channels",
@@ -608,7 +609,7 @@
     "unitHours": "Unit Hrs",
     "versionCloneError": "Failed to clone version.",
     "versionCloned": "Version cloned successfully!",
-    "versionFieldsRequired": "Version name and Technical Scope link are required.",
+    "versionFieldsRequired": "The Technical Scope link is required.",
     "versionIdentification": "Version Identification",
     "versionNamePlaceholder": "e.g. Final Proposal",
     "versionSaveError": "Failed to save version.",
@@ -620,7 +621,22 @@
     "withoutExternalConnection": "Without External Connection",
     "zendeskCopilot": "Zendesk Copilot",
     "breakdownColDrn": "DRN",
-    "breakdownSafety": "Safety"
+    "breakdownSafety": "Safety",
+    "versionDescriptionRequired": "Enter a description for the new version.",
+    "versionUpdated": "Version {{name}} updated successfully!",
+    "versionCreated": "Version {{name}} created successfully!",
+    "promptCloneDescription": "The copy will be saved as {{name}}. Describe what this version is about (required):",
+    "versionNotSaved": "Not saved yet — will be {{name}}",
+    "saveDialogTitle": "Save estimate",
+    "saveDialogSubtitle": "Choose whether the changes update the open version or become a new version.",
+    "saveUpdateCurrent": "Update the current version ({{name}})",
+    "saveUpdateCurrentHint": "Overwrites {{name}} with the changes. Number and description are kept.",
+    "saveAsNew": "Save as a new version ({{name}})",
+    "saveAsNewHint": "The current version is preserved and can be viewed at any time.",
+    "versionDescription": "New version description",
+    "versionDescriptionPlaceholder": "e.g. Scope adjustment after client meeting",
+    "saveConfirmUpdate": "Update version",
+    "saveConfirmNew": "Create new version"
   },
   "errors": {
     "allFieldsRequired": "All fields are required.",

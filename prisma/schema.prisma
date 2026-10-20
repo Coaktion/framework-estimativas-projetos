@@ -156,7 +156,10 @@ model ProjectVersion {
   id                  Int      @id @default(autoincrement())
   projectId           Int
   project             Project  @relation(fields: [projectId], references: [id])
-  versionName         String
+  versionName         String   // Gerado automaticamente (V1, V2...) — não editável pelo usuário
+  // Sobre o que trata a versão. Obrigatória ao salvar uma NOVA versão; versões
+  // antigas (anteriores à numeração automática) ficam sem.
+  description         String?
   data                String   // JSON string
   technicalScopeLink  String?
   zohoLink            String?

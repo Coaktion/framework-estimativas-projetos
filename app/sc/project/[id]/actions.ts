@@ -6,6 +6,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { canAccessScopes } from "@/lib/segments";
+import { nextVersionNumber, versionNameFor } from "@/lib/version-utils";
+
+/** Próximo nome automático (V1, V2...) para uma nova versão do projeto. */
+async function nextVersionNameFor(projectId: number): Promise<string> {
+  const existing = await prisma.projectVersion.findMany({
+    where: { projectId },
+    select: { versionName: true },
+  });
+  return versionNameFor(nextVersionNumber(existing.map((v) => v.versionName)));
+}
 
 /**
  * Atualiza `totalHours` de uma versão em um update separado.
@@ -35,6 +45,16 @@ async function trySetTotalHours(versionId: number, hours: number | null | undefi
   }
 }
 
+/**
+ * Salva a estimativa do editor.
+ *
+ *  - `saveMode: 'new'`    → cria uma nova versão com o próximo número automático
+ *                           (V1, V2...). `description` é obrigatória.
+ *  - `saveMode: 'update'` → sobrescreve a versão `versionId`, mantendo nome e
+ *                           descrição.
+ *
+ * O nome da versão NUNCA vem do cliente: a numeração é sempre do servidor.
+ */
 export async function saveProjectVersionAction(projectId: number, formData: any) {
   const session = await getServerSession(authOptions);
   if (!canAccessScopes(session?.user as any)) {
@@ -42,7 +62,9 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
   }
 
   const {
-    versionName,
+    saveMode,
+    versionId,
+    description,
     technicalScopeLink,
     zohoLink,
     gpPercent,
@@ -82,24 +104,43 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
   // volta na abertura da versão (`currentVersion?.zohoLink`), mas nunca eram
   // gravados — o campo voltava vazio a cada reabertura. Passaram a ser
   // persistidos junto com o resto.
-  const version = await prisma.projectVersion.create({
-    data: {
-      projectId,
-      versionName,
-      technicalScopeLink,
-      zohoLink: zohoLink || null,
-      gpPercent: parseFloat(gpPercent || 0),
-      discoveryPercent: parseFloat(discoveryPercent || 0),
-      validationPercent: parseFloat(validationPercent || 0),
-      gpOverride: gpOverride !== null ? parseFloat(gpOverride) : null,
-      discoveryOverride: discoveryOverride !== null ? parseFloat(discoveryOverride) : null,
-      validationOverride: validationOverride !== null ? parseFloat(validationOverride) : null,
-      safetyHours: safetyHours || null,
-      // NOTA: `totalHours` NÃO é passado aqui. É aplicado via update abaixo.
-      data: safeDataString,
-      createdBy: parseInt(session.user.id)
-    }
-  });
+  const contentFields = {
+    technicalScopeLink,
+    zohoLink: zohoLink || null,
+    gpPercent: parseFloat(gpPercent || 0),
+    discoveryPercent: parseFloat(discoveryPercent || 0),
+    validationPercent: parseFloat(validationPercent || 0),
+    gpOverride: gpOverride !== null ? parseFloat(gpOverride) : null,
+    discoveryOverride: discoveryOverride !== null ? parseFloat(discoveryOverride) : null,
+    validationOverride: validationOverride !== null ? parseFloat(validationOverride) : null,
+    safetyHours: safetyHours || null,
+    // NOTA: `totalHours` NÃO é passado aqui. É aplicado via update abaixo.
+    data: safeDataString,
+  };
+
+  let version;
+  if (saveMode === 'update') {
+    const target = await prisma.projectVersion.findFirst({
+      where: { id: Number(versionId), projectId },
+    });
+    if (!target) throw new Error('Version not found');
+    version = await prisma.projectVersion.update({
+      where: { id: target.id },
+      data: contentFields,
+    });
+  } else {
+    const cleanDescription = String(description || '').trim();
+    if (!cleanDescription) throw new Error('Version description is required');
+    version = await prisma.projectVersion.create({
+      data: {
+        projectId,
+        versionName: await nextVersionNameFor(projectId),
+        description: cleanDescription,
+        ...contentFields,
+        createdBy: parseInt(session.user.id)
+      }
+    });
+  }
 
   const dbVersion = await prisma.projectVersion.findUnique({ where: { id: version.id } });
   if (dbVersion) {
@@ -119,11 +160,14 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
   return version;
 }
 
-export async function cloneProjectVersionAction(projectId: number, sourceVersionId: number, newVersionName: string, newTechLink: string) {
+export async function cloneProjectVersionAction(projectId: number, sourceVersionId: number, description: string, newTechLink: string) {
   const session = await getServerSession(authOptions);
   if (!canAccessScopes(session?.user as any)) {
     throw new Error(getServerT()('errors.notAuthorized'));
   }
+
+  const cleanDescription = String(description || '').trim();
+  if (!cleanDescription) throw new Error('Version description is required');
 
   const source = await prisma.projectVersion.findUnique({
     where: { id: sourceVersionId }
@@ -134,7 +178,8 @@ export async function cloneProjectVersionAction(projectId: number, sourceVersion
   const newVersion = await prisma.projectVersion.create({
     data: {
       projectId,
-      versionName: newVersionName,
+      versionName: await nextVersionNameFor(projectId),
+      description: cleanDescription,
       technicalScopeLink: newTechLink,
       gpPercent: source.gpPercent,
       discoveryPercent: source.discoveryPercent,

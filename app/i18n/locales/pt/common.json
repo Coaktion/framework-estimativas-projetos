@@ -481,7 +481,8 @@
     "type": "Tipo",
     "value": "Valor",
     "versions": "Versões",
-    "yes": "Sim"
+    "yes": "Sim",
+    "close": "Fechar"
   },
   "editor": {
     "activeChannels": "Canais Ativos",
@@ -608,7 +609,7 @@
     "unitHours": "Hrs Unit.",
     "versionCloneError": "Erro ao clonar versão.",
     "versionCloned": "Versão clonada com sucesso!",
-    "versionFieldsRequired": "Nome da versão e Link do Escopo Técnico são obrigatórios.",
+    "versionFieldsRequired": "O link do Escopo Técnico é obrigatório.",
     "versionIdentification": "Identificação da Versão",
     "versionNamePlaceholder": "Ex: Proposta Final",
     "versionSaveError": "Erro ao salvar versão.",
@@ -620,7 +621,22 @@
     "withoutExternalConnection": "Sem Conexão Externa",
     "zendeskCopilot": "Zendesk Copilot",
     "breakdownColDrn": "DRN",
-    "breakdownSafety": "Safety"
+    "breakdownSafety": "Safety",
+    "versionDescriptionRequired": "Informe uma descrição para a nova versão.",
+    "versionUpdated": "Versão {{name}} atualizada com sucesso!",
+    "versionCreated": "Versão {{name}} criada com sucesso!",
+    "promptCloneDescription": "A cópia será salva como {{name}}. Descreva do que se trata esta versão (obrigatório):",
+    "versionNotSaved": "Ainda não salva — será {{name}}",
+    "saveDialogTitle": "Salvar estimativa",
+    "saveDialogSubtitle": "Escolha se as alterações atualizam a versão aberta ou viram uma nova versão.",
+    "saveUpdateCurrent": "Atualizar a versão atual ({{name}})",
+    "saveUpdateCurrentHint": "Sobrescreve {{name}} com as alterações. Número e descrição são mantidos.",
+    "saveAsNew": "Salvar como nova versão ({{name}})",
+    "saveAsNewHint": "A versão atual fica preservada e pode ser consultada a qualquer momento.",
+    "versionDescription": "Descrição da nova versão",
+    "versionDescriptionPlaceholder": "Ex.: Ajuste de escopo após reunião com o cliente",
+    "saveConfirmUpdate": "Atualizar versão",
+    "saveConfirmNew": "Criar nova versão"
   },
   "errors": {
     "allFieldsRequired": "Todos os campos são obrigatórios.",
