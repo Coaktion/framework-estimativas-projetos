@@ -228,6 +228,11 @@ function fmtLiveHours(value: unknown): string {
   return `${(Math.round(n * 10) / 10).toFixed(1).replace('.', ',')}h`;
 }
 
+/** Horas inteiras no cabeçalho das categorias: 18h. */
+function fmtWholeHours(value: unknown): string {
+  return `${Math.round(Number(value) || 0)}h`;
+}
+
 function skillLabel(t: TFunc, name: string): string {
   const key = SKILL_LABEL_KEYS[name];
   return key ? t(key) : name;
@@ -2777,7 +2782,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   <h3 className="font-heading text-section leading-none text-brand-dark truncate">{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtLiveHours(totals.catTotals?.[cat])}</span>
+                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtWholeHours(totals.catTotals?.[cat])}</span>
                   <span className="hidden md:inline text-label font-medium text-brand-dark">{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-5 h-5 text-brand-dark transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
