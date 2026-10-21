@@ -219,6 +219,17 @@ export interface ScopeExportInput {
   /** Horas por skill, na chave canônica em português. */
   skillHours?: Record<string, number> | null;
   percents?: { discovery?: number; validation?: number; gp?: number } | null;
+  /**
+   * Percentuais efetivamente aplicados, com observação opcional (ex.: "projeto
+   * com SD — sem discovery percentual"). Quando presente, substitui a linha
+   * montada a partir de `percents`.
+   */
+  percentLines?: Array<{ label: string; value: number; note?: string }> | null;
+  /**
+   * Horas de cada parcela calculada (Discovery, Validação, GP...). Saem logo
+   * abaixo das horas por skill, para que o total feche à vista.
+   */
+  calculatedHours?: Array<{ label: string; hours: number; note?: string }> | null;
 
   planTierLabel: string;
   skuLabel: string;
@@ -482,11 +493,30 @@ export function buildScopePrompt(input: ScopeExportInput): string {
     const value = Number(skills[skill] || 0);
     push(`- ${skillNames[skill] || skill}: ${hrs(value)}`);
   });
-  const p = input.percents || {};
-  push(
-    `${L.percentsLabel}: Discovery ${pct(p.discovery)} · ` +
-      `Validação ${pct(p.validation)} · GP ${pct(p.gp)}`,
-  );
+  // Skills além das cinco padrão (cadastradas no Admin) também entram no total.
+  Object.keys(skills)
+    .filter((skill) => !skillOrder.includes(skill) && Number(skills[skill]) > 0)
+    .sort()
+    .forEach((skill) => push(`- ${skill}: ${hrs(skills[skill])}`));
+  const calculated = (input.calculatedHours || []).filter((c) => c && c.label);
+  if (calculated.length) {
+    push('Horas calculadas:');
+    calculated.forEach((c) => push(`- ${c.label}: ${hrs(c.hours)}${c.note ? ` (${c.note})` : ''}`));
+  }
+  if (input.percentLines && input.percentLines.length) {
+    push(
+      `${L.percentsLabel}: ` +
+        input.percentLines
+          .map((line) => `${line.label} ${pct(line.value)}${line.note ? ` (${line.note})` : ''}`)
+          .join(' · '),
+    );
+  } else {
+    const p = input.percents || {};
+    push(
+      `${L.percentsLabel}: Discovery ${pct(p.discovery)} · ` +
+        `Validação ${pct(p.validation)} · GP ${pct(p.gp)}`,
+    );
+  }
   push();
 
   // ---- Plataforma --------------------------------------------------------
@@ -567,7 +597,7 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   if (items.length) {
     let currentGroup = '';
     items.forEach((item) => {
-      const group = `${item.category} / ${item.subcategory}`;
+      const group = item.subcategory ? `${item.category} / ${item.subcategory}` : item.category;
       if (group !== currentGroup) {
         currentGroup = group;
         push(group);

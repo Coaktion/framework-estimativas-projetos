@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
 import { ZENDESK_PLANS } from "@/lib/zendesk-plans";
+import { normalizePhase } from "@/lib/framework-calc";
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
@@ -198,7 +199,7 @@ export async function updatePackageAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
-  const { hours, dependsOnItemId, excludedFromVariables, sdDiscovery, categoryName, skillName, ...rest } = data;
+  const { hours, dependsOnItemId, excludedFromVariables, sdDiscovery, categoryName, skillName, goLiveShortcutQty, moduleLink, ...rest } = data;
   
   try {
     const updateData: any = {
@@ -206,6 +207,9 @@ export async function updatePackageAction(id: number, data: any) {
       hours: hours !== undefined ? Math.max(0, parseFloat(hours) || 0) : undefined,
       excludedFromVariables: excludedFromVariables !== undefined ? JSON.stringify(excludedFromVariables) : undefined,
       sdDiscovery: sdDiscovery !== undefined ? Boolean(sdDiscovery) : undefined,
+      // Atalhos do framework (Workshop/Treinamento: módulo; Go-live: quantidade).
+      moduleLink: moduleLink !== undefined ? String(moduleLink || "") : undefined,
+      goLiveShortcutQty: goLiveShortcutQty !== undefined ? Math.max(0, Math.round(Number(goLiveShortcutQty) || 0)) : undefined,
     };
     if (dependsOnItemId !== undefined) {
       const parsedId = parseInt(dependsOnItemId);
@@ -287,21 +291,28 @@ export async function updateCategoryAction(id: number, data: any) {
   const displayOrder = data.displayOrder !== undefined ? parseInt(data.displayOrder) : undefined;
   const displayName = data.displayName !== undefined ? String(data.displayName) : undefined;
   const displayNameEn = data.displayNameEn !== undefined ? String(data.displayNameEn) : undefined;
+  const displayNameEs = data.displayNameEs !== undefined ? String(data.displayNameEs) : undefined;
   const parentName = data.parentName !== undefined ? (data.parentName ? String(data.parentName) : null) : undefined;
   // Porteira de plano da categoria. String vazia é um valor VÁLIDO (= sem
   // restrição), então só ignoramos quando a chave não veio no payload.
   const minPlanCS = data.minPlanCS !== undefined ? normalizeMinPlanInput(data.minPlanCS) : undefined;
   const minPlanES = data.minPlanES !== undefined ? normalizeMinPlanInput(data.minPlanES) : undefined;
+  // Linha do card de Implantação (Workshop/Setup/Treinamento/Go-Live).
+  const implementationPhase = data.implementationPhase !== undefined
+    ? normalizePhase(data.implementationPhase)
+    : undefined;
 
   await prisma.category.update({
     where: { id },
     data: {
       displayName,
       displayNameEn,
+      displayNameEs,
       displayOrder: displayOrder !== undefined && !isNaN(displayOrder) ? displayOrder : undefined,
       parentName,
       minPlanCS,
-      minPlanES
+      minPlanES,
+      implementationPhase,
     }
   });
 
@@ -372,22 +383,43 @@ export async function deleteCategoryAction(id: number) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
+  // Desativar uma categoria que ainda tem itens ou subcategorias ativas faria
+  // esses itens sumirem do framework (e das horas de versões salvas). Pede
+  // para movê-los antes.
+  const category = await prisma.category.findUnique({ where: { id } });
+  if (!category) return { success: false, error: getServerT()('errors.categoryNotFound') };
+  const [activeItems, activeChildren] = await Promise.all([
+    prisma.package.count({ where: { categoryName: category.name, isActive: true } }),
+    prisma.category.count({ where: { parentName: category.name, isActive: true } }),
+  ]);
+  if (activeItems > 0 || activeChildren > 0) {
+    return {
+      success: false,
+      error: getServerT()('errors.categoryNotEmpty', { items: activeItems, children: activeChildren }),
+    };
+  }
+
   await prisma.category.update({
     where: { id },
     data: { isActive: false }
   });
 
   revalidatePath("/admin");
+  revalidatePath("/sc");
+  return { success: true };
 }
 
-/** Atualiza o nome em inglês de uma skill (o nome PT é a chave e não muda). */
-export async function updateSkillAction(id: number, nameEn: string) {
+/** Atualiza os nomes de exibição de uma skill (o nome PT é a chave e não muda). */
+export async function updateSkillAction(id: number, nameEn?: string, nameEs?: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
   await prisma.skill.update({
     where: { id },
-    data: { nameEn: String(nameEn || "").trim() },
+    data: {
+      nameEn: nameEn !== undefined ? String(nameEn || "").trim() : undefined,
+      nameEs: nameEs !== undefined ? String(nameEs || "").trim() : undefined,
+    },
   });
 
   revalidatePath("/admin");
@@ -427,6 +459,8 @@ export async function addPackageAction(formData: FormData) {
   const name = formData.get("name") as string;
   // O nome em português é a chave canônica; o inglês é só exibição.
   const nameEn = String(formData.get("nameEn") || "").trim();
+  const nameEs = String(formData.get("nameEs") || "").trim();
+  const tooltipEs = String(formData.get("tooltipEs") || "").trim();
   const minPlanCS = String(formData.get("minPlanCS") || "").trim();
   const minPlanES = String(formData.get("minPlanES") || "").trim();
   const tooltipEn = String(formData.get("tooltipEn") || "").trim();
@@ -442,6 +476,8 @@ export async function addPackageAction(formData: FormData) {
   const common: any = {
     hours,
     nameEn,
+    nameEs,
+    tooltipEs,
     minPlanCS,
     minPlanES,
     tooltip,
@@ -469,111 +505,6 @@ export async function addPackageAction(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function reseedFrameworkAction() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
-
-  // Create Skills
-  const skills = ["Implantação", "GP", "Solution Design", "Desenvolvimento", "Design"];
-  for (const s of skills) {
-    await prisma.skill.upsert({ where: { name: s }, update: { isActive: true }, create: { name: s } });
-  }
-
-  // Create Categories
-  const categories = ["Zendesk Support", "Canais - Ticket", "Canais - Messaging", "Zendesk Guide", "Zendesk Explore", "Zendesk Talk"];
-  for (const c of categories) {
-    await prisma.category.upsert({ where: { name: c }, update: { isActive: true }, create: { name: c } });
-  }
-
-  const packages = [
-    // Zendesk Support
-    { name: "Support: Configurações gerais (Config Base)", hours: 1.3, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Configurações de Segurança (Auth, 2FA, IP)", hours: 0.25, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Aparência (cor, nome, favicon)", hours: 0.05, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Localização (fuso, idioma)", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Eventos de perfil de usuário", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Configuração de usuários finais", hours: 0.17, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Customização do Cartão de usuário", hours: 0.17, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Interface do agente", hours: 0.17, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Painel de Contexto", hours: 0.17, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Configuração de conversas paralelas", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Solicitações de aprovação (approvals)", hours: 0.02, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Configurações de ticket", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Criação de chaves API", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Single Sign-On (SAML / JWT / OpenID)", hours: 3.0, categoryName: "Zendesk Support", skillName: "Desenvolvimento" },
-    { name: "Support: Programações de exclusão de dados (cada)", hours: 0.5, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Marcas (por marca)", hours: 0.25, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Membros de equipe / Agentes Light (por agente)", hours: 0.03, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Funções (por função)", hours: 0.33, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Grupos (por grupo)", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Campos do usuário (por campo)", hours: 0.07, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Campos da organização (por campo)", hours: 0.07, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Importação de usuários (por arquivo)", hours: 0.25, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: Importação de organizações (por arquivo)", hours: 0.25, categoryName: "Zendesk Support", skillName: "Implantação" },
-    { name: "Support: IPs a serem banidos (por IP)", hours: 0.08, categoryName: "Zendesk Support", skillName: "Implantação" },
-
-    // Canais - Ticket
-    { name: "Ticket: Email (por endereço)", hours: 0.33, categoryName: "Canais - Ticket", skillName: "Implantação" },
-    { name: "Ticket: Template HTML (por marca)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Design" },
-    { name: "Ticket: Formulários/Catálogos (por form)", hours: 0.5, categoryName: "Canais - Ticket", skillName: "Implantação" },
-    { name: "Ticket: Condicionais (por condição)", hours: 0.03, categoryName: "Canais - Ticket", skillName: "Implantação" },
-    { name: "Ticket: Facebook Page (Timeline)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
-    { name: "Ticket: X (Mensagens Públicas)", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
-    { name: "Ticket: Microsoft Teams integration", hours: 1.0, categoryName: "Canais - Ticket", skillName: "Implantação" },
-
-    // Canais - Messaging
-    { name: "Messaging: Web Widget (por widget)", hours: 0.42, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Facebook Messenger (por página)", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Instagram Direct (por página)", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Android SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
-    { name: "Messaging: iOS SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
-    { name: "Messaging: Unity SDK", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Desenvolvimento" },
-    { name: "Messaging: LINE", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Apple Messages for Business", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Slack", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: X Corp DM (por página)", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: WeChat", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Google RCS", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Google Business Messages", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: KakaoTalk", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Telegram", hours: 1.0, categoryName: "Canais - Messaging", skillName: "Implantação" },
-    { name: "Messaging: Text/SMS (por número)", hours: 0.17, categoryName: "Canais - Messaging", skillName: "Implantação" },
-  ];
-
-  for (const pkg of packages) {
-    const { categoryName, skillName, dependsOnItemId, ...rest } = pkg as any;
-    const nested: any = {};
-    if (categoryName) nested.category = { connectOrCreate: { where: { name: categoryName }, create: { name: categoryName } } };
-    if (skillName) nested.skill = { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } };
-    if (dependsOnItemId) nested.dependsOnItem = { connect: { id: Number(dependsOnItemId) } };
-    await prisma.package.upsert({
-      where: { name: pkg.name },
-      update: { ...rest, isActive: true, ...nested },
-      create: { name: pkg.name, ...rest, isActive: true, ...nested }
-    });
-  }
-
-  const variables = [
-    { key: "GP_STANDARD", value: "25", category: "Cálculos", type: "PERCENT", flatValue: 0 },
-    { key: "DISCOVERY_STANDARD", value: "0", category: "Cálculos", type: "PERCENT", flatValue: 0 },
-    { key: "VALIDATION_STANDARD", value: "0", category: "Cálculos", type: "PERCENT", flatValue: 0 },
-    { key: "VALOR_HORA_SC", value: "250", category: "Preços", type: "FLAT", flatValue: 250 },
-    { key: "VALOR_HORA_DEV", value: "350", category: "Preços", type: "FLAT", flatValue: 350 },
-    { key: "VALOR_HORA_DESIGN", value: "200", category: "Preços", type: "FLAT", flatValue: 200 },
-    { key: "MIN_HOURS_AE", value: "8", category: "Limites", type: "FLAT", flatValue: 8 },
-  ];
-
-  for (const v of variables) {
-    await prisma.variable.upsert({
-      where: { key: v.key },
-      update: { ...v, isActive: true },
-      create: { ...v, isActive: true }
-    });
-  }
-
-  revalidatePath("/admin");
-}
-
 export async function deletePackageAction(id: number) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
@@ -592,4 +523,50 @@ export async function deletePackageAction(id: number) {
  */
 export async function updateUserAdminStatusAction(userId: number, isAdmin: boolean) {
   return updateUserSegmentAction(userId, isAdmin ? 'ADMIN' : 'IMPL');
+}
+
+/**
+ * Importa a planilha de traduções da biblioteca (exportada pelo próprio painel).
+ *
+ * Só preenche os campos em ESPANHOL (nome e tooltip) e nunca apaga: célula
+ * vazia na planilha não mexe no que já está gravado. O nome em português é a
+ * chave canônica e não é alterado.
+ */
+export async function importSpanishTranslationsAction(
+  rows: Array<{ type: string; id: number; nameEs?: string; tooltipEs?: string }>,
+) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
+
+  let updated = 0;
+  const notFound: string[] = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const id = Number(row?.id);
+    const nameEs = String(row?.nameEs ?? '').trim().slice(0, 300);
+    const tooltipEs = String(row?.tooltipEs ?? '').trim().slice(0, 2000);
+    if (!Number.isInteger(id) || (!nameEs && !tooltipEs)) continue;
+    try {
+      if (row.type === 'item') {
+        await prisma.package.update({
+          where: { id },
+          data: { ...(nameEs ? { nameEs } : {}), ...(tooltipEs ? { tooltipEs } : {}) },
+        });
+      } else if (row.type === 'categoria') {
+        if (!nameEs) continue;
+        await prisma.category.update({ where: { id }, data: { displayNameEs: nameEs } });
+      } else if (row.type === 'skill') {
+        if (!nameEs) continue;
+        await prisma.skill.update({ where: { id }, data: { nameEs } });
+      } else {
+        continue;
+      }
+      updated++;
+    } catch {
+      notFound.push(`${row.type} #${id}`);
+    }
+  }
+
+  revalidatePath('/admin');
+  revalidatePath('/sc');
+  return { success: true, updated, notFound };
 }

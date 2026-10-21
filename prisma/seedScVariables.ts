@@ -22,24 +22,6 @@ const VARIABLES: SeedVarDef[] = [
     category: 'Solution Design',
     isActive: true,
   },
-  {
-    key:   'SD_DISCOVERY_DEVOPS_PERCENT',
-    label: 'SD c/ Dev - % Discovery sobre Desenvolvimento',
-    labelEn: 'SD with Dev - % Discovery over Development',
-    value: '15',
-    type:  'PERCENT',
-    category: 'Solution Design',
-    isActive: true,
-  },
-  {
-    key:   'SD_LIQUID_TO_DISCOVERY_PCT',
-    label: 'SD - % do bruto para Discovery',
-    labelEn: 'SD - % gross value to Discovery',
-    value: '100',
-    type:  'PERCENT',
-    category: 'Solution Design',
-    isActive: true,
-  },
 ];
 
 async function seedVariables() {

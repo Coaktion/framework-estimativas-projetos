@@ -1,5 +1,10 @@
 import prisma from "@/lib/prisma";
 import AEClient from "./AEClient";
+import { getActiveAeConfig } from "@/lib/ae-config-server";
+
+// Depende da URL (?cloneFrom=, ?client=) e da configuração ativa no banco:
+// nunca deve ser pré-renderizada no build.
+export const dynamic = 'force-dynamic';
 
 export default async function AEPage({ searchParams }: { searchParams: { client?: string; cloneFrom?: string } }) {
   const categoriesData = await prisma.category.findMany({
@@ -40,8 +45,14 @@ export default async function AEPage({ searchParams }: { searchParams: { client?
     }
   }
 
+  // Configuração ativa da Calculadora (painel Admin). O id vai junto com a
+  // estimativa salva, para que ela reabra com exatamente este cálculo.
+  const activeConfig = await getActiveAeConfig();
+
   return (
     <AEClient 
+      aeConfig={activeConfig.config}
+      aeConfigId={activeConfig.id}
       packages={packages} 
       categories={categories} 
       variables={variables}

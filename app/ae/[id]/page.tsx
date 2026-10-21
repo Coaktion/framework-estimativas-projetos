@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { getAeConfigById } from "@/lib/ae-config-server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AEViewClient from "./AEViewClient";
@@ -102,8 +103,13 @@ export default async function AEViewPage({ params }: { params: { id: string } })
     data = {};
   }
 
+  // Recalcula com a configuração da Calculadora que gerou a estimativa (sem
+  // id = estimativa anterior à configuração editável → padrão de fábrica).
+  const usedConfig = await getAeConfigById(data?.aeConfigId);
+
   return (
     <AEViewClient
+      aeConfig={usedConfig.config}
       estimateId={estimate.id}
       clientName={estimate.clientName}
       zohoLink={estimate.zohoLink || null}

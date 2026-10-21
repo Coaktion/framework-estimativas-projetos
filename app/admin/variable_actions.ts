@@ -13,6 +13,7 @@ export async function addVariableAction(formData: FormData) {
   const key = formData.get("key") as string;
   const label = String(formData.get("label") || "").trim();
   const labelEn = String(formData.get("labelEn") || "").trim();
+  const labelEs = String(formData.get("labelEs") || "").trim();
   const value = formData.get("value") as string;
   const category = formData.get("category") as string;
   const type = (formData.get("type") as string) || "PERCENT";
@@ -20,8 +21,8 @@ export async function addVariableAction(formData: FormData) {
 
   await prisma.variable.upsert({
     where: { key },
-    update: { label, labelEn, value, category, type, flatValue, isActive: true },
-    create: { key, label, labelEn, value, category, type, flatValue, isActive: true }
+    update: { label, labelEn, labelEs, value, category, type, flatValue, isActive: true },
+    create: { key, label, labelEn, labelEs, value, category, type, flatValue, isActive: true }
   });
 
   revalidatePath("/admin");

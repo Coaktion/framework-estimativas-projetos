@@ -6,11 +6,48 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 
-export async function saveAEEstimateAction(formData: any) {
+/**
+ * Erro de salvamento com detalhes suficientes para o usuário reportar.
+ *
+ * O save DEVOLVE o erro em vez de lançá-lo: em produção o Next.js troca a
+ * mensagem de um erro lançado numa server action por um texto genérico, e a
+ * tela acabava dizendo "registro salvo" sem ter salvo nada.
+ */
+export interface AESaveError {
+  /** Mensagem legível (já traduzida quando possível). */
+  message: string;
+  /** Código técnico (ex.: P2003 do Prisma), quando houver. */
+  code?: string;
+  /** Texto técnico original. */
+  details?: string;
+  /** Etapa em que falhou: auth, validation, version, create. */
+  step: string;
+  /** Momento do erro (ISO), para cruzar com os logs. */
+  at: string;
+}
+
+export type AESaveResult =
+  | { ok: true; id: number; version: number }
+  | { ok: false; error: AESaveError };
+
+function saveError(step: string, message: string, raw?: any): { ok: false; error: AESaveError } {
+  return {
+    ok: false,
+    error: {
+      message,
+      code: raw?.code ? String(raw.code) : undefined,
+      details: raw ? String(raw?.message || raw).slice(0, 2000) : undefined,
+      step,
+      at: new Date().toISOString(),
+    },
+  };
+}
+
+export async function saveAEEstimateAction(formData: any): Promise<AESaveResult> {
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
-    throw new Error(getServerT()('errors.notAuthenticated'));
+    return saveError('auth', getServerT()('errors.notAuthenticated'));
   }
 
   const {
@@ -44,7 +81,12 @@ export async function saveAEEstimateAction(formData: any) {
     engineInputs,
     parentId,
     version: forcedVersion,
+    aeConfigId,
   } = formData;
+
+  if (!String(clientName || '').trim()) {
+    return saveError('validation', getServerT()('errors.aeClientNameRequired'));
+  }
 
   const userId = parseInt(session.user.id);
   const userSession = session.user as any;
@@ -122,17 +164,18 @@ export async function saveAEEstimateAction(formData: any) {
       hasAppCondicionais,
       hasAppTicketManager,
         engineInputs,
+      // Versão da configuração da Calculadora (painel Admin) usada no cálculo:
+      // a estimativa reabre com exatamente o mesmo cálculo.
+      aeConfigId: aeConfigId ?? null,
     }),
     resultHours,
     needsSC,
     createdBy: userId,
   };
 
-  // ------------------------------------------------------------
-  // Tentativa 1: com version e parentId.
-  // Tentativa 2: sem version/parentId (caso a tabela ainda não
-  // tenha essas colunas ou cliente Prisma desatualizado).
-  // ------------------------------------------------------------
+  // Uma única tentativa: o antigo "tenta de novo sem version/parentId"
+  // engolia qualquer erro (ex.: parentId inválido) e gravava a estimativa
+  // como V1 sem vínculo, sem avisar ninguém.
   let estimate: any = null;
   try {
     estimate = await prisma.aEEstimate.create({
@@ -142,18 +185,13 @@ export async function saveAEEstimateAction(formData: any) {
         parentId: parentVersionId,
       } as any,
     });
-  } catch (_) {
-    try {
-      estimate = await prisma.aEEstimate.create({
-        data: baseData,
-      });
-    } catch (e: any) {
-      throw new Error(`Erro ao salvar estimativa AE: ${e?.message ?? e}`);
-    }
+  } catch (e: any) {
+    console.error('[ae] erro ao salvar estimativa:', e);
+    return saveError('create', getServerT()('errors.aeSaveFailed'), e);
   }
 
   revalidatePath('/ae');
   revalidatePath('/ae/history');
 
-  return estimate;
+  return { ok: true, id: estimate.id, version: estimate.version ?? version };
 }

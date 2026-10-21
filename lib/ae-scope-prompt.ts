@@ -42,7 +42,7 @@ export const AE_CHANNEL_LABELS: Record<string, string> = {
   microsoft_teams: 'Microsoft Teams',
   slack: 'Slack',
   x_dm: 'X DMs',
-  x_pages: 'X (public)',
+  x_pages: 'X (mensagens públicas)',
   sms: 'SMS / Text',
   ios: 'iOS SDK',
   unity: 'Unity SDK',
@@ -86,6 +86,29 @@ const GROUP_LABELS: Record<string, string> = {
   workshops: 'Workshop',
   actionFlows: 'Action Flow',
 };
+
+/** Apps cobrados por quantidade; os demais contam 1 quando selecionados. */
+const COUNTED_APP_LABELS = new Set(['SweetHawk', 'Outros', 'App Marketplace', 'Outro Marketplace', 'other_marketplace']);
+
+/**
+ * Apps de Marketplace como entram no prompt — IGUAL na tela de cálculo e na
+ * de visualização: quantidade real (só SweetHawk e "Outros" têm quantidade) e
+ * app com quantidade 0 fora, porque não gerou hora.
+ */
+export function marketplaceAppsForPrompt(
+  selectedApps: unknown,
+  appQuantities: Record<string, number> | null | undefined,
+): Array<{ label: string; quantity: number }> {
+  return (Array.isArray(selectedApps) ? selectedApps : [])
+    .filter(Boolean)
+    .map((label: string) => ({
+      label: String(label),
+      quantity: COUNTED_APP_LABELS.has(String(label))
+        ? Math.max(0, Number(appQuantities?.[label] ?? 1) || 0)
+        : 1,
+    }))
+    .filter((app) => app.quantity > 0);
+}
 
 const PLAN_LABEL: Record<string, string> = {
   team: 'Suite Team',
@@ -136,10 +159,15 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
     estimate.allowedModules?.length ? estimate.allowedModules : inputs.selectedModules || []
   ).filter(Boolean) as string[];
 
-  const channels: ScopeExportChannel[] = (inputs.selectedChannels || []).map((key) => ({
-    label: labelFor(String(key)),
-    quantity: Math.max(1, Number(inputs.channelQuantities?.[key] ?? 1)),
-  }));
+  // Só canais que o engine de fato contou: selecionados E com quantidade > 0
+  // (sem quantidade informada, o engine considera 1). Canal com 0 não gera hora
+  // e antes ainda aparecia como "×1" e ligava flags (WhatsApp, e-mail).
+  const channels: ScopeExportChannel[] = (inputs.selectedChannels || [])
+    .map((key) => ({
+      label: labelFor(String(key)),
+      quantity: Math.max(0, Number(inputs.channelQuantities?.[key] ?? 1)),
+    }))
+    .filter((c) => Number(c.quantity) > 0);
 
   const integrations: ScopeExportIntegration[] = [
     ...(inputs.selectedNativeConnections || []).filter(Boolean).map((name) => ({
@@ -221,6 +249,34 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
 
   const planKey = String(inputs.zendeskPlan || 'professional').toLowerCase();
 
+  // Percentuais e horas REALMENTE aplicados neste cálculo (vêm da configuração
+  // da Calculadora usada; estimativas antigas trazem os padrões de fábrica).
+  const pct = estimate.percents || {
+    discovery: 0.2, validacao: 0.15, go_live: 0.05, comunicacao_tecnica: 0.1,
+    gerente_projetos: 0.176470588235294, limite_gerente_projetos: 30,
+  };
+  const asPercent = (fraction: number) => Math.round(Number(fraction || 0) * 10000) / 100;
+  const gpApplied = Number(estimate.gpHours) > 0;
+  const percentLines = [
+    { label: 'Discovery', value: asPercent(pct.discovery) },
+    { label: 'Validação', value: asPercent(pct.validacao) },
+    { label: 'Go-live', value: asPercent(pct.go_live) },
+    { label: 'Comunicação técnica', value: asPercent(pct.comunicacao_tecnica) },
+    {
+      label: 'GP',
+      value: gpApplied ? asPercent(pct.gerente_projetos) : 0,
+      note: gpApplied ? undefined : `não aplicado: total abaixo de ${pct.limite_gerente_projetos}h`,
+    },
+  ];
+  const calculatedHours = [
+    { label: 'Itens de configuração', hours: Number(estimate.lineItemHours) || 0 },
+    { label: 'Discovery', hours: Number(estimate.discoveryHours) || 0 },
+    { label: 'Validação', hours: Number(estimate.validationHours) || 0 },
+    { label: 'Go-live', hours: Number(estimate.goLiveHours) || 0 },
+    { label: 'Comunicação técnica', hours: Number(estimate.commTechHours) || 0 },
+    { label: 'GP', hours: Number(estimate.gpHours) || 0 },
+  ];
+
   return buildScopePrompt({
     origin: 'calculadora-ae',
     template: 'escopo-padrao-60h',
@@ -232,13 +288,16 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
     zohoLink: input.zohoLink || null,
     preSalesName: input.preSalesName || null,
     totalHours: estimate.totalHours,
-    // A Calculadora não separa horas por skill; o total técnico é a linha de
-    // implantação e as variáveis vêm no bloco de percentuais.
+    // A Calculadora não separa horas por skill: tudo o que não é GP é
+    // Implantação (itens + Discovery + Validação + Go-live + Comunicação
+    // técnica), de modo que Implantação + GP fecham com o total.
     skillHours: {
-      'Implantação': estimate.lineItemHours,
-      'GP': estimate.gpHours,
+      'Implantação': (Number(estimate.totalHours) || 0) - (Number(estimate.gpHours) || 0),
+      'GP': Number(estimate.gpHours) || 0,
     },
     percents: null,
+    percentLines,
+    calculatedHours,
     planTierLabel: PLAN_LABEL[planKey] || `Suite ${planKey}`,
     skuLabel: input.skuLabel,
     deploymentType: input.deploymentType || null,

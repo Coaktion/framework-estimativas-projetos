@@ -13,11 +13,12 @@ import {
  * estimativa criada por um AE e ver as quantidades e horas, mesmo que o AE só
  * tenha visto a lista de itens.
  *
- * As horas por unidade vêm de AE_DATABASE, e não de números repetidos aqui, para
- * que a tabela nunca divirja do cálculo.
+ * As horas por unidade vêm do PRÓPRIO resultado do engine (`unitHours`, que
+ * reflete a configuração da Calculadora usada no cálculo), e não de números
+ * repetidos aqui, para que a tabela nunca divirja do cálculo.
  */
 
-const UH = AE_DATABASE.horas_unitarias;
+type UnitHours = typeof AE_DATABASE.horas_unitarias;
 
 export interface AETableRow {
   /** Rótulo já traduzido. */
@@ -87,6 +88,10 @@ export function buildAEResultTable(
   t: TFunc,
 ): { sections: AETableSection[]; lineItemTotal: number; grandTotal: number } {
   if (!estimation) return { sections: [], lineItemTotal: 0, grandTotal: 0 };
+
+  // Estimativas calculadas antes da configuração editável não trazem
+  // `unitHours`: usam os padrões de fábrica, que foram os usados nelas.
+  const UH: UnitHours = { ...AE_DATABASE.horas_unitarias, ...((estimation as any).unitHours || {}) };
 
   const q = (estimation.quantities || {}) as Record<string, number>;
   const b = (estimation.breakdown || {}) as Record<string, number>;

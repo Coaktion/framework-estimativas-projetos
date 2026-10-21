@@ -7,6 +7,7 @@ import {
   DATE_LOCALE,
   DEFAULT_LANGUAGE,
   HTML_LANG,
+  LANGUAGES,
   LANGUAGE_COOKIE,
   normalizeLanguage,
   type Language,
@@ -14,11 +15,11 @@ import {
 import { updateUserPreferenceAction } from '@/lib/preferences';
 
 interface LanguageContextType {
-  /** Idioma atual ('pt' | 'en'). */
+  /** Idioma atual ('pt' | 'en' | 'es'). */
   language: Language;
   /** Define um idioma específico. */
   setLanguage: (lang: Language) => void;
-  /** Alterna entre português e inglês. */
+  /** Passa para o próximo idioma da lista (pt → en → es → pt). */
   toggleLanguage: () => void;
   /** Locale para toLocaleDateString / toLocaleString (ex.: 'pt-BR'). */
   dateLocale: string;
@@ -64,7 +65,8 @@ export function LanguageProvider({
   );
 
   const toggleLanguage = useCallback(() => {
-    setLanguage(language === 'pt' ? 'en' : 'pt');
+    const index = LANGUAGES.indexOf(language);
+    setLanguage(LANGUAGES[(index + 1) % LANGUAGES.length]);
   }, [language, setLanguage]);
 
   const value = useMemo<LanguageContextType>(

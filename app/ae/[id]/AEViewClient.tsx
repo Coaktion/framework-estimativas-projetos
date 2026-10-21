@@ -16,96 +16,20 @@ import {
   validateAEInputs,
   type AEInputData,
 } from '@/lib/ae-engine';
-import { buildAEScopePrompt } from '@/lib/ae-scope-prompt';
+import { buildAEScopePrompt, marketplaceAppsForPrompt } from '@/lib/ae-scope-prompt';
+import {
+  CHANNEL_LEGACY_TO_KEY,
+  MARKETPLACE_APP_LABEL_TO_KEY,
+  buildEngineInputs,
+  normalizeAESku,
+} from '@/lib/ae-inputs';
+import { DEFAULT_AE_CONFIG } from '@/lib/ae-config';
 
-const CHANNEL_LEGACY_TO_KEY: Record<string, any> = {
-  web_form: 'web_form', email: 'email', web_widget: 'web_widget', whatsapp: 'whatsapp',
-  facebook: 'facebook_messenger', facebook_messenger: 'facebook_messenger',
-  instagram: 'instagram_dm', instagram_dm: 'instagram_dm', instagram_page: 'instagram_page',
-  voice: 'voice', teams: 'microsoft_teams', microsoft_teams: 'microsoft_teams', slack: 'slack',
-  x: 'x_dm', x_dm: 'x_dm', x_pages: 'x_pages', sms: 'sms', ios: 'ios', unity: 'unity',
-  line: 'line', apple_business: 'apple_messages', apple_messages: 'apple_messages', wechat: 'wechat',
-  google_rcs: 'google_rcs', google_business: 'google_business_messages',
-  google_business_messages: 'google_business_messages', kakaotalk: 'kakaotalk',
-  facebook_pages: 'facebook_pages',
-  telegram: 'telegram',
-};
-
-const MARKETPLACE_APP_LABEL_TO_KEY: Record<string, any> = {
-  'WooCommerce': 'woocommerce', 'Woo Commerce': 'woocommerce',
-  'Dialpad': 'dialpad', 'Aircall': 'aircall', 'VTEX': 'vtex',
-  'Stripe': 'stripe', 'Pipedrive': 'pipedrive', 'SweetHawk': 'sweethawk',
-  // 'App Marketplace' saiu da Calculadora, mas fica no mapa para que estimativas
-  // antigas que gravaram esse rótulo continuem contabilizando corretamente.
-  'Outros': 'other_marketplace', 'App Marketplace': 'other_marketplace',
-  'Outro Marketplace': 'other_marketplace', 'other_marketplace': 'other_marketplace',
-};
-
-const PLAN_RANK = { team: 1, growth: 2, professional: 3, enterprise: 4 } as const;
-
-function normalizeSku(raw: string): any {
-  const key = String(raw || '').toUpperCase();
-  if (key.includes('ES') || key.includes('EMPLOYEE')) return 'ES';
-  return 'CS';
-}
-
-function buildEngineInputs(formState: any): AEInputData {
-  const selectedChannels: any[] = (formState.selectedChannels || [])
-    .map((c: string) => CHANNEL_LEGACY_TO_KEY[c])
-    .filter(Boolean);
-
-  const channelQuantities: any = {};
-  for (const [k, v] of Object.entries<number>(formState.channelQuantities || {})) {
-    const key = CHANNEL_LEGACY_TO_KEY[k];
-    if (!key) continue;
-    channelQuantities[key] = Math.max(0, Number(v) || 0);
-  }
-
-  const selectedApps: any[] = [];
-  const appQuantities: any = {};
-  for (const appLabel of formState.selectedApps || []) {
-    const key = MARKETPLACE_APP_LABEL_TO_KEY[String(appLabel)];
-    if (!key) continue;
-    if (!selectedApps.includes(key)) selectedApps.push(key);
-    const qtyRaw = formState.appQuantities?.[appLabel];
-    if (qtyRaw != null) appQuantities[key] = Math.max(0, Number(qtyRaw) || 0);
-  }
-
-  const sku = normalizeSku(formState.skuType);
-  const zendeskPlan = (String(formState.zendeskPlan || 'professional').toLowerCase().replace(/^suite\s+/, '').trim() as any) || 'professional';
-  const planRank = (PLAN_RANK as any)[zendeskPlan] ?? 1;
-
-  const selectedModules = (formState.selectedModules || ['Support']).filter((m: string) => {
-    // Estimativas salvas antes da remoção ainda trazem 'AI Agents' no JSON.
-    // Descartar aqui faz a estimativa reabrir já recalculada sem ele.
-    if (m === 'AI Agents') return false;
-    if (['Analytics', 'Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
-    if (m === 'ADPP') return planRank >= PLAN_RANK.enterprise;
-    return true;
-  });
-
-  return {
-    agents: Math.max(1, Number(formState.agents) || 1),
-    brands: Math.max(1, Number(formState.brands) || 1),
-    areas: Math.max(1, Number(formState.areas) || 1),
-    skuType: sku,
-    zendeskPlan,
-    operationTypes: ((formState.operationTypes || []) as any[]).filter(Boolean),
-    selectedModules: selectedModules.length ? selectedModules : ['Support'],
-    selectedChannels: selectedChannels.length ? selectedChannels : ['web_form'],
-    channelQuantities,
-    knowledgeArticles: Math.max(0, Number(formState.knowledgeArticles) || 0),
-    selectedNativeConnections: formState.selectedNativeConnections || [],
-    selectedActionFlows: formState.selectedActionFlows || [],
-    selectedApps,
-    appQuantities,
-    hasAppCondicionais: Boolean(formState.hasAppCondicionais),
-    hasAppTicketManager: Boolean(formState.hasAppTicketManager),
-    hasSSO: Boolean(formState.hasSSO),
-    hasTeamsSideConv: Boolean(formState.hasTeamsSideConv),
-    hasSlackSideConv: Boolean(formState.hasSlackSideConv),
-  };
-}
+// Conversão do JSON salvo → inputs do engine: a MESMA implementação da tela
+// de cálculo (lib/ae-inputs.ts). A cópia local lia os canais de
+// `selectedChannels`, mas o save grava `channels` — toda estimativa reaberta
+// era recalculada só com "Web Form".
+const normalizeSku = normalizeAESku;
 
 function num(v: any, d = 1) {
   return Number(v || 0).toFixed(d);
@@ -131,7 +55,15 @@ function buildMarkdownReport(est: any, f: any, engineInputs: any, t: TFunc, date
   const ct = Math.max(0, Number(est.commTechHours || 0));
   const gl = Math.max(0, Number(est.goLiveHours || 0));
   const gp = Math.max(0, Number(est.gpHours || 0));
-  const basePct = Math.max(0, lineItemHours - Number(bd.training || 0) - Number(bd.nativeConnections || 0) - Number(bd.thirdPartyApps || 0));
+  // Base e percentuais do PRÓPRIO cálculo (configuração usada na estimativa);
+  // estimativas antigas caem nos padrões de fábrica.
+  const basePct = Number.isFinite(Number(est.percentBase))
+    ? Math.max(0, Number(est.percentBase))
+    : Math.max(0, lineItemHours - Number(bd.training || 0) - Number(bd.nativeConnections || 0) - Number(bd.thirdPartyApps || 0));
+  const PCT = est.percents || { discovery: 0.2, validacao: 0.15, go_live: 0.05, comunicacao_tecnica: 0.1, gerente_projetos: 0.176470588235294, limite_gerente_projetos: 30 };
+  const UH = est.unitHours || { artigo: 0.1, knowledge_minimo: 2, integracao_nativa: 2, conversa_paralela: 0.5, action_flow: 4.5 };
+  const fmtPct = (fraction: number) => `${Number((Number(fraction || 0) * 100).toFixed(3))}%`;
+  const appRate = (key: string, fallback: number) => Number(est.appRates?.[key] ?? fallback);
 
   return `
 # ${t('report.executiveTitle')}
@@ -162,7 +94,7 @@ function buildMarkdownReport(est: any, f: any, engineInputs: any, t: TFunc, date
 
 | ${t('report.group')} | ${t('report.hours')} |
 | :--- | ---: |
-${Object.entries<any>(bd).map(([k, v]) => `| ${String(k)} | ${num(v, 2)}h |`).join('\n')}
+${Object.entries<any>(bd).map(([k, v]) => `| ${t(`aeBreakdown.${k}`, { defaultValue: String(k) })} | ${num(v, 2)}h |`).join('\n')}
 | **${t('report.subtotalLineItems')}** | **${num(lineItemHours, 2)}h** |
 
 ---
@@ -175,10 +107,10 @@ ${Object.entries<any>(bd).map(([k, v]) => `| ${String(k)} | ${num(v, 2)}h |`).jo
 ${(engineInputs?.selectedChannels || []).map((c: string) => `  - ${String(c)} × ${chQty(c)} ${t('report.engineRuleApplied')}`).join('\n')}
 
 ### ${t('report.section32')}
-- ${t('report.knowledgeArticles')} ${Math.max(0, Number(d.knowledgeArticles) || 0)} ${t('report.knowledgeRule')}
+- ${t('report.knowledgeArticles')} ${Math.max(0, Number(d.knowledgeArticles) || 0)} ${t('report.knowledgeRule', { rate: num(UH.artigo, 2), min: num(UH.knowledge_minimo, 2) })}
 
 ### ${t('report.section34')}
-- ${t('report.actionFlowsNote')}
+- ${t('report.actionFlowsNote', { hours: num(UH.action_flow, 2) })}
 
 ---
 
@@ -196,19 +128,19 @@ ${(engineInputs?.selectedChannels || []).map((c: string) => `  - ${String(c)} ×
 
 ### ${t('report.section51')}
 - ${t('report.nativeAppsSelected')} ${Array.isArray(d.selectedNativeConnections) ? d.selectedNativeConnections.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.nativeFlatRule')}
+- ${t('report.nativeFlatRule', { hours: num(UH.integracao_nativa, 2) })}
 
 ### ${t('report.section52')}
-- Teams: ${d.hasTeamsSideConv ? t('report.yesFlat05') : t('common.no')}
-- Slack: ${d.hasSlackSideConv ? t('report.yesFlat05') : t('common.no')}
+- Teams: ${d.hasTeamsSideConv ? t('report.yesFlat05', { hours: num(UH.conversa_paralela, 2) }) : t('common.no')}
+- Slack: ${d.hasSlackSideConv ? t('report.yesFlat05', { hours: num(UH.conversa_paralela, 2) }) : t('common.no')}
 
 ### ${t('report.section53')}
 - ${t('report.selectedApps')} ${Array.isArray(d.selectedApps) ? d.selectedApps.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.marketplaceRule')}
+- ${t('report.marketplaceRule', { sweethawk: num(appRate('sweethawk', 2), 2), other: num(appRate('other_marketplace', 5), 2) })}
 
 ### ${t('report.section54')}
 - ${t('report.actionFlows')} ${Array.isArray(d.selectedActionFlows) ? d.selectedActionFlows.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.flatPerAction')}
+- ${t('report.flatPerAction', { hours: num(UH.action_flow, 2) })}
 
 ### ${t('report.section55')}
 - SSO: ${d.hasSSO ? t('report.yes2h') : t('common.no')}
@@ -231,11 +163,11 @@ ${t('report.basePct')} **${num(basePct, 2)}h**
 
 | ${t('report.variable')} | ${t('report.rule')} | ${t('report.hours')} |
 | :--- | :--- | ---: |
-| ${t('ae.discovery')} | 20% ${t('report.pctOverBase')} | ${num(disc, 2)}h |
-| ${t('ae.validation')} | 15% ${t('report.pctOverBase')} | ${num(val, 2)}h |
-| ${t('report.techComm')} | 10% ${t('report.pctOverBase')} | ${num(ct, 2)}h |
-| ${t('ae.goLive')} | 5% ${t('report.pctOverBase')} | ${num(gl, 2)}h |
-| ${t('report.projectMgmt')} | 17.647% ${t('report.gpTrigger')} | ${num(gp, 2)}h |
+| ${t('ae.discovery')} | ${fmtPct(PCT.discovery)} ${t('report.pctOverBase')} | ${num(disc, 2)}h |
+| ${t('ae.validation')} | ${fmtPct(PCT.validacao)} ${t('report.pctOverBase')} | ${num(val, 2)}h |
+| ${t('report.techComm')} | ${fmtPct(PCT.comunicacao_tecnica)} ${t('report.pctOverBase')} | ${num(ct, 2)}h |
+| ${t('ae.goLive')} | ${fmtPct(PCT.go_live)} ${t('report.pctOverBase')} | ${num(gl, 2)}h |
+| ${t('report.projectMgmt')} | ${fmtPct(PCT.gerente_projetos)} ${t('report.gpTrigger', { threshold: num(PCT.limite_gerente_projetos, 0) })} | ${num(gp, 2)}h |
 | **${t('report.variablesSubtotal')}** | | **${num(disc + val + ct + gl + gp, 2)}h** |
 
 ---
@@ -271,7 +203,7 @@ export default function AEViewClient(props: any) {
   const {
     estimateId, clientName, zohoLink, resultHours, needsSC,
     version, createdAt, parentId, data, variables, packages, categories, allVersions,
-    owner,
+    owner, aeConfig = DEFAULT_AE_CONFIG,
   } = props;
 
   const { t } = useTranslation();
@@ -338,7 +270,7 @@ export default function AEViewClient(props: any) {
     let raw: any = null;
     if (validation.valid) {
       try {
-        raw = calculateAEEstimate(ei);
+        raw = calculateAEEstimate(ei, aeConfig);
       } catch (err) {
         console.error('AE engine failed while reopening estimate:', err);
         raw = null;
@@ -381,7 +313,7 @@ export default function AEViewClient(props: any) {
       ? buildMarkdownReport(est, { ...f, clientName }, ei, t, dateLocale)
       : '';
     return { estimation: est, engineResult: raw, engineInputs: ei, report: r };
-  }, [data, variablesMap, packages, clientName, resultHours, needsSC, showExecutiveReport, t, dateLocale]);
+  }, [data, variablesMap, packages, clientName, resultHours, needsSC, showExecutiveReport, t, dateLocale, aeConfig]);
 
   const total = Math.max(0, Number(estimation?.total ?? resultHours ?? 0));
   const needsSCFinal = Boolean(estimation?.needsSC ?? needsSC);
@@ -409,10 +341,8 @@ export default function AEViewClient(props: any) {
       clientObjectives: d.clientObjectives || null,
       successIndicators: d.successIndicators || null,
       deploymentType: d.deploymentType === 'optimization' ? 'optimization' : 'new',
-      marketplaceApps: (d.selectedApps || []).filter(Boolean).map((label: string) => ({
-        label: String(label),
-        quantity: Math.max(1, Number(appQuantities[label] ?? 1)),
-      })),
+      // Mesma lista da tela de cálculo (ver marketplaceAppsForPrompt).
+      marketplaceApps: marketplaceAppsForPrompt(d.selectedApps, appQuantities),
       hasAppCondicionais: Boolean(d.hasAppCondicionais),
       hasAppTicketManager: Boolean(d.hasAppTicketManager),
       locale: language,
@@ -454,7 +384,7 @@ export default function AEViewClient(props: any) {
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-slate-100 text-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]">
               <Shield className="w-3.5 h-3.5 shrink-0" />
               <span className="text-caption font-medium ">
-                {t('common.owner') || 'Responsável'} · {ownerChip.name || ownerChip.email || t('common.unknown') || 'Desconhecido'}
+                {t('common.owner')} · {ownerChip.name || ownerChip.email || t('common.unknown')}
                 {ownerChip.role ? ` (${ownerChip.role})` : ''}
               </span>
             </div>
@@ -531,7 +461,7 @@ export default function AEViewClient(props: any) {
             <span className="flex items-center space-x-2">
               <Layers className="w-3.5 h-3.5 shrink-0" />
               <span className="text-caption font-medium whitespace-nowrap">
-                Versão {version ?? 1} de {versions.length}
+                {t('aeView.versionOf', { version: version ?? 1, total: versions.length })}
               </span>
             </span>
             <span className={`w-4 h-4 shrink-0 flex items-center justify-center`}>
@@ -571,7 +501,7 @@ export default function AEViewClient(props: any) {
                 </div>
               </div>
                 <span className="text-caption font-medium text-brand-primary dark:text-[color:var(--primary)]">
-                  {versions.length} {versions.length === 1 ? 'versão' : 'versões'}
+                  {t('aeHistory.versionCount', { count: versions.length })}
                 </span>
               </div>
 
@@ -644,7 +574,7 @@ export default function AEViewClient(props: any) {
                   className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl brand-bg-primary text-brand-ink text-caption font-medium shadow-lg hover:scale-[1.02] transition-transform"
                 >
                   <Plus className="w-3.5 h-3.5.5" />
-                  <span>Criar V{versions.length + 1}</span>
+                  <span>{t('aeView.createVersion', { name: `V${versions.length + 1}` })}</span>
                 </Link>
               </div>
             </div>
