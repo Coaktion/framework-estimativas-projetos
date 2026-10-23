@@ -1,6 +1,9 @@
 import prisma from "@/lib/prisma";
 import AEClient from "./AEClient";
 import { getActiveAeConfig } from "@/lib/ae-config-server";
+import { resolveAEConfig } from "@/lib/ae-config";
+import { cookies } from "next/headers";
+import { AE_VIEW_COOKIE } from "@/lib/editor-view";
 
 // Depende da URL (?cloneFrom=, ?client=) e da configuração ativa no banco:
 // nunca deve ser pré-renderizada no build.
@@ -48,10 +51,16 @@ export default async function AEPage({ searchParams }: { searchParams: { client?
   // Configuração ativa da Calculadora (painel Admin). O id vai junto com a
   // estimativa salva, para que ela reabra com exatamente este cálculo.
   const activeConfig = await getActiveAeConfig();
+  // Horas vinculadas à biblioteca (fonte da verdade) já aplicadas.
+  const resolvedConfig = resolveAEConfig(
+    activeConfig.config,
+    packages.map((p) => ({ id: p.id, name: p.name, hours: Number(p.hours) || 0, categoryName: p.categoryName })),
+  );
 
   return (
-    <AEClient 
-      aeConfig={activeConfig.config}
+    <AEClient
+      initialCompact={cookies().get(AE_VIEW_COOKIE)?.value === 'compact'}
+      aeConfig={resolvedConfig}
       aeConfigId={activeConfig.id}
       packages={packages} 
       categories={categories} 

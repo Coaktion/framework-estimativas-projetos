@@ -6,6 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { getUserPreferencesAction } from "@/lib/preferences";
 import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
 import { canAccessScopes } from "@/lib/segments";
+import { cookies } from "next/headers";
+import { EDITOR_VIEW_COOKIE, parseEditorView } from "@/lib/editor-view";
 
 export default async function ProjectEditorPage({ 
   params,
@@ -152,6 +154,7 @@ export default async function ProjectEditorPage({
       allVersions={allVersions}
       variables={variables}
       preferences={preferences}
+      initialView={parseEditorView(cookies().get(EDITOR_VIEW_COOKIE)?.value)}
     />
   );
 }

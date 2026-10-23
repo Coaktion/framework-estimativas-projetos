@@ -54,6 +54,9 @@ export function useUnsavedChangesGuard(isDirty: boolean, message: string) {
       if (!window.confirm(messageRef.current)) {
         event.preventDefault();
         event.stopPropagation();
+        // Avisa o overlay de carregamento (AppBlockingLoader) que a navegação
+        // não vai acontecer — ele decide depois do clique terminar.
+        (event as any).__navigationCancelled = true;
       }
     };
     document.addEventListener('click', onClick, true);

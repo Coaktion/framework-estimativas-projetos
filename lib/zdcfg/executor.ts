@@ -54,7 +54,7 @@ export async function rollback(
         r.logs.forEach(log);
         r.resultados.forEach((x) => { if (!x.ok) pend.push([x.kind, x.id]); });
       } catch (e) {
-        log(`! falha de comunicacao no rollback: ${(e as Error).message}`);
+        log(`! falha de comunicação no rollback: ${(e as Error).message}`);
         pend.push(...lote);
       }
     }
@@ -66,9 +66,9 @@ export async function rollback(
   await dormir(5000);
   const ainda = await varrer(pendentes);
   if (ainda.length) {
-    log(`ATENCAO: nao consegui remover automaticamente: ${ainda.map(([k, r]) => `${k} ${r}`).join(', ')}. `
+    log(`ATENÇÃO: não consegui remover automaticamente: ${ainda.map(([k, r]) => `${k} ${r}`).join(', ')}. `
       + 'Remova manualmente no Zendesk (ou rode LIMPAR_DEMO).');
-  } else log('ROLLBACK: pendencias resolvidas na 2a tentativa.');
+  } else log('ROLLBACK: pendências resolvidas na 2ª tentativa.');
 }
 
 export async function executar(o: Opcoes): Promise<{ status: Status; criados: Criado[] }> {
@@ -84,7 +84,7 @@ export async function executar(o: Opcoes): Promise<{ status: Status; criados: Cr
       try {
         r = await o.chamar(p, ctx);
       } catch (e) {
-        throw new ErroPasso(`falha de comunicacao com o servidor: ${(e as Error).message}`);
+        throw new ErroPasso(`falha de comunicação com o servidor: ${(e as Error).message}`);
       }
       if (!r.ok && 'tenteEm' in r) {
         if (tentativa >= 8) throw new ErroPasso('limite de requisicoes do Zendesk persistente');
@@ -135,7 +135,7 @@ export async function executar(o: Opcoes): Promise<{ status: Status; criados: Cr
       if (o.cancelado()) throw new Interrompido();
     } catch (e) {
       if (e instanceof ErroPasso) {
-        o.log(`ERRO na criacao da marca/base: ${e.message}`);
+        o.log(`ERRO na criação da marca/base: ${e.message}`);
         await desfazerSePreciso();
         o.log(`FALHA: ${e.message}`);
         return { status: 'erro', criados };
@@ -195,9 +195,9 @@ export async function executar(o: Opcoes): Promise<{ status: Status; criados: Cr
     return { status: 'ok', criados };
   } catch (e) {
     if (e instanceof Interrompido) {
-      o.log('INTERROMPIDO pelo usuario; desfazendo o que ja foi criado...');
+      o.log('INTERROMPIDO pelo usuário; desfazendo o que já foi criado...');
       await desfazerSePreciso();
-      o.log('INTERROMPIDO: execucao cancelada e desfeita.');
+      o.log('INTERROMPIDO: execução cancelada e desfeita.');
       return { status: 'cancelado', criados };
     }
     if (e instanceof ErroPasso) {

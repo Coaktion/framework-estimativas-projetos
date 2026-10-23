@@ -1,5 +1,5 @@
 import { CHANNEL_KEYS, type ChannelKey } from './ae-engine-keys';
-import { DEFAULT_AE_CONFIG, DEFAULT_AE_NUMBERS, QUANTITY_FORMULAS, quantityEvaluationOrder, type AEConfig } from './ae-config';
+import { DEFAULT_AE_CONFIG, DEFAULT_AE_NUMBERS, FIXED_QTY_FORMULAS, QUANTITY_FORMULAS, fixedQtyKey, quantityEvaluationOrder, type AEConfig } from './ae-config';
 import { runFormula } from './formula';
 
 export const ACTION_FLOW_OPTIONS = [
@@ -356,6 +356,8 @@ export interface AEEstimateResult {
     baseSetup: AEDetailLine[];
     knowledge: AEDetailLine[];
     sideConversations: AEDetailLine[];
+    /** Uma linha por integração nativa (key = nome do item da biblioteca). */
+    nativeConnections: AEDetailLine[];
   };
   /**
    * Módulos que o plano de fato permite — e portanto os únicos que geraram
@@ -562,6 +564,13 @@ export function calculateAEEstimate(
   const q: Record<string, number> = {};
   for (const spec of QUANTITY_FORMULAS) q[spec.key] = computed[spec.key] ?? 0;
 
+  // Quantidade de cada item fixo: fórmula própria (hoje um número), com acesso
+  // às mesmas variáveis e quantidades acima.
+  const fixedQty: Record<string, number> = {};
+  for (const spec of FIXED_QTY_FORMULAS) {
+    fixedQty[spec.key] = Math.max(0, runFormula(F[spec.key] || spec.default, { ...formulaVars, ...computed }));
+  }
+
   const billed = (keys: string[]) =>
     keys.reduce((acc, key) => acc + q[key] * (UH as Record<string, number>)[key], 0);
 
@@ -737,23 +746,25 @@ export function calculateAEEstimate(
   const trainingHoras = trainingLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Fixed items [rows 54-63] -------------------------------------------
-  const sumFixed = (group: Record<string, { qtd: number; horas: number }>) =>
-    Object.values(group).reduce((acc, item) => acc + item.qtd * item.horas, 0);
+  // Horas em Números › Itens fixos; quantidade na fórmula qtd_<item>.
+  const qtyOf = (key: string) => fixedQty[fixedQtyKey(key)] ?? 0;
+  const sumFixed = (group: Record<string, number>) =>
+    Object.entries(group).reduce((acc, [key, horas]) => acc + qtyOf(key) * horas, 0);
 
   const supportNaoTeamQty = hasSupport && plan !== 'team' ? 1 : 0;
 
   /** Expande um grupo de itens fixos em linhas, preservando qtd × horas. */
   const fixedLines = (
-    group: Record<string, { qtd: number; horas: number }>,
+    group: Record<string, number>,
     active: boolean,
     multiplier = 1,
   ): AEDetailLine[] =>
     active
-      ? Object.entries(group).map(([key, item]) => ({
+      ? Object.entries(group).map(([key, horas]) => ({
           key,
-          qty: item.qtd * multiplier,
-          unitHours: item.horas,
-          hours: item.qtd * multiplier * item.horas,
+          qty: qtyOf(key) * multiplier,
+          unitHours: horas,
+          hours: qtyOf(key) * multiplier * horas,
         }))
       : [];
 
@@ -770,9 +781,15 @@ export function calculateAEEstimate(
   const wfmFixedHoras = hasWFM ? sumFixed(FIX.wfm) : 0;
   const adppFixedHoras = hasADPP ? sumFixed(FIX.adpp) : 0;
 
-  // --- Native integrations [rows 74-79] — flat 2 h each -------------------
-  const nativeConnectionsHoras =
-    inputs.selectedNativeConnections.length * UH.integracao_nativa;
+  // --- Native integrations [rows 74-79] -----------------------------------
+  // Com a configuração vinculada à biblioteca, cada integração vale as horas
+  // do próprio item; sem isso (ou item desconhecido), o valor padrão único.
+  const nativeHours = config.nativeIntegrationHours || {};
+  const nativeConnectionLines: AEDetailLine[] = inputs.selectedNativeConnections.map((name) => {
+    const hours = Number.isFinite(nativeHours[name]) ? nativeHours[name] : UH.integracao_nativa;
+    return { key: name, qty: 1, unitHours: hours, hours };
+  });
+  const nativeConnectionsHoras = nativeConnectionLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Configuração geral de Knowledge [row 93] ---------------------------
   /*
@@ -1028,6 +1045,7 @@ export function calculateAEEstimate(
       baseSetup: baseSetupLines,
       knowledge: knowledgeLines,
       sideConversations: sideConversationLines,
+      nativeConnections: nativeConnectionLines,
     },
   };
 }

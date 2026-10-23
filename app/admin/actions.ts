@@ -4,10 +4,13 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getServerT } from "@/app/i18n/server";
+import { getServerT, getServerLanguage } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
 import { ZENDESK_PLANS } from "@/lib/zendesk-plans";
 import { normalizePhase } from "@/lib/framework-calc";
+import { getActiveAeConfig } from "@/lib/ae-config-server";
+import { aeBindingUsage } from "@/lib/ae-config";
+import { aeNumberLabel } from "@/lib/ae-number-labels";
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
@@ -505,15 +508,25 @@ export async function addPackageAction(formData: FormData) {
   revalidatePath("/admin");
 }
 
-export async function deletePackageAction(id: number) {
+export async function deletePackageAction(id: number): Promise<{ success: boolean; error?: string }> {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
+
+  // A biblioteca governa as horas da Calculadora AE: um item vinculado só pode
+  // sair depois que o admin reatribuir o valor (Admin › Calculadora AE › Números).
+  const usage = aeBindingUsage((await getActiveAeConfig()).config)[id];
+  if (usage?.length) {
+    const t = getServerT();
+    const items = usage.map((u) => aeNumberLabel(u.path, t, getServerLanguage())).join(", ");
+    return { success: false, error: t('errors.packageBoundToAe', { items }) };
+  }
 
   await prisma.package.update({
     where: { id },
     data: { isActive: false }
   });
   revalidatePath("/admin");
+  return { success: true };
 }
 
 /**
@@ -528,35 +541,54 @@ export async function updateUserAdminStatusAction(userId: number, isAdmin: boole
 /**
  * Importa a planilha de traduções da biblioteca (exportada pelo próprio painel).
  *
- * Só preenche os campos em ESPANHOL (nome e tooltip) e nunca apaga: célula
- * vazia na planilha não mexe no que já está gravado. O nome em português é a
- * chave canônica e não é alterado.
+ * Grava os nomes em inglês e espanhol e os tooltips nos três idiomas. Nunca
+ * apaga: célula vazia na planilha não mexe no que já está gravado. O nome em
+ * português é a chave canônica e não é alterado.
  */
-export async function importSpanishTranslationsAction(
-  rows: Array<{ type: string; id: number; nameEs?: string; tooltipEs?: string }>,
+export async function importTranslationsAction(
+  rows: Array<{
+    type: string; id: number;
+    nameEn?: string; nameEs?: string;
+    tooltipPt?: string; tooltipEn?: string; tooltipEs?: string;
+  }>,
 ) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
+  const text = (value: unknown, max: number) => String(value ?? '').trim().slice(0, max);
   let updated = 0;
   const notFound: string[] = [];
   for (const row of Array.isArray(rows) ? rows : []) {
     const id = Number(row?.id);
-    const nameEs = String(row?.nameEs ?? '').trim().slice(0, 300);
-    const tooltipEs = String(row?.tooltipEs ?? '').trim().slice(0, 2000);
-    if (!Number.isInteger(id) || (!nameEs && !tooltipEs)) continue;
+    const nameEn = text(row?.nameEn, 300);
+    const nameEs = text(row?.nameEs, 300);
+    const tooltipPt = text(row?.tooltipPt, 2000);
+    const tooltipEn = text(row?.tooltipEn, 2000);
+    const tooltipEs = text(row?.tooltipEs, 2000);
+    if (!Number.isInteger(id)) continue;
     try {
       if (row.type === 'item') {
-        await prisma.package.update({
-          where: { id },
-          data: { ...(nameEs ? { nameEs } : {}), ...(tooltipEs ? { tooltipEs } : {}) },
-        });
+        const data = {
+          ...(nameEn ? { nameEn } : {}),
+          ...(nameEs ? { nameEs } : {}),
+          ...(tooltipPt ? { tooltip: tooltipPt } : {}),
+          ...(tooltipEn ? { tooltipEn } : {}),
+          ...(tooltipEs ? { tooltipEs } : {}),
+        };
+        if (!Object.keys(data).length) continue;
+        await prisma.package.update({ where: { id }, data });
       } else if (row.type === 'categoria') {
-        if (!nameEs) continue;
-        await prisma.category.update({ where: { id }, data: { displayNameEs: nameEs } });
+        if (!nameEn && !nameEs) continue;
+        await prisma.category.update({
+          where: { id },
+          data: { ...(nameEn ? { displayNameEn: nameEn } : {}), ...(nameEs ? { displayNameEs: nameEs } : {}) },
+        });
       } else if (row.type === 'skill') {
-        if (!nameEs) continue;
-        await prisma.skill.update({ where: { id }, data: { nameEs } });
+        if (!nameEn && !nameEs) continue;
+        await prisma.skill.update({
+          where: { id },
+          data: { ...(nameEn ? { nameEn } : {}), ...(nameEs ? { nameEs } : {}) },
+        });
       } else {
         continue;
       }

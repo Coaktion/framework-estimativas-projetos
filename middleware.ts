@@ -12,5 +12,6 @@ export const config = {
   // as duas rotas do Pre-Sales Ops que o agendador do Netlify chama sem sessão
   // e os assets da marca em /public/brand (logos e fundos aparecem também no login).
   // Essas duas se protegem sozinhas: exigem o header x-psops-secret OU sessão de admin.
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile).*)"],
+  // A limpeza do Agendamento (api/booking/cleanup) idem: exige x-booking-secret.
+  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup).*)"],
 };

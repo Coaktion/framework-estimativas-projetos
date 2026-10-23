@@ -10,10 +10,13 @@ import { SEGMENTS, SEGMENT_LABEL_KEYS, DEFAULT_SEGMENT, normalizeSegment, canMan
 import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge, categoryMinPlanBadge } from '@/lib/zendesk-plans';
 
 import { useState, useTransition, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { aeBindingUsage, normalizeAEConfig } from '@/lib/ae-config';
+import { aeNumberLabel } from '@/lib/ae-number-labels';
 import { 
   Plus, Download, History, Box, Settings, Users, Trash2, ExternalLink, Shield, 
   Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw, 
-  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator
+  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator, Link2
 } from 'lucide-react';
 import { 
   createFrameworkSnapshotAction, 
@@ -34,20 +37,34 @@ import {
   deletePackageAction,
   updateUserAdminStatusAction,
   createUserAction,
-  importSpanishTranslationsAction,
+  importTranslationsAction,
 } from './actions';
 import { buildTranslationCsv, parseTranslationCsv, type TranslationRow } from '@/lib/translation-csv';
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
 import AEConfigAdmin from '@/components/AEConfigAdmin';
+import ZohoAdmin from '@/components/ZohoAdmin';
 
-export default function AdminClient({ packages, categories, skills, variables, versions, users, activeAeConfig, aeConfigHistory }: any) {
+export default function AdminClient({ packages, categories, skills, variables, versions, users, activeAeConfig, aeConfigHistory, zohoConfig, zohoConfigured }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   // Somente administradores podem alterar segmentos (a verificação real é no servidor).
   const canManageSegments = canManageSegmentsFor(session?.user as any);
   const currentUserEmail = session?.user?.email || '';
-  const [activeTab, setActiveTab] = useState('packages');
+  // ?tab=aeCalculator&aeVersion=12 abre a Calculadora AE já no histórico da
+  // versão (link "ver detalhes" da página da estimativa).
+  const searchParams = useSearchParams();
+  const linkedTab = searchParams?.get('tab') || '';
+  const linkedAeVersion = searchParams?.get('aeVersion') || null;
+  const [activeTab, setActiveTab] = useState(linkedTab === 'aeCalculator' ? 'aeCalculator' : 'packages');
+
+  // Itens da biblioteca vinculados à Calculadora AE ativa: bloqueia a exclusão
+  // e mostra o "!" quando o valor está em ajuste manual.
+  const aeUsage = useMemo(
+    () => aeBindingUsage(normalizeAEConfig(activeAeConfig?.config || {})),
+    [activeAeConfig],
+  );
+  const aeLabel = (path: string) => aeNumberLabel(path, t, language);
   const [activeLibraryTab, setActiveLibraryTab] = useState('items');
   const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
@@ -256,19 +273,22 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
-  /** Lê a planilha traduzida e grava os nomes/tooltips em espanhol (não apaga nada). */
+  /** Lê a planilha traduzida e grava nomes EN/ES e tooltips PT/EN/ES (não apaga nada). */
   const handleImportTranslations = async (file: File) => {
     const { rows, error } = parseTranslationCsv(await file.text());
     if (error || !rows.length) {
       alert(t('admin.importTranslationsInvalid'));
       return;
     }
-    const withSpanish = rows.filter((r) => r.nameEs || r.tooltipEs);
-    if (!confirm(t('admin.importTranslationsConfirm', { count: withSpanish.length }))) return;
+    const filled = rows.filter((r) => r.nameEn || r.nameEs || r.tooltipPt || r.tooltipEn || r.tooltipEs);
+    if (!confirm(t('admin.importTranslationsConfirm', { count: filled.length }))) return;
     startTransition(async () => {
       try {
-        const result = await importSpanishTranslationsAction(
-          withSpanish.map((r) => ({ type: r.type, id: r.id, nameEs: r.nameEs, tooltipEs: r.tooltipEs })),
+        const result = await importTranslationsAction(
+          filled.map((r) => ({
+            type: r.type, id: r.id, nameEn: r.nameEn, nameEs: r.nameEs,
+            tooltipPt: r.tooltipPt, tooltipEn: r.tooltipEn, tooltipEs: r.tooltipEs,
+          })),
         );
         alert(t('admin.importTranslationsDone', { updated: result.updated, missing: result.notFound.length }));
       } catch (e: any) {
@@ -373,9 +393,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleDeletePackage = (id: number, name: string) => {
+    const bound = aeUsage[id];
+    if (bound?.length) {
+      alert(t('errors.packageBoundToAe', { items: bound.map((u) => aeLabel(u.path)).join(', ') }));
+      return;
+    }
     if (confirm(t('admin.confirmRemovePackage', { name }))) {
       startTransition(async () => {
-        await deletePackageAction(id);
+        const result = await deletePackageAction(id);
+        if (result && !result.success && result.error) alert(result.error);
       });
     }
   };
@@ -442,6 +468,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
             { id: 'variables', label: t('admin.tabVariables'), icon: Settings },
             { id: 'users', label: t('admin.tabUsers'), icon: Users },
             { id: 'aeCalculator', label: t('admin.tabAeCalculator'), icon: Calculator },
+            { id: 'zoho', label: t('admin.tabZoho'), icon: Link2 },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -463,7 +490,16 @@ export default function AdminClient({ packages, categories, skills, variables, v
         {/* Sempre montado (só escondido): trocar de aba não descarta o rascunho
             da configuração que ainda não foi salvo. */}
         <div className={activeTab === 'aeCalculator' ? '' : 'hidden'}>
-          <AEConfigAdmin activeAeConfig={activeAeConfig} aeConfigHistory={aeConfigHistory} />
+          <AEConfigAdmin
+            activeAeConfig={activeAeConfig}
+            aeConfigHistory={aeConfigHistory}
+            library={(packages || []).map((p: any) => ({ id: p.id, name: p.name, hours: Number(p.hours) || 0, categoryName: p.categoryName }))}
+            focusVersion={linkedTab === 'aeCalculator' ? linkedAeVersion : null}
+          />
+        </div>
+
+        <div className={activeTab === 'zoho' ? '' : 'hidden'}>
+          <ZohoAdmin initialConfig={zohoConfig} configured={Boolean(zohoConfigured)} />
         </div>
 
         {activeTab === 'versions' && (
@@ -799,6 +835,16 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       {t('admin.missingTranslationLangs', {
                                         langs: [!String(pkg.nameEn || '').trim() && 'EN', !String(pkg.nameEs || '').trim() && 'ES'].filter(Boolean).join(', '),
                                       })}
+                                    </span>
+                                  )}
+                                  {aeUsage[pkg.id]?.some((u) => u.override) && (
+                                    // Valor em ajuste manual na Calculadora AE: as horas deste
+                                    // item não estão sendo usadas lá.
+                                    <span
+                                      title={t('admin.aeOverrideHint', { items: aeUsage[pkg.id].filter((u) => u.override).map((u) => aeLabel(u.path)).join(', ') })}
+                                      className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-caption font-bold"
+                                    >
+                                      !
                                     </span>
                                   )}
                                   {packageTooltip(pkg, language) && (

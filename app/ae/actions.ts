@@ -82,6 +82,7 @@ export async function saveAEEstimateAction(formData: any): Promise<AESaveResult>
     parentId,
     version: forcedVersion,
     aeConfigId,
+    aeNumbers,
   } = formData;
 
   if (!String(clientName || '').trim()) {
@@ -167,6 +168,8 @@ export async function saveAEEstimateAction(formData: any): Promise<AESaveResult>
       // Versão da configuração da Calculadora (painel Admin) usada no cálculo:
       // a estimativa reabre com exatamente o mesmo cálculo.
       aeConfigId: aeConfigId ?? null,
+      // Retrato das horas efetivas do cálculo (biblioteca + ajustes manuais).
+      aeNumbers: aeNumbers && typeof aeNumbers === 'object' ? aeNumbers : null,
     }),
     resultHours,
     needsSC,

@@ -4,22 +4,28 @@
  * Painel Admin › Calculadora AE.
  *
  * Edita a configuração do engine da Calculadora AE: percentuais, limites de
- * revisão por Sales Engineer, todos os números (horas unitárias, configurações
- * gerais, treinamentos, workshops, apps, itens fixos, fatores) e as fórmulas de
- * quantidade e de base. Cada "Salvar" cria uma versão nova; estimativas já
- * salvas continuam com a versão com que foram calculadas.
+ * revisão por Sales Engineer, os números (horas unitárias, configurações
+ * gerais, treinamentos, workshops, apps, itens fixos, fatores), as fórmulas de
+ * quantidade e de base e o VÍNCULO de cada hora com um item da biblioteca — a
+ * biblioteca é a fonte da verdade; o "ajuste manual" fixa um valor próprio.
+ * Cada "Salvar" cria uma versão nova; estimativas já salvas continuam com a
+ * versão (e as horas) com que foram calculadas.
  */
 
-import { useMemo, useState, useTransition } from 'react';
+import { Fragment, useEffect, useMemo, useState, useTransition } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import {
-  Calculator, Save, RotateCcw, Loader2, AlertTriangle, CheckCircle2, ChevronDown, History, FlaskConical, Percent, Hash, Sigma,
+  Calculator, Save, RotateCcw, Loader2, AlertTriangle, CheckCircle2, ChevronDown, History, FlaskConical, Percent, Hash, Sigma, Link2,
+  Download, Upload,
 } from 'lucide-react';
 import {
-  ALL_FORMULAS, APP_FORMULAS, APP_VARIABLES, BASE_FORMULAS, BASE_VARIABLES, DEFAULT_AE_CONFIG, INPUT_VARIABLES,
-  QUANTITY_FORMULAS, normalizeAEConfig, validateAEConfig, type AEConfig, type FormulaSpec,
+  ALL_FORMULAS, APP_FORMULAS, APP_VARIABLES, BASE_FORMULAS, BASE_VARIABLES, BINDABLE_NUMBERS, DEFAULT_AE_CONFIG, FIXED_QTY_FORMULAS,
+  INPUT_VARIABLES, QUANTITY_FORMULAS, diffAEConfigs, isBindablePath, normalizeAEConfig, numberAt, resolveAEConfig, resolveBindings,
+  suggestBindings, validateAEConfig, type AEBinding, type AEConfig, type AELibraryItem, type FormulaSpec,
 } from '@/lib/ae-config';
+import { aeNumberGroupLabel, aeNumberLabel } from '@/lib/ae-number-labels';
+import { buildAeConfigExport, parseAeConfigImport } from '@/lib/ae-config-io';
 import { calculateAEEstimate, validateAEInputs, type AEInputData } from '@/lib/ae-engine';
 import { FORMULA_FUNCTION_NAMES } from '@/lib/formula';
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes';
@@ -28,11 +34,6 @@ import { saveAeConfigAction } from '@/app/admin/ae_config_actions';
 type Section = 'percents' | 'numbers' | 'formulas' | 'test' | 'history';
 
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value));
-
-function humanize(key: string): string {
-  const text = key.replace(/_/g, ' ');
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
 
 function parseLocaleNumber(text: string): number {
   const n = parseFloat(String(text).trim().replace(',', '.'));
@@ -117,18 +118,62 @@ function sampleToInputs(sample: typeof DEFAULT_SAMPLE): AEInputData {
   };
 }
 
-export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) {
+/** Grupos de Números com vínculo à biblioteca (os fatores não têm). */
+const BINDABLE_GROUPS = ['horas_unitarias', 'configuracoes_gerais', 'treinamentos', 'workshops', 'apps', 'itens_fixos'];
+
+/** Estilo dos botões de alternância da aba Testar (mesmo das seções). */
+const toggleClass = (on: boolean) =>
+  `px-3 py-1.5 rounded-xl text-caption font-medium border transition-colors ${
+    on ? 'brand-bg-primary text-brand-ink border-transparent' : 'bg-white text-slate-500 border-slate-200 hover:text-brand-dark'
+  }`;
+
+export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory, library, focusVersion }: {
+  activeAeConfig: any;
+  aeConfigHistory: any[];
+  library?: AELibraryItem[];
+  /** Versão a abrir no histórico (link da página da estimativa); 'factory' = padrão de fábrica. */
+  focusVersion?: string | null;
+}) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const [isPending, startTransition] = useTransition();
+  const libraryItems = useMemo(() => library || [], [library]);
+  const libraryById = useMemo(() => new Map(libraryItems.map((i) => [i.id, i])), [libraryItems]);
+  const libraryGroups = useMemo(() => {
+    const groups = new Map<string, AELibraryItem[]>();
+    libraryItems.forEach((item) => {
+      const key = item.categoryName || '—';
+      groups.set(key, [...(groups.get(key) || []), item]);
+    });
+    return Array.from(groups.entries()).sort(([a], [b]) => a.localeCompare(b));
+  }, [libraryItems]);
+
   const savedConfig: AEConfig = useMemo(() => normalizeAEConfig(activeAeConfig?.config || DEFAULT_AE_CONFIG), [activeAeConfig]);
-  const [draft, setDraft] = useState<AEConfig>(() => clone(savedConfig));
-  const [section, setSection] = useState<Section>('percents');
+  // Versão ainda sem vínculos: o rascunho já vem com as sugestões por nome, que
+  // só passam a valer quando o admin salvar uma versão nova.
+  const pendingActivation = !savedConfig.bindings;
+  const initialDraft: AEConfig = useMemo(() => {
+    const base = clone(savedConfig);
+    if (!base.bindings) base.bindings = suggestBindings(libraryItems);
+    return base;
+  }, [savedConfig, libraryItems]);
+  const [draft, setDraft] = useState<AEConfig>(() => clone(initialDraft));
+  const [section, setSection] = useState<Section>(focusVersion ? 'history' : 'percents');
+  const [expandedVersion, setExpandedVersion] = useState<string | null>(focusVersion || null);
   const [note, setNote] = useState('');
   const [status, setStatus] = useState<{ kind: 'ok' | 'error'; message: string } | null>(null);
   const [sample, setSample] = useState(DEFAULT_SAMPLE);
   const [showVariables, setShowVariables] = useState(false);
   const lang = language;
+  const label = (path: string) => aeNumberLabel(path, t, lang);
+
+  useEffect(() => {
+    if (!focusVersion) return;
+    const timer = setTimeout(() => {
+      document.getElementById(`ae-version-${focusVersion}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 200);
+    return () => clearTimeout(timer);
+  }, [focusVersion]);
 
   const issues = useMemo(() => validateAEConfig(draft), [draft]);
   const issuesByField = useMemo(() => {
@@ -139,9 +184,10 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
 
   // Compara já normalizado (ex.: espaços nas pontas do nome da categoria, que o
   // servidor remove ao salvar) — senão o rascunho nunca voltaria a "salvo".
-  const isDirty = JSON.stringify(normalizeAEConfig(draft)) !== JSON.stringify(normalizeAEConfig(savedConfig))
+  const isDirty = JSON.stringify(normalizeAEConfig(draft)) !== JSON.stringify(normalizeAEConfig(initialDraft))
     || issues.length > 0;
   useUnsavedChangesGuard(isDirty && !isPending, t('common.unsavedChangesConfirm'));
+  const canSave = (isDirty || pendingActivation) && !isPending;
 
   const setNumber = (path: string[], value: number) => {
     setDraft((prev) => {
@@ -152,14 +198,36 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
       return next;
     });
   };
-  const getNumber = (path: string[]): number => {
-    let node: any = draft.numbers;
-    path.forEach((k) => { node = node?.[k]; });
-    return Number(node);
-  };
+  const getNumber = (path: string[]): number => numberAt(draft.numbers, path.join('.'));
   const setFormula = (key: string, value: string) => {
     setDraft((prev) => ({ ...prev, formulas: { ...prev.formulas, [key]: value } }));
   };
+
+  // ------------------------------------------------------------- vínculos
+  const resolved = useMemo(() => resolveBindings(draft, libraryItems), [draft, libraryItems]);
+  const bindingOf = (path: string): AEBinding => draft.bindings?.[path] || { packageId: null, override: false };
+  const setBinding = (path: string, patch: Partial<AEBinding>) => {
+    setDraft((prev) => {
+      const next = clone(prev) as AEConfig;
+      const current = next.bindings?.[path] || { packageId: null, override: false };
+      const updated: AEBinding = { ...current, ...patch };
+      if (updated.packageId == null) updated.override = false;
+      // Ligar o ajuste manual começa do valor atual da biblioteca.
+      if (patch.override === true && !current.override && updated.packageId != null) {
+        const item = libraryById.get(updated.packageId);
+        if (item) {
+          const keys = path.split('.');
+          let node: any = next.numbers;
+          keys.slice(0, -1).forEach((k) => { node = node[k]; });
+          node[keys[keys.length - 1]] = Number(item.hours) || 0;
+        }
+      }
+      next.bindings = { ...(next.bindings || {}), [path]: updated };
+      return next;
+    });
+  };
+  const overridePaths = BINDABLE_NUMBERS.map((b) => b.path).filter((path) => bindingOf(path).override);
+  const matchedCount = BINDABLE_NUMBERS.filter((b) => resolved[b.path]?.item).length;
 
   // ---------------------------------------------------------------- prévia
   const sampleInputs = useMemo(() => sampleToInputs(sample), [sample]);
@@ -167,10 +235,10 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
   const preview = useMemo(() => {
     if (!sampleValid) return null;
     const run = (cfg: AEConfig) => {
-      try { return calculateAEEstimate(sampleInputs, cfg); } catch { return null; }
+      try { return calculateAEEstimate(sampleInputs, resolveAEConfig(cfg, libraryItems)); } catch { return null; }
     };
     return { saved: run(savedConfig), draft: issues.length ? null : run(draft) };
-  }, [sampleInputs, sampleValid, savedConfig, draft, issues.length]);
+  }, [sampleInputs, sampleValid, savedConfig, draft, issues.length, libraryItems]);
 
   const handleSave = (resetToFactory = false) => {
     if (!resetToFactory && issues.length) {
@@ -184,7 +252,7 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
         const result: any = await saveAeConfigAction(resetToFactory ? null : draft, resetToFactory ? t('aeConfig.factoryResetNote') : note, resetToFactory);
         if (result.success) {
           setNote('');
-          if (resetToFactory) setDraft(clone(DEFAULT_AE_CONFIG));
+          if (resetToFactory) setDraft({ ...clone(DEFAULT_AE_CONFIG), bindings: suggestBindings(libraryItems) });
           setStatus({ kind: 'ok', message: t('aeConfig.saved', { id: result.id }) });
         } else {
           const details = (result.issues || []).map((i: any) => `• ${i.field}: ${i.message}`).join('\n');
@@ -194,6 +262,45 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
         setStatus({ kind: 'error', message: `${t('aeConfig.saveFailed')}: ${e?.message || String(e)}` });
       }
     });
+  };
+
+  // ------------------------------------------------- exportar / importar
+  // Arquivo JSON pensado para revisar a configuração com a Claude (traz
+  // instruções e referência junto); a importação carrega no rascunho, para
+  // revisar e salvar como versão nova.
+  const handleExportConfig = () => {
+    const file = buildAeConfigExport({
+      config: normalizeAEConfig(draft),
+      library: libraryItems,
+      basedOnVersion: activeAeConfig?.id ?? null,
+      includesUnsavedChanges: isDirty || pendingActivation,
+      numberLabel: label,
+      lang,
+    });
+    const blob = new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `calculadora-ae-config-${activeAeConfig?.id ? `v${activeAeConfig.id}` : 'fabrica'}-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  const handleImportConfig = async (file: File) => {
+    if (isDirty && !confirm(t('aeConfig.importConfirmReplace'))) return;
+    const result = parseAeConfigImport(await file.text(), libraryItems, draft);
+    if (!result.ok) {
+      setStatus({ kind: 'error', message: t('aeConfig.importInvalid') });
+      return;
+    }
+    setDraft(result.config);
+    const changes = diffAEConfigs(normalizeAEConfig(initialDraft), result.config).length;
+    const problems = validateAEConfig(result.config).length;
+    const lines = [t('aeConfig.imported', { count: changes })];
+    if (result.unknownItems.length) lines.push(t('aeConfig.importUnknownItems', { items: result.unknownItems.join(', ') }));
+    if (problems) lines.push(t('aeConfig.importedWithIssues', { count: problems }));
+    setStatus({ kind: problems || result.unknownItems.length ? 'error' : 'ok', message: lines.join('\n') });
   };
 
   const NUMBER_GROUPS: Array<{ key: string; title: string }> = [
@@ -207,37 +314,134 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
     { key: 'fatores_operacao', title: t('aeConfig.groupOperationFactors') },
   ];
 
-  const quantityLabel = (key: string) => QUANTITY_FORMULAS.find((f) => f.key === key)?.label[lang];
-  const labelForNumber = (group: string, key: string) =>
-    (group === 'horas_unitarias' && quantityLabel(key)) || humanize(key);
+  const fmtNum = (v: number) => formatLocaleNumber(Math.round((Number(v) || 0) * 100) / 100, language);
+  const fmtH = (v: number | undefined) => `${fmtNum(Number(v) || 0)}h`;
 
-  /** Desenha um grupo de números (aninhado em até 3 níveis). */
-  const renderNumberNode = (path: string[], node: any): any => {
-    if (typeof node === 'number') {
-      const field = path.join('.');
+  /** Linha de uma hora vinculável: item da biblioteca, horas e ajuste manual. */
+  const renderBindingRow = (path: string) => {
+    const binding = bindingOf(path);
+    const r = resolved[path];
+    const item = r?.item || null;
+    return (
+      <tr key={path} className="border-b border-slate-100 dark:border-[color:var(--border-main)] align-top">
+        <td className="py-2 pr-3 text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">{label(path)}</td>
+        <td className="py-2 pr-3">
+          <select
+            value={binding.packageId ?? ''}
+            onChange={(e) => setBinding(path, { packageId: e.target.value ? Number(e.target.value) : null })}
+            className={`w-full bg-white dark:bg-[color:var(--bg-input-solid)] border rounded-lg px-2 py-2 text-label outline-none focus:ring-2 focus:ring-brand-primary ${
+              r?.missing ? 'border-red-400' : 'border-slate-200 dark:border-[color:var(--border-main)]'
+            }`}
+          >
+            <option value="">{t('aeConfig.unbound')}</option>
+            {libraryGroups.map(([category, items]) => (
+              <optgroup key={category} label={category}>
+                {items.map((i) => <option key={i.id} value={i.id}>{i.name} ({fmtH(i.hours)})</option>)}
+              </optgroup>
+            ))}
+          </select>
+          {r?.missing && <p className="text-caption text-red-600 mt-1">{t('aeConfig.bindingMissing')}</p>}
+          {binding.packageId == null && <p className="text-caption text-slate-400 mt-1">{t('aeConfig.unboundHint')}</p>}
+        </td>
+        <td className="py-2 pr-3 w-32">
+          {item && !binding.override ? (
+            <span className="block text-right text-label font-medium tabular-nums py-2">{fmtH(item.hours)}</span>
+          ) : (
+            <NumberField value={getNumber(path.split('.'))} onChange={(n) => setNumber(path.split('.'), n)} language={language} suffix="h" invalid={Boolean(issuesByField[path])} />
+          )}
+        </td>
+        <td className="py-2 w-28 text-center">
+          <label className={`inline-flex items-center gap-2 py-2 ${item ? 'cursor-pointer' : 'opacity-40 cursor-not-allowed'}`} title={t('aeConfig.overrideHint')}>
+            <input type="checkbox" disabled={!item} checked={binding.override} onChange={(e) => setBinding(path, { override: e.target.checked })} className="accent-amber-500 w-4 h-4" />
+            <span className="text-caption font-medium text-slate-500">{t('aeConfig.manual')}</span>
+          </label>
+        </td>
+      </tr>
+    );
+  };
+
+  /** Linha de um número que não é hora de item (mínimos, padrões): só a Calculadora. */
+  const renderPlainRow = (path: string) => (
+    <tr key={path} className="border-b border-slate-100 dark:border-[color:var(--border-main)] align-top">
+      <td className="py-2 pr-3 text-label font-medium text-brand-dark dark:text-[color:var(--text-main)]">{label(path)}</td>
+      <td className="py-2 pr-3 text-caption text-slate-400 pt-3">{t('aeConfig.onlyCalculator')}</td>
+      <td className="py-2 pr-3 w-32">
+        <NumberField value={getNumber(path.split('.'))} onChange={(n) => setNumber(path.split('.'), n)} language={language} suffix="h" invalid={Boolean(issuesByField[path])} />
+      </td>
+      <td className="py-2 w-28 text-center text-caption text-slate-300 pt-3">—</td>
+    </tr>
+  );
+
+  const bindingTableHead = (
+    <thead>
+      <tr className="border-b border-slate-200 dark:border-[color:var(--border-main)] text-caption text-slate-400">
+        <th className="text-left py-2 pr-3 font-medium">{t('aeConfig.colAeItem')}</th>
+        <th className="text-left py-2 pr-3 font-medium">{t('aeConfig.colLibraryItem')}</th>
+        <th className="text-right py-2 pr-3 font-medium">{t('aeConfig.colHours')}</th>
+        <th className="text-center py-2 font-medium">{t('aeConfig.colOverride')}</th>
+      </tr>
+    </thead>
+  );
+
+  /** Grupo com vínculos: tabela (itens fixos com um subtítulo por bloco). */
+  const renderBindableGroup = (group: string) => {
+    const node = (draft.numbers as any)[group];
+    if (group === 'itens_fixos') {
       return (
-        <label key={field} className="space-y-1">
-          <span className="block text-caption font-medium text-slate-500 truncate" title={field}>
-            {labelForNumber(path[0], path[path.length - 1])}
-          </span>
-          <NumberField
-            value={getNumber(path)}
-            onChange={(n) => setNumber(path, n)}
-            language={language}
-            invalid={Boolean(issuesByField[field])}
-          />
-        </label>
+        <div className="space-y-2">
+          <p className="text-caption text-slate-500">{t('aeConfig.fixedQtyNote')}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px]">
+              {bindingTableHead}
+              <tbody>
+                {Object.keys(node).map((sub) => (
+                  <Fragment key={sub}>
+                    <tr><td colSpan={4} className="pt-4 pb-1 text-caption font-bold text-slate-400">{aeNumberGroupLabel(group, sub, t)}</td></tr>
+                    {Object.keys(node[sub]).map((key) => renderBindingRow(`${group}.${sub}.${key}`))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       );
     }
+    const paths = Object.keys(node).map((key) => `${group}.${key}`);
     return (
-      <div key={path.join('.')} className="space-y-3">
-        {path.length > 1 && (
-          <div className="text-caption font-bold text-slate-400 pt-2">{humanize(path[path.length - 1])}</div>
-        )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {Object.keys(node).filter((k) => typeof node[k] === 'number').map((k) => renderNumberNode([...path, k], node[k]))}
-        </div>
-        {Object.keys(node).filter((k) => typeof node[k] !== 'number').map((k) => renderNumberNode([...path, k], node[k]))}
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[640px]">
+          {bindingTableHead}
+          <tbody>
+            {paths.filter(isBindablePath).map(renderBindingRow)}
+            {paths.filter((p) => !isBindablePath(p)).map(renderPlainRow)}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  /** Fatores de plano / operação: grade simples, só da Calculadora. */
+  const renderFactorGroup = (group: string) => {
+    const node = (draft.numbers as any)[group];
+    return (
+      <div className="space-y-4">
+        {Object.keys(node).map((sub) => (
+          <div key={sub} className="space-y-2">
+            <div className="text-caption font-bold text-slate-400">{aeNumberGroupLabel(group, sub, t)}</div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {Object.keys(node[sub]).map((key) => {
+                const path = [group, sub, key];
+                const field = path.join('.');
+                return (
+                  <label key={field} className="space-y-1">
+                    <span className="block text-caption font-medium text-slate-500 truncate" title={field}>{label(field).split(' · ').pop()}</span>
+                    <NumberField value={getNumber(path)} onChange={(n) => setNumber(path, n)} language={language} invalid={Boolean(issuesByField[field])} />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     );
   };
@@ -247,6 +451,10 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
     if (!run) return '—';
     if (QUANTITY_FORMULAS.some((f) => f.key === spec.key)) {
       return formatLocaleNumber(Number((run.quantities as any)[spec.key] || 0), language);
+    }
+    if (spec.key.startsWith('qtd_')) {
+      const line = run.details.fixedItems.find((l) => l.key === spec.key.slice(4));
+      return line ? formatLocaleNumber(line.qty, language) : '—';
     }
     if (spec.key === 'horas_app_condicionais') return formatLocaleNumber(Number(run.breakdown.appCondicionais || 0), language);
     if (spec.key === 'horas_app_ticket_manager') return formatLocaleNumber(Number(run.breakdown.appTicketManager || 0), language);
@@ -306,7 +514,7 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
     { key: 'quantidade_canais', label: t('aeConfig.seChannels') },
   ];
 
-  const sectionButton = (id: Section, label: string, Icon: any) => (
+  const sectionButton = (id: Section, text: string, Icon: any) => (
     <button
       key={id}
       type="button"
@@ -315,11 +523,70 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
         section === id ? 'brand-bg-primary text-brand-ink shadow' : 'text-slate-500 hover:bg-white hover:text-brand-dark'
       }`}
     >
-      <Icon className="w-3.5 h-3.5" /> {label}
+      <Icon className="w-3.5 h-3.5" /> {text}
     </button>
   );
 
-  const fmtH = (v: number | undefined) => `${formatLocaleNumber(Math.round((Number(v) || 0) * 100) / 100, language)}h`;
+  // ---------------------------------------------------------------- histórico
+  const formulaLabel = (key: string) => ALL_FORMULAS.find((f) => f.key === key)?.label[lang] || key;
+  const diffFieldLabel = (field: string) => {
+    if (field.startsWith('numbers.')) return label(field.slice(8));
+    if (field.startsWith('formulas.')) return `${t('aeConfig.sectionFormulas')}: ${formulaLabel(field.slice(9))}`;
+    if (field.startsWith('bindings.')) return `${t('aeConfig.bindingLabel')}: ${label(field.slice(9))}`;
+    if (field === 'settings.nativeIntegrationsCategory') return t('aeConfig.nativeCategoryTitle');
+    return field;
+  };
+  const diffValue = (field: string, value: string) => {
+    if (field.startsWith('bindings.')) {
+      const match = value.match(/^#(\d+)(.*)$/);
+      if (match) {
+        const item = libraryById.get(Number(match[1]));
+        return `${item ? item.name : `#${match[1]}`}${match[2] ? ` · ${t('aeConfig.manual')}` : ''}`;
+      }
+      return t('aeConfig.unbound');
+    }
+    const n = Number(value);
+    return field.startsWith('numbers.') && value !== '—' && Number.isFinite(n) ? fmtNum(n) : value;
+  };
+
+  const renderVersionDetails = (config: AEConfig, isActive: boolean) => {
+    const base = isActive ? normalizeAEConfig(DEFAULT_AE_CONFIG) : savedConfig;
+    const diffs = diffAEConfigs(base, config);
+    return (
+      <div className="mt-4 rounded-2xl border border-slate-200 dark:border-[color:var(--border-main)] overflow-hidden">
+        <div className="px-4 py-3 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-caption font-medium text-slate-500">
+          {isActive ? t('aeConfig.diffVsFactory') : t('aeConfig.diffVsActive')}
+        </div>
+        {diffs.length === 0 ? (
+          <p className="px-4 py-4 text-label text-slate-500">{t('aeConfig.noDiff')}</p>
+        ) : (
+          <div className="max-h-[420px] overflow-auto">
+            <table className="w-full text-label">
+              <thead>
+                <tr className="text-caption text-slate-400 border-b border-slate-100">
+                  <th className="text-left px-4 py-2 font-medium">{t('aeConfig.diffField')}</th>
+                  <th className="text-left px-4 py-2 font-medium">{isActive ? t('aeConfig.factoryEntry') : t('aeConfig.diffActive')}</th>
+                  <th className="text-left px-4 py-2 font-medium">{t('aeConfig.diffThis')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {diffs.map((d) => (
+                  <tr key={d.field} className="border-b border-slate-50 align-top">
+                    <td className="px-4 py-2 text-brand-dark dark:text-[color:var(--text-main)]">{diffFieldLabel(d.field)}</td>
+                    <td className="px-4 py-2 text-slate-500 font-mono text-caption break-all">{diffValue(d.field, d.from)}</td>
+                    <td className="px-4 py-2 text-brand-dark dark:text-[color:var(--text-main)] font-mono text-caption break-all">{diffValue(d.field, d.to)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const historyEntries: any[] = aeConfigHistory || [];
+  const focusMissing = focusVersion && focusVersion !== 'factory' && !historyEntries.some((e) => String(e.id) === focusVersion);
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -355,7 +622,7 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
             <button
               type="button"
               onClick={() => handleSave(false)}
-              disabled={isPending || !isDirty}
+              disabled={!canSave}
               className="brand-bg-primary text-brand-ink px-6 py-3 rounded-xl text-label font-medium hover:opacity-90 transition-all flex items-center justify-center gap-2 shadow-lg disabled:opacity-50"
             >
               {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -367,14 +634,41 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
           {isDirty && <span className="px-3 py-1 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-caption font-medium">{t('aeConfig.unsaved')}</span>}
           {issues.length > 0 && <span className="px-3 py-1 rounded-lg bg-red-50 text-red-600 border border-red-200 text-caption font-medium">{t('aeConfig.errorCount', { count: issues.length })}</span>}
           {isDirty && (
-            <button type="button" onClick={() => setDraft(clone(savedConfig))} className="text-caption font-medium text-slate-400 hover:text-brand-dark inline-flex items-center gap-1">
+            <button type="button" onClick={() => setDraft(clone(initialDraft))} className="text-caption font-medium text-slate-400 hover:text-brand-dark inline-flex items-center gap-1">
               <RotateCcw className="w-3 h-3" /> {t('aeConfig.discardChanges')}
             </button>
           )}
-          <button type="button" onClick={() => handleSave(true)} disabled={isPending} className="ml-auto text-caption font-medium text-slate-400 hover:text-red-600 inline-flex items-center gap-1 disabled:opacity-50">
-            <RotateCcw className="w-3 h-3" /> {t('aeConfig.factoryReset')}
-          </button>
+          <div className="ml-auto flex flex-wrap items-center gap-4">
+            <button type="button" onClick={handleExportConfig} title={t('aeConfig.exportConfigHint')} className="text-caption font-medium text-slate-500 hover:text-brand-dark inline-flex items-center gap-1">
+              <Download className="w-3 h-3" /> {t('aeConfig.exportConfig')}
+            </button>
+            <label title={t('aeConfig.importConfigHint')} className={`text-caption font-medium text-slate-500 hover:text-brand-dark inline-flex items-center gap-1 ${isPending ? 'opacity-50 pointer-events-none' : 'cursor-pointer'}`}>
+              <Upload className="w-3 h-3" /> {t('aeConfig.importConfig')}
+              <input
+                type="file"
+                accept=".json,application/json"
+                className="sr-only"
+                onChange={(e) => {
+                  const picked = e.target.files?.[0];
+                  e.target.value = '';
+                  if (picked) void handleImportConfig(picked);
+                }}
+              />
+            </label>
+            <button type="button" onClick={() => handleSave(true)} disabled={isPending} className="text-caption font-medium text-slate-400 hover:text-red-600 inline-flex items-center gap-1 disabled:opacity-50">
+              <RotateCcw className="w-3 h-3" /> {t('aeConfig.factoryReset')}
+            </button>
+          </div>
         </div>
+        {pendingActivation && (
+          <div className="rounded-2xl px-4 py-3 text-label flex items-start gap-2 bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30">
+            <Link2 className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              <b>{t('aeConfig.bindingsPendingTitle')}</b>{' '}
+              {t('aeConfig.bindingsPendingText', { matched: matchedCount, total: BINDABLE_NUMBERS.length })}
+            </span>
+          </div>
+        )}
         {status && (
           <div className={`rounded-2xl px-4 py-3 text-label whitespace-pre-wrap flex items-start gap-2 ${status.kind === 'ok' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
             {status.kind === 'ok' ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" /> : <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />}
@@ -439,13 +733,58 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
 
       {section === 'numbers' && (
         <div className="space-y-6">
+          <p className="text-caption text-slate-500 max-w-3xl">{t('aeConfig.bindingsIntro')}</p>
+          {/* Valores com ajuste manual: em destaque, para nunca passarem despercebidos. */}
+          {overridePaths.length > 0 && (
+            <div className="rounded-3xl border-2 border-amber-300 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/40 p-6 space-y-3">
+              <h3 className="text-label font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4" /> {t('aeConfig.overridesTitle', { count: overridePaths.length })}
+              </h3>
+              <p className="text-caption text-amber-800 dark:text-amber-300">{t('aeConfig.overridesHint')}</p>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[640px]">
+                  <thead>
+                    <tr className="text-caption text-amber-800/70 dark:text-amber-300/70 border-b border-amber-200">
+                      <th className="text-left py-2 pr-3 font-medium">{t('aeConfig.colAeItem')}</th>
+                      <th className="text-left py-2 pr-3 font-medium">{t('aeConfig.colLibraryItem')}</th>
+                      <th className="text-right py-2 pr-3 font-medium">{t('aeConfig.colManualValue')}</th>
+                      <th className="py-2" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {overridePaths.map((path) => {
+                      const item = resolved[path]?.item;
+                      return (
+                        <tr key={path} className="border-b border-amber-100 align-middle">
+                          <td className="py-2 pr-3 text-label font-medium text-amber-950 dark:text-amber-100">{label(path)}</td>
+                          <td className="py-2 pr-3 text-label text-amber-900 dark:text-amber-200">
+                            {item ? `${item.name} · ${t('aeConfig.libraryHours', { hours: fmtH(item.hours) })}` : t('aeConfig.bindingMissing')}
+                          </td>
+                          <td className="py-2 pr-3 w-32">
+                            <NumberField value={getNumber(path.split('.'))} onChange={(n) => setNumber(path.split('.'), n)} language={language} suffix="h" invalid={Boolean(issuesByField[path])} />
+                          </td>
+                          <td className="py-2 text-right">
+                            <button type="button" onClick={() => setBinding(path, { override: false })} className="text-caption font-medium text-amber-800 hover:text-amber-950 underline underline-offset-2">
+                              {t('aeConfig.turnOffOverride')}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           {NUMBER_GROUPS.map((group) => (
             <details key={group.key} open={group.key === 'horas_unitarias'} className="bg-white dark:bg-[color:var(--bg-card)] rounded-3xl border border-slate-200 dark:border-[color:var(--border-main)] shadow p-6 group">
               <summary className="cursor-pointer list-none flex items-center justify-between">
                 <span className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">{group.title}</span>
                 <ChevronDown className="w-4 h-4 text-slate-400 group-open:rotate-180 transition-transform" />
               </summary>
-              <div className="mt-5">{renderNumberNode([group.key], (draft.numbers as any)[group.key])}</div>
+              <div className="mt-5">
+                {BINDABLE_GROUPS.includes(group.key) ? renderBindableGroup(group.key) : renderFactorGroup(group.key)}
+              </div>
             </details>
           ))}
         </div>
@@ -477,6 +816,11 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
             {QUANTITY_FORMULAS.map(renderFormula)}
           </div>
           <div className="space-y-3">
+            <h3 className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">{t('aeConfig.fixedQtyFormulas')}</h3>
+            <p className="text-caption text-slate-500">{t('aeConfig.fixedQtyFormulasHint')}</p>
+            {FIXED_QTY_FORMULAS.map(renderFormula)}
+          </div>
+          <div className="space-y-3">
             <h3 className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">{t('aeConfig.appFormulas')}</h3>
             {APP_FORMULAS.map(renderFormula)}
           </div>
@@ -500,14 +844,14 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
             <label className="space-y-1">
               <span className="block text-caption font-medium text-slate-500">{t('plans.tier')}</span>
               <select value={sample.zendeskPlan} onChange={(e) => setSample((s) => ({ ...s, zendeskPlan: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-label">
-                {['team', 'growth', 'professional', 'enterprise'].map((p) => <option key={p} value={p}>{p}</option>)}
+                {['team', 'growth', 'professional', 'enterprise'].map((p) => <option key={p} value={p}>{t(`ae.plan${p.charAt(0).toUpperCase()}${p.slice(1)}`)}</option>)}
               </select>
             </label>
             <label className="space-y-1">
-              <span className="block text-caption font-medium text-slate-500">SKU</span>
+              <span className="block text-caption font-medium text-slate-500">{t('ae.sku')}</span>
               <select value={sample.skuType} onChange={(e) => setSample((s) => ({ ...s, skuType: e.target.value }))} className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-label">
-                <option value="CS">CS</option>
-                <option value="ES">ES</option>
+                <option value="CS">{t('plans.customerService')}</option>
+                <option value="ES">{t('plans.employeeService')}</option>
               </select>
             </label>
           </div>
@@ -515,17 +859,16 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
             {['Support', 'Knowledge', 'Community', 'Analytics', 'Voice', 'Copilot', 'QA', 'WFM', 'ADPP'].map((m) => {
               const on = sample.modules.includes(m);
               return (
-                <button key={m} type="button" onClick={() => setSample((s) => ({ ...s, modules: on ? s.modules.filter((x) => x !== m) : [...s.modules, m] }))}
-                  className={`px-3 py-1.5 rounded-xl text-caption font-medium border ${on ? 'brand-bg-primary text-brand-ink border-transparent' : 'bg-white text-slate-500 border-slate-200'}`}>
+                <button key={m} type="button" aria-pressed={on} onClick={() => setSample((s) => ({ ...s, modules: on ? s.modules.filter((x) => x !== m) : [...s.modules, m] }))} className={toggleClass(on)}>
                   {m}
                 </button>
               );
             })}
+            <span className="w-px self-stretch bg-slate-200 mx-1" aria-hidden />
             {['B2C', 'B2B', 'B2E'].map((op) => {
               const on = sample.operationTypes.includes(op);
               return (
-                <button key={op} type="button" onClick={() => setSample((s) => ({ ...s, operationTypes: on ? s.operationTypes.filter((x) => x !== op) : [...s.operationTypes, op] }))}
-                  className={`px-3 py-1.5 rounded-xl text-caption font-medium border ${on ? 'bg-brand-dark text-white border-transparent' : 'bg-white text-slate-500 border-slate-200'}`}>
+                <button key={op} type="button" aria-pressed={on} onClick={() => setSample((s) => ({ ...s, operationTypes: on ? s.operationTypes.filter((x) => x !== op) : [...s.operationTypes, op] }))} className={toggleClass(on)}>
                   {op}
                 </button>
               );
@@ -551,13 +894,13 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
                   ['commTechHours', t('ae.techComm')],
                   ['gpHours', t('ae.gp')],
                   ['totalHours', t('aeConfig.testTotal')],
-                ] as Array<[string, string]>).map(([key, label]) => {
+                ] as Array<[string, string]>).map(([key, text]) => {
                   const a = (preview?.saved as any)?.[key];
                   const b = (preview?.draft as any)?.[key];
                   const differs = preview?.draft && Math.abs((Number(a) || 0) - (Number(b) || 0)) > 0.005;
                   return (
                     <tr key={key} className={`border-b border-slate-50 ${key === 'totalHours' ? 'font-bold' : ''}`}>
-                      <td className="py-2">{label}</td>
+                      <td className="py-2">{text}</td>
                       <td className="py-2 text-right tabular-nums">{fmtH(a)}</td>
                       <td className={`py-2 text-right tabular-nums ${differs ? 'text-amber-600 font-bold' : ''}`}>{preview?.draft ? fmtH(b) : '—'}</td>
                     </tr>
@@ -576,37 +919,75 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory }: any) 
 
       {section === 'history' && (
         <div className="bg-white dark:bg-[color:var(--bg-card)] rounded-3xl border border-slate-200 dark:border-[color:var(--border-main)] shadow-xl overflow-hidden">
+          {focusMissing && (
+            <p className="px-8 py-4 text-label text-amber-800 bg-amber-50 border-b border-amber-200">{t('aeConfig.focusMissing', { id: focusVersion })}</p>
+          )}
           <ul className="divide-y divide-slate-100">
-            {(aeConfigHistory || []).length === 0 && (
+            {historyEntries.length === 0 && (
               <li className="px-8 py-12 text-center text-label text-slate-400">{t('aeConfig.noHistory')}</li>
             )}
-            {(aeConfigHistory || []).map((entry: any) => (
-              <li key={entry.id} className="px-8 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            {historyEntries.map((entry: any) => {
+              const id = String(entry.id);
+              const open = expandedVersion === id;
+              const isActive = entry.id === activeAeConfig?.id;
+              return (
+                <li key={entry.id} id={`ae-version-${id}`} className={`px-8 py-5 ${focusVersion === id ? 'bg-brand-primary/5' : ''}`}>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                      <div className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                        #{entry.id}{isActive ? ` · ${t('aeConfig.active')}` : ''}
+                      </div>
+                      <div className="text-caption text-slate-500">
+                        {entry.createdAt ? new Date(entry.createdAt).toLocaleString(dateLocale) : ''}
+                        {entry.createdByName ? ` · ${entry.createdByName}` : ''}
+                        {entry.note ? ` · ${entry.note}` : ''}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedVersion(open ? null : id)}
+                        aria-expanded={open}
+                        className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary inline-flex items-center gap-1"
+                      >
+                        {open ? t('aeConfig.hideDetails') : t('aeConfig.versionDetails')}
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDraft(normalizeAEConfig(entry.config)); setSection('percents'); setStatus({ kind: 'ok', message: t('aeConfig.loadedIntoEditor', { id: entry.id }) }); }}
+                        className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary"
+                      >
+                        {t('aeConfig.loadIntoEditor')}
+                      </button>
+                    </div>
+                  </div>
+                  {open && renderVersionDetails(normalizeAEConfig(entry.config), isActive)}
+                </li>
+              );
+            })}
+            {/* Padrão de fábrica: usado por estimativas anteriores a qualquer versão salva. */}
+            <li id="ae-version-factory" className={`px-8 py-5 ${focusVersion === 'factory' ? 'bg-brand-primary/5' : ''}`}>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
-                  <div className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">
-                    #{entry.id}{entry.id === activeAeConfig?.id ? ` · ${t('aeConfig.active')}` : ''}
-                  </div>
-                  <div className="text-caption text-slate-500">
-                    {entry.createdAt ? new Date(entry.createdAt).toLocaleString(dateLocale) : ''}
-                    {entry.createdByName ? ` · ${entry.createdByName}` : ''}
-                    {entry.note ? ` · ${entry.note}` : ''}
-                  </div>
+                  <div className="text-label font-bold text-brand-dark dark:text-[color:var(--text-main)]">{t('aeConfig.factoryEntry')}</div>
+                  <div className="text-caption text-slate-500">{t('aeConfig.factoryEntryHint')}</div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => { setDraft(normalizeAEConfig(entry.config)); setSection('percents'); setStatus({ kind: 'ok', message: t('aeConfig.loadedIntoEditor', { id: entry.id }) }); }}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary"
+                  onClick={() => setExpandedVersion(expandedVersion === 'factory' ? null : 'factory')}
+                  aria-expanded={expandedVersion === 'factory'}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary inline-flex items-center gap-1 self-start"
                 >
-                  {t('aeConfig.loadIntoEditor')}
+                  {expandedVersion === 'factory' ? t('aeConfig.hideDetails') : t('aeConfig.versionDetails')}
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandedVersion === 'factory' ? 'rotate-180' : ''}`} />
                 </button>
-              </li>
-            ))}
+              </div>
+              {expandedVersion === 'factory' && renderVersionDetails(normalizeAEConfig(DEFAULT_AE_CONFIG), false)}
+            </li>
           </ul>
         </div>
       )}
     </div>
   );
 }
-
-// Usado só para checagem estática de que todas as fórmulas têm rótulo.
-void ALL_FORMULAS;

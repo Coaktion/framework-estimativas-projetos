@@ -14,8 +14,9 @@ import {
 } from '@/lib/localized-names';
 import {
   buildScopePrompt, detectSuppressionFlags, fold,
-  type ScopeExportItem, type ScopeExportIntegration,
+  type ScopeExportInput, type ScopeExportItem, type ScopeExportIntegration,
 } from '@/lib/scope-export';
+import { zohoSectionFor } from '@/lib/zoho-section';
 import {
   computeFrameworkTotals, lineEligibility, normalizePhase, roundHalfUp,
   CORE_SKILLS, SKILL_IMPL, SKILL_SD, SKILL_DEV, SKILL_DESIGN, SKILL_GP, SKILL_NONE, VARIABLE_KEYS,
@@ -23,6 +24,8 @@ import {
 } from '@/lib/framework-calc';
 import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes';
 import NumericInput from '@/components/NumericInput';
+import ExportPreview from '@/components/ExportPreview';
+import { EDITOR_VIEW_COOKIE, serializeEditorView, type EditorView } from '@/lib/editor-view';
 import {
   exportCsv, exportXlsx, exportPdf, exportPng, safeFileBase,
   type ExportDocument, type ExportFormat,
@@ -32,7 +35,7 @@ import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallb
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
   CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
-  ArrowUp, ArrowDown, Pencil
+  ArrowUp, ArrowDown, Pencil, Rows3, Columns2, LayoutGrid, ChevronsUpDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -306,9 +309,24 @@ function normalizeLayoutConfig(
   return { categoryOrder, subcategoryOrder, itemOrder };
 }
 
-export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, subcategoriesByCategory, orphanPackages, currentVersion, allVersions, variables, preferences }: any) {
+export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, subcategoriesByCategory, orphanPackages, currentVersion, allVersions, variables, preferences, initialView }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
+
+  // Modo de exibição (ultracompacto / duas colunas): vale para todas as
+  // estimativas e fica lembrado num cookie — ver lib/editor-view.ts.
+  const [editorView, setEditorView] = useState<EditorView>(() => ({
+    ultra: Boolean(initialView?.ultra),
+    twoColumns: Boolean(initialView?.twoColumns),
+    moduleChips: Boolean(initialView?.moduleChips),
+  }));
+  const ultraCompact = editorView.ultra;
+  const twoColumns = editorView.ultra && editorView.twoColumns;
+  const updateEditorView = (patch: Partial<EditorView>) => {
+    const next = { ...editorView, ...patch };
+    setEditorView(next);
+    document.cookie = `${EDITOR_VIEW_COOKIE}=${serializeEditorView(next)}; path=/; max-age=31536000; SameSite=Lax`;
+  };
 
   // Rótulo de categoria no idioma ativo, caindo no rótulo PT se não houver tradução.
   const catLabelOf = useCallback(
@@ -1438,16 +1456,29 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
    * porque o template da skill só existe em pt-BR.
    */
   const scopeItems = useMemo(() => {
-    const out: ScopeExportItem[] = totals.lines.map((line) => ({
-      category: catLabelPt(line.category),
-      subcategory: subLabelPt(line.subcategory),
-      label:
-        line.kind === 'marketplace' ? (line.label || 'App de Marketplace (sem nome)')
-          : line.kind === 'custom' ? (line.label || 'Item personalizado (sem nome)')
-            : line.label,
-      quantity: line.quantity,
-      hours: line.hours,
-    }));
+    const out: ScopeExportItem[] = totals.lines.map((line) => {
+      const pkg = line.kind === 'package' ? packageById[String(line.packageId)] : null;
+      const custom = line.kind === 'custom' ? customPackages[line.customIndex ?? -1] : null;
+      const app = line.kind === 'marketplace' ? marketplaceApps[Number(line.key.split(':')[1])] : null;
+      return {
+        category: catLabelPt(line.category),
+        subcategory: subLabelPt(line.subcategory),
+        label:
+          line.kind === 'marketplace' ? (line.label || 'App de Marketplace (sem nome)')
+            : line.kind === 'custom' ? (line.label || 'Item personalizado (sem nome)')
+              : line.label,
+        quantity: line.quantity,
+        hours: line.hours,
+        unitHours: line.unitHours,
+        skill: line.skill || null,
+        manualHours: line.kind === 'package'
+          ? formData[`item_override_check_${line.packageId}`] === 'on'
+          : Boolean(custom?.overrideCheck),
+        includes: pkg ? pkg.scopeIncluded : custom ? custom.scopeIn : null,
+        excludes: pkg ? pkg.scopeExcluded : custom ? custom.scopeOut : null,
+        link: app ? app.link : null,
+      };
+    });
 
     return out.sort(
       (a, b) =>
@@ -1455,9 +1486,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         a.subcategory.localeCompare(b.subcategory) ||
         a.label.localeCompare(b.label),
     );
-  }, [totals.lines, catLabelPt, subLabelPt]);
+  }, [totals.lines, catLabelPt, subLabelPt, packageById, customPackages, marketplaceApps, formData]);
 
-  const scopePrompt = useMemo(() => {
+  const scopePromptInput = useMemo(() => {
     // Módulos: derivados das CATEGORIAS que têm hora lançada. Um mapa fixo de
     // módulos daria errado assim que a biblioteca mudasse.
     const modules = Array.from(new Set(scopeItems.map((i) => i.category))).sort();
@@ -1513,12 +1544,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       { label: 'DRN', value: totals.drnPct },
     ];
 
-    return buildScopePrompt({
+    const input: ScopeExportInput = {
       origin: 'framework',
       template: 'pacote-de-horas',
       clientName: projectName,
       projectName,
       versionName: versionName || 'V1',
+      versionDescription: currentVersion?.description || null,
       generatedAt: new Date(),
       technicalScopeLink: techLink,
       zohoLink,
@@ -1557,17 +1589,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         })),
       })),
       items: scopeItems,
-      // Fase 2: preencher a partir do Zoho CRM.
-      crm: null,
-    });
+    };
+    return input;
   }, [
     scopeItems, project, projectName, versionName, techLink, zohoLink,
     totals, percents, overrides, planTier, skuType,
-    deploymentType, language,
+    deploymentType, language, currentVersion,
     categoryBreakdown.rows, catLabelPt, subLabelPt, t,
   ]);
 
+  const scopePrompt = useMemo(() => buildScopePrompt(scopePromptInput), [scopePromptInput]);
+
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
+  const [scopePromptLoading, setScopePromptLoading] = useState(false);
 
   const handleCopyScopePrompt = async () => {
     // O escopo exportado descreve a versão SALVA: com alterações pendentes, o
@@ -1580,11 +1614,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       alert(t('editor.scopePromptNeedsSaveChanges'));
       return;
     }
+    setScopePromptLoading(true);
+    const zohoSection = await zohoSectionFor(zohoLink);
+    setScopePromptLoading(false);
+    const text = buildScopePrompt({ ...scopePromptInput, zohoSection });
     try {
-      await navigator.clipboard.writeText(scopePrompt);
+      await navigator.clipboard.writeText(text);
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = scopePrompt;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand('copy'); } catch (_) {}
@@ -1683,15 +1721,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       fileBase: safeFileBase(`${projectName}-${versionName || 'rascunho'}`),
       title: projectName,
       meta,
-      columns: {
-        category: t('common.category'),
-        subcategory: t('editor.subcategory'),
-        item: t('common.item'),
-        skill: t('export.skill'),
-        quantity: t('common.quantity'),
-        unitHours: t('editor.unitHours'),
-        total: t('common.subtotal'),
-      },
+      columns: [
+        { key: 'category', label: t('common.category'), width: 28 },
+        { key: 'subcategory', label: t('editor.subcategory'), width: 26 },
+        { key: 'item', label: t('common.item'), width: 48 },
+        { key: 'skill', label: t('export.skill'), width: 18 },
+        { key: 'quantity', label: t('common.quantity'), numeric: true, width: 10 },
+        { key: 'unitHours', label: t('editor.unitHours'), numeric: true, width: 12 },
+        { key: 'total', label: t('common.subtotal'), numeric: true, width: 12 },
+      ],
       rows,
       summaryTitle: `${t('editor.summaryOf')} ${t('editor.summaryOfHours')}`,
       summary: summaryLines,
@@ -2280,8 +2318,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     );
   }
 
+  // Módulos marcados. Com ultracompacto + 2 colunas (em telas a partir de
+  // 1400px), eles se dividem em duas colunas equilibradas pela quantidade de
+  // itens; abaixo disso voltam a uma coluna, na ordem original (CSS order).
+  const checkedCategories: string[] = visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on');
+  const categoryColumns: string[][] = twoColumns ? [[], []] : [checkedCategories];
+  if (twoColumns) {
+    const weight = [0, 0];
+    checkedCategories.forEach((cat) => {
+      const items = (packagesByCategory[cat] || []).filter((p: any) => isPackageVisible(p)).length
+        + customPackages.filter((cp: any) => cp.category === cat).length;
+      const column = weight[0] <= weight[1] ? 0 : 1;
+      categoryColumns[column].push(cat);
+      weight[column] += 2 + items;
+    });
+  }
+
   return (
-    <form className="space-y-8 pb-12 xl:mx-[calc((100%_-_min(100vw_-_80px,1680px))/2)]" onSubmit={(e) => e.preventDefault()}>
+    <form className={`${ultraCompact ? 'editor-ultra space-y-3' : 'space-y-8'} pb-12 xl:mx-[calc((100%_-_min(100vw_-_80px,1680px))/2)]`} onSubmit={(e) => e.preventDefault()}>
       {/* Header: Project Controls */}
       <div className="bg-white p-8 rounded-3xl border border-slate-300 mb-8 shadow-sm">
         <div className="flex flex-col space-y-6">
@@ -2358,7 +2412,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <button
                 type="button"
                 onClick={handleCopyScopePrompt}
-                disabled={isPending || !currentVersion}
+                disabled={isPending || !currentVersion || scopePromptLoading}
                 title={currentVersion ? t('editor.copyScopePromptHint') : t('editor.scopePromptNeedsSave')}
                 className={`shrink-1 min-w-0 lg:flex-none lg:shrink-0 px-4 lg:px-6 py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden ${
                   scopePromptCopied
@@ -2366,8 +2420,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]'
                 }`}
               >
-                {scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
-                <span className="truncate">{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                {scopePromptLoading ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{scopePromptLoading ? t('editor.scopePromptLoadingZoho') : scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
               </button>
               {/* Exportação: escolhe o formato; o arquivo sai do mesmo cálculo da tela. */}
               <div className="relative shrink-1 min-w-0 lg:flex-none lg:shrink-0">
@@ -2710,7 +2764,54 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
         
         <div className="flex flex-col gap-4">
+          {/* Seleção de módulos: lista suspensa ou todos visíveis (preferência lembrada). */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input)] w-fit" role="group" aria-label={t('editor.moduleViewLabel')}>
+            {([
+              [false, t('editor.moduleViewDropdown'), ChevronsUpDown],
+              [true, t('editor.moduleViewAll'), LayoutGrid],
+            ] as Array<[boolean, string, any]>).map(([chips, text, Icon]) => (
+              <button
+                key={String(chips)}
+                type="button"
+                aria-pressed={editorView.moduleChips === chips}
+                onClick={() => updateEditorView({ moduleChips: chips })}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption font-medium transition-colors ${
+                  editorView.moduleChips === chips ? 'brand-bg-primary text-brand-ink shadow-sm' : 'text-slate-500 hover:text-brand-dark'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {text}
+              </button>
+            ))}
+          </div>
+          {editorView.moduleChips && (
+            <div className="flex flex-wrap gap-2">
+              {visibleCategories.map((cat: string) => {
+                const isChecked = formData[`check_area_${cat}`] === 'on';
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    aria-pressed={isChecked}
+                    onClick={() => {
+                      setCategoryChecked(cat, !isChecked);
+                      setShowHiddenTab(false);
+                    }}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-label font-medium border transition-all ${
+                      isChecked
+                        ? 'brand-bg-primary text-brand-ink border-transparent shadow-sm'
+                        : 'bg-white dark:bg-[color:var(--bg-card-solid)] text-slate-500 dark:text-[color:var(--text-muted)] border-slate-200 dark:border-[color:var(--border-main)] hover:text-brand-dark hover:border-slate-400'
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3.5 h-3.5" />}
+                    {catLabelOf(cat)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {!editorView.moduleChips && (
             <div className="relative w-full sm:max-w-xl" ref={moduleSelectRef}>
               <button
                 type="button"
@@ -2797,6 +2898,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </div>
               )}
             </div>
+            )}
 
             {/* Atalhos: preenchem as quantidades de Treinamento e Workshop de cada
                 módulo selecionado, e as de Go-live / Pós Go-live. */}
@@ -2867,6 +2969,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </button>
           </div>
 
+          {/* Módulos escolhidos (com "x" para tirar) — no modo "todos visíveis"
+              os próprios botões já mostram a seleção. */}
+          {!editorView.moduleChips && (
           <div className="flex flex-wrap gap-2">
             {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
               <div className="text-caption font-medium text-slate-400">
@@ -2889,6 +2994,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 ))
             )}
           </div>
+          )}
         </div>
 
         <div className="mt-6 relative">
@@ -2959,7 +3065,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       </div>
 
       {/* Package Sections */}
-      <div className="space-y-6">
+      <div className={ultraCompact ? 'space-y-3' : 'space-y-6'}>
         {/* Renderização da aba de itens ocultos */}
         {showHiddenTab && (
           <div className="bg-white rounded-3xl border-2 border-red-100 shadow-xl shadow-red-900/5 overflow-hidden transition-all duration-300">
@@ -3033,31 +3139,34 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         )}
 
-        {visibleCategories.map((cat: string) => (
+        <div className={twoColumns ? 'grid grid-cols-1 min-[1400px]:grid-cols-2 gap-3 items-start' : ''}>
+        {categoryColumns.map((columnCats, columnIndex) => (
+          <div key={columnIndex} className={twoColumns ? 'contents min-[1400px]:flex min-[1400px]:flex-col min-[1400px]:gap-3 min-w-0' : (ultraCompact ? 'space-y-3' : 'space-y-6')}>
+        {columnCats.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
-            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="scroll-mt-24 bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm transition-all duration-300">
+            <div id={`cat_section_${domSafeId(cat)}`} key={cat} style={twoColumns ? { order: checkedCategories.indexOf(cat) } : undefined} className="min-w-0 scroll-mt-24 bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm transition-all duration-300">
               {/* Cabeçalho da CATEGORIA (ex.: Zendesk Support): faixa verde-clara,
                   título em Bebas e total da categoria. Fica preso no topo enquanto
                   a lista da categoria rola, para saber sempre em que seção se está. */}
               <div
-                className={`sticky top-[68px] z-20 bg-brand-soft text-brand-soft-fg px-6 md:px-8 py-4 flex justify-between items-center gap-4 cursor-pointer select-none group ${collapsedSections[cat] ? 'rounded-3xl' : 'rounded-t-3xl border-b border-slate-300'}`}
+                className={`sticky top-[68px] z-20 bg-brand-soft text-brand-soft-fg ${ultraCompact ? 'px-4 py-1.5' : 'px-6 md:px-8 py-4'} flex justify-between items-center gap-4 cursor-pointer select-none group ${collapsedSections[cat] ? 'rounded-3xl' : 'rounded-t-3xl border-b border-slate-300'}`}
                 onClick={() => toggleSection(cat)}
               >
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand-dark shrink-0">
-                    <Box className="w-5 h-5" />
+                  <div className={`${ultraCompact ? 'w-7 h-7 rounded-lg' : 'w-10 h-10 rounded-xl'} bg-white flex items-center justify-center text-brand-dark shrink-0`}>
+                    <Box className={ultraCompact ? 'w-4 h-4' : 'w-5 h-5'} />
                   </div>
-                  <h3 className="font-heading text-section leading-none text-brand-dark truncate">{catLabelOf(cat)}</h3>
+                  <h3 className={`font-heading ${ultraCompact ? 'text-[22px]' : 'text-section'} leading-none text-brand-dark truncate`}>{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtWholeHours(totals.catTotals?.[cat])}</span>
-                  <span className="hidden md:inline text-label font-medium text-brand-dark">{t('editor.configureItems')}</span>
+                  <span className={`font-heading ${ultraCompact ? 'text-[20px]' : 'text-[26px]'} leading-none text-brand-dark tabular-nums`}>{fmtWholeHours(totals.catTotals?.[cat])}</span>
+                  <span className={`${ultraCompact ? 'hidden' : 'hidden md:inline'} text-label font-medium text-brand-dark`}>{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-5 h-5 text-brand-dark transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
               </div>
               
               {!collapsedSections[cat] && (
-                <div className="p-6">
+                <div className={ultraCompact ? 'px-3 pt-1 pb-2' : 'p-6'}>
                   <div className="overflow-x-auto">
                     <table className="min-w-full">
                       <thead>
@@ -3065,7 +3174,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           <th className="pb-3 text-left text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.items')}</th>
                           <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.unitHours')}</th>
                           <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] w-32">{t('common.quantity')}</th>
-                          <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>
+                          {!ultraCompact && <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>}
                           <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.manualAdjustment')}</th>
                           <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.subtotal')}</th>
                         </tr>
@@ -3085,7 +3194,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                             <Fragment key={`${cat}_${subcategory}`}>
                               {!isRootGroup && (
                               <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-100 dark:bg-[color:var(--bg-input-solid)] border-t-2 border-slate-300">
-                                <td colSpan={6} className="py-3.5 px-4">
+                                <td colSpan={ultraCompact ? 5 : 6} className="py-3.5 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     {/* Cabeçalho da SUBCATEGORIA (ex.: Campos e Formulários) */}
                                     {/* Clicar no nome também recolhe/expande a subcategoria */}
@@ -3096,7 +3205,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       className="flex items-center gap-3 min-w-0 text-left"
                                     >
                                       <span aria-hidden className={`w-0 h-0 shrink-0 border-l-[9px] border-l-[color:var(--primary)] border-y-[6px] border-y-transparent transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-90'}`} />
-                                      <span className="text-title font-bold text-brand-dark truncate">
+                                      <span className={`${ultraCompact ? 'text-body' : 'text-title'} font-bold text-brand-dark truncate`}>
                                         {subLabelOf(subcategory)}
                                       </span>
                                       <span className="text-label text-slate-500 whitespace-nowrap">
@@ -3123,6 +3232,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       >
                                         <ChevronDown className="w-3 h-3" />
                                       </button>
+                                      {!ultraCompact && (
                                       <button
                                         type="button"
                                         onClick={() => toggleSubcategory(cat, subcategory)}
@@ -3132,6 +3242,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         {subcategoryCollapsed ? t('editor.expandSubcategory', 'Expandir') : t('editor.collapseSubcategory', 'Recolher')}
                                         <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-180'}`} />
                                       </button>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
@@ -3148,10 +3259,35 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   const itemId = String(p.id);
                                   const currentItemOrder = layoutConfig.itemOrder[subcategoryKey(cat, subcategory)] || [];
                                   const itemIndex = currentItemOrder.indexOf(itemId);
+                                  const reorderButtons = (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
+                                        disabled={itemIndex <= 0}
+                                        className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title={t('editor.moveItemUp')}
+                                      >
+                                        <ChevronDown className="w-3 h-3 rotate-180" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
+                                        disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
+                                        className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title={t('editor.moveItemDown')}
+                                      >
+                                        <ChevronDown className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  );
 
                                   return (
                                     <tr key={p.id} className="hover:bg-slate-50/20 dark:hover:bg-[color:var(--bg-input)] transition-colors group">
-                                      <td className="py-4 pr-4">
+                                      <td className={`py-4 pr-4 ${ultraCompact ? 'relative' : ''}`}>
+                                        {/* Ultracompacto: nome e skill numa linha só; as setas de ordem
+                                            aparecem por cima, no fim da célula, ao passar o mouse. */}
+                                        <div className={ultraCompact ? 'flex flex-wrap items-center gap-x-3 gap-y-0.5' : ''}>
                                         <div className="flex items-center space-x-2">
                                           <div className="font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label mb-0.5 tracking-tight ">{packageName(p, language)}</div>
                                           <button
@@ -3171,21 +3307,31 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             </div>
                                           )}
                                         </div>
-                                        <div className="flex items-center space-x-2 mb-1">
-                                          <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 py-1 rounded-lg font-medium ">{p.skillName || p.skill}</span>
+                                        <div className={`flex items-center space-x-2 ${ultraCompact ? '' : 'mb-1'}`}>
+                                          <span className={`text-caption bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 ${ultraCompact ? 'py-0.5' : 'py-1'} rounded-lg font-medium `}>{p.skillName || p.skill}</span>
                                           {p.dependsOnItemId && (
-                                            <span className="text-caption bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 py-1 rounded-lg font-medium ">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
+                                            <span className={`text-caption bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 ${ultraCompact ? 'py-0.5' : 'py-1'} rounded-lg font-medium `}>Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
                                           )}
                                         </div>
+                                        {ultraCompact && (
+                                          <span className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-md bg-white dark:bg-[color:var(--bg-card-solid)] p-0.5 shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
+                                            {reorderButtons}
+                                          </span>
+                                        )}
+                                        </div>
+                                        {!ultraCompact && (
                                         <div className="text-caption text-slate-400 dark:text-[color:var(--text-muted)] font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
                                           {p.scopeIncluded}
                                         </div>
+                                        )}
                                       </td>
                                       <td className="py-4 text-center text-label font-medium text-slate-400 dark:text-[color:var(--text-main)] ">
                                         <div className={showsOriginalPrice ? 'text-amber-700 dark:text-amber-300' : ''}>{rowPrice.hours}</div>
+                                        {!ultraCompact && (
                                         <div className="text-caption font-bold text-slate-300 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
                                           {formatHoursMinutes(rowPrice.hours)}
                                         </div>
+                                        )}
                                         {showsOriginalPrice && (
                                           <div className="text-caption font-medium text-amber-600 dark:text-amber-300 mt-0.5" title={t('editor.priceModeOriginal')}>
                                             {t('editor.currentPriceHint', { hours: currentUnitHours })}
@@ -3200,35 +3346,20 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             value={formData[`item_${p.id}_qty`] || ''}
                                             onValueChange={(v) => setFormValue(`item_${p.id}_qty`, v)}
                                             onKeyDown={handleKeyDown}
-                                            className="w-16 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all"
+                                            className={`w-16 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 ${ultraCompact ? 'py-0.5' : 'py-1.5'} text-label font-medium text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all`}
                                           />
                                         </div>
                                       </td>
+                                      {!ultraCompact && (
                                       <td className="py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                          <button
-                                            type="button"
-                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
-                                            disabled={itemIndex <= 0}
-                                            className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title={t('editor.moveItemUp')}
-                                          >
-                                            <ChevronDown className="w-3 h-3 rotate-180" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
-                                            disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
-                                            className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title={t('editor.moveItemDown')}
-                                          >
-                                            <ChevronDown className="w-3 h-3" />
-                                          </button>
+                                          {reorderButtons}
                                         </div>
                                       </td>
+                                      )}
                                       <td className="py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
-                                          <label className="flex items-center cursor-pointer group/toggle">
+                                          <label className="flex items-center cursor-pointer group/toggle" title={t('editor.manualAdjustment')}>
                                             <input
                                               type="checkbox"
                                               name={`item_override_check_${p.id}`}
@@ -3243,7 +3374,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                                 formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
                                               }`} />
                                             </div>
-                                            <span className="ml-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors ">{t('common.manual')}</span>
+                                            {!ultraCompact && <span className="ml-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors ">{t('common.manual')}</span>}
                                           </label>
                                           {formData[`item_override_check_${p.id}`] === 'on' && (
                                             <NumericInput
@@ -3259,9 +3390,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       </td>
                                       <td className="py-4 text-right font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label ">
                                         <div>{rowTotal.toFixed(1)}</div>
+                                        {!ultraCompact && (
                                         <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
                                           {formatHoursMinutes(rowTotal)}
                                         </div>
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -3332,11 +3465,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none"
                                 />
                               </td>
+                              {!ultraCompact && (
                               <td className="py-4 text-center align-top pt-6">
                                 <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-caption font-medium text-slate-400">
                                   {t('common.custom')}
                                 </span>
                               </td>
+                              )}
                               <td className="py-4 text-label align-top text-right pt-6">
                                 <div className="flex items-center justify-end space-x-2">
                                   <label className="flex items-center cursor-pointer group/toggle">
@@ -3387,7 +3522,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     </table>
                   </div>
                   
-                  <div className="mt-6 pt-4 border-t border-slate-50 dark:border-[color:var(--border-main)]">
+                  <div className={`${ultraCompact ? 'mt-2 pt-2' : 'mt-6 pt-4'} border-t border-slate-50 dark:border-[color:var(--border-main)]`}>
                     <button 
                       type="button" 
                       onClick={() => addCustomPackage(cat)}
@@ -3476,6 +3611,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </div>
           )
         ))}
+          </div>
+        ))}
+        </div>
       </div>
 
       {/* Totals & Calculations Summary */}
@@ -3916,6 +4054,31 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </span>
           </label>
           <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+            {/* Modo de exibição: ultracompacto e, com ele ligado, duas colunas. */}
+            <div className="inline-flex items-center gap-1.5 shrink-0" role="group" aria-label={t('editor.viewModeGroup')}>
+              <button
+                type="button"
+                onClick={() => updateEditorView({ ultra: !editorView.ultra })}
+                aria-pressed={editorView.ultra}
+                title={t('editor.viewUltraCompactHint')}
+                className={`h-10 px-3 rounded-full border inline-flex items-center gap-1.5 text-label font-medium transition-colors ${editorView.ultra ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-300 bg-white text-slate-500 hover:text-brand-dark'}`}
+              >
+                <Rows3 className="w-4 h-4" />
+                <span className="hidden 2xl:inline">{t('editor.viewUltraCompact')}</span>
+              </button>
+              {editorView.ultra && (
+                <button
+                  type="button"
+                  onClick={() => updateEditorView({ twoColumns: !editorView.twoColumns })}
+                  aria-pressed={editorView.twoColumns}
+                  title={t('editor.viewTwoColumnsHint')}
+                  className={`h-10 px-3 rounded-full border inline-flex items-center gap-1.5 text-label font-medium transition-colors ${editorView.twoColumns ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-300 bg-white text-slate-500 hover:text-brand-dark'}`}
+                >
+                  <Columns2 className="w-4 h-4" />
+                  <span className="hidden 2xl:inline">{t('editor.viewTwoColumns')}</span>
+                </button>
+              )}
+            </div>
             {/* Navegação rápida: ir ao topo / ao fim da página sem rolar tudo. */}
             <div className="inline-flex items-center rounded-full border border-slate-300 bg-white overflow-hidden shrink-0" role="group" aria-label={t('editor.pageNavigation')}>
               <button
@@ -4065,65 +4228,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
       )}
 
-      {/* Prévia fora da tela, fotografada pela exportação em PNG. Montada só
-          durante a exportação, com estilos inline para sair igual em qualquer tema. */}
-      {exportingFormat === 'png' && (
-        <div aria-hidden style={{ position: 'fixed', left: -10000, top: 0, pointerEvents: 'none' }}>
-          <div
-            ref={exportPreviewRef}
-            style={{ width: 1100, padding: 32, background: '#ffffff', color: '#0b1f0a', fontFamily: 'Arial, Helvetica, sans-serif', fontSize: 12 }}
-          >
-            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 6 }}>{exportDocument.title}</div>
-            {exportDocument.meta.map((m) => (
-              <div key={m.label} style={{ color: '#475569', marginBottom: 2 }}>{m.label}: {m.value}</div>
-            ))}
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 16 }}>
-              <thead>
-                <tr style={{ background: '#2f7a2a', color: '#ffffff' }}>
-                  {[exportDocument.columns.category, exportDocument.columns.subcategory, exportDocument.columns.item, exportDocument.columns.skill, exportDocument.columns.quantity, exportDocument.columns.unitHours, exportDocument.columns.total].map((label, i) => (
-                    <th key={label} style={{ padding: '6px 8px', textAlign: i >= 4 ? 'right' : 'left', fontWeight: 700 }}>{label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {exportDocument.rows.map((row, i) => (
-                  <tr key={i} style={{ background: i % 2 ? '#f8fafc' : '#ffffff' }}>
-                    <td style={{ padding: '4px 8px' }}>{row.category}</td>
-                    <td style={{ padding: '4px 8px' }}>{row.subcategory}</td>
-                    <td style={{ padding: '4px 8px' }}>{row.item}</td>
-                    <td style={{ padding: '4px 8px' }}>{row.skill}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right' }}>{row.quantity}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right' }}>{row.unitHours ?? ''}</td>
-                    <td style={{ padding: '4px 8px', textAlign: 'right' }}>{roundHalfUp(row.total, 2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <table style={{ borderCollapse: 'collapse', marginTop: 20, minWidth: 420 }}>
-              <thead>
-                <tr style={{ background: '#2f7a2a', color: '#ffffff' }}>
-                  <th style={{ padding: '6px 8px', textAlign: 'left' }}>{exportDocument.summaryTitle}</th>
-                  <th style={{ padding: '6px 8px', textAlign: 'right' }}>{exportDocument.hoursUnit}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {exportDocument.summary.map((s, i) => (
-                  <tr key={i}>
-                    <td style={{ padding: '3px 8px', paddingLeft: s.level ? 24 : 8, fontWeight: s.level ? 400 : 700 }}>{s.label}</td>
-                    <td style={{ padding: '3px 8px', textAlign: 'right', fontWeight: s.level ? 400 : 700 }}>
-                      {s.hours === null ? s.note : roundHalfUp(s.hours, 1)}
-                    </td>
-                  </tr>
-                ))}
-                <tr style={{ borderTop: '2px solid #2f7a2a' }}>
-                  <td style={{ padding: '6px 8px', fontWeight: 700 }}>{exportDocument.grandTotalLabel}</td>
-                  <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 700 }}>{exportDocument.grandTotal}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Prévia fora da tela, fotografada pela exportação em PNG. */}
+      {exportingFormat === 'png' && <ExportPreview ref={exportPreviewRef} doc={exportDocument} />}
     </form>
   );
 }

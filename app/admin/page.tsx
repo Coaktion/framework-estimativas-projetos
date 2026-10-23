@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
 import { getActiveAeConfig, listAeConfigs } from "@/lib/ae-config-server";
+import { loadZohoConfig, zohoConfigured } from "@/lib/zoho";
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);
@@ -75,6 +76,8 @@ export default async function AdminPage() {
 
   // Calculadora AE: configuração ativa (números e fórmulas) e histórico.
   const [activeAeConfig, aeConfigHistory] = await Promise.all([getActiveAeConfig(), listAeConfigs()]);
+  // Zoho CRM: campos que entram no prompt de escopo (Admin › Zoho CRM).
+  const zohoConfig = await loadZohoConfig();
 
   return (
     <AdminClient 
@@ -86,6 +89,8 @@ export default async function AdminPage() {
       users={users} 
       activeAeConfig={activeAeConfig}
       aeConfigHistory={aeConfigHistory}
+      zohoConfig={zohoConfig}
+      zohoConfigured={zohoConfigured()}
     />
   );
 }

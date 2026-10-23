@@ -1,15 +1,25 @@
 'use client';
 
 /**
- * Exportação do projeto do Framework em CSV, XLSX, PDF e PNG.
+ * Exportação em CSV, XLSX, PDF e PNG (Framework e estimativas da Calculadora AE).
  *
- * Tudo é gerado no navegador a partir do MESMO resultado que o editor mostra
- * (as linhas e o resumo vêm de `computeFrameworkTotals`), então o arquivo
- * sempre bate com a tela. As bibliotecas pesadas (exceljs, jspdf,
- * html-to-image) só são baixadas no clique do formato escolhido.
+ * Tudo é gerado no navegador a partir do MESMO resultado que a tela mostra,
+ * então o arquivo sempre bate com ela. As colunas são definidas por quem
+ * exporta (o Framework tem categoria/skill; a Calculadora tem seção e, para o
+ * Account Executive, só o nome do item). As bibliotecas pesadas (exceljs,
+ * jspdf, html-to-image) só são baixadas no clique do formato escolhido.
  */
 
 export type ExportFormat = 'csv' | 'xlsx' | 'pdf' | 'png';
+
+export interface ExportColumn {
+  key: string;
+  label: string;
+  /** Números: alinhados à direita e com vírgula decimal em PT/ES. */
+  numeric?: boolean;
+  /** Largura no Excel (caracteres). */
+  width?: number;
+}
 
 export interface ExportDocument {
   locale: 'pt' | 'en' | 'es';
@@ -18,28 +28,16 @@ export interface ExportDocument {
   title: string;
   /** Linhas de cabeçalho (versão, plano, data...). */
   meta: Array<{ label: string; value: string }>;
-  columns: {
-    category: string;
-    subcategory: string;
-    item: string;
-    skill: string;
-    quantity: string;
-    unitHours: string;
-    total: string;
-  };
-  rows: Array<{
-    category: string;
-    subcategory: string;
-    item: string;
-    skill: string;
-    quantity: number;
-    unitHours: number | null;
-    total: number;
-  }>;
+  columns: ExportColumn[];
+  rows: Array<Record<string, string | number | null>>;
+  /** Bloco opcional de pares rótulo/valor (ex.: dados informados na Calculadora). */
+  details?: { title: string; items: Array<{ label: string; value: string }> };
   summaryTitle: string;
   summary: Array<{ label: string; hours: number | null; note?: string; level: 0 | 1 }>;
   grandTotalLabel: string;
-  grandTotal: number;
+  /** null = não exibir horas (ex.: estimativa que exige SC); mostra `grandTotalNote`. */
+  grandTotal: number | null;
+  grandTotalNote?: string;
   hoursUnit: string;
 }
 
@@ -49,11 +47,23 @@ const SHEET_NAMES: Record<ExportDocument['locale'], { items: string; summary: st
   es: { items: 'Ítems', summary: 'Resumen' },
 };
 
-function formatNumber(value: number | null | undefined, locale: ExportDocument['locale'], decimals = 2): string {
+export function formatNumber(value: number | null | undefined, locale: ExportDocument['locale'], decimals = 2): string {
   if (value === null || value === undefined || !Number.isFinite(value)) return '';
   const rounded = Math.round(value * 10 ** decimals) / 10 ** decimals;
   const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(decimals).replace(/0+$/, '').replace(/\.$/, '');
   return locale === 'en' ? text : text.replace('.', ',');
+}
+
+/** Valor de uma célula como texto (números formatados no idioma). */
+export function cellText(doc: ExportDocument, column: ExportColumn, row: Record<string, string | number | null>): string {
+  const value = row[column.key];
+  if (column.numeric) return formatNumber(typeof value === 'number' ? value : value == null ? null : Number(value), doc.locale);
+  return value == null ? '' : String(value);
+}
+
+/** Total geral como texto (ou a observação, quando as horas não são exibidas). */
+export function grandTotalText(doc: ExportDocument): string {
+  return doc.grandTotal == null ? (doc.grandTotalNote || '') : formatNumber(doc.grandTotal, doc.locale);
 }
 
 function download(blob: Blob, filename: string) {
@@ -93,14 +103,13 @@ export function exportCsv(doc: ExportDocument) {
   out.push(line([doc.title]));
   doc.meta.forEach((m) => out.push(line([m.label, m.value])));
   out.push('');
-  const c = doc.columns;
-  out.push(line([c.category, c.subcategory, c.item, c.skill, c.quantity, c.unitHours, c.total]));
-  doc.rows.forEach((r) => {
-    out.push(line([
-      r.category, r.subcategory, r.item, r.skill,
-      formatNumber(r.quantity, doc.locale), formatNumber(r.unitHours, doc.locale), formatNumber(r.total, doc.locale),
-    ]));
-  });
+  out.push(line(doc.columns.map((c) => c.label)));
+  doc.rows.forEach((r) => out.push(line(doc.columns.map((c) => cellText(doc, c, r)))));
+  if (doc.details?.items.length) {
+    out.push('');
+    out.push(line([doc.details.title]));
+    doc.details.items.forEach((d) => out.push(line([d.label, d.value])));
+  }
   out.push('');
   out.push(line([doc.summaryTitle]));
   doc.summary.forEach((s) => {
@@ -109,7 +118,7 @@ export function exportCsv(doc: ExportDocument) {
       s.hours === null ? (s.note || '') : formatNumber(s.hours, doc.locale),
     ]));
   });
-  out.push(line([doc.grandTotalLabel, formatNumber(doc.grandTotal, doc.locale)]));
+  out.push(line([doc.grandTotalLabel, grandTotalText(doc)]));
   const blob = new Blob(['﻿' + out.join('\r\n')], { type: 'text/csv;charset=utf-8' });
   download(blob, `${doc.fileBase}.csv`);
 }
@@ -125,28 +134,43 @@ export async function exportXlsx(doc: ExportDocument) {
   sheet.addRow([doc.title]).font = { bold: true, size: 14 };
   doc.meta.forEach((m) => sheet.addRow([m.label, m.value]));
   sheet.addRow([]);
-  const c = doc.columns;
-  const header = sheet.addRow([c.category, c.subcategory, c.item, c.skill, c.quantity, c.unitHours, c.total]);
+  const header = sheet.addRow(doc.columns.map((c) => c.label));
   header.font = { bold: true };
   header.eachCell((cellRef: any) => {
     cellRef.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F5E3' } };
   });
   doc.rows.forEach((r) => {
-    sheet.addRow([r.category, r.subcategory, r.item, r.skill, r.quantity, r.unitHours ?? null, r.total]);
+    sheet.addRow(doc.columns.map((c) => {
+      const value = r[c.key];
+      if (!c.numeric) return value ?? '';
+      const n = typeof value === 'number' ? value : value == null ? null : Number(value);
+      return n == null || !Number.isFinite(n) ? null : n;
+    }));
   });
-  [28, 26, 48, 18, 10, 12, 12].forEach((width, i) => { sheet.getColumn(i + 1).width = width; });
-  [5, 6, 7].forEach((col) => { sheet.getColumn(col).numFmt = '0.##'; });
+  doc.columns.forEach((c, i) => {
+    const column = sheet.getColumn(i + 1);
+    column.width = c.width ?? (c.numeric ? 12 : 30);
+    if (c.numeric) column.numFmt = '0.##';
+  });
 
   const summary = workbook.addWorksheet(SHEET_NAMES[doc.locale].summary);
+  if (doc.details?.items.length) {
+    summary.addRow([doc.details.title]).font = { bold: true, size: 14 };
+    doc.details.items.forEach((d) => {
+      const row = summary.addRow([d.label, d.value]);
+      row.getCell(2).alignment = { wrapText: true, vertical: 'top' };
+    });
+    summary.addRow([]);
+  }
   summary.addRow([doc.summaryTitle]).font = { bold: true, size: 14 };
   doc.summary.forEach((s) => {
     const row = summary.addRow([s.level ? `   ${s.label}` : s.label, s.hours === null ? (s.note || '') : s.hours]);
     if (!s.level) row.font = { bold: true };
   });
-  const total = summary.addRow([doc.grandTotalLabel, doc.grandTotal]);
+  const total = summary.addRow([doc.grandTotalLabel, doc.grandTotal ?? (doc.grandTotalNote || '')]);
   total.font = { bold: true };
   summary.getColumn(1).width = 44;
-  summary.getColumn(2).width = 40;
+  summary.getColumn(2).width = 60;
   summary.getColumn(2).numFmt = '0.##';
 
   const buffer = await workbook.xlsx.writeBuffer();
@@ -173,33 +197,43 @@ export async function exportPdf(doc: ExportDocument) {
     y += 12;
   });
 
-  const c = doc.columns;
+  const numericIndexes = new Set(doc.columns.map((c, i) => (c.numeric ? i : -1)).filter((i) => i >= 0));
   autoTable(pdf, {
     startY: y + 6,
-    head: [[c.category, c.subcategory, c.item, c.skill, c.quantity, c.unitHours, c.total]],
-    body: doc.rows.map((r) => [
-      r.category, r.subcategory, r.item, r.skill,
-      formatNumber(r.quantity, doc.locale), formatNumber(r.unitHours, doc.locale), formatNumber(r.total, doc.locale),
-    ]),
+    head: [doc.columns.map((c) => c.label)],
+    body: doc.rows.map((r) => doc.columns.map((c) => cellText(doc, c, r))),
     styles: { fontSize: 8, cellPadding: 3 },
     headStyles: { fillColor: [47, 122, 42] },
-    columnStyles: { 4: { halign: 'right' }, 5: { halign: 'right' }, 6: { halign: 'right' } },
+    columnStyles: Object.fromEntries(Array.from(numericIndexes).map((i) => [i, { halign: 'right' }])),
     margin: { left: marginX, right: marginX },
     didParseCell: (data: any) => {
-      if (data.section === 'head' && data.column.index >= 4) data.cell.styles.halign = 'right';
+      if (data.section === 'head' && numericIndexes.has(data.column.index)) data.cell.styles.halign = 'right';
     },
   });
+  let after = (pdf as any).lastAutoTable?.finalY ?? y + 20;
 
-  const afterItems = (pdf as any).lastAutoTable?.finalY ?? y + 20;
+  if (doc.details?.items.length) {
+    autoTable(pdf, {
+      startY: after + 18,
+      head: [[doc.details.title, '']],
+      body: doc.details.items.map((d) => [d.label, d.value]),
+      styles: { fontSize: 9, cellPadding: 3, valign: 'top' },
+      headStyles: { fillColor: [47, 122, 42] },
+      columnStyles: { 0: { cellWidth: 180, fontStyle: 'bold' } },
+      margin: { left: marginX, right: marginX },
+    });
+    after = (pdf as any).lastAutoTable?.finalY ?? after + 20;
+  }
+
   autoTable(pdf, {
-    startY: afterItems + 18,
+    startY: after + 18,
     head: [[doc.summaryTitle, doc.hoursUnit]],
     body: [
       ...doc.summary.map((s) => [
         s.level ? `    ${s.label}` : s.label,
         s.hours === null ? (s.note || '') : formatNumber(s.hours, doc.locale),
       ]),
-      [doc.grandTotalLabel, formatNumber(doc.grandTotal, doc.locale)],
+      [doc.grandTotalLabel, grandTotalText(doc)],
     ],
     styles: { fontSize: 9, cellPadding: 3 },
     headStyles: { fillColor: [47, 122, 42] },

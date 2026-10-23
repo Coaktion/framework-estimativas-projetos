@@ -4,7 +4,7 @@ import { useState, useTransition, useMemo, useEffect } from 'react';
 import type { FormEvent } from 'react';
 import { Plus, Trash2, ExternalLink, Lock, Globe, X, Loader2, Zap, Search, List, LayoutGrid, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useAppRouter } from '@/components/AppBlockingLoader';
 import { createProjectAction, deleteProjectAction } from './actions';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
@@ -41,7 +41,7 @@ type ProjectVersionChip = {
 export default function ProjectDashboardClient({ projects, currentUserId }: any) {
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
-  const router = useRouter();
+  const router = useAppRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCreatingProject, startCreatingProject] = useTransition();
   const [isDeletingProject, startDeletingProject] = useTransition();
@@ -75,7 +75,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
         }
       } catch (err) {
         console.error(err);
-        alert('Não foi possível criar o projeto. Tente novamente.');
+        alert(t('sc.createFailed'));
       }
     });
   };
@@ -101,7 +101,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
           router.refresh();
         } catch (err) {
           console.error(err);
-          alert('Não foi possível excluir o projeto. Tente novamente.');
+          alert(t('sc.deleteFailed'));
         }
       });
     }

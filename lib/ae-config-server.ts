@@ -1,5 +1,5 @@
 import prisma from './prisma';
-import { DEFAULT_AE_CONFIG, normalizeAEConfig, type AEConfig } from './ae-config';
+import { DEFAULT_AE_CONFIG, normalizeAEConfig, type AEConfig, type AELibraryItem } from './ae-config';
 
 export interface StoredAEConfig {
   /** null = padrão de fábrica (nenhuma configuração salva, ou estimativa antiga). */
@@ -49,7 +49,7 @@ export async function getAeConfigById(id: unknown): Promise<StoredAEConfig> {
 }
 
 /** Histórico para o painel Admin (mais recentes primeiro). */
-export async function listAeConfigs(limit = 20): Promise<Array<StoredAEConfig & { createdByName: string | null }>> {
+export async function listAeConfigs(limit = 60): Promise<Array<StoredAEConfig & { createdByName: string | null }>> {
   try {
     const rows = await prisma.aeConfig.findMany({ orderBy: { id: 'desc' }, take: limit });
     const userIds = Array.from(new Set(rows.map((r) => r.createdBy).filter((v): v is number => typeof v === 'number')));
@@ -60,6 +60,23 @@ export async function listAeConfigs(limit = 20): Promise<Array<StoredAEConfig & 
     return rows.map((row) => ({ ...toStored(row), createdByName: row.createdBy ? nameOf.get(row.createdBy) ?? null : null }));
   } catch (error) {
     console.error('[ae-config] histórico indisponível:', error);
+    return [];
+  }
+}
+
+/* ------------------------------------------------- VÍNCULOS COM A BIBLIOTECA -- */
+
+/** Itens ativos da biblioteca, no formato que os vínculos da Calculadora usam. */
+export async function getAeLibrary(): Promise<AELibraryItem[]> {
+  try {
+    const rows = await prisma.package.findMany({
+      where: { isActive: true },
+      select: { id: true, name: true, hours: true, categoryName: true },
+      orderBy: { name: 'asc' },
+    });
+    return rows.map((r) => ({ id: r.id, name: r.name, hours: Number(r.hours) || 0, categoryName: r.categoryName }));
+  } catch (error) {
+    console.error('[ae-config] biblioteca indisponível:', error);
     return [];
   }
 }

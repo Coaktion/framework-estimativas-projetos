@@ -136,8 +136,13 @@ export interface AEScopePromptInput {
 
   /** Apps de Marketplace, com o rótulo tal como aparece na tela. */
   marketplaceApps?: Array<{ label: string; quantity?: number | null }>;
+  /** Texto livre "Quais outros apps?" (app "Outros"). */
+  otherApp?: string | null;
   hasAppCondicionais?: boolean;
   hasAppTicketManager?: boolean;
+
+  /** Linhas da seção [ZOHO CRM], quando a consulta ao Zoho foi feita. */
+  zohoSection?: string[] | null;
 
   /** Idioma da interface — governa a prosa e o idioma do documento. */
   locale?: ScopeExportLocale | string | null;
@@ -179,7 +184,9 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
       .filter((app) => app && app.label)
       .map((app) => ({
         kind: 'Marketplace',
-        label: String(app.label),
+        label: String(app.label) === 'Outros' && String(input.otherApp || '').trim()
+          ? `Outros (${String(input.otherApp).trim()})`
+          : String(app.label),
         quantity: Math.max(1, Number(app.quantity ?? 1)),
       })),
     // ACTION_FLOW_OPTIONS é uma lista de STRINGS (nomes de serviço), não de
@@ -277,6 +284,23 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
     { label: 'GP', hours: Number(estimate.gpHours) || 0 },
   ];
 
+  // Tudo o que foi digitado na Calculadora e não tem seção própria no prompt.
+  const yesNo = (v: unknown) => (v ? 'sim' : 'não');
+  const opLabels: Record<string, string> = { B2C: 'B2C (consumidor final)', B2B: 'B2B (empresas)', B2E: 'B2E (colaboradores)' };
+  const facts = [
+    { label: 'Agentes', value: String(Number(inputs.agents) || 0) },
+    { label: 'Marcas', value: String(Number(inputs.brands) || 0) },
+    { label: 'Áreas / times com roteamento próprio', value: String(Number(inputs.areas) || 0) },
+    { label: 'Tipos de operação', value: (inputs.operationTypes || []).map((o) => opLabels[String(o)] || String(o)).join(', ') },
+    { label: 'Artigos do Knowledge', value: modules.includes('Knowledge') ? String(knowledgeArticles) : '' },
+    { label: 'Single Sign-On (SSO)', value: modules.includes('Support') ? yesNo(inputs.hasSSO) : '' },
+    { label: 'Conversas paralelas via Teams', value: modules.includes('Support') ? yesNo(inputs.hasTeamsSideConv) : '' },
+    { label: 'Conversas paralelas via Slack', value: modules.includes('Support') ? yesNo(inputs.hasSlackSideConv) : '' },
+    { label: 'App Condicionais Avançadas (Aktie Now)', value: yesNo(input.hasAppCondicionais) },
+    { label: 'App Ticket Manager (Aktie Now)', value: yesNo(input.hasAppTicketManager) },
+    { label: 'Outros apps do Marketplace (texto livre)', value: String(input.otherApp || '').trim() },
+  ];
+
   return buildScopePrompt({
     origin: 'calculadora-ae',
     template: 'escopo-padrao-60h',
@@ -309,6 +333,7 @@ export function buildAEScopePrompt(input: AEScopePromptInput): string {
     items,
     clientObjectives: input.clientObjectives || null,
     successIndicators: input.successIndicators || null,
-    crm: null,
+    facts,
+    zohoSection: input.zohoSection || null,
   });
 }

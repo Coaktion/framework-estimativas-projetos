@@ -5,6 +5,8 @@
  *   - `numbers`  : horas unitárias, configurações gerais, treinamentos, itens
  *                  fixos, apps, workshops, percentuais, fatores e os limites da
  *                  revisão por Sales Engineer;
+ *   - `bindings` : o vínculo de cada hora com um item da biblioteca (Admin ›
+ *                  Biblioteca), que é a fonte da verdade — ver `resolveAEConfig`;
  *   - `formulas` : as fórmulas de quantidade (ex.: condicionais de campo =
  *                  campos_ticket × 0,5) e as fórmulas de base dos percentuais;
  *   - `settings` : textos (ex.: categoria da biblioteca com as integrações nativas).
@@ -91,24 +93,25 @@ export const DEFAULT_AE_NUMBERS = {
     wfm: 3.0,
     adpp: 1.0,
   },
+  /** Horas de cada item fixo. As quantidades são fórmulas (FIXED_QTY_FORMULAS). */
   itens_fixos: {
     support: {
-      encaminhamento_omnichannel: { qtd: 1, horas: 1.0 },
-      gatilho_webhook_instancia: { qtd: 1, horas: 0.5 },
-      webhooks: { qtd: 1, horas: 0.33 },
+      encaminhamento_omnichannel: 1.0,
+      gatilho_webhook_instancia: 0.5,
+      webhooks: 0.33,
     },
     support_nao_team: {
-      pesquisa_satisfacao: { qtd: 1, horas: 0.25 },
-      programacao_feriados: { qtd: 1, horas: 0.25 },
+      pesquisa_satisfacao: 0.25,
+      programacao_feriados: 0.25,
     },
     wfm: {
-      cenarios_previsao: { qtd: 2, horas: 0.75 },
-      paineis_desempenho: { qtd: 1, horas: 0.75 },
-      urls_monitoradas: { qtd: 10, horas: 0.05 },
+      cenarios_previsao: 0.75,
+      paineis_desempenho: 0.75,
+      urls_monitoradas: 0.05,
     },
     adpp: {
-      programacoes_exclusao: { qtd: 2, horas: 0.25 },
-      gatilhos_supressao: { qtd: 5, horas: 0.08 },
+      programacoes_exclusao: 0.25,
+      gatilhos_supressao: 0.08,
     },
   },
   apps: {
@@ -215,6 +218,27 @@ export const QUANTITY_FORMULAS: FormulaSpec[] = [
   { key: 'qa_hashtags', label: { pt: 'QA: hashtags', en: 'QA: hashtags', es: 'QA: hashtags' }, default: 'campos_ticket * 0,05' },
 ];
 
+/**
+ * Quantidade de cada ITEM FIXO. Por enquanto são números (1, 2, 5, 10), mas
+ * aceitam fórmula como as demais quantidades. As horas vêm de Números › Itens
+ * fixos (ou do item da biblioteca vinculado).
+ */
+export const FIXED_QTY_FORMULAS: FormulaSpec[] = [
+  { key: 'qtd_encaminhamento_omnichannel', label: { pt: 'Itens fixos: Encaminhamento omnichannel', en: 'Fixed items: Omnichannel routing', es: 'Ítems fijos: Enrutamiento omnicanal' }, default: '1' },
+  { key: 'qtd_gatilho_webhook_instancia', label: { pt: 'Itens fixos: Gatilho de webhook da instância', en: 'Fixed items: Instance webhook trigger', es: 'Ítems fijos: Desencadenador de webhook de la instancia' }, default: '1' },
+  { key: 'qtd_webhooks', label: { pt: 'Itens fixos: Webhooks', en: 'Fixed items: Webhooks', es: 'Ítems fijos: Webhooks' }, default: '1' },
+  { key: 'qtd_pesquisa_satisfacao', label: { pt: 'Itens fixos: Pesquisa de satisfação (CSAT)', en: 'Fixed items: Satisfaction survey (CSAT)', es: 'Ítems fijos: Encuesta de satisfacción (CSAT)' }, default: '1' },
+  { key: 'qtd_programacao_feriados', label: { pt: 'Itens fixos: Programação de feriados', en: 'Fixed items: Holiday schedule', es: 'Ítems fijos: Programación de feriados' }, default: '1' },
+  { key: 'qtd_cenarios_previsao', label: { pt: 'Itens fixos: Cenários de previsão (WFM)', en: 'Fixed items: Forecast scenarios (WFM)', es: 'Ítems fijos: Escenarios de previsión (WFM)' }, default: '2' },
+  { key: 'qtd_paineis_desempenho', label: { pt: 'Itens fixos: Painéis de desempenho (WFM)', en: 'Fixed items: Performance dashboards (WFM)', es: 'Ítems fijos: Paneles de desempeño (WFM)' }, default: '1' },
+  { key: 'qtd_urls_monitoradas', label: { pt: 'Itens fixos: URLs monitoradas (WFM)', en: 'Fixed items: Monitored URLs (WFM)', es: 'Ítems fijos: URL supervisadas (WFM)' }, default: '10' },
+  { key: 'qtd_programacoes_exclusao', label: { pt: 'Itens fixos: Programações de exclusão (ADPP)', en: 'Fixed items: Deletion schedules (ADPP)', es: 'Ítems fijos: Programaciones de eliminación (ADPP)' }, default: '2' },
+  { key: 'qtd_gatilhos_supressao', label: { pt: 'Itens fixos: Gatilhos de supressão (ADPP)', en: 'Fixed items: Suppression triggers (ADPP)', es: 'Ítems fijos: Desencadenadores de supresión (ADPP)' }, default: '5' },
+];
+
+/** Chave da fórmula de quantidade de um item fixo. */
+export const fixedQtyKey = (itemKey: string) => `qtd_${itemKey}`;
+
 /** Fórmulas de HORAS (apps da Aktie Now) — usam as quantidades acima. */
 export const APP_FORMULAS: FormulaSpec[] = [
   { key: 'horas_app_condicionais', label: { pt: 'App Condicionais Avançadas (horas)', en: 'Advanced Conditions app (hours)', es: 'App Condiciones Avanzadas (horas)' }, default: 'base_condicionais_avancadas + (visualizacoes * 0,1 + gatilhos_simples * 0,125 + formularios) * 0,25' },
@@ -228,7 +252,7 @@ export const BASE_FORMULAS: FormulaSpec[] = [
   { key: 'base_gp', label: { pt: 'Base do GP', en: 'PM base', es: 'Base del PM' }, default: 'horas_itens - horas_integracoes_nativas - horas_apps_marketplace + horas_discovery + horas_validacao + horas_golive' },
 ];
 
-export const ALL_FORMULAS: FormulaSpec[] = [...QUANTITY_FORMULAS, ...APP_FORMULAS, ...BASE_FORMULAS];
+export const ALL_FORMULAS: FormulaSpec[] = [...QUANTITY_FORMULAS, ...FIXED_QTY_FORMULAS, ...APP_FORMULAS, ...BASE_FORMULAS];
 
 /* ---------------------------------------------------------------- VARIÁVEIS -- */
 
@@ -285,6 +309,14 @@ export const BASE_VARIABLES: FormulaVariable[] = [
 
 /* ------------------------------------------------------------------ CONFIG -- */
 
+/** Vínculo de uma hora da Calculadora com um item da biblioteca. */
+export interface AEBinding {
+  /** Item da biblioteca (null = sem vínculo: vale o número da Calculadora). */
+  packageId: number | null;
+  /** Ajuste manual: vale o número da Calculadora mesmo com o item vinculado. */
+  override: boolean;
+}
+
 export interface AEConfig {
   numbers: AENumbers;
   formulas: Record<string, string>;
@@ -292,6 +324,17 @@ export interface AEConfig {
     /** Categoria da biblioteca cujos itens são oferecidos como integrações nativas. */
     nativeIntegrationsCategory: string;
   };
+  /**
+   * Vínculos com a biblioteca, por caminho do número ("horas_unitarias.funcoes").
+   * Ausente = configuração anterior aos vínculos: vale só o número salvo.
+   */
+  bindings?: Record<string, AEBinding>;
+  /**
+   * Horas de cada integração nativa (nome do item → horas), vindas da
+   * biblioteca. Preenchido em tempo de execução por `resolveAEConfig` ou pelo
+   * retrato salvo na estimativa — nunca gravado na configuração.
+   */
+  nativeIntegrationHours?: Record<string, number>;
 }
 
 export const DEFAULT_AE_CONFIG: AEConfig = {
@@ -319,17 +362,44 @@ function mergeNumbers(defaults: any, saved: any): any {
  */
 export function normalizeAEConfig(raw: any): AEConfig {
   const source = typeof raw === 'string' ? safeParse(raw) : raw || {};
+  // Configurações antigas guardavam itens fixos como { qtd, horas }: a hora
+  // continua em Números e a quantidade vira a fórmula do item.
+  const savedNumbers = source?.numbers ? JSON.parse(JSON.stringify(source.numbers)) : undefined;
+  const legacyQty: Record<string, number> = {};
+  Object.values(savedNumbers?.itens_fixos || {}).forEach((group: any) => {
+    Object.entries(group || {}).forEach(([key, value]: [string, any]) => {
+      if (value && typeof value === 'object') {
+        const qty = Number(value.qtd);
+        if (Number.isFinite(qty)) legacyQty[key] = qty;
+        group[key] = value.horas;
+      }
+    });
+  });
   const formulas: Record<string, string> = {};
   for (const spec of ALL_FORMULAS) {
     const saved = source?.formulas?.[spec.key];
-    formulas[spec.key] = typeof saved === 'string' && saved.trim() ? saved : spec.default;
+    const legacy = spec.key.startsWith('qtd_') ? legacyQty[spec.key.slice(4)] : undefined;
+    formulas[spec.key] = typeof saved === 'string' && saved.trim()
+      ? saved
+      : legacy !== undefined ? String(legacy) : spec.default;
   }
   const category = String(source?.settings?.nativeIntegrationsCategory ?? '').trim();
-  return {
-    numbers: mergeNumbers(DEFAULT_AE_NUMBERS, source?.numbers),
+  const config: AEConfig = {
+    numbers: mergeNumbers(DEFAULT_AE_NUMBERS, savedNumbers),
     formulas,
     settings: { nativeIntegrationsCategory: category || DEFAULT_AE_CONFIG.settings.nativeIntegrationsCategory },
   };
+  if (source?.bindings && typeof source.bindings === 'object') {
+    const bindings: Record<string, AEBinding> = {};
+    for (const spec of BINDABLE_NUMBERS) {
+      const b = source.bindings[spec.path];
+      if (!b || typeof b !== 'object') continue;
+      const id = Number(b.packageId);
+      bindings[spec.path] = { packageId: Number.isInteger(id) && id > 0 ? id : null, override: Boolean(b.override) };
+    }
+    config.bindings = bindings;
+  }
+  return config;
 }
 
 function safeParse(text: string): any {
@@ -447,6 +517,7 @@ export function validateAEConfig(config: AEConfig): AEConfigIssue[] {
 
   const allQuantities = new Set([...Array.from(inputNames), ...quantityNames]);
   QUANTITY_FORMULAS.forEach((spec) => check(spec, allQuantities, new Set()));
+  FIXED_QTY_FORMULAS.forEach((spec) => check(spec, allQuantities, new Set()));
   const { cycle } = quantityEvaluationOrder(config.formulas);
   cycle.forEach((key) => {
     issues.push({ field: key, message: `Dependência circular: esta fórmula depende (direta ou indiretamente) dela mesma. Envolvidas: ${cycle.join(', ')}.` });
@@ -462,4 +533,265 @@ export function validateAEConfig(config: AEConfig): AEConfigIssue[] {
     issues.push({ field: 'settings.nativeIntegrationsCategory', message: 'Informe a categoria das integrações nativas.' });
   }
   return issues;
+}
+
+/* ------------------------------------------------- VÍNCULOS COM A BIBLIOTECA -- */
+
+/**
+ * Horas da Calculadora que podem ser governadas pela biblioteca (Admin ›
+ * Biblioteca é a fonte da verdade). `candidates` são os nomes usados para
+ * sugerir o vínculo automaticamente (comparação sem acento nem caixa); sem
+ * candidato, o admin vincula à mão. Mínimos e o padrão de integração nativa
+ * não são horas de item e ficam só na Calculadora.
+ */
+export interface BindableNumber {
+  path: string;
+  group: string;
+  key: string;
+  candidates: string[];
+}
+
+const UNIT_CANDIDATES: Record<string, string[]> = {
+  funcoes: ['Funções'],
+  grupos: ['Grupos'],
+  campos_ticket: ['Campos de ticket'],
+  formularios: ['Formulários e Catálogos de Serviço', 'Formulários'],
+  condicionais_campos: ['Campos de ticket condicionais'],
+  campos_usuario: ['Campos do usuário', 'Campos de usuário'],
+  campos_organizacao: ['Campos da organização', 'Campos de organização'],
+  visualizacoes: ['Visualizações'],
+  macros: ['Macros'],
+  gatilhos_simples: ['Gatilhos Simples'],
+  gatilhos_complexos: ['Gatilhos Complexos'],
+  automacoes_simples: ['Automações simples'],
+  automacoes_complexas: ['Automações complexas'],
+  politicas_sla: ['Políticas de SLA'],
+  ivr: ['URA', 'IVR'],
+  saudacoes: ['Saudações'],
+  intencoes: ['Intenções (Copilot)', 'Intenções'],
+  entidades: ['Entidades (Copilot)'],
+  procedimentos: ['Procedimentos (Copilot)', 'Procedimentos'],
+  wfm_localizacoes: ['Localizações'],
+  wfm_turnos: ['Turnos'],
+  wfm_grupos_trabalho: ['Grupos de trabalho'],
+  wfm_equipes: ['Equipes'],
+  wfm_motivos_folga: ['Motivos de folga'],
+  wfm_tarefas_gerais: ['Tarefas Gerais'],
+  wfm_automacoes: ['Automações (WFM)'],
+  wfm_funcoes: ['Funções (WFM)'],
+  qa_destaques: ['Destaques / Insights de IA'],
+  qa_quizzes: ['Quizzes'],
+  qa_filtros: ['Filtros'],
+  qa_tabelas_desempenho: ['Tabelas de desempenho'],
+  qa_categorias_manuais: ['Categorias manuais'],
+  qa_categorias_ia: ['Categorias de IA'],
+  qa_usuarios: ['Usuários (QA)'],
+  qa_bots: ['Bots'],
+  qa_espaco_trabalho: ['Espaços de trabalho'],
+  qa_atribuicoes: ['Atribuições'],
+  qa_grupos: ['Grupos (QA)'],
+  qa_hashtags: ['Hashtags'],
+  membro_equipe: ['Agentes'],
+  marca: ['Marcas'],
+  canal_email: ['Email Zendesk'],
+  canal_web_widget: ['Web Widget'],
+  canal_exige_reuniao: [],
+  artigo: ['Artigos'],
+  action_flow: ['Fluxos de ação: sistemas externos'],
+  conversa_paralela: ['Conversas Paralelas via Slack'],
+  sso: ['Single Sign-On (SSO)'],
+};
+
+const MODULE_NAME: Record<string, string> = {
+  support: 'Support', community: 'Community', analytics: 'Analytics', voice: 'Voice',
+  copilot: 'Copilot', qa: 'QA', wfm: 'WFM', adpp: 'ADPP', suite: 'Suite',
+};
+
+const FIXED_CANDIDATES: Record<string, string[]> = {
+  encaminhamento_omnichannel: ['Encaminhamento omnichannel'],
+  gatilho_webhook_instancia: [],
+  webhooks: ['Webhook', 'Webhooks'],
+  pesquisa_satisfacao: ['Pesquisa de satisfação (CSAT)'],
+  programacao_feriados: ['Programação e feriados'],
+  cenarios_previsao: ['Cenários de previsão'],
+  paineis_desempenho: ['Painéis de desempenho'],
+  urls_monitoradas: ['URLs externas monitoradas'],
+  programacoes_exclusao: ['Programações de exclusão de dados'],
+  gatilhos_supressao: [],
+};
+
+const APP_CANDIDATES: Record<string, string[]> = {
+  condicionais_avancadas_base: ['Condicionais Avançadas: instalação'],
+  ticket_manager_base: ['Ticket Manager: instalação'],
+  woocommerce: ['WooCommerce'],
+  dialpad: ['DialPad'],
+  aircall: ['AirCall'],
+  vtex: ['VTEX'],
+  stripe: ['Stripe'],
+  pipedrive: ['Pipedrive'],
+  sweethawk: ['Apps SweetHawk'],
+  other_marketplace: ['App Marketplace'],
+};
+
+export const BINDABLE_NUMBERS: BindableNumber[] = [
+  ...Object.keys(UNIT_CANDIDATES).map((key) => ({ path: `horas_unitarias.${key}`, group: 'horas_unitarias', key, candidates: UNIT_CANDIDATES[key] })),
+  ...Object.keys(DEFAULT_AE_NUMBERS.configuracoes_gerais).map((key) => ({
+    path: `configuracoes_gerais.${key}`, group: 'configuracoes_gerais', key,
+    candidates: [`Configurações gerais (${MODULE_NAME[key] || key})`],
+  })),
+  // Treinamentos da Calculadora agrupam admin + agente; sem nome equivalente
+  // exato na biblioteca, o vínculo é feito à mão.
+  ...Object.keys(DEFAULT_AE_NUMBERS.treinamentos).map((key) => ({ path: `treinamentos.${key}`, group: 'treinamentos', key, candidates: [] as string[] })),
+  ...Object.keys(DEFAULT_AE_NUMBERS.workshops).map((key) => ({
+    path: `workshops.${key}`, group: 'workshops', key, candidates: [`Workshop ${MODULE_NAME[key] || key}`],
+  })),
+  ...Object.keys(APP_CANDIDATES).map((key) => ({ path: `apps.${key}`, group: 'apps', key, candidates: APP_CANDIDATES[key] })),
+  ...Object.entries(DEFAULT_AE_NUMBERS.itens_fixos).flatMap(([group, items]) =>
+    Object.keys(items).map((key) => ({ path: `itens_fixos.${group}.${key}`, group: 'itens_fixos', key, candidates: FIXED_CANDIDATES[key] || [] })),
+  ),
+];
+
+const BINDABLE_BY_PATH = new Map(BINDABLE_NUMBERS.map((b) => [b.path, b]));
+export const isBindablePath = (path: string) => BINDABLE_BY_PATH.has(path);
+
+/** Item da biblioteca, no formato que os vínculos precisam. */
+export interface AELibraryItem {
+  id: number;
+  name: string;
+  hours: number;
+  categoryName?: string | null;
+}
+
+export function numberAt(numbers: any, path: string): number {
+  return Number(path.split('.').reduce((node, key) => (node == null ? node : node[key]), numbers));
+}
+
+function setNumberAt(numbers: any, path: string, value: number) {
+  const keys = path.split('.');
+  let node = numbers;
+  keys.slice(0, -1).forEach((k) => { node = node[k]; });
+  node[keys[keys.length - 1]] = value;
+}
+
+const foldName = (value: unknown) => String(value ?? '')
+  .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+  .toLowerCase().replace(/\s+/g, ' ').trim();
+
+/** Vínculos sugeridos por nome (só correspondência exata, sem acento nem caixa). */
+export function suggestBindings(library: AELibraryItem[]): Record<string, AEBinding> {
+  const byName = new Map<string, AELibraryItem>();
+  library.forEach((item) => { if (!byName.has(foldName(item.name))) byName.set(foldName(item.name), item); });
+  const out: Record<string, AEBinding> = {};
+  for (const spec of BINDABLE_NUMBERS) {
+    const match = spec.candidates.map((c) => byName.get(foldName(c))).find(Boolean);
+    out[spec.path] = { packageId: match ? match.id : null, override: false };
+  }
+  return out;
+}
+
+export interface ResolvedBinding {
+  path: string;
+  packageId: number | null;
+  /** Item vinculado (null = sem vínculo ou item não encontrado/inativo). */
+  item: AELibraryItem | null;
+  override: boolean;
+  /** Vínculo aponta para um item que não existe mais (ou está inativo). */
+  missing: boolean;
+  /** Valor que o cálculo usa. */
+  effective: number;
+}
+
+export function resolveBindings(config: AEConfig, library: AELibraryItem[]): Record<string, ResolvedBinding> {
+  const byId = new Map(library.map((item) => [item.id, item]));
+  const out: Record<string, ResolvedBinding> = {};
+  for (const spec of BINDABLE_NUMBERS) {
+    const binding = config.bindings?.[spec.path] || { packageId: null, override: false };
+    const item = binding.packageId != null ? byId.get(binding.packageId) || null : null;
+    const stored = numberAt(config.numbers, spec.path);
+    out[spec.path] = {
+      path: spec.path,
+      packageId: binding.packageId,
+      item,
+      override: binding.override,
+      missing: binding.packageId != null && !item,
+      effective: item && !binding.override ? Number(item.hours) || 0 : stored,
+    };
+  }
+  return out;
+}
+
+/**
+ * Configuração com os valores que o cálculo deve usar: horas vinculadas vêm
+ * da biblioteca (salvo ajuste manual) e as integrações nativas usam as horas
+ * de cada item. Configurações sem `bindings` (anteriores aos vínculos) voltam
+ * como estão, para nada mudar até um admin salvar uma versão com vínculos.
+ */
+export function resolveAEConfig(config: AEConfig, library: AELibraryItem[]): AEConfig {
+  if (!config.bindings) return config;
+  const numbers = JSON.parse(JSON.stringify(config.numbers));
+  Object.values(resolveBindings(config, library)).forEach((b) => setNumberAt(numbers, b.path, b.effective));
+  const category = foldName(config.settings.nativeIntegrationsCategory);
+  const nativeIntegrationHours: Record<string, number> = {};
+  library
+    .filter((item) => foldName(item.categoryName) === category)
+    .forEach((item) => { nativeIntegrationHours[item.name] = Number(item.hours) || 0; });
+  return { ...config, numbers, nativeIntegrationHours };
+}
+
+/** Grava as horas efetivas da biblioteca nos números (mantém o valor de reserva em dia). */
+export function syncBoundNumbers(config: AEConfig, library: AELibraryItem[]): AEConfig {
+  if (!config.bindings) return config;
+  const numbers = JSON.parse(JSON.stringify(config.numbers));
+  Object.values(resolveBindings(config, library)).forEach((b) => {
+    if (b.item && !b.override) setNumberAt(numbers, b.path, Number(b.item.hours) || 0);
+  });
+  return { ...config, numbers };
+}
+
+/** Uma diferença entre duas versões da configuração. */
+export interface AEConfigDiff {
+  field: string;
+  from: string;
+  to: string;
+}
+
+function flattenConfig(config: AEConfig): Record<string, string> {
+  const out: Record<string, string> = {};
+  const walk = (value: any, path: string) => {
+    if (value && typeof value === 'object') {
+      Object.entries(value).forEach(([k, v]) => walk(v, path ? `${path}.${k}` : k));
+    } else {
+      out[path] = String(value);
+    }
+  };
+  walk(config.numbers, 'numbers');
+  Object.entries(config.formulas).forEach(([k, v]) => { out[`formulas.${k}`] = v; });
+  out['settings.nativeIntegrationsCategory'] = config.settings.nativeIntegrationsCategory;
+  Object.entries(config.bindings || {}).forEach(([path, b]) => {
+    out[`bindings.${path}`] = b.packageId == null ? '—' : `#${b.packageId}${b.override ? ' (manual)' : ''}`;
+  });
+  return out;
+}
+
+/** Diferenças de `from` para `to` (números, fórmulas, vínculos e ajustes). */
+export function diffAEConfigs(from: AEConfig, to: AEConfig): AEConfigDiff[] {
+  const a = flattenConfig(from);
+  const b = flattenConfig(to);
+  const keys = Array.from(new Set([...Object.keys(a), ...Object.keys(b)]));
+  return keys
+    .filter((key) => (a[key] ?? '—') !== (b[key] ?? '—'))
+    .map((key) => ({ field: key, from: a[key] ?? '—', to: b[key] ?? '—' }));
+}
+
+/**
+ * Itens da biblioteca vinculados à configuração ativa da Calculadora, por id:
+ * o painel usa para impedir a exclusão e para mostrar o "!" do ajuste manual.
+ */
+export function aeBindingUsage(config: AEConfig): Record<number, Array<{ path: string; override: boolean }>> {
+  const usage: Record<number, Array<{ path: string; override: boolean }>> = {};
+  Object.entries(config.bindings || {}).forEach(([path, binding]) => {
+    if (binding.packageId == null) return;
+    (usage[binding.packageId] = usage[binding.packageId] || []).push({ path, override: binding.override });
+  });
+  return usage;
 }

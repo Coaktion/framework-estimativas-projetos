@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
 import { packageName } from '@/lib/localized-names';
-import { canViewExecutiveReport } from '@/lib/segments';
-import { buildAEScopePrompt, marketplaceAppsForPrompt } from '@/lib/ae-scope-prompt';
+import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
+import { zohoSectionFor } from '@/lib/zoho-section';
 import AEResultTable from '@/components/AEResultTable';
+import { aeChannelOptions } from '@/lib/ae-channel-options';
+import { AE_VIEW_COOKIE } from '@/lib/editor-view';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { 
@@ -14,14 +16,12 @@ import {
   Settings, Loader2,
   AlertTriangle, CheckCircle2, 
   MessageSquare, Users, Shield, Clock, Box,
-  Copy, BookOpen, Hash, Search
+  Copy, BookOpen, Hash, Search, Rows3
 } from 'lucide-react';
 import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
 import {
   AE_PLAN_RANK,
-  CHANNEL_LEGACY_TO_KEY,
-  MARKETPLACE_APP_LABEL_TO_KEY,
   buildEngineInputs,
   isSideConversationEligible,
   normalizeAESku,
@@ -34,11 +34,9 @@ import {
   validateAEInputs,
   type AEInputData,
   type ModuleKey,
-  type ChannelKey,
   type ZendeskPlan,
   type SkuType,
   type OperationType,
-  type MarketplaceAppKey,
 } from '@/lib/ae-engine';
 
 // Conversão formulário → inputs do engine: implementação ÚNICA, compartilhada
@@ -101,20 +99,12 @@ function formFromInitial(initialData: any, initialClientName: string) {
   };
 }
 
-export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null, aeConfig = DEFAULT_AE_CONFIG, aeConfigId = null }: any) {
+export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null, aeConfig = DEFAULT_AE_CONFIG, aeConfigId = null, initialCompact = false }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [markdownReport, setMarkdownReport] = useState('');
-
-  /**
-   * O Relatório Executivo é exclusivo de administradores. Os demais segmentos
-   * ficam apenas com a tabela de resultado — que já se adapta ao leitor
-   * (versão simplificada para o AE, completa para os outros).
-   */
-  const showExecutiveReport = canViewExecutiveReport(session?.user as any);
 
   /**
    * Resultado CONGELADO no momento do cálculo.
@@ -167,6 +157,14 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>(initialForm.channelQuantities);
   const [areas, setAreas] = useState(initialForm.areas);
   const [showExtraChannels, setShowExtraChannels] = useState(false);
+  // Visão compacta (preferência lembrada em cookie): tudo mais denso, todos os
+  // canais à vista e os dois textos longos com o tamanho de sempre.
+  const [compact, setCompact] = useState(Boolean(initialCompact));
+  const toggleCompact = () => {
+    const next = !compact;
+    setCompact(next);
+    document.cookie = `${AE_VIEW_COOKIE}=${next ? 'compact' : 'normal'}; path=/; max-age=31536000; SameSite=Lax`;
+  };
   const [selectedActionFlows, setSelectedActionFlows] = useState<string[]>(initialForm.selectedActionFlows);
 
   const [hasSSO, setHasSSO] = useState(initialForm.hasSSO);
@@ -210,7 +208,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     applyForm(formFromInitial(null, ''));
     setZohoLink('');
     setShowResult(false);
-    setMarkdownReport('');
     setResultSnapshot(null);
     setSaveState({ status: 'idle' });
   };
@@ -343,35 +340,8 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     window.history.pushState({}, '', '/ae');
   };
  
-  // Channels Checklist
-  const channelOptions = [
-    { id: 'web_form', label: 'Web Form', package: 'Ticket: Formulários/Catálogos (por form)' },
-    { id: 'email', label: 'Email', package: 'Ticket: Email (por endereço)' },
-    { id: 'web_widget', label: 'Web Widget', package: 'Messaging: Web Widget (por widget)' },
-    { id: 'whatsapp', label: 'WhatsApp', package: 'Messaging: WhatsApp' },
-    { id: 'facebook', label: 'Facebook', package: 'Messaging: Facebook Messenger (por página)' },
-    { id: 'instagram', label: 'Instagram', package: 'Messaging: Instagram Direct (por página)' },
-    { id: 'voice', label: 'Voice (Zendesk)', package: 'Voz: Configurações gerais (Fila, Espera)' },
-    { id: 'teams', label: 'MS Teams', package: 'Ticket: Microsoft Teams integration' },
-    { id: 'slack', label: 'Slack', package: 'Messaging: Slack' },
-    { id: 'x_dm', label: 'X DMs', package: 'Messaging: X Corp DM (por página)' },
-    { id: 'x_pages', label: t('channel.xPublic'), package: 'Ticket: X (Mensagens Públicas)' },
-    { id: 'sms', label: 'SMS/Text', package: 'Messaging: Text/SMS (por número)' }
-  ];
-
-  const extraChannelOptions = [
-    { id: 'ios', label: 'iOS', package: 'Messaging: iOS SDK' },
-    { id: 'unity', label: 'Unity', package: 'Messaging: Unity SDK' },
-    { id: 'line', label: 'LINE', package: 'Messaging: LINE' },
-    { id: 'apple_business', label: 'Apple Messages for Business', package: 'Messaging: Apple Messages for Business' },
-    { id: 'wechat', label: 'WeChat', package: 'Messaging: WeChat' },
-    { id: 'google_rcs', label: 'Google RCS', package: 'Messaging: Google RCS' },
-    { id: 'google_business', label: t('channel.googleBusiness'), package: 'Messaging: Google Business Messages' },
-    { id: 'kakaotalk', label: 'KakaoTalk', package: 'Messaging: KakaoTalk' },
-    { id: 'facebook_pages', label: t('channel.facebookPage'), package: 'Ticket: Facebook Page (Timeline)' },
-    { id: 'instagram_page', label: t('channel.instagramPage'), package: 'Ticket: Instagram Page (Feed)' },
-    { id: 'telegram', label: 'Telegram', package: 'Messaging: Telegram' }
-  ];
+  // Canais (lista compartilhada com a página da estimativa salva).
+  const { main: channelOptions, extra: extraChannelOptions } = aeChannelOptions(t);
 
   // `value` é o nome canônico em português — é ele que vai para o banco e para o
   // engine de cálculo. `label` é só exibição e segue o idioma ativo.
@@ -742,339 +712,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
 
     setIsPending(true);
     
-    const breakdown = (estimation.breakdown || {}) as Record<string, number>;
-    const q = (estimation.quantities || {}) as Record<string, number>;
-
-    const num = (v: any, digits = 2) => {
-      const n = Number(v) || 0;
-      return Number.isFinite(n) ? n.toFixed(digits) : '0.00';
-    };
-
-    const modulesList = (selectedModules || []).filter(Boolean);
-    const rawChannelsList = (selectedChannels || []).filter(Boolean);
-    const channelsKeyList: ChannelKey[] = rawChannelsList
-      .map((c) => CHANNEL_LEGACY_TO_KEY[c])
-      .filter(Boolean);
-    const channelsList = rawChannelsList;
-    const nativeList = (selectedNativeConnections || []).filter(Boolean);
-    const appsLabels = (selectedApps || []).filter(Boolean);
-    const appsKeys = appsLabels
-      .map((label) => MARKETPLACE_APP_LABEL_TO_KEY[label] || null)
-      .filter((v): v is MarketplaceAppKey => Boolean(v));
-
-    const sweethawkQty = Number(appQuantities['SweetHawk'] ?? 0);
-    const otherQty =
-      Number(appQuantities['Outros'] ?? 0) ||
-      Number(appQuantities['App Marketplace'] ?? 0) ||
-      Number(appQuantities['other_marketplace'] ?? 0) ||
-      0;
-    const oneOffApps = appsKeys.filter((k) => k !== 'sweethawk' && k !== 'other_marketplace');
-    const oneOffAppLabels = appsLabels.filter((label) => {
-      const k = MARKETPLACE_APP_LABEL_TO_KEY[label];
-      return k && k !== 'sweethawk' && k !== 'other_marketplace';
-    });
-
-    const extraChannelsQty = channelsKeyList.reduce((acc, ch) => {
-      if (ch === 'email' || ch === 'web_form' || ch === 'web_widget' || ch === 'voice') return acc;
-      // Mesma regra do engine: só canais com quantidade > 0 (sem valor = 1).
-      return acc + Math.max(0, Number((engineInputs.channelQuantities as any)?.[ch] ?? 1) || 0);
-    }, 0);
-
-    const actionFlowsQty = (selectedActionFlows || []).filter(Boolean).length;
-
-    // Números da configuração usada NESTE cálculo (painel Admin › Calculadora AE).
-    // Antes o relatório repetia valores fixos (20%, 2h por integração...), que
-    // ficariam errados assim que alguém editasse a configuração.
-    const N = aeConfig.numbers;
-    const UH = ((engineResult as any)?.unitHours || N.horas_unitarias) as Record<string, number>;
-    const PCT = ((engineResult as any)?.percents || N.percentuais) as Record<string, number>;
-    const fmtPct = (fraction: number) => `${Number((Number(fraction || 0) * 100).toFixed(3))}%`;
-    const det: any = (engineResult as any)?.details || {};
-
-    const supportItems: Array<[string, number, number]> = [
-      [t('cfg.roles'), Number(q.funcoes || 0), Number(UH.funcoes) || 0],
-      [t('cfg.groups'), Number(q.grupos || 0), Number(UH.grupos) || 0],
-      [t('cfg.ticketFields'), Number(q.campos_ticket || 0), Number(UH.campos_ticket) || 0],
-      [t('cfg.forms'), Number(q.formularios || 0), Number(UH.formularios) || 0],
-      [t('cfg.fieldConditions'), Number(q.condicionais_campos || 0), Number(UH.condicionais_campos) || 0],
-      [t('cfg.userFields'), Number(q.campos_usuario || 0), Number(UH.campos_usuario) || 0],
-      [t('cfg.orgFields'), Number(q.campos_organizacao || 0), Number(UH.campos_organizacao) || 0],
-      [t('cfg.views'), Number(q.visualizacoes || 0), Number(UH.visualizacoes) || 0],
-      [t('cfg.macros'), Number(q.macros || 0), Number(UH.macros) || 0],
-      [t('cfg.simpleTriggers'), Number(q.gatilhos_simples || 0), Number(UH.gatilhos_simples) || 0],
-      [t('cfg.complexTriggers'), Number(q.gatilhos_complexos || 0), Number(UH.gatilhos_complexos) || 0],
-      [t('cfg.simpleAutomations'), Number(q.automacoes_simples || 0), Number(UH.automacoes_simples) || 0],
-      [t('cfg.complexAutomations'), Number(q.automacoes_complexas || 0), Number(UH.automacoes_complexas) || 0],
-      [t('cfg.slaPolicies'), Number(q.politicas_sla || 0), Number(UH.politicas_sla) || 0],
-    ];
-
-    const voiceItems: Array<[string, number, number]> = [
-      ['IVR', Number(q.ivr || 0), Number(UH.ivr) || 0],
-      [t('cfg.greetings'), Number(q.saudacoes || 0), Number(UH.saudacoes) || 0],
-    ];
-
-    const copilotItems: Array<[string, number, number]> = [
-      [t('cfg.intents'), Number(q.intencoes || 0), Number(UH.intencoes) || 0],
-      [t('cfg.entities'), Number(q.entidades || 0), Number(UH.entidades) || 0],
-      [t('cfg.procedures'), Number(q.procedimentos || 0), Number(UH.procedimentos) || 0],
-    ];
-
-    const wfmItems: Array<[string, number, number]> = [
-      [t('cfg.locations'), Number(q.wfm_localizacoes || 0), Number(UH.wfm_localizacoes) || 0],
-      [t('cfg.shifts'), Number(q.wfm_turnos || 0), Number(UH.wfm_turnos) || 0],
-      [t('cfg.workGroups'), Number(q.wfm_grupos_trabalho || 0), Number(UH.wfm_grupos_trabalho) || 0],
-      [t('cfg.teams'), Number(q.wfm_equipes || 0), Number(UH.wfm_equipes) || 0],
-      [t('cfg.timeOffReasons'), Number(q.wfm_motivos_folga || 0), Number(UH.wfm_motivos_folga) || 0],
-      [t('cfg.generalTasks'), Number(q.wfm_tarefas_gerais || 0), Number(UH.wfm_tarefas_gerais) || 0],
-      [t('cfg.wfmAutomations'), Number(q.wfm_automacoes || 0), Number(UH.wfm_automacoes) || 0],
-      [t('cfg.wfmRoles'), Number(q.wfm_funcoes || 0), Number(UH.wfm_funcoes) || 0],
-    ];
-
-    const qaItems: Array<[string, number, number]> = [
-      [t('cfg.highlights'), Number(q.qa_destaques || 0), Number(UH.qa_destaques) || 0],
-      [t('cfg.quizzes'), Number(q.qa_quizzes || 0), Number(UH.qa_quizzes) || 0],
-      [t('cfg.filters'), Number(q.qa_filtros || 0), Number(UH.qa_filtros) || 0],
-      [t('cfg.scorecards'), Number(q.qa_tabelas_desempenho || 0), Number(UH.qa_tabelas_desempenho) || 0],
-      [t('cfg.manualCategories'), Number(q.qa_categorias_manuais || 0), Number(UH.qa_categorias_manuais) || 0],
-      [t('cfg.aiCategories'), Number(q.qa_categorias_ia || 0), Number(UH.qa_categorias_ia) || 0],
-      [t('cfg.users'), Number(q.qa_usuarios || 0), Number(UH.qa_usuarios) || 0],
-      [t('cfg.bots'), Number(q.qa_bots || 0), Number(UH.qa_bots) || 0],
-      [t('cfg.workspace'), Number(q.qa_espaco_trabalho || 0), Number(UH.qa_espaco_trabalho) || 0],
-      [t('cfg.assignments'), Number(q.qa_atribuicoes || 0), Number(UH.qa_atribuicoes) || 0],
-      [t('cfg.qaGroups'), Number(q.qa_grupos || 0), Number(UH.qa_grupos) || 0],
-      [t('cfg.hashtags'), Number(q.qa_hashtags || 0), Number(UH.qa_hashtags) || 0],
-    ];
-
-    const renderQtyTable = (rows: Array<[string, number, number]>, totalHoras: number) => {
-      const lines = rows.map(([label, qtd, uh]) =>
-        `| ${label} | ${num(qtd, 2)} | ${uh.toFixed(2)}h | ${num(qtd * uh, 2)}h |`
-      ).join('\n');
-      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-${lines}
-| **${t('aeReport.blockSubtotal')}** | — | — | **${num(totalHoras, 2)}h** |`;
-    };
-
-    // Generate Markdown Report
-    // Só administradores veem o Relatório Executivo, então para os demais o
-    // texto nem é montado — não há por que gerar e guardar em estado algo que
-    // não será exibido.
-    const report = !showExecutiveReport ? '' : `
-# ${t('aeReport.title')} — ${clientName}
-
-## ${t('report.section1')}
-
-- **${t('report.client')}:** ${clientName}
-${zohoLink ? `- **${t('report.deal')}:** ${zohoLink}` : ''}
-- **${t('ae.sku')}:** ${skuType === 'employee_service' ? t('report.employeeService') : t('report.customerService')}
-- **${t('aeReport.deploymentType')}:** ${deploymentType === 'new' ? t('report.newDeployment') : t('report.optimizationExisting')}
-- **${t('report.zendeskPlan')}:** ${String(zendeskPlan || 'professional').toUpperCase()}
-- **${t('report.selectedModules')}:** ${modulesList.length ? modulesList.join(', ') : '—'}
-- **${t('aeReport.operations')}:** ${(operationTypes || []).filter(Boolean).join(', ') || '—'}
-- **${t('report.agents')}:** ${agents}
-- **${t('aeReport.brandsLabel')}:** ${brands}
-- **${t('ae.areas')}:** ${areas}
-- **${t('aeReport.knowledgeArticles')}:** ${knowledgeArticles}
-
----
-
-## ${t('aeReport.section2')}
-
-| ${t('report.group')} | ${t('report.hours')} | ${t('aeReport.note')} |
-| :--- | ---: | :--- |
-| ${t('aeReport.supportConfig')} | ${num(breakdown.supportConfig, 2)}h | ${t('aeReport.module')} Support |
-| ${t('aeReport.voiceConfig')} | ${num(breakdown.voiceConfig, 2)}h | ${t('aeReport.module')} Voice |
-| ${t('aeReport.copilotConfig')} | ${num(breakdown.copilotConfig, 2)}h | ${t('aeReport.module')} Copilot |
-| ${t('aeReport.wfmConfig')} | ${num(breakdown.wfmConfig, 2)}h | ${t('aeReport.module')} WFM |
-| ${t('aeReport.qaConfig')} | ${num(breakdown.qaConfig, 2)}h | ${t('aeReport.module')} QA |
-| ${t('aeReport.baseSetupRow')} | ${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h | ${t('aeReport.baseSetupNote')} |
-| ${t('aeReport.aktieAppsRow')} | ${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h | ${t('aeReport.aktieAppsNote')} |
-| 2.8 SSO | ${num(breakdown.sso, 2)}h | ${t('aeReport.ssoNote')} |
-| ${t('aeReport.generalConfigRow')} | ${num(breakdown.generalConfig, 2)}h | ${t('aeReport.generalConfigNote')} |
-| ${t('aeReport.trainingRow')} | ${num(breakdown.training, 2)}h | ${t('aeReport.trainingNote')} |
-| ${t('aeReport.fixedPackagesRow')} | ${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h | ${t('aeReport.fixedPackagesNote')} |
-| ${t('aeReport.nativeRow')} | ${num(breakdown.nativeConnections, 2)}h | ${t('aeReport.flat2hEach', { hours: num(UH.integracao_nativa, 2) })} |
-| ${t('aeReport.knowledgeRow')} | ${num(breakdown.knowledge, 2)}h | ${t('aeReport.articles')} |
-| ${t('aeReport.sideConvRow')} | ${num(breakdown.sideConversations, 2)}h | ${t('aeReport.sideConvNote')} |
-| ${t('aeReport.thirdPartyRow')} | ${num(breakdown.thirdPartyApps, 2)}h | ${t('aeReport.thirdPartyNote')} |
-| ${t('aeReport.workshopsRow')} | ${num(breakdown.workshops, 2)}h | ${t('aeReport.workshopsNote')} |
-| ${t('aeReport.actionFlowsRow')} | ${num(breakdown.actionFlows, 2)}h | ${t('aeReport.externalServices')} |
-| | | |
-| **${t('aeReport.totalLineItems')}** | | **${num(estimation.lineItemHours, 2)}h** |
-
----
-
-## ${t('aeReport.section3')}
-
-### 3.1 Support (${num(breakdown.supportConfig, 2)}h)
-${renderQtyTable(supportItems, Number(breakdown.supportConfig || 0))}
-
-### 3.2 Voice (${num(breakdown.voiceConfig, 2)}h)
-${modulesList.includes('Voice') || breakdown.voiceConfig ? renderQtyTable(voiceItems, Number(breakdown.voiceConfig || 0)) : t('report.moduleNotSelected', { module: 'Voice' })}
-
-### 3.3 Copilot (${num(breakdown.copilotConfig, 2)}h)
-${modulesList.includes('Copilot') || breakdown.copilotConfig ? renderQtyTable(copilotItems, Number(breakdown.copilotConfig || 0)) : t('report.moduleNotSelected', { module: 'Copilot' })}
-
-### 3.4 WFM (${num(breakdown.wfmConfig, 2)}h)
-${modulesList.includes('WFM') || breakdown.wfmConfig ? renderQtyTable(wfmItems, Number(breakdown.wfmConfig || 0)) : t('report.moduleNotSelected', { module: 'WFM' })}
-
-### 3.5 QA (${num(breakdown.qaConfig, 2)}h)
-${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Number(breakdown.qaConfig || 0)) : t('report.moduleNotSelected', { module: 'QA' })}
-
----
-
-## ${t('aeReport.section4')}
-    ${(() => {
-      const chQty = (id: ChannelKey | string) => {
-        const k: ChannelKey = (CHANNEL_LEGACY_TO_KEY[id] || id) as ChannelKey;
-        const legacyKey = (Object.keys(CHANNEL_LEGACY_TO_KEY).find(
-          (lk) => CHANNEL_LEGACY_TO_KEY[lk] === k
-        ) as string) || id;
-        const raw = channelQuantities[legacyKey as any] ?? channelQuantities[k as any];
-        const active = channelsKeyList.includes(k) || rawChannelsList.includes(id as any);
-        if (!active) return 0;
-        // Sem quantidade informada o engine considera 1; 0 explícito = inativo.
-        return raw === undefined ? 1 : Math.max(0, Number(raw) || 0);
-      };
-      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-| ${t('aeReport.agentSetupRow')} | ${agents} | ${num(UH.membro_equipe, 2)}h | ${num(Number(breakdown.agentSetup || 0), 2)}h |
-| ${t('report.brands')} | ${brands} | ${num(UH.marca, 2)}h | ${num(Number(breakdown.brandSetup || 0), 2)}h |
-| ${t('aeReport.channelsEmail')} | ${chQty('email')} | ${num(UH.canal_email, 2)}h | ${num(chQty('email') * UH.canal_email, 2)}h |
-| ${t('aeReport.channelsWebWidget')} | ${chQty('web_widget')} | ${num(UH.canal_web_widget, 2)}h | ${num(chQty('web_widget') * UH.canal_web_widget, 2)}h |
-| ${t('aeReport.otherChannelsRow')} | ${extraChannelsQty} | ${t('aeReport.minIfOver', { rate: num(UH.canal_exige_reuniao, 2), min: num(UH.canal_exige_reuniao_minimo, 2) })} | ${num(Number(breakdown.channelSetup || 0) -
-  chQty('email') * UH.canal_email -
-  chQty('web_widget') * UH.canal_web_widget, 2)}h |
-| **${t('common.subtotal')}** | — | — | **${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h** |`;
-    })()}
-
-### ${t('aeReport.selectedChannels')}
-| ${t('aeReport.channel')} | ${t('aeReport.qty')} |
-| :--- | ---: |
-${channelsList.length ? channelsList.map((c) => {
-  const qtd = Math.max(0, Number(channelQuantities[c as any] ?? 1) || 0);
-  return `| ${c} | ${qtd} |`;
-}).join('\n') : `| ${t('report.emptyMasc')} | — |`}
-
----
-
-## ${t('aeReport.section5')}
-
-### ${t('aeReport.section51')}
-| App | ${t('report.hours')} |
-| :--- | ---: |
-| ${t('aeReport.advancedConditionals')} ${hasAppCondicionais ? '(✓)' : '(✗)'} | ${num(breakdown.appCondicionais, 2)}h |
-| Ticket Manager ${hasAppTicketManager ? '(✓)' : '(✗)'} | ${num(breakdown.appTicketManager, 2)}h |
-| **${t('aeReport.subtotalAktieApps')}** | **${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h** |
-
-### ${t('aeReport.section52')}
-| ${t('aeReport.integration')} | ${t('common.total')} |
-| :--- | ---: |
-${nativeList.length ? nativeList.map((n) => `| ${n} | ${num(UH.integracao_nativa, 2)}h |`).join('\n') : `| ${t('report.emptyFem')} | — |`}
-| **${t('aeReport.subtotalNative')}** | **${num(breakdown.nativeConnections, 2)}h** |
-
-### ${t('aeReport.section53')}
-| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-| ${t('aeReport.teamsSideConv')} | ${engineInputs.hasTeamsSideConv ? 1 : 0} | ${num(UH.conversa_paralela, 2)}h | ${num(engineInputs.hasTeamsSideConv ? UH.conversa_paralela : 0, 2)}h |
-| ${t('aeReport.slackSideConv')} | ${engineInputs.hasSlackSideConv ? 1 : 0} | ${num(UH.conversa_paralela, 2)}h | ${num(engineInputs.hasSlackSideConv ? UH.conversa_paralela : 0, 2)}h |
-| **${t('aeReport.subtotalSideConv')}** | — | — | **${num(breakdown.sideConversations, 2)}h** |
-
-### ${t('aeReport.section54')}
-| App | ${t('common.type')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | :--- | ---: | ---: | ---: |
-${(det.marketplaceApps || []).length ? (det.marketplaceApps || []).map((l: any) => `| ${t(`aeApps.${l.key}`, { defaultValue: l.key })} | ${l.key === 'sweethawk' || l.key === 'other_marketplace' ? t('report.count') : t('report.oneOff')} | ${num(l.qty, 2)} | ${num(l.unitHours, 2)}h | ${num(l.hours, 2)}h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — | — | — |`}
-| **${t('aeReport.subtotalMarketplace')}** | — | — | — | **${num(breakdown.thirdPartyApps, 2)}h** |
-
-### ${t('aeReport.section55')}
-| ${t('aeReport.service')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: |
-${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${String(name)} | ${num(UH.action_flow, 2)}h | ${num(UH.action_flow, 2)}h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — |`}
-| **${t('aeReport.subtotalActionFlows')} (${actionFlowsQty})** | — | **${num(breakdown.actionFlows, 2)}h** |
-
----
-
-## ${t('aeReport.section6')}
-
-### ${t('aeReport.section61')}
-| ${t('aeReport.module')} | H |
-| :--- | ---: |
-${(det.generalConfig || []).map((l: any) => `| ${t(`aeModules.${l.key}`, { defaultValue: l.key })} | ${num(l.hours, 2)}h |`).join('\n') || `| ${t('report.emptyMasc')} | — |`}
-| **${t('common.subtotal')}** | **${num(breakdown.generalConfig, 2)}h** |
-
-> ${t('aeReport.knowledgeConfigNote', { rate: num(UH.artigo, 2), min: num(UH.knowledge_minimo, 2) })}
-
-### ${t('aeReport.section62')}
-${(det.training || []).map((l: any) => `- ${t(`aeModules.${l.key}`, { defaultValue: l.key })}: ${num(l.hours, 2)}h`).join('\n')}
-- ${t('aeReport.subtotalTraining')} **${num(breakdown.training, 2)}h**
-
-### ${t('aeReport.section63')}
-| ${t('aeReport.block')} | ${t('aeReport.qty')} × H | ${t('common.total')} |
-| :--- | :--- | ---: |
-${(det.fixedItems || []).map((l: any) => `| ${t(`aeFixed.${l.key}`, { defaultValue: l.key })} | ${num(l.qty, 2)} × ${num(l.unitHours, 2)}h | ${num(l.hours, 2)}h |`).join('\n') || `| ${t('report.emptyMasc')} | — | — |`}
-| **${t('aeReport.subtotalFixed')}** | — | **${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h** |
-
-### ${t('aeReport.section64')}
-| ${t('aeReport.module')} | H |
-| :--- | ---: |
-${(det.workshops || []).map((l: any) => `| ${t(`aeModules.${l.key}`, { defaultValue: l.key })} | ${num(l.hours, 2)}h |`).join('\n') || `| ${t('report.emptyMasc')} | — |`}
-| **${t('aeReport.subtotalWorkshops')}** | **${num(breakdown.workshops, 2)}h** |
-
-### ${t('aeReport.section66')}
-- SSO ${hasSSO ? t('aeReport.ssoEnabled') : t('aeReport.ssoDisabled')}: **${num(breakdown.sso, 2)}h** ${t('aeReport.ssoFlatNote', { hours: num(UH.sso, 2) })}
-
-### ${t('aeReport.section67')}
-- ${t('aeReport.articles')}: ${knowledgeArticles}
-- ${t('aeReport.hoursPerArticle', { rate: num(UH.artigo, 2), min: num(UH.knowledge_minimo, 2) })}
-- ${t('aeReport.knowledgeConfigNote', { rate: num(UH.artigo, 2), min: num(UH.knowledge_minimo, 2) })}
-- ${t('aeReport.subtotalKnowledge')} **${num(breakdown.knowledge, 2)}h**
-
----
-
-## ${t('aeReport.section7')}
-
-${t('aeReport.pctBaseNote')} **${num((engineResult as any)?.percentBase ?? 0, 2)}h**
-
-| ${t('report.variable')} | ${t('report.rule')} | ${t('report.hours')} |
-| :--- | :--- | ---: |
-| ${t('ae.discovery')} | ${fmtPct(PCT.discovery)} ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.discoveryHours, 2)}h** |
-| ${t('ae.validation')} | ${fmtPct(PCT.validacao)} ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.validationHours, 2)}h** |
-| ${t('report.techComm')} | ${fmtPct(PCT.comunicacao_tecnica)} ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.commTechHours, 2)}h** |
-| ${t('ae.goLive')} | ${fmtPct(PCT.go_live)} ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.goLiveHours, 2)}h** |
-| ${t('report.projectMgmt')} | ${t('aeReport.gpRule', { pct: fmtPct(PCT.gerente_projetos), threshold: num(PCT.limite_gerente_projetos, 0) })} | **${num(estimation.gpHours, 2)}h** ${Number(estimation.gpHours || 0) === 0 ? t('report.belowGpThreshold', { threshold: num(PCT.limite_gerente_projetos, 0) }) : ''} |
-| **${t('report.variablesSubtotal')}** | | **${num(Number(estimation.discoveryHours || 0) + Number(estimation.validationHours || 0) + Number(estimation.commTechHours || 0) + Number(estimation.goLiveHours || 0) + Number(estimation.gpHours || 0), 2)}h** |
-
----
-
-## ${t('aeReport.section8')}
-
-| ${t('common.item')} | ${t('report.hours')} |
-| :--- | ---: |
-| ${t('aeReport.allGroups')} | ${num(estimation.lineItemHours, 2)}h |
-| + ${t('ae.discovery')} | ${num(estimation.discoveryHours, 2)}h |
-| + ${t('ae.validation')} | ${num(estimation.validationHours, 2)}h |
-| + ${t('ae.goLive')} | ${num(estimation.goLiveHours, 2)}h |
-| + ${t('report.techComm')} | ${num(estimation.commTechHours, 2)}h |
-| + ${t('report.projectMgmt')} | ${num(estimation.gpHours, 2)}h |
-| **${t('report.totalEstimatedEffort')}** | **${num(estimation.total, 2)}h** |
-
----
-
-## ${t('aeReport.section9')}
-
-${estimation.needsSC ? [
-  t('report.requiresSC'),
-  estimation.escalationMessage ? `- ${String(estimation.escalationMessage)}` : '',
-  t('report.triggerCriteria'),
-].filter(Boolean).join('\n') : [
-  t('report.withinLimits'),
-  t('report.reviewAnyway'),
-].join('\n')}
-
-${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { total: num(estimation.total, 2), limit: num(N.sales_engineer.total_horas, 0) }) : ''}
-`;
-    
-    setMarkdownReport(report.trim());
 
     // Congela o resultado ANTES de salvar. O save chama revalidatePath('/ae'),
     // o que reinjeta `initialData` e faz o formulário voltar ao estado clonado;
@@ -1122,6 +759,9 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
         appQuantities,
         parentId: cloneFromId || undefined,
         aeConfigId: aeConfigId ?? null,
+        // Horas efetivas usadas no cálculo (com as da biblioteca já aplicadas):
+        // a estimativa reabre igual mesmo que a biblioteca mude depois.
+        aeNumbers: { numbers: aeConfig.numbers, nativeIntegrationHours: aeConfig.nativeIntegrationHours || null },
       }, aeFormSnapshot);
   };
 
@@ -1154,13 +794,13 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
    * Sai do SNAPSHOT congelado, não do estado vivo — assim o prompt descreve a
    * estimativa que foi calculada e salva, e não um rascunho editado depois.
    */
-  const scopePrompt = useMemo(() => {
+  const scopePromptInput = useMemo<AEScopePromptInput | null>(() => {
     // O prompt descreve a estimativa SALVA, com o número de versão que o
     // servidor atribuiu (antes saía o número da versão de origem do clone).
-    if (!resultSnapshot || saveState.status !== 'saved') return '';
+    if (!resultSnapshot || saveState.status !== 'saved') return null;
 
     const appQuantitiesByLabel = appQuantities || {};
-    return buildAEScopePrompt({
+    return {
       estimate: resultSnapshot.engineResult,
       inputs: resultSnapshot.engineInputs,
       clientName: resultSnapshot.clientName,
@@ -1174,6 +814,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
       deploymentType,
       // Mesma lista da tela de visualização (ver marketplaceAppsForPrompt).
       marketplaceApps: marketplaceAppsForPrompt(selectedApps, appQuantitiesByLabel),
+      otherApp: selectedApps.includes('Outros') ? otherApp : '',
       hasAppCondicionais,
       hasAppTicketManager,
       // O prompt sai no idioma da interface: quem trabalha em inglês recebe as
@@ -1185,23 +826,29 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
         ? t('plans.employeeService')
         : t('plans.customerService'),
       generatedAt: new Date(),
-    });
+    };
   }, [
-    resultSnapshot, selectedApps, appQuantities, hasAppCondicionais,
+    resultSnapshot, selectedApps, appQuantities, otherApp, hasAppCondicionais,
     hasAppTicketManager, zohoLink, clientObjectives, successIndicators,
     deploymentType, skuType, saveState.status, saveState.version, session, language, t,
   ]);
 
+  const scopePrompt = useMemo(() => (scopePromptInput ? buildAEScopePrompt(scopePromptInput) : ''), [scopePromptInput]);
 
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
+  const [scopePromptLoading, setScopePromptLoading] = useState(false);
 
   const handleCopyScopePrompt = async () => {
-    if (!scopePrompt) return;
+    if (!scopePromptInput) return;
+    setScopePromptLoading(true);
+    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink);
+    setScopePromptLoading(false);
+    const text = buildAEScopePrompt({ ...scopePromptInput, zohoSection });
     try {
-      await navigator.clipboard.writeText(scopePrompt);
+      await navigator.clipboard.writeText(text);
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = scopePrompt;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand('copy'); } catch (_) {}
@@ -1236,6 +883,18 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
               <Clock className="w-4 h-4" />
               <span>{t('ae.myHistory')}</span>
             </Link>
+            <button
+              type="button"
+              onClick={toggleCompact}
+              aria-pressed={compact}
+              title={t('ae.compactViewHint')}
+              className={`px-5 py-3 rounded-2xl text-label font-medium flex items-center gap-2 border transition-all ${
+                compact ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary hover:text-brand-primary'
+              }`}
+            >
+              <Rows3 className="w-4 h-4" />
+              <span>{t('ae.compactView')}</span>
+            </button>
             {showResult && (
               <button 
                 onClick={handleNewSimulation}
@@ -1249,7 +908,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
         </div>
 
       {!showResult ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-10 ${compact ? 'ae-compact' : ''}`}>
           {/* Left Column: Strategic & Operation */}
           <div className="space-y-8">
             <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
@@ -1291,7 +950,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                   <textarea 
                     value={clientObjectives}
                     onChange={(e) => setClientObjectives(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="ae-long-text w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1299,7 +958,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                   <textarea 
                     value={successIndicators}
                     onChange={(e) => setSuccessIndicators(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="ae-long-text w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
               </div>
@@ -1316,7 +975,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
               <div className="space-y-8">
                 <div className="space-y-4">
                   <label className="text-label font-medium text-slate-400 ml-1">{t('ae.modules')}</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className={`grid gap-3 ${compact ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
                     {availableModules.map(m => (
                       <button
                         key={m}
@@ -1462,8 +1121,8 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
 
                 <div className="space-y-4">
                   <label className="text-label font-medium text-slate-400 ml-1">{t('ae.activeChannels')}</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {channelOptions.map((opt) => (
+                  <div className={`grid gap-3 ${compact ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                    {(compact ? [...channelOptions, ...extraChannelOptions] : channelOptions).map((opt) => (
                       <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
                         selectedChannels.includes(opt.id) ? 'bg-white border-brand-primary shadow-sm' : 'bg-transparent border-slate-200 opacity-60'
                       }`}>
@@ -1489,7 +1148,8 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                     ))}
                   </div>
 
-                  {/* Ver mais canais */}
+                  {/* Ver mais canais (na visão compacta todos já estão à vista) */}
+                  {!compact && (
                   <div className="mt-4">
                     <button
                       onClick={() => setShowExtraChannels(!showExtraChannels)}
@@ -1528,6 +1188,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
             </div>
 
@@ -1872,7 +1533,7 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                 <button
                   type="button"
                   onClick={handleCopyScopePrompt}
-                  disabled={!scopePrompt}
+                  disabled={!scopePrompt || scopePromptLoading}
                   title={scopePrompt ? undefined : t('ae.scopePromptNeedsSave')}
                   className={`shrink-0 px-6 py-3 rounded-2xl text-label font-medium transition-all flex items-center gap-2 disabled:opacity-50 ${
                     scopePromptCopied
@@ -1880,42 +1541,13 @@ ${estimation.total > N.sales_engineer.total_horas ? t('report.scTriggerNote', { 
                       : 'bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)] hover:border-brand-primary hover:text-brand-primary'
                   }`}
                 >
-                  {scopePromptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                  {scopePromptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : scopePromptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{scopePromptLoading ? t('editor.scopePromptLoadingZoho') : scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Relatório Executivo — exclusivo de administradores. Os demais
-              segmentos ficam com a tabela de resultado acima. */}
-          {showExecutiveReport && (
-          <div className="mt-12 space-y-12">
-            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl border border-slate-200 p-10 shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between mb-8 border-b border-slate-50 dark:border-[color:var(--border-main)] pb-6">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary dark:bg-[color:var(--primary)]/15 dark:text-[color:var(--primary)]">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <h2 className="text-xl font-bold text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{t('ae.executiveReport')}</h2>
-                </div>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(markdownReport);
-                    alert(t('ae.reportCopied'));
-                  }}
-                  className="bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:hover:opacity-90 dark:border dark:border-[color:var(--border-main)] px-4 py-2 rounded-xl text-label font-medium transition-all flex items-center space-x-2"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{t('ae.copyMarkdown')}</span>
-                </button>
-              </div>
-              <div className="prose prose-slate max-w-none text-label font-medium leading-relaxed whitespace-pre-wrap dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)]">
-                {markdownReport}
-              </div>
-            </div>
-          </div>
-          )}
 
           <div className="mt-12 text-center">
           </div>

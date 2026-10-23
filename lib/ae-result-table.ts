@@ -102,7 +102,7 @@ export function buildAEResultTable(
     generalConfig: [], training: [], workshops: [],
     fixedItems: [], marketplaceApps: [], aktieApps: [],
     channelSetup: [],
-    baseSetup: [], knowledge: [], sideConversations: [],
+    baseSetup: [], knowledge: [], sideConversations: [], nativeConnections: [],
   };
   /**
    * Os módulos que realmente geraram horas. O engine descarta os que estão
@@ -211,14 +211,14 @@ export function buildAEResultTable(
   );
 
   // ---------------------------------------------- Integrações, apps e extras
-  const nativeCount = inputs?.selectedNativeConnections?.length || 0;
   const actionFlowCount = inputs?.selectedActionFlows?.length || 0;
   const sideConvCount =
     (inputs?.hasTeamsSideConv ? 1 : 0) + (inputs?.hasSlackSideConv ? 1 : 0);
 
   sections.push(
     section('integrations', t('aeTable.section5'), [
-      row(t('aeTable.nativeIntegration'), nativeCount, UH.integracao_nativa),
+      // Uma linha por integração: cada item da biblioteca tem as suas horas.
+      ...detailRows(d.nativeConnections, (key) => `${t('aeTable.nativeIntegration')}: ${key}`),
       row(t('aeTable.actionFlows'), actionFlowCount, UH.action_flow),
       // Cada app de Marketplace tem a sua própria tarifa (SweetHawk 2h, outros
       // 5h, e assim por diante); antes vinham somados numa linha só com hora

@@ -4,25 +4,32 @@ import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
 import { canViewExecutiveReport } from '@/lib/segments';
 import AEResultTable from '@/components/AEResultTable';
+import AEInputsSummary from '@/components/AEInputsSummary';
+import AEConfigVersionNotice, { type AEConfigInfo } from '@/components/AEConfigVersionNotice';
+import ExportPreview from '@/components/ExportPreview';
+import { buildAEResultTable } from '@/lib/ae-result-table';
+import { aeInputDetails } from '@/lib/ae-input-details';
+import { packageName } from '@/lib/localized-names';
+import { normalizeSegment } from '@/lib/segments';
+import {
+  exportCsv, exportXlsx, exportPdf, exportPng, safeFileBase,
+  type ExportDocument, type ExportFormat,
+} from '@/lib/project-export';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from "next/link";
 import {
   Zap, ArrowLeft, ExternalLink, MessageSquare, ShieldCheck, Shield, Settings, Users, Bot, Layout, Activity,
-  Clock, BookOpen, Hash, Search, Copy, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers
+  Clock, BookOpen, Hash, Search, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers, Download, Loader2
 } from "lucide-react";
 import {
   calculateAEEstimate,
   validateAEInputs,
   type AEInputData,
 } from '@/lib/ae-engine';
-import { buildAEScopePrompt, marketplaceAppsForPrompt } from '@/lib/ae-scope-prompt';
-import {
-  CHANNEL_LEGACY_TO_KEY,
-  MARKETPLACE_APP_LABEL_TO_KEY,
-  buildEngineInputs,
-  normalizeAESku,
-} from '@/lib/ae-inputs';
+import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
+import { zohoSectionFor } from '@/lib/zoho-section';
+import { buildEngineInputs, normalizeAESku } from '@/lib/ae-inputs';
 import { DEFAULT_AE_CONFIG } from '@/lib/ae-config';
 
 // Conversão do JSON salvo → inputs do engine: a MESMA implementação da tela
@@ -31,185 +38,18 @@ import { DEFAULT_AE_CONFIG } from '@/lib/ae-config';
 // era recalculada só com "Web Form".
 const normalizeSku = normalizeAESku;
 
-function num(v: any, d = 1) {
-  return Number(v || 0).toFixed(d);
-}
-
-type TFunc = (key: string, params?: Record<string, any>) => string;
-
-function buildMarkdownReport(est: any, f: any, engineInputs: any, t: TFunc, dateLocale: string): string {
-  const d = f || {};
-  const bd = est.breakdown || {};
-  const qt = est.quantities || {};
-  const vars = est.variables || {};
-
-  const chQty = (legacyKey: string) => {
-    const k = CHANNEL_LEGACY_TO_KEY[legacyKey] ?? legacyKey;
-    return Math.max(1, Number(((engineInputs && engineInputs.channelQuantities) || {})[k] || qt[k] || 1));
-  };
-
-  const total = Math.max(0, Number(est.total || 0));
-  const lineItemHours = Math.max(0, Number(est.lineItemHours || 0));
-  const disc = Math.max(0, Number(est.discoveryHours || 0));
-  const val = Math.max(0, Number(est.validationHours || 0));
-  const ct = Math.max(0, Number(est.commTechHours || 0));
-  const gl = Math.max(0, Number(est.goLiveHours || 0));
-  const gp = Math.max(0, Number(est.gpHours || 0));
-  // Base e percentuais do PRÓPRIO cálculo (configuração usada na estimativa);
-  // estimativas antigas caem nos padrões de fábrica.
-  const basePct = Number.isFinite(Number(est.percentBase))
-    ? Math.max(0, Number(est.percentBase))
-    : Math.max(0, lineItemHours - Number(bd.training || 0) - Number(bd.nativeConnections || 0) - Number(bd.thirdPartyApps || 0));
-  const PCT = est.percents || { discovery: 0.2, validacao: 0.15, go_live: 0.05, comunicacao_tecnica: 0.1, gerente_projetos: 0.176470588235294, limite_gerente_projetos: 30 };
-  const UH = est.unitHours || { artigo: 0.1, knowledge_minimo: 2, integracao_nativa: 2, conversa_paralela: 0.5, action_flow: 4.5 };
-  const fmtPct = (fraction: number) => `${Number((Number(fraction || 0) * 100).toFixed(3))}%`;
-  const appRate = (key: string, fallback: number) => Number(est.appRates?.[key] ?? fallback);
-
-  return `
-# ${t('report.executiveTitle')}
-
-**${t('report.client')}:** ${String(d.clientName || '')}
-**${t('report.estimateDate')}:** ${new Date(Date.now()).toLocaleDateString(dateLocale)}
-**${t('report.totalHours')}:** **${num(total)}h**
-**${t('report.scFlag')}:** ${est.needsSC ? t('report.scFlagYes') : t('report.scFlagNo')}
-
----
-
-## ${t('report.section1')}
-
-- **${t('report.clientProject')}:** ${String(d.clientName || '')}
-- **${t('report.skuOperation')}:** ${normalizeSku(d.skuType)} — ${Array.isArray(d.operationTypes) ? d.operationTypes.join(', ') : ''}
-- **${t('report.environmentDeal')}:** ${d.deploymentType === 'optimization' ? t('report.optimizationExisting') : t('report.newImplementation')}
-- **${t('report.zendeskPlan')}:** ${String(d.zendeskPlan || 'professional').toUpperCase()}
-- **${t('report.agentCount')}:** ${Math.max(1, Number(d.agents) || 1)}
-- **${t('report.brands')}:** ${Math.max(1, Number(d.brands) || 1)}
-- **${t('report.areasQueues')}:** ${Math.max(1, Number(d.areas) || 1)}
-- **${t('report.selectedModules')}:** ${Array.isArray(d.selectedModules) ? d.selectedModules.join(', ') : 'Support'}
-- **${t('report.clientObjectives')}:** ${String(d.clientObjectives || t('report.notProvided'))}
-- **${t('report.successIndicators')}:** ${String(d.successIndicators || t('report.notProvided'))}
-
----
-
-## ${t('report.section2')}
-
-| ${t('report.group')} | ${t('report.hours')} |
-| :--- | ---: |
-${Object.entries<any>(bd).map(([k, v]) => `| ${t(`aeBreakdown.${k}`, { defaultValue: String(k) })} | ${num(v, 2)}h |`).join('\n')}
-| **${t('report.subtotalLineItems')}** | **${num(lineItemHours, 2)}h** |
-
----
-
-## ${t('report.section3')}
-
-### ${t('report.section31')}
-- ${t('report.workshopsNote')}
-- ${t('report.channelsQty')}
-${(engineInputs?.selectedChannels || []).map((c: string) => `  - ${String(c)} × ${chQty(c)} ${t('report.engineRuleApplied')}`).join('\n')}
-
-### ${t('report.section32')}
-- ${t('report.knowledgeArticles')} ${Math.max(0, Number(d.knowledgeArticles) || 0)} ${t('report.knowledgeRule', { rate: num(UH.artigo, 2), min: num(UH.knowledge_minimo, 2) })}
-
-### ${t('report.section34')}
-- ${t('report.actionFlowsNote', { hours: num(UH.action_flow, 2) })}
-
----
-
-## ${t('report.section4')}
-
-| ${t('common.item')} | ${t('report.engineRule')} | ${t('common.value')} |
-| :--- | :--- | ---: |
-| ${t('report.agents')} | ${Math.max(1, Number(d.agents) || 1)} × ${t('report.engineRule')} | — |
-| ${t('report.brands')} | ${Math.max(1, Number(d.brands) || 1)} × ${t('report.engineRule')} | — |
-| ${t('report.channelsPerUnit')} | ${t('report.appliedPerChannel')} | — |
-
----
-
-## ${t('report.section5')}
-
-### ${t('report.section51')}
-- ${t('report.nativeAppsSelected')} ${Array.isArray(d.selectedNativeConnections) ? d.selectedNativeConnections.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.nativeFlatRule', { hours: num(UH.integracao_nativa, 2) })}
-
-### ${t('report.section52')}
-- Teams: ${d.hasTeamsSideConv ? t('report.yesFlat05', { hours: num(UH.conversa_paralela, 2) }) : t('common.no')}
-- Slack: ${d.hasSlackSideConv ? t('report.yesFlat05', { hours: num(UH.conversa_paralela, 2) }) : t('common.no')}
-
-### ${t('report.section53')}
-- ${t('report.selectedApps')} ${Array.isArray(d.selectedApps) ? d.selectedApps.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.marketplaceRule', { sweethawk: num(appRate('sweethawk', 2), 2), other: num(appRate('other_marketplace', 5), 2) })}
-
-### ${t('report.section54')}
-- ${t('report.actionFlows')} ${Array.isArray(d.selectedActionFlows) ? d.selectedActionFlows.join(', ') || t('common.none').toLowerCase() : t('common.none').toLowerCase()}
-- ${t('report.flatPerAction', { hours: num(UH.action_flow, 2) })}
-
-### ${t('report.section55')}
-- SSO: ${d.hasSSO ? t('report.yes2h') : t('common.no')}
-- ${t('report.conditionalsApp')}: ${d.hasAppCondicionais ? t('common.yes') : t('common.no')}
-- ${t('report.ticketManagerApp')}: ${d.hasAppTicketManager ? t('common.yes') : t('common.no')}
-
----
-
-## ${t('report.section6')}
-
-| ${t('common.item')} | ${t('report.applied')} |
-| :--- | :--- |
-| ${t('report.fixedTrainingRow')} | ${t('report.appliedViaEngine')} |
-
----
-
-## ${t('report.section7')}
-
-${t('report.basePct')} **${num(basePct, 2)}h**
-
-| ${t('report.variable')} | ${t('report.rule')} | ${t('report.hours')} |
-| :--- | :--- | ---: |
-| ${t('ae.discovery')} | ${fmtPct(PCT.discovery)} ${t('report.pctOverBase')} | ${num(disc, 2)}h |
-| ${t('ae.validation')} | ${fmtPct(PCT.validacao)} ${t('report.pctOverBase')} | ${num(val, 2)}h |
-| ${t('report.techComm')} | ${fmtPct(PCT.comunicacao_tecnica)} ${t('report.pctOverBase')} | ${num(ct, 2)}h |
-| ${t('ae.goLive')} | ${fmtPct(PCT.go_live)} ${t('report.pctOverBase')} | ${num(gl, 2)}h |
-| ${t('report.projectMgmt')} | ${fmtPct(PCT.gerente_projetos)} ${t('report.gpTrigger', { threshold: num(PCT.limite_gerente_projetos, 0) })} | ${num(gp, 2)}h |
-| **${t('report.variablesSubtotal')}** | | **${num(disc + val + ct + gl + gp, 2)}h** |
-
----
-
-## ${t('report.section8')}
-
-| ${t('common.item')} | ${t('report.hours')} |
-| :--- | ---: |
-| ${t('report.lineItemsSubtotal')} | ${num(lineItemHours, 2)}h |
-| + ${t('ae.discovery')} | ${num(disc, 2)}h |
-| + ${t('ae.validation')} | ${num(val, 2)}h |
-| + ${t('ae.goLive')} | ${num(gl, 2)}h |
-| + ${t('report.techComm')} | ${num(ct, 2)}h |
-| + ${t('report.projectMgmt')} | ${num(gp, 2)}h |
-| **${t('report.totalEstimatedEffort')}** | **${num(total, 2)}h** |
-
----
-
-## ${t('report.section9')}
-
-${est.needsSC ? [
-  t('report.requiresSC'),
-  est.escalationMessage ? `- ${String(est.escalationMessage)}` : '',
-  t('report.triggerCriteria'),
-].filter(Boolean).join('\n') : [
-  t('report.withinLimits'),
-  t('report.reviewAnyway'),
-].join('\n')}
-`.trim();
-}
 
 export default function AEViewClient(props: any) {
   const {
     estimateId, clientName, zohoLink, resultHours, needsSC,
     version, createdAt, parentId, data, variables, packages, categories, allVersions,
-    owner, aeConfig = DEFAULT_AE_CONFIG,
-  } = props;
+    owner, aeConfig = DEFAULT_AE_CONFIG, aeConfigInfo,
+  } = props as typeof props & { aeConfigInfo?: AEConfigInfo };
 
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
-  // Relatório Executivo: só administradores. Os demais ficam com a tabela.
+  // Dono da estimativa: visível só para administradores.
   const showExecutiveReport = canViewExecutiveReport(session?.user as any);
   const sessionIsAdmin = Boolean((session?.user as any)?.isAdmin) || (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN');
   const ownerChip = showExecutiveReport && owner
@@ -253,13 +93,7 @@ export default function AEViewClient(props: any) {
     return arr;
   }, [allVersions, estimateId, version, createdAt, needsSC]);
 
-  const variablesMap = useMemo(() => {
-    const map: any = {};
-    for (const v of (variables || [])) map[v.key] = v;
-    return map;
-  }, [variables]);
-
-  const { estimation, engineResult, engineInputs, report } = useMemo(() => {
+  const { estimation, engineResult, engineInputs } = useMemo(() => {
     const f = data || {};
     const ei = buildEngineInputs(f);
 
@@ -308,15 +142,97 @@ export default function AEViewClient(props: any) {
           variables: {},
         };
 
-    // Só monta o relatório para quem pode vê-lo.
-    const r = showExecutiveReport
-      ? buildMarkdownReport(est, { ...f, clientName }, ei, t, dateLocale)
-      : '';
-    return { estimation: est, engineResult: raw, engineInputs: ei, report: r };
-  }, [data, variablesMap, packages, clientName, resultHours, needsSC, showExecutiveReport, t, dateLocale, aeConfig]);
+    return { estimation: est, engineResult: raw, engineInputs: ei };
+  }, [data, resultHours, needsSC, aeConfig]);
 
   const total = Math.max(0, Number(estimation?.total ?? resultHours ?? 0));
   const needsSCFinal = Boolean(estimation?.needsSC ?? needsSC);
+
+  // O que foi preenchido na Calculadora: visível para todos com acesso.
+  const inputDetails = useMemo(() => {
+    const byName = new Map((packages || []).map((p: any) => [p.name, p]));
+    return aeInputDetails(data, t, {
+      clientName: String(clientName || ''),
+      packageLabel: (name) => (byName.has(name) ? packageName(byName.get(name), language) : name),
+    });
+  }, [data, t, clientName, packages, language]);
+
+  /* ------------------------------------------------------------------------ */
+  /*      EXPORTAÇÃO (CSV, XLSX, PDF, PNG) — mesma tabela que o leitor vê      */
+  /* ------------------------------------------------------------------------ */
+  // Account Executive vê só a lista de itens; os demais, quantidades e horas.
+  const itemsOnly = normalizeSegment((session?.user as any)?.role) === 'AE';
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+  const exportPreviewRef = useRef<HTMLDivElement>(null);
+
+  const exportDocument = useMemo<ExportDocument>(() => {
+    const table = buildAEResultTable(engineResult, engineInputs, t);
+    const rows = table.sections.flatMap((section) => section.rows.map((row) => ({
+      section: section.title,
+      item: row.label,
+      quantity: row.qty,
+      unitHours: row.unitHours,
+      total: row.hours,
+    })));
+    const columns: ExportDocument['columns'] = itemsOnly
+      ? [{ key: 'section', label: t('aeReport.block'), width: 36 }, { key: 'item', label: t('aeTable.item'), width: 60 }]
+      : [
+          { key: 'section', label: t('aeReport.block'), width: 36 },
+          { key: 'item', label: t('aeTable.item'), width: 52 },
+          { key: 'quantity', label: t('aeTable.qty'), numeric: true, width: 10 },
+          { key: 'unitHours', label: t('aeTable.unit'), numeric: true, width: 10 },
+          { key: 'total', label: t('aeTable.hours'), numeric: true, width: 12 },
+        ];
+    const r: any = engineResult || {};
+    const summary: ExportDocument['summary'] = itemsOnly || !engineResult ? [] : [
+      { label: t('aeTable.lineItems'), hours: Number(r.lineItemHours) || 0, level: 0 },
+      { label: t('ae.discovery'), hours: Number(r.discoveryHours) || 0, level: 1 },
+      { label: t('ae.validation'), hours: Number(r.validationHours) || 0, level: 1 },
+      { label: t('ae.goLive'), hours: Number(r.goLiveHours) || 0, level: 1 },
+      { label: t('ae.techComm'), hours: Number(r.commTechHours) || 0, level: 1 },
+      { label: t('ae.gp'), hours: Number(r.gpHours) || 0, level: 1 },
+    ];
+    return {
+      locale: language,
+      fileBase: safeFileBase(`${clientName || 'estimativa'}-v${version ?? 1}`),
+      title: String(clientName || ''),
+      meta: [
+        { label: t('export.version'), value: `V${version ?? 1}` },
+        { label: t('aeHistory.colStatus'), value: needsSCFinal ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate') },
+        { label: t('export.generatedAt'), value: new Date().toLocaleString(dateLocale) },
+      ],
+      columns,
+      rows,
+      details: { title: t('aeView.inputsTitle'), items: inputDetails.map((d) => ({ label: d.label, value: d.value })) },
+      summaryTitle: t('aeTable.title'),
+      summary,
+      grandTotalLabel: t('aeTable.grandTotal'),
+      grandTotal: needsSCFinal && itemsOnly ? null : total,
+      grandTotalNote: t('aeView.consultSC'),
+      hoursUnit: t('common.hours'),
+    };
+  }, [engineResult, engineInputs, t, itemsOnly, language, clientName, version, needsSCFinal, dateLocale, inputDetails, total]);
+
+  const handleExport = async (format: ExportFormat) => {
+    setIsExportMenuOpen(false);
+    setExportingFormat(format);
+    try {
+      if (format === 'csv') exportCsv(exportDocument);
+      else if (format === 'xlsx') await exportXlsx(exportDocument);
+      else if (format === 'pdf') await exportPdf(exportDocument);
+      else {
+        // O PNG fotografa uma prévia montada fora da tela (ver render).
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        if (exportPreviewRef.current) await exportPng(exportPreviewRef.current, exportDocument.fileBase);
+      }
+    } catch (e: any) {
+      console.error('[export]', e);
+      alert(`${t('export.failed')}\n\n${e?.message || String(e)}`);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
 
   /* ------------------------------------------------------------------------ */
   /*        EXPORTAÇÃO DO ESCOPO COMO PROMPT PARA A SKILL scope-creator        */
@@ -328,10 +244,10 @@ export default function AEViewClient(props: any) {
    * reabrir a estimativa pelo histórico deixava o usuário sem saída a não ser
    * refazer a simulação inteira.
    */
-  const scopePrompt = useMemo(() => {
+  const scopePromptInput = useMemo<AEScopePromptInput>(() => {
     const d = data || {};
     const appQuantities = (d.appQuantities || {}) as Record<string, number>;
-    return buildAEScopePrompt({
+    return {
       estimate: engineResult,
       inputs: engineInputs,
       clientName: String(clientName || ''),
@@ -343,6 +259,7 @@ export default function AEViewClient(props: any) {
       deploymentType: d.deploymentType === 'optimization' ? 'optimization' : 'new',
       // Mesma lista da tela de cálculo (ver marketplaceAppsForPrompt).
       marketplaceApps: marketplaceAppsForPrompt(d.selectedApps, appQuantities),
+      otherApp: Array.isArray(d.selectedApps) && d.selectedApps.includes('Outros') ? d.otherApp || '' : '',
       hasAppCondicionais: Boolean(d.hasAppCondicionais),
       hasAppTicketManager: Boolean(d.hasAppTicketManager),
       locale: language,
@@ -351,18 +268,25 @@ export default function AEViewClient(props: any) {
           ? t('plans.employeeService')
           : t('plans.customerService'),
       generatedAt: new Date(),
-    });
+    };
   }, [engineResult, engineInputs, data, clientName, version, zohoLink, session, language, t]);
 
+  const scopePrompt = useMemo(() => buildAEScopePrompt(scopePromptInput), [scopePromptInput]);
+
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
+  const [scopePromptLoading, setScopePromptLoading] = useState(false);
 
   const handleCopyScopePrompt = async () => {
     if (!scopePrompt) return;
+    setScopePromptLoading(true);
+    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink);
+    setScopePromptLoading(false);
+    const text = buildAEScopePrompt({ ...scopePromptInput, zohoSection });
     try {
-      await navigator.clipboard.writeText(scopePrompt);
+      await navigator.clipboard.writeText(text);
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = scopePrompt;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand('copy'); } catch (_) {}
@@ -405,7 +329,7 @@ export default function AEViewClient(props: any) {
             className="bg-white border border-slate-200 text-slate-400 px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 hover:border-brand-primary hover:text-brand-primary transition-all"
           >
             <Clock className="w-4 h-4" />
-            <span>{t('nav.history')}</span>
+            <span>{t('ae.myHistory')}</span>
           </Link>
           <Link
             href="/ae"
@@ -420,7 +344,7 @@ export default function AEViewClient(props: any) {
           <button
             type="button"
             onClick={handleCopyScopePrompt}
-            disabled={!scopePrompt}
+            disabled={!scopePrompt || scopePromptLoading}
             title={t('aeView.copyScopePromptHint')}
             className={`px-6 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 transition-all disabled:opacity-50 ${
               scopePromptCopied
@@ -428,9 +352,44 @@ export default function AEViewClient(props: any) {
                 : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]'
             }`}
           >
-            {scopePromptCopied ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
-            <span>{scopePromptCopied ? t('aeView.scopePromptCopied') : t('aeView.copyScopePrompt')}</span>
+            {scopePromptLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : scopePromptCopied ? <CheckCircle2 className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+            <span>{scopePromptLoading ? t('editor.scopePromptLoadingZoho') : scopePromptCopied ? t('aeView.scopePromptCopied') : t('aeView.copyScopePrompt')}</span>
           </button>
+          {/* Exportação: mesma tabela que o leitor vê + os dados informados. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsExportMenuOpen((v) => !v)}
+              disabled={exportingFormat !== null}
+              aria-haspopup="menu"
+              aria-expanded={isExportMenuOpen}
+              className="px-6 py-3 rounded-2xl text-label font-medium flex items-center gap-2 transition-all disabled:opacity-50 border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]"
+            >
+              {exportingFormat ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              <span>{t('export.button')}</span>
+              <ChevronDown className="w-4 h-4" />
+            </button>
+            {isExportMenuOpen && (
+              <div role="menu" className="absolute right-0 mt-2 w-56 z-[60] bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-2xl shadow-2xl overflow-hidden">
+                {([
+                  ['csv', t('export.formatCsv')],
+                  ['xlsx', t('export.formatXlsx')],
+                  ['pdf', t('export.formatPdf')],
+                  ['png', t('export.formatPng')],
+                ] as Array<[ExportFormat, string]>).map(([format, label]) => (
+                  <button
+                    key={format}
+                    type="button"
+                    role="menuitem"
+                    onClick={() => void handleExport(format)}
+                    className="w-full text-left px-4 py-3 text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] hover:bg-slate-50 dark:hover:bg-[color:var(--bg-input)] transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <Link
             href={`/ae?cloneFrom=${estimateId}`}
             className="brand-bg-primary text-brand-ink px-8 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 shadow-xl shadow-green-900/10 hover:scale-[1.02] transition-transform"
@@ -615,39 +574,11 @@ export default function AEViewClient(props: any) {
         <AEResultTable estimation={engineResult} inputs={engineInputs} />
       </div>
 
-      {showExecutiveReport && (
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-xl overflow-hidden">
-        <div className="px-10 pt-8 pb-4 border-b border-slate-50 flex items-center justify-between flex-wrap gap-4">
-          <h2 className="text-xl font-bold text-brand-dark tracking-tight">{t('aeView.reportTitle')}</h2>
-          <button
-            onClick={() => {
-              if (!report) return;
-              try {
-                navigator.clipboard.writeText(report);
-              } catch (_) {
-                const ta = document.createElement('textarea');
-                ta.value = report;
-                document.body.appendChild(ta);
-                ta.select();
-                try { document.execCommand('copy'); } catch (e) {}
-                document.body.removeChild(ta);
-              }
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 border border-slate-200 text-slate-500 rounded-2xl hover:border-brand-primary hover:text-brand-primary transition-all"
-          >
-            <Copy className="w-3.5 h-3.5" />
-            <span className="text-caption font-medium ">{t('ae.copyMarkdown')}</span>
-          </button>
-        </div>
-        <div className="px-8 md:px-10 py-10">
-          <div className="prose prose-slate max-w-none dark:prose-invert">
-            <pre className="whitespace-pre-wrap break-words bg-transparent border border-slate-100 p-6 rounded-3xl text-label leading-6 text-slate-700 font-medium tracking-tight">
-{report}
-            </pre>
-          </div>
-        </div>
-      </div>
-      )}
+      <AEInputsSummary details={inputDetails} />
+
+      {sessionIsAdmin && aeConfigInfo && <AEConfigVersionNotice info={aeConfigInfo} dateLocale={dateLocale} />}
+
+      {exportingFormat === 'png' && <ExportPreview ref={exportPreviewRef} doc={exportDocument} />}
     </div>
   );
 }

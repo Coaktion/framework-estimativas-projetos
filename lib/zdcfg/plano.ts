@@ -126,7 +126,7 @@ export function modulos(bp: Blueprint, temaArquivo: string | null): Modulo[] {
     {
       nome: 'triggers',
       passos: !bp.gatilhos_padrao.length ? []
-        : grupoPadrao(bp) === null ? [{ tipo: 'log', msg: 'SEM grupos - pulando gatilhos padrao' }]
+        : grupoPadrao(bp) === null ? [{ tipo: 'log', msg: 'SEM grupos - pulando gatilhos padrão' }]
           : [{ tipo: 'trig_setup' } as Passo, ...bp.gatilhos_padrao.map((gatilho) => ({ tipo: 'trigger', gatilho }) as Passo)],
     },
     { nome: 'views', passos: [{ tipo: 'views_setup' }, ...bp.views.map((view) => ({ tipo: 'view', view }) as Passo)], aoFinal: 'views' },

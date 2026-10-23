@@ -643,3 +643,79 @@ model AeConfig {
   createdAt DateTime @default(now())
   createdBy Int?
 }
+
+// =============================================================================
+// Agendamento (Booking) — regras e Google Agenda de cada anfitrião (lib/booking)
+// -----------------------------------------------------------------------------
+// Só ACRESCENTA tabelas. Ids de pessoa são o id do User do portal, SEM relação
+// (mesmo padrão do Pre-Sales Ops): o model User não muda.
+// =============================================================================
+
+/// Anfitrião do Agendamento: regras (JSON normalizado por lib/booking/config)
+/// e conexão com o Google Agenda. Tokens cifrados com Fernet (lib/booking/google).
+model BookingHost {
+  userId          Int       @id
+  config          Json
+  accepting       Boolean   @default(true)
+  googleEmail     String?
+  refreshTokenEnc String?
+  accessTokenEnc  String?
+  accessExpiresAt DateTime?
+  timeZone        String?
+  connectedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("booking_hosts")
+}
+
+/// Um agendamento feito pelo app: a reunião (ou os horários de uma reserva
+/// múltipla) e os bloqueios criados junto, com os ids dos eventos no Google.
+model BookingRecord {
+  id             String   @id
+  hostId         Int
+  requesterId    Int?
+  requesterEmail String
+  requesterName  String
+  title          String
+  typeId         String
+  typeName       String
+  multi          Boolean  @default(false)
+  meetings       Json
+  blocks         Json
+  firstStart     DateTime
+  lastEnd        DateTime
+  /// Idempotência: o mesmo pedido reenviado devolve o resultado original.
+  requestId      String?
+  result         Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([hostId, requestId])
+  @@index([hostId, lastEnd])
+  @@index([requesterId, lastEnd])
+  @@map("booking_records")
+}
+
+/// Registro de atividade de cada anfitrião (agendamentos, recusas, falhas).
+model BookingLog {
+  id        Int      @id @default(autoincrement())
+  hostId    Int
+  level     String
+  code      String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([hostId, createdAt])
+  @@map("booking_logs")
+}
+
+/// Configurações gerais do site em chave/valor (ex.: campos do Zoho CRM que
+/// entram no prompt de escopo, cache cifrado do token de acesso do Zoho).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy Int?
+
+  @@map("app_settings")
+}
