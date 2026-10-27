@@ -584,16 +584,14 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
 
           <SideCard icon={<Bot className="w-5 h-5" />} title="AI Agents"
             empty={!resumo?.ai_agents?.length} emptyText={t('zdcfg.runAnalysis', 'Rode a análise para ver.')}>
-            {resumo?.ai_agents?.map((a, i) => {
-              const txt = `Nome do caso de uso: ${a.nome}\nDescrição do caso de uso: ${a.descricao || ''}\n\nPrompt:\n${a.prompt}`;
-              return (
-                <Details key={i} title={a.nome}>
-                  {a.descricao && <div className={`${detail} whitespace-pre-wrap mb-2`}>{a.descricao}</div>}
-                  <div className={`${detail} whitespace-pre-wrap`}>{a.prompt}</div>
-                  <CopyBtn active={copied === `ai${i}`} onClick={() => copy(`ai${i}`, txt)} label={t('zdcfg.copyPrompt', 'Copiar prompt')} />
-                </Details>
-              );
-            })}
+            {resumo?.ai_agents?.map((a, i) => (
+              <Details key={i} title={a.nome}>
+                <CopyField label={t('zdcfg.procedureName', 'Nome do procedimento')} value={a.nome}
+                  active={copied === `ain${i}`} onCopy={() => copy(`ain${i}`, a.nome)} copyLabel={t('zdcfg.copyName', 'Copiar nome')} />
+                <CopyField label={t('zdcfg.promptLabel', 'Prompt')} value={a.prompt} multiline
+                  active={copied === `aip${i}`} onCopy={() => copy(`aip${i}`, a.prompt)} copyLabel={t('zdcfg.copyPrompt', 'Copiar prompt')} />
+              </Details>
+            ))}
           </SideCard>
         </aside>
       </div>
@@ -637,6 +635,24 @@ function CopyBtn({ active, onClick, label: text }: { active: boolean; onClick: (
       {active ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
       {text}
     </button>
+  );
+}
+
+function CopyField({ label: text, value, multiline, active, onCopy, copyLabel }: {
+  label: string; value: string; multiline?: boolean; active: boolean; onCopy: () => void; copyLabel: string;
+}) {
+  return (
+    <div className="mt-3 first:mt-0">
+      <span className={label}>{text}</span>
+      <div className="flex items-start gap-2">
+        <div className={`${detail} flex-1 min-w-0 rounded-xl border border-slate-200 dark:border-[color:var(--border-main)] bg-white dark:bg-[color:var(--bg-card)] px-3 py-2 break-words ${multiline ? 'whitespace-pre-wrap max-h-64 overflow-auto' : ''}`}>
+          {value}
+        </div>
+        <button onClick={onCopy} title={copyLabel} aria-label={copyLabel} className={`${btnGhost} shrink-0 !px-3 !py-2`}>
+          {active ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </div>
   );
 }
 
