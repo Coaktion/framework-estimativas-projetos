@@ -791,7 +791,7 @@
     "chooseLanguage": "Elegir idioma",
     "booking": "Agendamiento",
     "bookingTitle": "Agendamiento de reuniones en el Google Calendar de los Solution Engineers",
-    "folders": "Carpetas de Cliente",
+    "folders": "Creador de Carpetas",
     "foldersTitle": "Crea en Google Drive la estructura estándar de carpetas del cliente"
   },
   "plans": {
@@ -1937,8 +1937,8 @@
     "unsaved": "Cambios sin guardar"
   },
   "folders": {
-    "titleA": "Carpetas de",
-    "titleB": "Cliente",
+    "titleA": "Creador de",
+    "titleB": "Carpetas",
     "subtitle": "Crea en Google Drive la estructura estándar de carpetas de un nuevo cliente, en la carpeta de la región.",
     "notConfigured": "La integración con Google Drive aún no está configurada (FOLDERS_SCRIPT_URL y FOLDERS_SCRIPT_TOKEN). Habla con un admin.",
     "formTitle": "Nueva estructura",

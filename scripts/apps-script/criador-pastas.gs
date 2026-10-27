@@ -16,7 +16,7 @@
  *
  *  Funciona com Shared Drives (Drives Compartilhados) e com Meu Drive.
  *
- *  Também atende o Tool Center ("Pastas de Cliente"): publicado como App da
+ *  Também atende o Tool Center ("Criador de Pastas"): publicado como App da
  *  Web, recebe { token, cliente, regiao, solicitante } por POST, cria a
  *  estrutura na pasta pai da região e devolve o link. Ver doPost() no fim.
  * ============================================================================

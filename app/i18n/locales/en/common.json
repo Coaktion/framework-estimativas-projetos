@@ -791,7 +791,7 @@
     "chooseLanguage": "Choose language",
     "booking": "Booking",
     "bookingTitle": "Meeting booking on the Solution Engineers' Google Calendar",
-    "folders": "Client Folders",
+    "folders": "Folder Creator",
     "foldersTitle": "Creates the client's standard folder structure in Google Drive"
   },
   "plans": {
@@ -1937,8 +1937,8 @@
     "unsaved": "Unsaved changes"
   },
   "folders": {
-    "titleA": "Client",
-    "titleB": "Folders",
+    "titleA": "Folder",
+    "titleB": "Creator",
     "subtitle": "Creates a new client's standard folder structure in Google Drive, inside the region's folder.",
     "notConfigured": "The Google Drive integration is not configured yet (FOLDERS_SCRIPT_URL and FOLDERS_SCRIPT_TOKEN). Talk to an admin.",
     "formTitle": "New structure",

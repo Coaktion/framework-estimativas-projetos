@@ -791,7 +791,7 @@
     "chooseLanguage": "Escolher idioma",
     "booking": "Agendamento",
     "bookingTitle": "Agendamento de reuniões no Google Agenda dos Solution Engineers",
-    "folders": "Pastas de Cliente",
+    "folders": "Criador de Pastas",
     "foldersTitle": "Cria no Google Drive a estrutura padrão de pastas do cliente"
   },
   "plans": {
@@ -1937,8 +1937,8 @@
     "unsaved": "Alterações não salvas"
   },
   "folders": {
-    "titleA": "Pastas de",
-    "titleB": "Cliente",
+    "titleA": "Criador de",
+    "titleB": "Pastas",
     "subtitle": "Cria no Google Drive a estrutura padrão de pastas de um novo cliente, na pasta da região.",
     "notConfigured": "A integração com o Google Drive ainda não foi configurada (FOLDERS_SCRIPT_URL e FOLDERS_SCRIPT_TOKEN). Fale com um admin.",
     "formTitle": "Nova estrutura",

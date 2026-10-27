@@ -6,7 +6,7 @@ import { canAccessFolders } from '@/lib/segments';
 export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: 'Pastas de Cliente · Aktie Now Tool Center',
+  title: 'Criador de Pastas · Aktie Now Tool Center',
   description: 'Criação da estrutura padrão de pastas do cliente no Google Drive.',
 };
 
