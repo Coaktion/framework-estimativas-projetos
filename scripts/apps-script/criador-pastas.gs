@@ -43,7 +43,7 @@ var PLACEHOLDER_PASTA = "COLE_AQUI_O_ID_DA_PASTA";
 var PASTAS_POR_REGIAO = {
   BRASIL:    "1VLLtpz6HJx9OOX9TQ6WnBLHhdrLSTJCr",
   AMER_EMEA: "12TvSiiplC1s9J0VqHcNpqlc9_6aNtF_X",
-  SSAC:      PLACEHOLDER_PASTA
+  SSAC:      "1YGw2hCkkQyleW0Ly_Ldq8Q9hZsszGD7p"
 };
 
 // Subpastas padrão criadas dentro de cada cliente. Edite se o padrão mudar.
