@@ -35,12 +35,15 @@
 // (Pode deixar em branco e definir depois pelo menu: "Definir pasta pai".)
 var PARENT_FOLDER_ID = "1VLLtpz6HJx9OOX9TQ6WnBLHhdrLSTJCr";
 
-// Pasta pai de cada região, usada pelo Tool Center. Cole o ID (ou a URL) da
-// pasta de cada região. Região em branco cai na pasta pai acima.
+// Pasta pai de cada região, usada pelo Tool Center: a região escolhida na
+// tela decide onde a pasta do cliente é criada. Aceita o ID ou a URL.
+// Enquanto uma região estiver com o placeholder, os pedidos dela são recusados
+// (nada é criado em outra pasta por engano).
+var PLACEHOLDER_PASTA = "COLE_AQUI_O_ID_DA_PASTA";
 var PASTAS_POR_REGIAO = {
-  BRASIL:    "",
-  AMER_EMEA: "",
-  SSAC:      ""
+  BRASIL:    "1VLLtpz6HJx9OOX9TQ6WnBLHhdrLSTJCr",
+  AMER_EMEA: "12TvSiiplC1s9J0VqHcNpqlc9_6aNtF_X",
+  SSAC:      PLACEHOLDER_PASTA
 };
 
 // Subpastas padrão criadas dentro de cada cliente. Edite se o padrão mudar.
@@ -292,8 +295,11 @@ function doPost(e) {
     var regiao = String(body.regiao || "");
     if (!PASTAS_POR_REGIAO.hasOwnProperty(regiao)) return respostaJson_({ ok: false, erro: "região inválida" });
 
-    var parentId = extrairId_(PASTAS_POR_REGIAO[regiao]) || getParentFolderId_();
-    if (!parentId) return respostaJson_({ ok: false, erro: "pasta pai da região não configurada" });
+    var configurada = String(PASTAS_POR_REGIAO[regiao] || "").trim();
+    if (!configurada || configurada === PLACEHOLDER_PASTA) {
+      return respostaJson_({ ok: false, erro: "a pasta pai da região " + regiao + " ainda não foi configurada no script" });
+    }
+    var parentId = extrairId_(configurada);
 
     // Dois pedidos simultâneos para o mesmo cliente criariam pastas duplicadas.
     var lock = LockService.getScriptLock();
