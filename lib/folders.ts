@@ -89,8 +89,15 @@ export async function createClientFolders(
   try {
     data = JSON.parse(text);
   } catch {
-    // Página HTML de erro/login do Google: Web App não publicado para "Qualquer pessoa" ou URL errada.
-    throw new FolderError('script_error', `HTTP ${res.status}`);
+    // Página HTML de erro/login do Google: implantação sem doPost (versão antiga),
+    // Web App não publicado para "Qualquer pessoa" ou URL errada. O título diz qual.
+    const title = text.match(/<title>([^<]*)<\/title>/i)?.[1]?.trim();
+    const hint = /function not found|função.*não encontrada/i.test(text)
+      ? 'doPost não encontrado: publique uma nova versão do script'
+      : /accounts\.google\.com|ServiceLogin|Sign in|Fazer login/i.test(text)
+        ? 'o Google pediu login: publique com acesso "Qualquer pessoa"'
+        : title;
+    throw new FolderError('script_error', `HTTP ${res.status}${hint ? ` · ${hint.slice(0, 160)}` : ''}`);
   }
   if (!data?.ok) throw new FolderError('script_error', String(data?.erro || `HTTP ${res.status}`));
 
