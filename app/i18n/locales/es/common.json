@@ -897,6 +897,7 @@
     "copyProcedure": "Copiar procedimiento",
     "copyPrompt": "Copiar prompt",
     "copyName": "Copiar nombre",
+    "procedure": "Procedimiento",
     "procedureName": "Nombre del procedimiento",
     "promptLabel": "Prompt",
     "deleteEnv": "Eliminar",

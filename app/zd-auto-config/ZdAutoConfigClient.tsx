@@ -571,12 +571,13 @@ export default function ZdAutoConfigClient({ email }: { email?: string | null })
           <SideCard icon={<Sparkles className="w-5 h-5" />} title="Copilot"
             empty={!resumo?.copilots?.length} emptyText={t('zdcfg.runAnalysis', 'Rode a análise para ver.')}>
             {resumo?.copilots?.map((c, i) => {
-              const txt = `${c.titulo}\n\n${c.quando_utilizar ? `Quando utilizar\n${c.quando_utilizar}\n\n` : ''}${c.corpo}`;
+              const proc = `${c.quando_utilizar ? `${t('zdcfg.whenToUse', 'Quando utilizar')}\n${c.quando_utilizar}\n\n` : ''}${c.corpo}`;
               return (
                 <Details key={i} title={c.titulo}>
-                  {c.quando_utilizar && <div className={`${detail} whitespace-pre-wrap mb-2`}><b>{t('zdcfg.whenToUse', 'Quando utilizar')}</b>{'\n'}{c.quando_utilizar}</div>}
-                  <div className={`${detail} whitespace-pre-wrap`}>{c.corpo}</div>
-                  <CopyBtn active={copied === `cp${i}`} onClick={() => copy(`cp${i}`, txt)} label={t('zdcfg.copyProcedure', 'Copiar procedure')} />
+                  <CopyField label={t('zdcfg.procedureName', 'Nome do procedimento')} value={c.titulo}
+                    active={copied === `cpn${i}`} onCopy={() => copy(`cpn${i}`, c.titulo)} copyLabel={t('zdcfg.copyName', 'Copiar nome')} />
+                  <CopyField label={t('zdcfg.procedure', 'Procedimento')} value={proc} multiline
+                    active={copied === `cpp${i}`} onCopy={() => copy(`cpp${i}`, proc)} copyLabel={t('zdcfg.copyProcedure', 'Copiar procedure')} />
                 </Details>
               );
             })}
@@ -626,15 +627,6 @@ function Details({ title, children }: { title: string; children: React.ReactNode
       </summary>
       <div className="px-5 pb-5 text-body leading-relaxed">{children}</div>
     </details>
-  );
-}
-
-function CopyBtn({ active, onClick, label: text }: { active: boolean; onClick: () => void; label: string }) {
-  return (
-    <button onClick={onClick} className={`${btnGhost} mt-3 !px-3 !py-2`}>
-      {active ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-      {text}
-    </button>
   );
 }
 
