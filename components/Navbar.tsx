@@ -7,7 +7,7 @@ import { Moon, Sun, Maximize2, Minimize2 } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
-import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking } from "@/lib/segments";
+import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking, canAccessFolders } from "@/lib/segments";
 
 /** Botão de ícone do cabeçalho (densidade, tema). Mesmo visual do LanguageToggle e do FeedbackButton. */
 export const HEADER_ICON_BUTTON =
@@ -30,6 +30,7 @@ export default function Navbar() {
     { show: canAccessZdAutoConfig(user), href: '/zd-auto-config', match: '/zd-auto-config', label: t('nav.zdAutoConfig'), title: t('nav.zdAutoConfigTitle') },
     { show: canAccessPreSalesOps(user), href: '/pre-sales-ops', match: '/pre-sales-ops', label: t('nav.preSalesOps'), title: t('nav.preSalesOpsTitle') },
     { show: canAccessBooking(user), href: '/booking', match: '/booking', label: t('nav.booking'), title: t('nav.bookingTitle') },
+    { show: canAccessFolders(user), href: '/folders', match: '/folders', label: t('nav.folders'), title: t('nav.foldersTitle') },
     { show: isAdmin, href: '/admin', match: '/admin', label: t('nav.admin') },
   ].filter((l) => l.show);
 

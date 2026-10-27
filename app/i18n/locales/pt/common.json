@@ -731,6 +731,7 @@
     "comingSoon": "Em breve",
     "demosSubtitle": "Instâncias Zendesk de demonstração, por idioma",
     "demosTitle": "Ambientes de demo",
+    "foldersSubtitle": "Google Drive",
     "langEn": "Inglês",
     "langEs": "Espanhol",
     "langPt": "Português",
@@ -789,7 +790,9 @@
     "preSalesOpsTitle": "Novidades do Zendesk e o backlog que elas geram para demo, estimativa e escopo",
     "chooseLanguage": "Escolher idioma",
     "booking": "Agendamento",
-    "bookingTitle": "Agendamento de reuniões no Google Agenda dos Solution Engineers"
+    "bookingTitle": "Agendamento de reuniões no Google Agenda dos Solution Engineers",
+    "folders": "Pastas de Cliente",
+    "foldersTitle": "Cria no Google Drive a estrutura padrão de pastas do cliente"
   },
   "plans": {
     "categoryGateHint": "Abaixo do plano mínimo a categoria inteira desaparece do framework, mesmo que algum item dentro dela não tenha restrição própria. Vazio = sem restrição.",
@@ -1932,5 +1935,35 @@
     "testDesc": "Cole o link de um negócio para ver a seção exatamente como ela entra no prompt, com a configuração desta tela (mesmo antes de salvar). Somente leitura.",
     "testTitle": "Testar com um negócio",
     "unsaved": "Alterações não salvas"
+  },
+  "folders": {
+    "titleA": "Pastas de",
+    "titleB": "Cliente",
+    "subtitle": "Cria no Google Drive a estrutura padrão de pastas de um novo cliente, na pasta da região.",
+    "notConfigured": "A integração com o Google Drive ainda não foi configurada (FOLDERS_SCRIPT_URL e FOLDERS_SCRIPT_TOKEN). Fale com um admin.",
+    "formTitle": "Nova estrutura",
+    "formDesc": "Cria a pasta do cliente com as subpastas {{subfolders}}. Se a pasta já existir, só as subpastas que faltam são criadas.",
+    "clientName": "Nome da empresa cliente",
+    "clientPlaceholder": "Ex.: Empresa XPTO",
+    "clientHint": "Use o nome como deve aparecer no Drive.",
+    "region": "Região",
+    "create": "Criar pastas",
+    "creating": "Criando pastas…",
+    "openFolder": "Abrir pasta",
+    "copyLink": "Copiar link",
+    "result": {
+      "created": "Estrutura de {{cliente}} criada.",
+      "completed_one": "A pasta de {{cliente}} já existia; {{count}} subpasta foi adicionada.",
+      "completed_other": "A pasta de {{cliente}} já existia; {{count}} subpastas foram adicionadas.",
+      "existing": "A estrutura de {{cliente}} já existia completa. Nada foi alterado."
+    },
+    "errors": {
+      "not_authorized": "Você não tem acesso a esta ferramenta.",
+      "not_configured": "A integração com o Google Drive não está configurada.",
+      "invalid_name": "Informe o nome do cliente (até 120 caracteres).",
+      "invalid_region": "Escolha a região.",
+      "timeout": "O Google Drive demorou para responder. Tente de novo: o que já foi criado não é duplicado.",
+      "script_error": "Não foi possível criar as pastas."
+    }
   }
 }

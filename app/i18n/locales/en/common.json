@@ -731,6 +731,7 @@
     "comingSoon": "Coming soon",
     "demosSubtitle": "Zendesk demo instances, by language",
     "demosTitle": "Demo environments",
+    "foldersSubtitle": "Google Drive",
     "langEn": "English",
     "langEs": "Spanish",
     "langPt": "Portuguese",
@@ -789,7 +790,9 @@
     "preSalesOpsTitle": "Zendesk announcements and the backlog they create for demo, estimates and scope",
     "chooseLanguage": "Choose language",
     "booking": "Booking",
-    "bookingTitle": "Meeting booking on the Solution Engineers' Google Calendar"
+    "bookingTitle": "Meeting booking on the Solution Engineers' Google Calendar",
+    "folders": "Client Folders",
+    "foldersTitle": "Creates the client's standard folder structure in Google Drive"
   },
   "plans": {
     "categoryGateHint": "Below the minimum plan the whole category disappears from the framework, even if some item inside it has no restriction of its own. Empty = no restriction.",
@@ -1932,5 +1935,35 @@
     "testDesc": "Paste a deal link to see the section exactly as it goes into the prompt, using the settings on this screen (even before saving). Read-only.",
     "testTitle": "Test with a deal",
     "unsaved": "Unsaved changes"
+  },
+  "folders": {
+    "titleA": "Client",
+    "titleB": "Folders",
+    "subtitle": "Creates a new client's standard folder structure in Google Drive, inside the region's folder.",
+    "notConfigured": "The Google Drive integration is not configured yet (FOLDERS_SCRIPT_URL and FOLDERS_SCRIPT_TOKEN). Talk to an admin.",
+    "formTitle": "New structure",
+    "formDesc": "Creates the client folder with the subfolders {{subfolders}}. If the folder already exists, only the missing subfolders are created.",
+    "clientName": "Client company name",
+    "clientPlaceholder": "E.g.: XPTO Inc.",
+    "clientHint": "Use the name as it should appear in Drive.",
+    "region": "Region",
+    "create": "Create folders",
+    "creating": "Creating folders…",
+    "openFolder": "Open folder",
+    "copyLink": "Copy link",
+    "result": {
+      "created": "{{cliente}} structure created.",
+      "completed_one": "The {{cliente}} folder already existed; {{count}} subfolder was added.",
+      "completed_other": "The {{cliente}} folder already existed; {{count}} subfolders were added.",
+      "existing": "The {{cliente}} structure was already complete. Nothing was changed."
+    },
+    "errors": {
+      "not_authorized": "You don't have access to this tool.",
+      "not_configured": "The Google Drive integration is not configured.",
+      "invalid_name": "Enter the client name (up to 120 characters).",
+      "invalid_region": "Choose the region.",
+      "timeout": "Google Drive took too long to respond. Try again: what was already created is not duplicated.",
+      "script_error": "Could not create the folders."
+    }
   }
 }

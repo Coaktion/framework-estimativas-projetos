@@ -245,3 +245,18 @@ export function canAccessBooking(
   if (!user) return false;
   return Boolean(user.isAdmin) || BOOKING_SEGMENTS.includes(normalizeSegment(user.role));
 }
+
+/**
+ * Quem enxerga o Criador de Pastas (estrutura padrão do cliente no Google
+ * Drive, criada pelo Apps Script). Pedido do time comercial: Sales Engineer
+ * e Account Executive, além do ADMIN.
+ */
+const FOLDERS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC', 'AE'];
+
+/** Quem enxerga o Criador de Pastas. */
+export function canAccessFolders(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || FOLDERS_SEGMENTS.includes(normalizeSegment(user.role));
+}

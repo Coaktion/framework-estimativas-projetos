@@ -1,10 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
 import { getServerSession } from "next-auth";
-import { ChevronRight, FolderKanban, Calculator, WandSparkles, Radar, SlidersHorizontal, CalendarClock, type LucideIcon } from "lucide-react";
+import { ChevronRight, FolderKanban, Calculator, WandSparkles, Radar, SlidersHorizontal, CalendarClock, FolderPlus, type LucideIcon } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
-import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking } from "@/lib/segments";
+import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking, canAccessFolders } from "@/lib/segments";
 import HomeClient from "./HomeClient";
 
 const EXTERNAL_LINKS = {
@@ -43,6 +43,7 @@ export default async function Home() {
     canAccessZdAutoConfig(user) && { key: 'zdcfg', href: '/zd-auto-config', title: t('nav.zdAutoConfig'), description: t('nav.zdAutoConfigTitle'), meta: t('home.zdAutoConfigSubtitle'), Icon: WandSparkles },
     canAccessPreSalesOps(user) && { key: 'psops', href: '/pre-sales-ops', title: t('nav.preSalesOps'), description: t('nav.preSalesOpsTitle'), meta: t('home.preSalesOpsSubtitle'), Icon: Radar },
     canAccessBooking(user) && { key: 'booking', href: '/booking', title: t('nav.booking'), description: t('nav.bookingTitle'), meta: t('home.bookingSubtitle'), Icon: CalendarClock },
+    canAccessFolders(user) && { key: 'folders', href: '/folders', title: t('nav.folders'), description: t('nav.foldersTitle'), meta: t('home.foldersSubtitle'), Icon: FolderPlus },
     isAdmin && { key: 'admin', href: '/admin', title: t('home.admin'), description: t('home.adminDesc'), meta: t('home.adminOnly'), Icon: SlidersHorizontal },
   ].filter(Boolean) as ToolCard[];
 
