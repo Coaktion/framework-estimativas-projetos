@@ -12,6 +12,7 @@
 
 # production
 /build
+.env.example
 
 # misc
 .DS_Store
