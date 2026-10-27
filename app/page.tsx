@@ -94,7 +94,6 @@ export default async function Home() {
         <section>
           <div className="flex flex-wrap items-baseline justify-between gap-4 mb-4">
             <h2 className="font-heading text-section text-brand-dark">{t('home.toolsTitle')}</h2>
-            <span className="text-label text-slate-500">{t('home.toolsHint')}</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-6 gap-6">
             {tools.map((card, index) => (
