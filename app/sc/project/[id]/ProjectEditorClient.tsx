@@ -1796,14 +1796,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Get all quantity inputs in the form
       const qtyInputs = Array.from(form.querySelectorAll('input[name^="item_"][name$="_qty"]')) as HTMLInputElement[];
       const currentIndex = qtyInputs.indexOf(e.currentTarget);
-      
-      if (currentIndex !== -1 && currentIndex < qtyInputs.length - 1) {
-        // Focus and select the next quantity input
-        const nextInput = qtyInputs[currentIndex + 1];
+      // Shift+Tab volta para a quantidade anterior; Tab e Enter avançam.
+      const step = e.key === 'Tab' && e.shiftKey ? -1 : 1;
+      const targetIndex = currentIndex + step;
+
+      if (currentIndex !== -1 && targetIndex >= 0 && targetIndex < qtyInputs.length) {
+        // Focus and select the neighbouring quantity input
+        const nextInput = qtyInputs[targetIndex];
         nextInput.focus();
         nextInput.select();
       } else {
-        // If it's the last one, just blur
+        // If it's the last one (or the first, going back), just blur
         e.currentTarget.blur();
       }
     }
