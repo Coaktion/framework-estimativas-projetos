@@ -483,6 +483,18 @@ body.has-editor-bar {
     padding-bottom: 200px;
   }
 }
+/* Ao navegar com Tab, o navegador rola o campo focado para dentro da área
+   visível descontando estas margens — sem isso o campo para atrás da barra
+   fixa do rodapé (ou da navbar no Shift+Tab). */
+html:has(body.has-editor-bar) {
+  scroll-padding-top: 104px;
+  scroll-padding-bottom: 120px;
+}
+@media (max-width: 767px) {
+  html:has(body.has-editor-bar) {
+    scroll-padding-bottom: 224px;
+  }
+}
 
 /* Custom transitions for Next.js app */
 .tab-content {

@@ -3170,7 +3170,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               
               {!collapsedSections[cat] && (
                 <div className={ultraCompact ? 'px-3 pt-1 pb-2' : 'p-6'}>
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto overflow-y-hidden">
                     <table className="min-w-full">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-[color:var(--border-main)]">
