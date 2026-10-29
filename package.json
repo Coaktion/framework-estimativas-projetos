@@ -18,7 +18,8 @@
     "psops:test": "tsx --test lib/psops/ingest/__tests__/*.test.ts lib/psops/services/__tests__/*.test.ts",
     "psops:seed": "tsx scripts/psops-seed.ts",
     "psops:collect": "tsx scripts/psops-collect.ts",
-    "psops:reconcile": "tsx scripts/psops-reconcile.ts"
+    "psops:reconcile": "tsx scripts/psops-reconcile.ts",
+    "framework:parity": "tsx scripts/framework-parity.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
