@@ -526,8 +526,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   const nextVersionLabel = versionNameFor(
     nextVersionNumber((allVersions || []).map((v: any) => v.versionName)),
   );
-  const versionOptionLabel = (v: any) =>
+  // No seletor a descrição vai encurtada: o <select> nativo cresce até caber a
+  // opção mais longa e empurrava os botões do cabeçalho para fora da tela.
+  // A descrição inteira continua no title do seletor e no card da versão.
+  const VERSION_LABEL_MAX = 70;
+  const versionFullLabel = (v: any) =>
     v.description ? `${v.versionName} — ${v.description}` : v.versionName;
+  const versionOptionLabel = (v: any) => {
+    const desc = String(v.description || '').trim();
+    if (!desc) return v.versionName;
+    return `${v.versionName} — ${desc.length > VERSION_LABEL_MAX ? `${desc.slice(0, VERSION_LABEL_MAX - 1).trimEnd()}…` : desc}`;
+  };
   // Janela de salvar: atualizar a versão atual ou criar uma nova (com descrição).
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [saveMode, setSaveMode] = useState<'update' | 'new'>(currentVersion ? 'update' : 'new');
@@ -2178,13 +2187,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </div>
               </div>
               
-              <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-caption font-medium text-slate-400 pl-2">{t('editor.selectedSimulation')}</span>
-                <div className="relative">
-                  <select 
+              <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit max-w-full">
+                <span className="text-caption font-medium text-slate-400 pl-2 shrink-0">{t('editor.selectedSimulation')}</span>
+                <div className="relative min-w-0">
+                  <select
                     value={currentVersion?.id || ''}
                     onChange={(e) => goToVersion(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
+                    title={currentVersion ? versionFullLabel(currentVersion) : undefined}
+                    className="max-w-full truncate bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {allVersions.map((v: any) => (
                       <option key={v.id} value={v.id}>{versionOptionLabel(v)}</option>
@@ -2343,7 +2353,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       <div className="bg-white p-8 rounded-3xl border border-slate-300 mb-8 shadow-sm">
         <div className="flex flex-col space-y-6">
           <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 border-b border-slate-50 pb-6">
-            <div className="space-y-3">
+            <div className="space-y-3 min-w-0 max-w-full">
               <div className="flex items-center space-x-4">
                 <div className="brand-bg-primary p-2 rounded-xl shadow-lg shadow-green-900/10">
                   <Zap className="w-5 h-5 text-white" />
@@ -2381,13 +2391,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 )}
               </div>
               
-              <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit">
-                <span className="text-caption font-medium text-slate-400 pl-2">{t('editor.activeVersion')}</span>
-                <div className="relative">
-                  <select 
+              <div className="flex items-center space-x-3 bg-white p-1.5 rounded-xl border border-slate-300 w-fit max-w-full">
+                <span className="text-caption font-medium text-slate-400 pl-2 shrink-0">{t('editor.activeVersion')}</span>
+                <div className="relative min-w-0">
+                  <select
                     value={currentVersion?.id || ''}
                     onChange={(e) => goToVersion(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
+                    title={currentVersion ? versionFullLabel(currentVersion) : undefined}
+                    className="max-w-full truncate bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
                     {allVersions.map((v: any) => (

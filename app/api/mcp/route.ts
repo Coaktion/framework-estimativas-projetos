@@ -140,7 +140,11 @@ const TOOLS: Tool[] = [
       type: 'object',
       properties: {
         projectId: { type: 'integer' },
-        description: { type: 'string', description: 'Do que trata a versão, ex.: "Sugestão inicial a partir da discovery de 28/10".' },
+        description: {
+          type: 'string',
+          maxLength: 120,
+          description: 'Título CURTO da versão (até 120 caracteres), que aparece no seletor de versões do editor. Ex.: "Cenário A — sem saneamento retroativo" ou "Sugestão inicial da discovery de 28/10". Premissas e detalhes do escopo vão no documento, não aqui.',
+        },
         plan: { type: 'string', enum: ['team', 'growth', 'professional', 'enterprise'], description: 'Plano Zendesk Suite do cliente. Padrão: professional.' },
         sku: { type: 'string', enum: ['CS', 'ES'], description: 'CS = Customer Service, ES = Employee Service. Padrão: CS.' },
         deploymentType: { type: 'string', enum: ['new', 'optimization'], description: 'Implantação nova ou otimização de instância existente. Padrão: new.' },

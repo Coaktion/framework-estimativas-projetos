@@ -226,8 +226,11 @@ const percentsInput = z.object({
 
 export const estimateInput = z.object({
   projectId: z.number().int(),
-  /** Do que trata a versão (obrigatório, como na janela de salvar do editor). */
-  description: z.string().trim().min(1).max(300),
+  /**
+   * Título curto da versão (obrigatório, como na janela de salvar do editor).
+   * Aparece no seletor de versões: detalhes do escopo vão no documento, não aqui.
+   */
+  description: z.string().trim().min(1).max(120),
   plan: z.enum(ZENDESK_PLANS).optional(),
   sku: z.enum(['CS', 'ES']).optional(),
   deploymentType: z.enum(['new', 'optimization']).optional(),
