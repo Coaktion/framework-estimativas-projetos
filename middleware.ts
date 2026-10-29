@@ -13,5 +13,6 @@ export const config = {
   // e os assets da marca em /public/brand (logos e fundos aparecem também no login).
   // Essas duas se protegem sozinhas: exigem o header x-psops-secret OU sessão de admin.
   // A limpeza do Agendamento (api/booking/cleanup) idem: exige x-booking-secret.
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup).*)"],
+  // O MCP do Tool Center (api/mcp) idem: exige chave de API (Authorization: Bearer).
+  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup|api/mcp).*)"],
 };

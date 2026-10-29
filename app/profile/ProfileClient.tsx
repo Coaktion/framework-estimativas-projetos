@@ -9,9 +9,11 @@ type Props = {
   name: string;
   email: string;
   role: string;
+  /** Cartões extras abaixo da troca de senha (ex.: chaves de API). */
+  children?: React.ReactNode;
 };
 
-export default function ProfileClient({ name, email, role }: Props) {
+export default function ProfileClient({ name, email, role, children }: Props) {
   const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -183,6 +185,8 @@ export default function ProfileClient({ name, email, role }: Props) {
           </div>
         </form>
       </div>
+
+      {children}
     </div>
   );
 }

@@ -872,7 +872,22 @@
     "newPassword": "Nova Senha",
     "passwordChanged": "Senha alterada com sucesso!",
     "savePassword": "Salvar Nova Senha",
-    "titleAccent": "Profile"
+    "titleAccent": "Profile",
+    "apiKeys": "Chaves de API (MCP)",
+    "apiKeysHint": "Permitem que o Claude (Claude Code, Cowork) consulte o catálogo, crie projetos e salve versões novas de estimativa em seu nome. A chave não apaga nem altera versões existentes.",
+    "apiKeyNamePlaceholder": "Nome da chave (ex.: Claude Code — notebook)",
+    "apiKeyNameRequired": "Dê um nome para a chave.",
+    "apiKeyCreate": "Gerar chave",
+    "apiKeyShownOnce": "Copie a chave agora: ela não será mostrada de novo.",
+    "apiKeyCopy": "Copiar",
+    "apiKeyCommandHint": "Para usar no Claude Code, rode no terminal:",
+    "apiKeyDone": "Já copiei",
+    "apiKeysEmpty": "Nenhuma chave ativa.",
+    "apiKeyCreatedAt": "criada em {{date}}",
+    "apiKeyLastUsed": "último uso: {{date}}",
+    "apiKeyNeverUsed": "nunca",
+    "apiKeyRevoke": "Revogar",
+    "apiKeyRevokeConfirm": "Revogar a chave \"{{name}}\"? Ela para de funcionar na hora."
   },
   "userMenu": {
     "changePassword": "Alterar Senha",

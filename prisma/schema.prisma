@@ -24,6 +24,7 @@ model User {
   aeEstimates   AEEstimate[]
   preferences   UserPreference?
   zdEnvironments ZdEnvironment[]
+  apiKeys       ApiKey[]
 }
 
 model UserPreference {
@@ -718,4 +719,23 @@ model AppSetting {
   updatedBy Int?
 
   @@map("app_settings")
+}
+
+// Chaves de API do Tool Center (MCP / integrações). Cada chave age como o
+// usuário dono, com as mesmas permissões da tela. Só o hash SHA-256 fica
+// gravado — o valor aparece uma única vez, na criação.
+model ApiKey {
+  id         Int       @id @default(autoincrement())
+  userId     Int
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  // Início visível da chave (ex.: tc_AbC1), para reconhecer qual é qual.
+  prefix     String
+  hash       String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([userId])
+  @@map("api_keys")
 }

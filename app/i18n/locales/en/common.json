@@ -872,7 +872,22 @@
     "newPassword": "New Password",
     "passwordChanged": "Password changed successfully!",
     "savePassword": "Save New Password",
-    "titleAccent": "Profile"
+    "titleAccent": "Profile",
+    "apiKeys": "API keys (MCP)",
+    "apiKeysHint": "Let Claude (Claude Code, Cowork) read the catalog, create projects and save new estimate versions on your behalf. A key never deletes or changes existing versions.",
+    "apiKeyNamePlaceholder": "Key name (e.g. Claude Code — laptop)",
+    "apiKeyNameRequired": "Give the key a name.",
+    "apiKeyCreate": "Generate key",
+    "apiKeyShownOnce": "Copy the key now: it will not be shown again.",
+    "apiKeyCopy": "Copy",
+    "apiKeyCommandHint": "To use it in Claude Code, run in your terminal:",
+    "apiKeyDone": "Copied it",
+    "apiKeysEmpty": "No active keys.",
+    "apiKeyCreatedAt": "created {{date}}",
+    "apiKeyLastUsed": "last used: {{date}}",
+    "apiKeyNeverUsed": "never",
+    "apiKeyRevoke": "Revoke",
+    "apiKeyRevokeConfirm": "Revoke the key \"{{name}}\"? It stops working immediately."
   },
   "userMenu": {
     "changePassword": "Change Password",
