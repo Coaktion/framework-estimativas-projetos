@@ -77,7 +77,12 @@ export default function UserMenu() {
           </Link>
 
           <button 
-            onClick={() => signOut({ callbackUrl: 'https://aktienowtc.netlify.app/login' })}
+            onClick={async () => {
+              // Sem redirect do NextAuth (que usa NEXTAUTH_URL e pode apontar para
+              // outro ambiente): volta para o /login do próprio site, como o login faz.
+              await signOut({ redirect: false });
+              window.location.href = '/login';
+            }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[color:var(--danger)] hover:bg-slate-100 transition-colors"
           >
             <LogOut className="w-4 h-4" />

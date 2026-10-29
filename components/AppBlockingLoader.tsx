@@ -28,6 +28,21 @@ export type AppLoadingContextValue = {
 
 const DEFAULT_MSG = '__loading__'; // sentinel: traduzido no render via t('common.loading')
 
+/**
+ * true quando o href leva a OUTRA página do app (mesma origem, outro caminho).
+ * Downloads (blob:/data:), mailto:, âncoras e mudanças só de query/hash não contam.
+ */
+function isOtherPage(href: string): boolean {
+  if (!href || href.startsWith('#')) return false;
+  try {
+    const url = new URL(href, window.location.href);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
+    return url.origin === window.location.origin && url.pathname !== window.location.pathname;
+  } catch {
+    return false;
+  }
+}
+
 const AppLoadingContext = createContext<AppLoadingContextValue | null>(null);
 
 export function useAppLoading(): AppLoadingContextValue {
@@ -63,32 +78,25 @@ export function AppLoadingProvider({ children }: { children: React.ReactNode }) 
   const searchParams = useSearchParams();
   const router = useRouter();
 
-  // Wrap the router so that client-side `router.push`/`router.replace` also
-  // block interactions. `startTransition` already sets `isPending` (used
-  // below as `navigationPending`), but we also add a minimum block of ~120ms
-  // to avoid double-clicks on instant navigations that would otherwise
-  // "flash" no loader at all.
+  // Wrap the router so that client-side `router.push`/`router.replace` to
+  // ANOTHER page also show the overlay. Navigations that stay on the same
+  // page (only the query or hash changes) and `router.refresh()` don't: the
+  // overlay is only for real page loads.
   const wrappedRouter = useMemo<typeof router>(() => {
     if (!router) return router;
     const push: typeof router.push = (href, opts) => {
-      beginNavLock();
+      if (isOtherPage(String(href))) beginNavLock();
       startTransition(() => {
         router.push(href as any, opts);
       });
     };
     const replace: typeof router.replace = (href, opts) => {
-      beginNavLock();
+      if (isOtherPage(String(href))) beginNavLock();
       startTransition(() => {
         router.replace(href as any, opts);
       });
     };
-    const refresh: typeof router.refresh = () => {
-      beginNavLock();
-      startTransition(() => {
-        router.refresh();
-      });
-    };
-    return { ...router, push, replace, refresh };
+    return { ...router, push, replace };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [router]);
 
@@ -145,15 +153,10 @@ export function AppLoadingProvider({ children }: { children: React.ReactNode }) 
 
   // --------------
   // Nav lock (Next App Router)
-  // Goal: show a blocking overlay *as soon as the user triggers* any
-  // navigation (click on a <Link>, submit, or any programmatic router.push)
-  // and keep it until both:
-  //  1. React `useTransition` `isPending` settles (covers client-side navs).
-  //  2. Suspense / `app/loading.tsx` boundaries settle on the destination.
-  // For pure server-side redirects (307/308 from server actions), the
-  // browser keeps its native spinner — this overlay is still useful while
-  // the current tab stays responsive to other inputs before the redirect
-  // response arrives.
+  // Goal: show a blocking overlay while the app loads ANOTHER page (click on
+  // an internal link, or useAppRouter().push/replace to another path) and
+  // keep it until the destination URL settles and the React transition is
+  // done. In-page actions (buttons, forms, exports, filters) never show it.
   // --------------
   const beginNavLock = useCallback(() => {
     navCountRef.current += 1;
@@ -179,79 +182,30 @@ export function AppLoadingProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    // Click-capture at the window level so ANY clickable element that
-    // triggers a page load / navigation starts the lock *before* the
-    // navigation itself even starts. This prevents double-clicks during
-    // the compile+load window of the App Router.
-    const capture = (e: MouseEvent | TouchEvent) => {
-      let target: EventTarget | null = e.target;
-      let el: HTMLElement | null = null;
-      if (target instanceof Node) {
-        el = (target as HTMLElement).closest?.('a, button, [role="button"], input[type="submit"], summary, label[for]') as HTMLElement | null;
-      }
-      if (!el) return;
-      const tag = (el.tagName || '').toLowerCase();
-      // Skip anything with a click handler that's definitely local-only
-      const hasPreventDefault = (e as any).defaultPrevented;
-      if (hasPreventDefault) return;
-      if (tag === 'a') {
-        const a = el as HTMLAnchorElement;
-        const href = a.getAttribute('href') || '';
-        // No-op links / in-page / external / target _blank do not block UI
-        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:') || a.target === '_blank') return;
-        // Only block navigation *within the app* (relative or same-origin)
-        try {
-          const url = new URL(href, window.location.origin);
-          if (url.origin !== window.location.origin) return;
-        } catch {
-          return;
-        }
-        // Ignore clicks with modifier keys (open-in-new-tab users)
-        const me = e as MouseEvent;
-        if (me && (me.metaKey || me.ctrlKey || me.shiftKey || me.altKey || me.button === 1)) return;
+    // Só links internos que levam a OUTRA página mostram o overlay. Botões,
+    // formulários, downloads (exportar), âncoras e trocas de filtro na mesma
+    // página não mostram nada: são ações dentro da página.
+    // A decisão espera o clique terminar (setTimeout 0) para respeitar quem
+    // cancelou a navegação no meio do caminho — ex.: o aviso de alterações
+    // não salvas, quando o usuário escolhe ficar.
+    const capture = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0) return;
+      if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as HTMLElement | null)?.closest?.('a[href]') as HTMLAnchorElement | null;
+      if (!a) return;
+      if (a.hasAttribute('download') || (a.target && a.target !== '_self')) return;
+      if (!isOtherPage(a.getAttribute('href') || '')) return;
+      const fromPath = window.location.pathname;
+      setTimeout(() => {
+        if ((e as any).__navigationCancelled) return;
+        // Página já em cache pode trocar antes deste timeout: aí não há o que esperar.
+        if (window.location.pathname !== fromPath) return;
         beginNavLock();
-      } else {
-        // Botões de ação local (type="button": recolher, abrir menu, trocar
-        // aba...) não bloqueiam a tela — antes cada clique piscava o overlay.
-        // Quem precisar da trava mesmo sendo type="button" usa data-nav-lock.
-        const isLocalButton =
-          (tag === 'button' && (el as HTMLButtonElement).type === 'button') ||
-          tag === 'summary' ||
-          tag === 'label' ||
-          el.getAttribute('role') === 'button';
-        if (isLocalButton && !el.hasAttribute('data-nav-lock')) return;
-        // Buttons / submits — lock the UI for 120ms minimum to avoid
-        // double-submits, even for forms that trigger server actions.
-        beginNavLock();
-        setTimeout(() => endNavLock(), 120);
-      }
+      }, 0);
     };
     window.addEventListener('click', capture, true);
     return () => window.removeEventListener('click', capture, true);
-  }, [beginNavLock, endNavLock]);
-
-  // Also submit capture for form / enter key submits.
-  useEffect(() => {
-    const onSubmit = () => {
-      beginNavLock();
-      setTimeout(() => endNavLock(), 150);
-    };
-    const onKeyEnter = (e: KeyboardEvent) => {
-      if (e.key !== 'Enter') return;
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.tagName === 'A' || t.tagName === 'BUTTON') {
-        beginNavLock();
-        setTimeout(() => endNavLock(), 150);
-      }
-    };
-    window.addEventListener('submit', onSubmit, true);
-    window.addEventListener('keydown', onKeyEnter, true);
-    return () => {
-      window.removeEventListener('submit', onSubmit, true);
-      window.removeEventListener('keydown', onKeyEnter, true);
-    };
-  }, [beginNavLock, endNavLock]);
+  }, [beginNavLock]);
 
   // End the nav lock when the URL *settles* (pathname/searchParams stop
   // changing) AND the React transition is done.

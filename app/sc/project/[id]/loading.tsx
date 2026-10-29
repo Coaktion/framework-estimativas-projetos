@@ -1,6 +1,8 @@
 import { Loader2 } from 'lucide-react';
+import { getServerT } from '@/app/i18n/server';
 
 export default function Loading() {
+  const t = getServerT();
   return (
     <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center p-8">
       <div className="flex flex-col items-center justify-center gap-8 py-24">
@@ -12,10 +14,10 @@ export default function Loading() {
         </div>
         <div className="flex flex-col items-center gap-2 text-center">
           <p className="text-brand-dark font-heading text-section leading-none">
-            Carregando versão
+            {t('editor.loadingVersionTitle')}
           </p>
           <p className="text-slate-400 text-label font-medium ">
-            Buscando itens e totais do escopo técnico
+            {t('editor.loadingVersionHint')}
           </p>
         </div>
       </div>

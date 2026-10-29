@@ -32,7 +32,7 @@ model UserPreference {
   user            User     @relation(fields: [userId], references: [id])
   theme           String   @default("light") // light, dark
   isCompact       Boolean  @default(false)
-  language        String   @default("pt") // pt, en
+  language        String   @default("pt") // pt, en, es
   hiddenItems     String   @default("[]") // JSON array of package IDs
   layoutConfig    String   @default("{}") // JSON object com ordem e subcategorias personalizadas
   presets         String   @default("[]") // JSON array of preset objects
@@ -60,6 +60,7 @@ model Category {
   name         String    @unique
   displayName  String    @default("")
   displayNameEn String   @default("") // Nome exibido em inglês (vazio = usa displayName)
+  displayNameEs String   @default("") // Nome exibido em espanhol (vazio = usa displayName)
   displayOrder Int       @default(0)
   parentName   String?
   parent       Category? @relation("CategoryHierarchy", fields: [parentName], references: [name])
@@ -71,6 +72,9 @@ model Category {
   // Suite Enterprise), mesmo que algum item dela não tenha restrição própria.
   minPlanCS    String    @default("") // team, growth, professional, enterprise
   minPlanES    String    @default("") // team, growth, professional, enterprise
+  // Linha do card de Implantação em que os itens desta categoria entram:
+  // WORKSHOP, SETUP, TRAINING ou GOLIVE. Subcategorias herdam a da raiz.
+  implementationPhase String @default("SETUP")
   packages     Package[]
 }
 
@@ -78,6 +82,7 @@ model Skill {
   id        Int       @id @default(autoincrement())
   name      String    @unique
   nameEn    String    @default("") // Nome exibido em inglês (vazio = usa name)
+  nameEs    String    @default("") // Nome exibido em espanhol (vazio = usa name)
   isActive  Boolean   @default(true)
   packages  Package[]
 }
@@ -86,9 +91,18 @@ model Package {
   id              Int      @id @default(autoincrement())
   name            String   @unique
   nameEn          String   @default("") // Nome exibido em inglês (vazio = usa name)
+  nameEs          String   @default("") // Nome exibido em espanhol (vazio = usa name)
   hours           Float
   tooltip         String?  @default("")
   tooltipEn       String?  @default("") // Tooltip em inglês (vazio = usa tooltip)
+  tooltipEs       String?  @default("") // Tooltip em espanhol (vazio = usa tooltip)
+  // Atalhos do framework (Treinamento / Workshop / Go-live):
+  //  - moduleLink: em itens de categorias de fase WORKSHOP/TRAINING, o módulo
+  //    (categoria raiz) a que o item pertence;
+  //  - goLiveShortcutQty: em itens de categorias de fase GOLIVE, a quantidade
+  //    que o atalho Go-live preenche (0 = o atalho não mexe no item).
+  moduleLink        String   @default("")
+  goLiveShortcutQty Int      @default(0)
   scopeIncluded   String   @default("")
   scopeExcluded   String   @default("")
   categoryName    String?
@@ -116,6 +130,7 @@ model Variable {
   key            String   @unique
   label          String   @default("") // Rótulo em português (vazio = usa key)
   labelEn        String   @default("") // Rótulo em inglês (vazio = usa label/key)
+  labelEs        String   @default("") // Rótulo em espanhol (vazio = usa label/key)
   value          String   // Valor base (ex: 25 ou 0.5)
   type           String   @default("PERCENT") // PERCENT, FLAT, MIXED
   flatValue      Float?   @default(0)
@@ -616,4 +631,91 @@ model PsOpsArtifactSignal {
   @@unique([artifactId, signalId, activityId])
   @@index([signalId])
   @@map("psops_artifact_signals")
+}
+
+// Configuração da Calculadora AE (números e fórmulas), editada no painel Admin.
+// Cada salvamento cria uma linha nova e imutável; a ativa é a mais recente.
+// Estimativas guardam o id da configuração usada, para reabrirem com o mesmo cálculo.
+model AeConfig {
+  id        Int      @id @default(autoincrement())
+  data      String   // JSON: { numbers, formulas, settings }
+  note      String?
+  createdAt DateTime @default(now())
+  createdBy Int?
+}
+
+// =============================================================================
+// Agendamento (Booking) — regras e Google Agenda de cada anfitrião (lib/booking)
+// -----------------------------------------------------------------------------
+// Só ACRESCENTA tabelas. Ids de pessoa são o id do User do portal, SEM relação
+// (mesmo padrão do Pre-Sales Ops): o model User não muda.
+// =============================================================================
+
+/// Anfitrião do Agendamento: regras (JSON normalizado por lib/booking/config)
+/// e conexão com o Google Agenda. Tokens cifrados com Fernet (lib/booking/google).
+model BookingHost {
+  userId          Int       @id
+  config          Json
+  accepting       Boolean   @default(true)
+  googleEmail     String?
+  refreshTokenEnc String?
+  accessTokenEnc  String?
+  accessExpiresAt DateTime?
+  timeZone        String?
+  connectedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("booking_hosts")
+}
+
+/// Um agendamento feito pelo app: a reunião (ou os horários de uma reserva
+/// múltipla) e os bloqueios criados junto, com os ids dos eventos no Google.
+model BookingRecord {
+  id             String   @id
+  hostId         Int
+  requesterId    Int?
+  requesterEmail String
+  requesterName  String
+  title          String
+  typeId         String
+  typeName       String
+  multi          Boolean  @default(false)
+  meetings       Json
+  blocks         Json
+  firstStart     DateTime
+  lastEnd        DateTime
+  /// Idempotência: o mesmo pedido reenviado devolve o resultado original.
+  requestId      String?
+  result         Json?
+  createdAt      DateTime @default(now())
+
+  @@unique([hostId, requestId])
+  @@index([hostId, lastEnd])
+  @@index([requesterId, lastEnd])
+  @@map("booking_records")
+}
+
+/// Registro de atividade de cada anfitrião (agendamentos, recusas, falhas).
+model BookingLog {
+  id        Int      @id @default(autoincrement())
+  hostId    Int
+  level     String
+  code      String
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([hostId, createdAt])
+  @@map("booking_logs")
+}
+
+/// Configurações gerais do site em chave/valor (ex.: campos do Zoho CRM que
+/// entram no prompt de escopo, cache cifrado do token de acesso do Zoho).
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy Int?
+
+  @@map("app_settings")
 }

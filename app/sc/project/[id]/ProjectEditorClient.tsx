@@ -14,14 +14,28 @@ import {
 } from '@/lib/localized-names';
 import {
   buildScopePrompt, detectSuppressionFlags, fold,
-  type ScopeExportItem, type ScopeExportIntegration,
+  type ScopeExportInput, type ScopeExportItem, type ScopeExportIntegration,
 } from '@/lib/scope-export';
+import { zohoSectionFor } from '@/lib/zoho-section';
+import {
+  computeFrameworkTotals, lineEligibility, normalizePhase, roundHalfUp,
+  CORE_SKILLS, SKILL_IMPL, SKILL_SD, SKILL_DEV, SKILL_DESIGN, SKILL_GP, SKILL_NONE, VARIABLE_KEYS,
+  type CalcLine, type ShareKey,
+} from '@/lib/framework-calc';
+import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes';
+import NumericInput from '@/components/NumericInput';
+import ExportPreview from '@/components/ExportPreview';
+import { EDITOR_VIEW_COOKIE, serializeEditorView, type EditorView } from '@/lib/editor-view';
+import {
+  exportCsv, exportXlsx, exportPdf, exportPng, safeFileBase,
+  type ExportDocument, type ExportFormat,
+} from '@/lib/project-export';
 
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
 import { 
   Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
   CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
-  ArrowUp, ArrowDown, Pencil
+  ArrowUp, ArrowDown, Pencil, Rows3, Columns2, LayoutGrid, ChevronsUpDown
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -30,14 +44,30 @@ import { nextVersionNumber, versionNameFor } from '@/lib/version-utils';
 import { renameProjectAction } from '../../actions';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
+/**
+ * Preferência de exibição de cada usuário: SÓ a ordem. O agrupamento (categoria
+ * → subcategoria → item) vem exclusivamente do painel Admin.
+ */
 type LayoutConfig = {
   categoryOrder: string[];
   subcategoryOrder: Record<string, string[]>;
-  itemSubcategories: Record<string, string>;
   itemOrder: Record<string, string[]>;
 };
 
-const DEFAULT_SUBCATEGORY = 'Geral';
+/** Itens cadastrados direto na categoria raiz (sem subcategoria no Admin). */
+const ROOT_SUBCATEGORY = '';
+/** Agrupadores das linhas que não são itens da biblioteca. */
+const CUSTOM_SUBCATEGORY = '__custom__';
+const MARKETPLACE_SUBCATEGORY = '__marketplace__';
+/** Categoria do Admin que recebe a seção de apps de Marketplace. */
+const MARKETPLACE_CATEGORY = 'Marketplace';
+const MARKETPLACE_APP_HOURS = 5;
+/**
+ * Agrupador das linhas que só existem no retrato de preços da versão (item
+ * removido da biblioteca ou sem categoria ativa) quando ela é exibida com os
+ * valores originais.
+ */
+const REMOVED_CATEGORY = '__removed__';
 
 function safeJsonParse<T>(value: string | null | undefined, fallback: T): T {
   try {
@@ -58,9 +88,15 @@ function uniqueStrings(values: string[]) {
   return Array.from(new Set(values.filter(Boolean)));
 }
 
-function roundHalfUp(value: number, decimals: number) {
-  const factor = Math.pow(10, decimals);
-  return Math.round((value + Number.EPSILON) * factor) / factor;
+/** Ids de itens ocultos sempre como número (presets antigos gravavam texto). */
+function normalizeIdList(raw: unknown): number[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(new Set(raw.map((v) => Number(v)).filter((v) => Number.isFinite(v))));
+}
+
+function parseIdList(raw: unknown): string[] {
+  const parsed = typeof raw === 'string' ? safeJsonParse<any>(raw, []) : raw;
+  return Array.isArray(parsed) ? parsed.map(String) : [];
 }
 
 function getVariableNumber(variables: any[] | null | undefined, keys: string[], fallback: number) {
@@ -175,26 +211,6 @@ function BreakdownCell({
   );
 }
 
-/**
- * Os nomes de subcategoria e de subitem ficam GRAVADOS no banco (layoutConfig),
- * portanto o valor armazenado continua sempre em português — só a exibição muda.
- * Subcategorias criadas pelo usuário caem no fallback e aparecem como foram digitadas.
- */
-const SUBCATEGORY_LABEL_KEYS: Record<string, string> = {
-  'Geral': 'editor.subcatGeneral',
-  'Canais': 'editor.subcatChannels',
-  'Integrações': 'editor.subcatIntegrations',
-  'Campos e Formulários': 'editor.subcatFields',
-  'Automações e Regras': 'editor.subcatAutomations',
-  'Conteúdo e Help Center': 'editor.subcatContent',
-  'Relatórios': 'editor.subcatReports',
-};
-
-function subcategoryLabel(t: TFunc, name: string): string {
-  const key = SUBCATEGORY_LABEL_KEYS[name];
-  return key ? t(key) : name;
-}
-
 const SUBITEM_LABEL_KEYS: Record<string, string> = {
   'implantacao.workshop': 'editor.subitemWorkshop',
   'implantacao.discovery': 'editor.subitemDiscovery',
@@ -218,6 +234,7 @@ const SKILL_LABEL_KEYS: Record<string, string> = {
   'Solution Design': 'editor.skillSolutionDesign',
   'Desenvolvimento': 'editor.skillDevelopment',
   'Design': 'editor.skillDesign',
+  [SKILL_NONE]: 'editor.skillNone',
 };
 
 /** Ordem das skills no resumo lateral. */
@@ -247,100 +264,108 @@ function subcategoryKey(category: string, subcategory: string) {
   return `${category}::${subcategory}`;
 }
 
-function inferDefaultSubcategory(category: string, pkg: any) {
-  if (pkg?.__defaultSubcategory) return pkg.__defaultSubcategory;
-
-  const haystack = `${category} ${pkg?.name || ''} ${pkg?.tooltip || ''}`.toLowerCase();
-
-  if (/(email|whatsapp|voice|sms|facebook|instagram|teams|slack|web widget|web form|canal|channel|messaging)/.test(haystack)) {
-    return 'Canais';
-  }
-
-  if (/(integra|integration|api|webhook|marketplace|app|oauth|sso)/.test(haystack)) {
-    return 'Integrações';
-  }
-
-  if (/(campo|field|formul|form|catálogo|catalog|ticket|usuário|user|organiza)/.test(haystack)) {
-    return 'Campos e Formulários';
-  }
-
-  if (/(gatilho|trigger|automa|macro|view|visualiza|sla|regra|condicion)/.test(haystack)) {
-    return 'Automações e Regras';
-  }
-
-  if (/(article|artigo|help center|knowledge|community|guide|conteúdo)/.test(haystack)) {
-    return 'Conteúdo e Help Center';
-  }
-
-  if (/(dashboard|analytics|report|relatório|insight)/.test(haystack)) {
-    return 'Relatórios';
-  }
-
-  return DEFAULT_SUBCATEGORY;
+/** Subcategoria (no Admin) de um item já carregado pela página. */
+function subcategoryOf(pkg: any): string {
+  return String(pkg?.__subcategory || ROOT_SUBCATEGORY);
 }
 
+/**
+ * Monta a ordem de exibição a partir da estrutura do Admin.
+ *
+ * Da preferência salva do usuário aproveitamos SÓ a ordem (de categorias,
+ * subcategorias e itens) e apenas para nomes que ainda existem — categoria
+ * removida no Admin não volta como "fantasma", e agrupamentos pessoais antigos
+ * (itemSubcategories) são ignorados.
+ */
 function normalizeLayoutConfig(
-  rawLayout: Partial<LayoutConfig> | null | undefined,
+  rawLayout: any,
   categories: string[],
-  packagesByCategory: Record<string, any[]>
+  packagesByCategory: Record<string, any[]>,
+  subcategoriesByCategory: Record<string, string[]>,
 ): LayoutConfig {
-  const itemSubcategories = { ...(rawLayout?.itemSubcategories || {}) };
-  const subcategoryOrder: Record<string, string[]> = { ...(rawLayout?.subcategoryOrder || {}) };
-  const itemOrder: Record<string, string[]> = { ...(rawLayout?.itemOrder || {}) };
-  const categoryOrder = uniqueStrings([...(rawLayout?.categoryOrder || []), ...categories]);
+  const known = new Set(categories);
+  const savedCategoryOrder: string[] = Array.isArray(rawLayout?.categoryOrder) ? rawLayout.categoryOrder : [];
+  const categoryOrder = uniqueStrings([...savedCategoryOrder.filter((c) => known.has(c)), ...categories]);
+  const subcategoryOrder: Record<string, string[]> = {};
+  const itemOrder: Record<string, string[]> = {};
 
   categories.forEach((category) => {
-    const categoryPackages = packagesByCategory[category] || [];
-    const defaultAssignments = categoryPackages.map((pkg: any) => {
-      const itemId = String(pkg.id);
-      const subcategory = itemSubcategories[itemId] || inferDefaultSubcategory(category, pkg);
-      itemSubcategories[itemId] = subcategory;
-      return subcategory;
-    });
+    const pkgs = packagesByCategory[category] || [];
+    const withItems = new Set(pkgs.map(subcategoryOf));
+    const adminSubs = (subcategoriesByCategory?.[category] || []).filter((s) => withItems.has(s));
+    const savedSubs: string[] = (rawLayout?.subcategoryOrder?.[category] || []).filter((s: string) => adminSubs.includes(s));
+    const orderedSubs = uniqueStrings([...savedSubs, ...adminSubs]);
+    // Itens da própria raiz vêm sempre primeiro, sem cabeçalho de subcategoria.
+    subcategoryOrder[category] = withItems.has(ROOT_SUBCATEGORY) ? [ROOT_SUBCATEGORY, ...orderedSubs] : orderedSubs;
 
-    const orderedSubcategories = uniqueStrings([
-      ...(subcategoryOrder[category] || []),
-      ...defaultAssignments,
-      DEFAULT_SUBCATEGORY
-    ]);
-    subcategoryOrder[category] = orderedSubcategories;
-
-    orderedSubcategories.forEach((subcategory) => {
+    subcategoryOrder[category].forEach((subcategory) => {
       const key = subcategoryKey(category, subcategory);
-      const assignedItemIds = categoryPackages
-        .filter((pkg: any) => itemSubcategories[String(pkg.id)] === subcategory)
-        .map((pkg: any) => String(pkg.id));
-
-      itemOrder[key] = uniqueStrings([
-        ...(itemOrder[key] || []).filter((itemId) => assignedItemIds.includes(itemId)),
-        ...assignedItemIds
-      ]);
+      const ids = pkgs.filter((p) => subcategoryOf(p) === subcategory).map((p) => String(p.id));
+      const saved: string[] = rawLayout?.itemOrder?.[key] || [];
+      itemOrder[key] = uniqueStrings([...saved.filter((id) => ids.includes(id)), ...ids]);
     });
   });
 
-  return {
-    categoryOrder,
-    subcategoryOrder,
-    itemSubcategories,
-    itemOrder
-  };
+  return { categoryOrder, subcategoryOrder, itemOrder };
 }
 
-export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, currentVersion, allVersions, variables, preferences }: any) {
+export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, subcategoriesByCategory, orphanPackages, currentVersion, allVersions, variables, preferences, initialView }: any) {
   const { t } = useTranslation();
-  const { language } = useLanguage();
+  const { language, dateLocale } = useLanguage();
+
+  // Modo de exibição (ultracompacto / duas colunas): vale para todas as
+  // estimativas e fica lembrado num cookie — ver lib/editor-view.ts.
+  const [editorView, setEditorView] = useState<EditorView>(() => ({
+    ultra: Boolean(initialView?.ultra),
+    twoColumns: Boolean(initialView?.twoColumns),
+    moduleChips: Boolean(initialView?.moduleChips),
+  }));
+  const ultraCompact = editorView.ultra;
+  const twoColumns = editorView.ultra && editorView.twoColumns;
+  const updateEditorView = (patch: Partial<EditorView>) => {
+    const next = { ...editorView, ...patch };
+    setEditorView(next);
+    document.cookie = `${EDITOR_VIEW_COOKIE}=${serializeEditorView(next)}; path=/; max-age=31536000; SameSite=Lax`;
+  };
 
   // Rótulo de categoria no idioma ativo, caindo no rótulo PT se não houver tradução.
   const catLabelOf = useCallback(
     (cat: string) => {
+      if (cat === REMOVED_CATEGORY) return t('editor.removedItemsCategory');
       const record = categoryRecords?.[cat];
       return record ? categoryNameOf(record, language) : String(categoryLabels?.[cat] || cat);
     },
-    [categoryRecords, categoryLabels, language],
+    [categoryRecords, categoryLabels, language, t],
+  );
+  /** Rótulo canônico em português (o prompt do escopo é sempre pt-BR). */
+  const catLabelPt = useCallback(
+    (cat: string) => cat === REMOVED_CATEGORY
+      ? 'Itens fora da biblioteca atual'
+      : String(categoryRecords?.[cat]?.displayName || categoryLabels?.[cat] || cat),
+    [categoryRecords, categoryLabels],
+  );
+  /** Rótulo de um agrupador de linhas (subcategoria do Admin ou agrupador especial). */
+  const subLabelOf = useCallback(
+    (sub: string) => {
+      if (sub === ROOT_SUBCATEGORY) return t('editor.noSubcategory');
+      if (sub === CUSTOM_SUBCATEGORY) return t('common.manual');
+      if (sub === MARKETPLACE_SUBCATEGORY) return t('editor.marketplaceApps');
+      return catLabelOf(sub);
+    },
+    [t, catLabelOf],
+  );
+  const subLabelPt = useCallback(
+    (sub: string) => {
+      if (sub === ROOT_SUBCATEGORY) return '';
+      if (sub === CUSTOM_SUBCATEGORY) return 'Itens personalizados';
+      if (sub === MARKETPLACE_SUBCATEGORY) return 'Apps de Marketplace';
+      return catLabelPt(sub);
+    },
+    [catLabelPt],
   );
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [hiddenItems, setHiddenItems] = useState<number[]>(safeJsonParse(preferences?.hiddenItems, []));
+  const [hiddenItems, setHiddenItems] = useState<number[]>(() => normalizeIdList(safeJsonParse(preferences?.hiddenItems, [])));
   const [presetName, setPresetName] = useState('');
   const [showPresets, setShowPresets] = useState(false);
   const [showHiddenTab, setShowHiddenTab] = useState(false);
@@ -349,13 +374,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(() =>
-    normalizeLayoutConfig(safeJsonParse(preferences?.layoutConfig, {}), categories, packagesByCategory)
+    normalizeLayoutConfig(safeJsonParse(preferences?.layoutConfig, {}), categories, packagesByCategory, subcategoriesByCategory)
   );
 
   const presets = safeJsonParse(preferences?.presets, []);
 
   const orderedCategories = useMemo(() => {
-    return uniqueStrings([...(layoutConfig.categoryOrder || []), ...categories]);
+    const known = new Set(categories);
+    return uniqueStrings([...(layoutConfig.categoryOrder || []).filter((c: string) => known.has(c)), ...categories]);
   }, [layoutConfig.categoryOrder, categories]);
   const handleSavePreset = async () => {
     if (!presetName) return;
@@ -364,10 +390,63 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     alert(t('editor.presetSaved'));
   };
 
+  // Initial state from currentVersion.data. O retrato de preços (`__priceSnapshot`)
+  // fica FORA do formData: é gerado no salvar, não é algo que o usuário edita.
+  const initialParsedData = useMemo<any>(() => {
+    try {
+      return currentVersion?.data ? JSON.parse(currentVersion.data) : {};
+    } catch (e) {
+      return {};
+    }
+  }, [currentVersion?.data]);
+  const [formData, setFormData] = useState<any>(() => {
+    const { __priceSnapshot, ...rest } = initialParsedData || {};
+    return rest;
+  });
+
+  /** Tem hora lançada neste projeto (quantidade ou ajuste manual)? */
+  const itemHasHours = (id: number, data: any = formData) =>
+    (parseFloat(data?.[`item_${id}_qty`] || 0) || 0) > 0 || data?.[`item_override_check_${id}`] === 'on';
+
+  /** Zera quantidade e ajuste manual dos itens informados. */
+  const clearItemHours = (ids: number[]) => {
+    if (!ids.length) return;
+    setFormData((prev: any) => {
+      const next = { ...prev };
+      ids.forEach((id) => {
+        delete next[`item_${id}_qty`];
+        delete next[`item_override_check_${id}`];
+        delete next[`item_override_val_${id}`];
+      });
+      return next;
+    });
+  };
+
+  const packageNameById = (id: number) => {
+    const pkg = (Object.values(packagesByCategory || {}).flat() as any[]).find((p: any) => Number(p.id) === Number(id));
+    return pkg ? packageName(pkg, language) : `#${id}`;
+  };
+
+  /**
+   * Ocultar um item que tem horas neste projeto zera essas horas (depois de
+   * confirmar). Item oculto nunca conta hora — e, zerando no projeto, todos os
+   * usuários continuam vendo o mesmo total.
+   */
+  const confirmHidingClearsHours = (ids: number[]): boolean => {
+    const withHours = ids.filter((id) => itemHasHours(id));
+    if (!withHours.length) return true;
+    const names = withHours.map(packageNameById).join(', ');
+    if (!confirm(t('editor.hideClearsHoursConfirm', { count: withHours.length, names }))) return false;
+    clearItemHours(withHours);
+    return true;
+  };
+
   const applyPreset = async (preset: any) => {
-    const presetHiddenItems = Array.isArray(preset?.hiddenItems) ? preset.hiddenItems : [];
-    setHiddenItems(presetHiddenItems.map(Number));
-    const nextLayout = normalizeLayoutConfig(preset.layoutConfig || layoutConfig, categories, packagesByCategory);
+    const presetHiddenItems = normalizeIdList(preset?.hiddenItems);
+    const newlyHidden = presetHiddenItems.filter((id) => !hiddenItems.includes(id));
+    if (!confirmHidingClearsHours(newlyHidden)) return;
+    setHiddenItems(presetHiddenItems);
+    const nextLayout = normalizeLayoutConfig(preset.layoutConfig || layoutConfig, categories, packagesByCategory, subcategoriesByCategory);
     setLayoutConfig(nextLayout);
     await updateUserPreferenceAction({
       hiddenItems: JSON.stringify(presetHiddenItems),
@@ -383,9 +462,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   const toggleHideItem = async (id: number) => {
-    const newHidden = hiddenItems.includes(id) 
-      ? hiddenItems.filter(i => i !== id) 
+    const isHidden = hiddenItems.includes(id);
+    if (!isHidden && !confirmHidingClearsHours([id])) return;
+    const newHidden = isHidden
+      ? hiddenItems.filter(i => i !== id)
       : [...hiddenItems, id];
+    setHiddenItems(newHidden);
+    await updateUserPreferenceAction({ hiddenItems: JSON.stringify(newHidden) });
+  };
+
+  /** "Mostrar" todos os itens ocultos que têm horas neste projeto (banner de aviso). */
+  const unhideItems = async (ids: number[]) => {
+    const newHidden = hiddenItems.filter((i) => !ids.includes(i));
     setHiddenItems(newHidden);
     await updateUserPreferenceAction({ hiddenItems: JSON.stringify(newHidden) });
   };
@@ -401,15 +489,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [isModuleSelectOpen]);
-
-  // Initial state from currentVersion.data
-  const [formData, setFormData] = useState<any>(() => {
-    try {
-      return currentVersion?.data ? JSON.parse(currentVersion.data) : {};
-    } catch (e) {
-      return {};
-    }
-  });
 
   // Nome do projeto editável no próprio título (clique → campo; Enter/fora salva, Esc cancela).
   const [projectName, setProjectName] = useState<string>(project?.name || '');
@@ -560,11 +639,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   const isAvailable = useCallback(
     (pkg: any) => {
       if (!isPackageAvailable(pkg, skuType, planTier)) return false;
-      const sourceCat = pkg?.categoryName;
-      if (sourceCat && !isCategoryOnPlan(sourceCat)) return false;
+      // Porteira de plano da categoria de origem e de todos os pais dela.
+      let sourceCat = pkg?.categoryName;
+      const seen = new Set<string>();
+      while (sourceCat && !seen.has(sourceCat)) {
+        if (!isCategoryOnPlan(sourceCat)) return false;
+        seen.add(sourceCat);
+        sourceCat = categoryRecords?.[sourceCat]?.parentName;
+      }
       return true;
     },
-    [skuType, planTier, isCategoryOnPlan],
+    [skuType, planTier, isCategoryOnPlan, categoryRecords],
   );
 
   /** Quantos itens da biblioteca o filtro de plano está excluindo agora. */
@@ -608,13 +693,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
       const subcats = layoutConfig.subcategoryOrder?.[cat] || [];
       subcats.forEach((subcategory: string) => {
-        const subHay = `${String(subcategory).toLowerCase()} ${subcategoryLabel(t, subcategory).toLowerCase()}`;
+        if (subcategory === ROOT_SUBCATEGORY) return;
+        const subHay = categoryHaystack(categoryRecords?.[subcategory] || { name: subcategory, displayName: categoryLabels?.[subcategory] });
         if (matchesQuery(subHay, q)) {
           pushUnique(`subcat:${cat}:${subcategory}`, {
             type: 'subcategory',
             cat,
             subcategory,
-            label: subcategory,
+            label: subLabelOf(subcategory),
             subtitle: label
           });
         }
@@ -625,7 +711,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Itens fora do plano não devem aparecer na busca — clicar num resultado
       // levaria a uma seção que não existe na tela.
       if (!isAvailable(p)) return;
-      // packageHaystack cobre name + nameEn + tooltip + tooltipEn.
+      // packageHaystack cobre nome e tooltip em PT, EN e ES.
       if (!matchesQuery(packageHaystack(p), q)) return;
 
       const itemId = String(p.id);
@@ -633,7 +719,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       if (!cat) return;
 
       const catLabel = catLabelOf(cat);
-      const subcategory = layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, p);
+      const subcategory = subcategoryOf(p);
 
       pushUnique(`item:${itemId}`, {
         type: 'item',
@@ -641,8 +727,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         subcategory,
         itemId,
         label: packageName(p, language),
-        subtitle: `${catLabel} • ${subcategoryLabel(t, subcategory)}`,
-        isHidden: hiddenItems.includes(p.id)
+        subtitle: subcategory === ROOT_SUBCATEGORY ? catLabel : `${catLabel} • ${subLabelOf(subcategory)}`,
+        isHidden: hiddenItems.includes(Number(p.id))
       });
     });
 
@@ -657,7 +743,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     language,
     t,
     layoutConfig.subcategoryOrder,
-    layoutConfig.itemSubcategories,
+    subLabelOf,
     allPackages,
     packageRootCategoryById,
     hiddenItems
@@ -716,21 +802,26 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   useEffect(() => {
-    setLayoutConfig((current) => normalizeLayoutConfig(current, categories, packagesByCategory));
-  }, [categories, packagesByCategory]);
+    setLayoutConfig((current) => normalizeLayoutConfig(current, categories, packagesByCategory, subcategoriesByCategory));
+  }, [categories, packagesByCategory, subcategoriesByCategory]);
 
   const persistLayoutConfig = async (nextLayout: LayoutConfig) => {
-    const normalized = normalizeLayoutConfig(nextLayout, categories, packagesByCategory);
+    const normalized = normalizeLayoutConfig(nextLayout, categories, packagesByCategory, subcategoriesByCategory);
     setLayoutConfig(normalized);
     await updateUserPreferenceAction({ layoutConfig: JSON.stringify(normalized) });
   };
 
   const reorderCategory = async (category: string, direction: 'up' | 'down') => {
-    const currentIndex = orderedCategories.indexOf(category);
-    if (currentIndex === -1) return;
+    // Troca de lugar com a categoria VISÍVEL vizinha (as escondidas pelo plano
+    // mantêm a posição delas na lista completa).
+    const visibleIndex = visibleCategories.indexOf(category);
+    if (visibleIndex === -1) return;
+    const neighbour = visibleCategories[direction === 'up' ? visibleIndex - 1 : visibleIndex + 1];
+    if (!neighbour) return;
 
-    const nextIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-    if (nextIndex < 0 || nextIndex >= orderedCategories.length) return;
+    const currentIndex = orderedCategories.indexOf(category);
+    const nextIndex = orderedCategories.indexOf(neighbour);
+    if (currentIndex === -1 || nextIndex === -1) return;
 
     await persistLayoutConfig({
       ...layoutConfig,
@@ -739,14 +830,82 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   };
 
   const setCategoryChecked = (category: string, checked: boolean) => {
-    setFormData((prev: any) => ({
-      ...prev,
-      [`check_area_${category}`]: checked ? 'on' : 'off'
-    }));
+    setFormData((prev: any) => {
+      let next = { ...prev, [`check_area_${category}`]: checked ? 'on' : 'off' };
+      // Atalhos de Treinamento/Workshop ligados acompanham a seleção de módulos:
+      // módulo novo ganha os itens dele; módulo removido perde.
+      if (phaseOf(category) === 'SETUP') {
+        (['training', 'workshop'] as ShortcutKind[]).forEach((kind) => {
+          if (prev[SHORTCUT_FLAG[kind]] === 'on') next = applyShortcut(next, kind, checked, [category]);
+        });
+      }
+      return next;
+    });
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /*             ATALHOS: TREINAMENTO / WORKSHOP / GO-LIVE                     */
+  /* ------------------------------------------------------------------------ */
+  // Só preenchem quantidades (que continuam editáveis como qualquer outra). Os
+  // itens de cada atalho vêm do painel Admin: em categorias de fase Workshop e
+  // Treinamento, o módulo a que o item pertence; em Go-Live, a quantidade que o
+  // atalho preenche.
+  type ShortcutKind = 'training' | 'workshop' | 'golive';
+  const SHORTCUT_FLAG: Record<ShortcutKind, string> = {
+    training: '__shortcut_training',
+    workshop: '__shortcut_workshop',
+    golive: '__shortcut_golive',
+  };
+  const SHORTCUT_PHASE: Record<ShortcutKind, string> = { training: 'TRAINING', workshop: 'WORKSHOP', golive: 'GOLIVE' };
+
+  /** Módulos (categorias de fase Setup) selecionados no projeto. */
+  const selectedSetupModules = (data: any): string[] =>
+    categories.filter((cat: string) => data?.[`check_area_${cat}`] === 'on' && isCategoryOnPlan(cat) && phaseOf(cat) === 'SETUP');
+
+  /** Itens que um atalho preenche para os módulos informados, com a quantidade de cada um. */
+  const shortcutTargets = (kind: ShortcutKind, modules: string[]) =>
+    allPackages
+      .filter((pkg: any) => phaseOf(packageRootCategoryById[String(pkg.id)]) === SHORTCUT_PHASE[kind])
+      .filter((pkg: any) => (kind === 'golive'
+        ? Number(pkg.goLiveShortcutQty) > 0
+        : modules.includes(String(pkg.moduleLink || ''))))
+      // Item oculto ou fora do plano não conta hora — o atalho não mexe nele.
+      .filter((pkg: any) => !hiddenSet.has(Number(pkg.id)) && isAvailable(pkg))
+      .map((pkg: any) => ({
+        id: Number(pkg.id),
+        qty: kind === 'golive' ? Math.max(1, Math.round(Number(pkg.goLiveShortcutQty))) : 1,
+        root: packageRootCategoryById[String(pkg.id)],
+      }));
+
+  /** Preenche (on) ou desfaz (off) um atalho. Devolve o formData novo. */
+  const applyShortcut = (data: any, kind: ShortcutKind, on: boolean, modules: string[]) => {
+    const next = { ...data };
+    shortcutTargets(kind, modules).forEach(({ id, qty, root }) => {
+      const key = `item_${id}_qty`;
+      const current = parseFloat(next[key] || 0) || 0;
+      if (on) {
+        if (current < qty) next[key] = String(qty);
+        if (root) next[`check_area_${root}`] = 'on';
+      } else if (current === qty) {
+        // Só desfaz o que o atalho preencheu: quantidade ajustada à mão fica.
+        delete next[key];
+      }
+    });
+    return next;
+  };
+
+  const toggleShortcut = (kind: ShortcutKind, on: boolean) => {
+    setFormData((prev: any) => {
+      const next = applyShortcut(prev, kind, on, selectedSetupModules(prev));
+      if (on) next[SHORTCUT_FLAG[kind]] = 'on';
+      else delete next[SHORTCUT_FLAG[kind]];
+      return next;
+    });
   };
 
   const reorderSubcategory = async (category: string, subcategory: string, direction: 'up' | 'down') => {
-    const currentOrder = layoutConfig.subcategoryOrder[category] || [DEFAULT_SUBCATEGORY];
+    // Os itens da raiz ficam sempre no topo; só as subcategorias do Admin trocam de lugar.
+    const currentOrder = (layoutConfig.subcategoryOrder[category] || []).filter((s) => s !== ROOT_SUBCATEGORY);
     const currentIndex = currentOrder.indexOf(subcategory);
     if (currentIndex === -1) return;
 
@@ -758,31 +917,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       subcategoryOrder: {
         ...layoutConfig.subcategoryOrder,
         [category]: moveItem(currentOrder, currentIndex, nextIndex)
-      }
-    });
-  };
-
-  const moveItemToSubcategory = async (category: string, itemId: string, nextSubcategory: string) => {
-    const currentSubcategory = layoutConfig.itemSubcategories[itemId] || DEFAULT_SUBCATEGORY;
-    if (currentSubcategory === nextSubcategory) return;
-
-    const currentKey = subcategoryKey(category, currentSubcategory);
-    const nextKey = subcategoryKey(category, nextSubcategory);
-
-    await persistLayoutConfig({
-      ...layoutConfig,
-      subcategoryOrder: {
-        ...layoutConfig.subcategoryOrder,
-        [category]: uniqueStrings([...(layoutConfig.subcategoryOrder[category] || []), nextSubcategory])
-      },
-      itemSubcategories: {
-        ...layoutConfig.itemSubcategories,
-        [itemId]: nextSubcategory
-      },
-      itemOrder: {
-        ...layoutConfig.itemOrder,
-        [currentKey]: (layoutConfig.itemOrder[currentKey] || []).filter((currentItemId) => currentItemId !== itemId),
-        [nextKey]: uniqueStrings([...(layoutConfig.itemOrder[nextKey] || []), itemId])
       }
     });
   };
@@ -860,665 +994,354 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
   });
 
-  const [safetyHours, setSafetyHours] = useState<Record<string, number>>(() => {
-    try {
-      return currentVersion?.safetyHours ? JSON.parse(currentVersion.safetyHours) : {};
-    } catch (e) {
-      return {};
-    }
+  // ---------------------------------------------------------------------------
+  // Retrato de preços da versão: horas, skill e tags de cada item no momento em
+  // que a versão foi salva. Permite reabrir a versão com os valores ORIGINAIS
+  // mesmo depois de a biblioteca mudar, e avisar quando algo mudou.
+  // ---------------------------------------------------------------------------
+  type PriceSnapshot = {
+    v: number;
+    savedAt?: string;
+    drnPct?: number;
+    /** h = horas unitárias, s = skill, x = tags de não incidência, n = nome, c = categoria raiz. */
+    items: Record<string, { h: number; s?: string; x?: string[]; n?: string; c?: string }>;
+  };
+  type PriceChange = { id: string; name: string; kind: 'hours' | 'skill' | 'exclusions' | 'removed' | 'orphaned'; from?: string; to?: string };
+
+  const packageById = useMemo<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    allPackages.forEach((p: any) => { map[String(p.id)] = p; });
+    return map;
+  }, [allPackages]);
+  /** Itens ativos na biblioteca mas sem categoria ativa no Admin. */
+  const orphanById = useMemo<Record<string, any>>(() => {
+    const map: Record<string, any> = {};
+    (orphanPackages || []).forEach((p: any) => { map[String(p.id)] = p; });
+    return map;
+  }, [orphanPackages]);
+
+  const currentDrnPct = getVariableNumber(variables, [VARIABLE_KEYS.drn], 15);
+
+  const currentPriceOf = useCallback((pkg: any) => ({
+    hours: Number(pkg?.hours) || 0,
+    skill: String(pkg?.skillName || pkg?.skill || ''),
+    excluded: parseIdList(pkg?.excludedFromVariables),
+  }), []);
+
+  /** Diferenças entre o retrato salvo e a biblioteca atual (só itens com quantidade). */
+  const computePriceChanges = (snapshot: PriceSnapshot | null, data: any) => {
+    const changes: PriceChange[] = [];
+    if (!snapshot) return { changes, drn: null as null | { from: number; to: number } };
+    Object.entries(snapshot.items || {}).forEach(([id, snap]) => {
+      const qty = parseFloat(data?.[`item_${id}_qty`] || 0) || 0;
+      if (qty <= 0) return;
+      const pkg = packageById[id];
+      const name = pkg ? packageName(pkg, language) : String(snap.n || `#${id}`);
+      if (!pkg) {
+        // Saiu do framework: ou foi removido da biblioteca, ou a categoria
+        // dele foi desativada no Admin.
+        changes.push({ id, name, kind: orphanById[id] ? 'orphaned' : 'removed' });
+        return;
+      }
+      const cur = currentPriceOf(pkg);
+      if (Math.abs((Number(snap.h) || 0) - cur.hours) > 1e-9) {
+        changes.push({ id, name, kind: 'hours', from: String(Number(snap.h) || 0), to: String(cur.hours) });
+      }
+      if (snap.s !== undefined && String(snap.s || '') !== cur.skill) {
+        changes.push({ id, name, kind: 'skill', from: snap.s || '—', to: cur.skill || '—' });
+      }
+      if (snap.x !== undefined && [...(snap.x || [])].map(String).sort().join('|') !== [...cur.excluded].sort().join('|')) {
+        changes.push({ id, name, kind: 'exclusions' });
+      }
+    });
+    const drn = snapshot.drnPct !== undefined && Math.abs(Number(snapshot.drnPct) - currentDrnPct) > 1e-9
+      ? { from: Number(snapshot.drnPct), to: currentDrnPct }
+      : null;
+    return { changes, drn };
+  };
+
+  const [priceSnapshot, setPriceSnapshot] = useState<PriceSnapshot | null>(() => {
+    const raw = initialParsedData?.__priceSnapshot;
+    const parsed = typeof raw === 'string' ? safeJsonParse<any>(raw, null) : raw;
+    return parsed && typeof parsed === 'object' && parsed.items ? parsed : null;
   });
+
+  /**
+   * Valores usados no cálculo: os ORIGINAIS da versão (padrão ao abrir uma
+   * versão cujos itens mudaram desde que foi salva) ou os ATUAIS da biblioteca.
+   */
+  const [priceMode, setPriceMode] = useState<'original' | 'current'>(() => {
+    const { changes, drn } = computePriceChanges(priceSnapshot, initialParsedData);
+    return changes.length || drn ? 'original' : 'current';
+  });
+
+  const priceChanges = useMemo(
+    () => computePriceChanges(priceSnapshot, formData),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [priceSnapshot, formData, packageById, orphanById, language, currentPriceOf, currentDrnPct],
+  );
+  const hasPriceChanges = priceChanges.changes.length > 0 || Boolean(priceChanges.drn);
+
+  const priceOf = useCallback((pkg: any) => {
+    const cur = currentPriceOf(pkg);
+    if (priceMode !== 'original' || !priceSnapshot) return cur;
+    const snap = priceSnapshot.items?.[String(pkg?.id)];
+    if (!snap) return cur;
+    return {
+      hours: Number(snap.h) || 0,
+      skill: snap.s !== undefined ? String(snap.s || '') : cur.skill,
+      excluded: snap.x !== undefined ? (snap.x || []).map(String) : cur.excluded,
+    };
+  }, [priceMode, priceSnapshot, currentPriceOf]);
+
+  const effectiveDrnPct = priceMode === 'original' && priceSnapshot?.drnPct !== undefined
+    ? Number(priceSnapshot.drnPct)
+    : currentDrnPct;
+
+  // ---------------------------------------------------------------------------
+  // Visibilidade: o que não aparece na tela NUNCA conta hora.
+  // ---------------------------------------------------------------------------
+  const hiddenSet = useMemo(() => new Set(hiddenItems.map(Number)), [hiddenItems]);
+
+  /** Módulo existe no Admin, passa no plano e está marcado neste projeto. */
+  const isCategoryActive = useCallback(
+    (cat: string) => Boolean(cat) && categories.includes(cat) && isCategoryOnPlan(cat) && formData[`check_area_${cat}`] === 'on',
+    [categories, isCategoryOnPlan, formData],
+  );
+
+  /** Item aparece na tela? (plano, oculto e dependência atendida). */
+  const isPackageVisible = useCallback((pkg: any): boolean => {
+    const visit = (p: any, depth: number): boolean => {
+      if (!p || depth > 20) return false;
+      if (!isAvailable(p)) return false;
+      if (hiddenSet.has(Number(p.id))) return false;
+      if (p.dependsOnItemId) {
+        const dep = packageById[String(p.dependsOnItemId)];
+        if (!dep) return false;
+        const depQty = parseFloat(formData[`item_${dep.id}_qty`] || 0) || 0;
+        if (depQty <= 0) return false;
+        if (!isCategoryActive(packageRootCategoryById[String(dep.id)])) return false;
+        if (!visit(dep, depth + 1)) return false;
+      }
+      return true;
+    };
+    return visit(pkg, 0);
+  }, [isAvailable, hiddenSet, packageById, formData, isCategoryActive, packageRootCategoryById]);
+
+  const phaseOf = useCallback(
+    (cat: string) => normalizePhase(categoryRecords?.[cat]?.implementationPhase),
+    [categoryRecords],
+  );
+  const marketplaceActive = isCategoryActive(MARKETPLACE_CATEGORY);
 
   // Calculation Engine
   /**
-   * Elegibilidade de cada item às três variáveis percentuais.
-   *
-   * Lê a configuração de incidência granular do painel Admin:
-   *   - `Package.excludedFromVariables` — o item se declara fora da variável;
-   *   - `Variable.excludedItems`        — a variável exclui o item;
-   *   - `Variable.targetItems` / `targetCategories` — quando preenchidos, a
-   *     variável só incide sobre esses alvos.
-   *
-   * Usado em DOIS lugares, e é bom que seja o mesmo critério nos dois:
-   *   1. no cálculo dos totais, para descontar da base de cada percentual as
-   *      horas que não incidem (ver `trackExclusions`);
-   *   2. no detalhamento por categoria, para repartir o valor já calculado.
-   *
-   * Como a base já vem descontada, uma categoria inteiramente não incidente
-   * recebe 0 na repartição e a soma continua fechando com o resumo.
+   * Linhas que contam hora: itens visíveis com quantidade (override aplicado),
+   * pacotes personalizados de módulos ativos e apps de Marketplace (só com o
+   * módulo Marketplace ativo). Tudo o mais (resumo, detalhamento, exportação e
+   * prompt) sai destas linhas.
    */
-  const variableEligibility = useMemo(() => {
-    const asList = (raw: any): string[] => {
-      const parsed = safeJsonParse<any>(typeof raw === 'string' ? raw : JSON.stringify(raw ?? []), []);
-      return Array.isArray(parsed) ? parsed.map(String) : [];
-    };
-
-    const buildFor = (varKey: string) => {
-      const vDef = (variables || []).find((v: any) => v.key === varKey);
-      const targets = asList(vDef?.targetItems);
-      const targetCats = asList(vDef?.targetCategories);
-      const varExcluded = asList(vDef?.excludedItems);
-
-      return (pkg: any, rootCat: string): boolean => {
-        if (!pkg) return true;
-        const itemId = String(pkg.id ?? '');
-        if (asList(pkg.excludedFromVariables).includes(varKey)) return false;
-        if (itemId && varExcluded.includes(itemId)) return false;
-        // Só filtra por alvo quando a variável declara algum.
-        if (targets.length || targetCats.length) {
-          const inItems = itemId ? targets.includes(itemId) : false;
-          const inCats =
-            targetCats.includes(rootCat) ||
-            (pkg.categoryName ? targetCats.includes(String(pkg.categoryName)) : false);
-          if (!inItems && !inCats) return false;
+  const calcLines = useMemo<CalcLine[]>(() => {
+    const out: CalcLine[] = [];
+    categories.forEach((cat: string) => {
+      if (!isCategoryActive(cat)) return;
+      (packagesByCategory[cat] || []).forEach((pkg: any) => {
+        const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0) || 0;
+        if (qty <= 0) return;
+        if (!isPackageVisible(pkg)) return;
+        const price = priceOf(pkg);
+        let hours = qty * price.hours;
+        if (formData[`item_override_check_${pkg.id}`] === 'on') {
+          const overrideVal = parseFloat(formData[`item_override_val_${pkg.id}`]);
+          if (!isNaN(overrideVal)) hours = overrideVal;
         }
-        return true;
-      };
-    };
-
-    return {
-      discovery: buildFor('DISCOVERY_STANDARD'),
-      validation: buildFor('VALIDATION_STANDARD'),
-      gp: buildFor('GP_STANDARD'),
-    };
-  }, [variables]);
-
-  const totals = useMemo(() => {
-    // =========================================================================
-    // 🎛️  CONFIGURAÇÃO DE REGRAS SD / DRN (via painel Admin, fallback seguro)
-    //     Cadastre as keys abaixo no Admin (tipo PERCENT) para ajustar sem deploy.
-    // =========================================================================
-    // NOTA: SD_DISCOVERY_DEVOPS_PERCENT não é mais lida — o Discovery sobre Dev
-    // é todo feito pelo DRN (SD > Desenvolvimento), sem somar nada em SD > Discovery.
-    const pctDRNDevops         = getVariableNumber(variables, ['SD_DRN_DEVOPS_PERCENT'],        15);
-    const pctSdLiquidoParaSd   = getVariableNumber(variables, ['SD_LIQUID_TO_DISCOVERY_PCT'], 100);
-
-    let subtotal = 0;
-    let flatHoursMarketplace = marketplaceApps.length * 5;
-    const itemTotals: Record<number, number> = {};
-    const catTotals: Record<string, number> = {};
-    const skillTotals: any = {
-      'Implantação': 0, 'GP': 0, 'Solution Design': 0, 'Desenvolvimento': 0, 'Design': 0
-    };
-    let hasSdDiscoveryOnAnyItem = false;
-    let hasAnyDesenvolvimento = false;
-    // Horas de itens DEV: não aparecem no card de Implantação, só compõem a
-    // base de cálculo da Validação (setupBaseParaVariaveis).
-    let devHorasSetupContribuicao = 0;
-    // Horas efetivamente contadas de cada pacote personalizado (mesmo índice de
-    // `customPackages`), para o detalhamento por categoria usar o mesmo valor.
-    const customTotals: number[] = [];
-    const implantationBreakdown: Record<string, number> = {
-      implantacao_workshop: 0,
-      implantacao_discovery: 0,
-      implantacao_setup: 0,
-      implantacao_validacao: 0,
-      implantacao_treinamento: 0,
-      implantacao_golive: 0,
-    };
-    // Regra:
-    //  - Workshop: APENAS itens da categoria Workshop
-    //  - Treinamento: APENAS itens da categoria Treinamento
-    //  - Go-Live / Pós Go-Live: APENAS itens dessas categorias
-    //  - TODO O RESTO (Setup, Discovery, Validação, "Implantação", categorias não mapeadas etc) → SETUP
-    const normCat = (s: string) => {
-      try {
-        return String(s || '')
-          .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase()
-        .trim();
-      } catch { return String(s || '').toLowerCase().trim(); }
-    };
-    const matchCatHas = (cat: string, needles: string[]) => {
-      const n = normCat(cat);
-      if (!n) return false;
-      return needles.some(x => n.includes(normCat(x)));
-    };
-
-    /**
-     * Bucket de Implantação de uma categoria. Extraído como função PURA porque a
-     * base de Discovery e Validação precisa saber quais horas caíram em Setup —
-     * é só sobre elas que os percentuais incidem, e portanto só elas podem ser
-     * descontadas quando um item se declara fora da variável.
-     */
-    const bucketFor = (category: string): string => {
-      if (!normCat(category)) return 'implantacao_setup';
-      if (matchCatHas(category, ['workshop'])) return 'implantacao_workshop';
-      if (matchCatHas(category, ['treinamento'])) return 'implantacao_treinamento';
-      if (matchCatHas(category, ['go-live', 'go live', 'pos go', 'go-live e pos go-live', 'go live e pos go live', 'pos go live', 'pos go'])) {
-        return 'implantacao_golive';
-      }
-      // Tudo que não for mapeado → Setup
-      return 'implantacao_setup';
-    };
-
-    const assignImplantBucket = (category: string, hours: number) => {
-      if (!hours) return;
-      const bucket = bucketFor(category);
-      implantationBreakdown[bucket] = (implantationBreakdown[bucket] || 0) + hours;
-    };
-
-    /**
-     * Horas que precisam SAIR da base de cada percentual por conta das tags de
-     * não incidência configuradas no Admin.
-     *
-     * `setupExcluded` só acumula o que caiu no bucket de Setup, que é a base de
-     * Discovery e Validação. `gpExcluded` acumula sobre qualquer item, porque a
-     * base do GP é o consolidado dos quatro containers.
-     */
-    const setupExcluded = { discovery: 0, validation: 0 };
-    let gpExcluded = 0;
-    // Parte de `setupExcluded.discovery` que veio de itens de Dev. Dev não compõe
-    // a base de Discovery (é coberto pelo DRN), então essa parte não pode ser
-    // descontada de novo da base.
-    let devSetupExcludedDiscovery = 0;
-
-    const trackExclusions = (pkg: any, rootCat: string, hours: number, isDev = false) => {
-      if (!hours) return;
-      const inSetup = bucketFor(rootCat) === 'implantacao_setup';
-      if (inSetup && !variableEligibility.discovery(pkg, rootCat)) {
-        setupExcluded.discovery += hours;
-        if (isDev) devSetupExcludedDiscovery += hours;
-      }
-      if (inSetup && !variableEligibility.validation(pkg, rootCat)) setupExcluded.validation += hours;
-      if (!variableEligibility.gp(pkg, rootCat)) gpExcluded += hours;
-    };
-
-    // Standard Packages
-    Object.keys(packagesByCategory).forEach(cat => {
-      // Categoria fora do plano sai inteira do cálculo — a porteira dela é
-      // independente da dos itens.
-      const catOnPlan = isCategoryOnPlan(cat);
-      const isChecked = catOnPlan && formData[`check_area_${cat}`] === 'on';
-      catTotals[cat] = 0;
-
-      packagesByCategory[cat].forEach((pkg: any) => {
-        const qty = parseFloat(formData[`item_${pkg.id}_qty`] || 0);
-        // Itens acima do plano selecionado não entram no total, mesmo que a
-        // quantidade tenha sido digitada antes de trocar o plano. `itemOnPlan`
-        // cobre as duas porteiras (item e categoria de origem).
-        const itemOnPlan = isPackageAvailable(pkg, skuType, planTier)
-          && (!pkg?.categoryName || isCategoryOnPlan(pkg.categoryName));
-        if (qty > 0 && isChecked && itemOnPlan) {
-          let rowTotal = qty * pkg.hours;
-          const isOverride = formData[`item_override_check_${pkg.id}`] === 'on';
-          if (isOverride) {
-            const overrideVal = parseFloat(formData[`item_override_val_${pkg.id}`]);
-            if (!isNaN(overrideVal)) rowTotal = overrideVal;
-          }
-          itemTotals[pkg.id] = rowTotal;
-          catTotals[cat] += rowTotal;
-          subtotal += rowTotal;
-          const skillKey = pkg.skillName || pkg.skill;
-          const sdDisc = Boolean(pkg.sdDiscovery || false);
-
-          // Tags de não incidência: registradas aqui, onde ainda se sabe o item
-          // e a categoria de origem dele.
-          trackExclusions(pkg, cat, rowTotal, skillKey === 'Desenvolvimento');
-
-          if (sdDisc) hasSdDiscoveryOnAnyItem = true;
-          if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
-
-          // REGRA 1: item skill Desenvolvimento (COM ou SEM SD marcado)
-          //  - Horas cheias do item CREDITADAS no skill Desenvolvimento (container próprio, card DEV normal)
-          //  - Horas cheias do item TAMBÉM entram em Setup (implantação) PARA BASE DE CÁLCULO de % Validação
-          //    (não aparecem como linha no card de Implantação visual — só compõem setupBaseParaVariaveis)
-          //  - O discovery sobre Dev é o DRN (% sobre totalDevFull), calculado mais abaixo
-          if (skillKey === 'Desenvolvimento') {
-            // Horas cheias seguem seu fluxo padrão de DEV:
-            skillTotals['Desenvolvimento'] += rowTotal;
-            // Contabilizamos também na base de cálculo de validação% sobre DEV
-            devHorasSetupContribuicao += rowTotal;
-            return;
-          }
-
-          // REGRA 2: item sdDiscovery marcado + skill != Desenvolvimento (ex: Implantação)
-          //  - Horas da linha CONTAM em Setup (Implantação) → assignImplantBucket normal (base de cálculo geral)
-          //  - A marcação faz o projeto "ter SD": o Discovery de Implantação (que já incide
-          //    sobre estas horas) é transferido inteiro para SD > Discovery
-
-          if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += rowTotal;
-          if (skillKey === 'Implantação') assignImplantBucket(cat, rowTotal);
-        }
+        out.push({
+          key: `pkg:${pkg.id}`,
+          kind: 'package',
+          packageId: Number(pkg.id),
+          category: cat,
+          subcategory: subcategoryOf(pkg),
+          label: String(pkg.name || ''),
+          quantity: qty,
+          unitHours: price.hours,
+          hours,
+          skill: price.skill,
+          phase: phaseOf(cat),
+          excluded: price.excluded,
+        });
       });
     });
 
-    // Custom Packages
-    customPackages.forEach((pkg, idx) => {
-      customTotals[idx] = 0;
-      if (formData[`check_area_${pkg.category}`] !== 'on') return;
-
-      const qty = parseFloat(pkg.qty || 0);
-      const hours = parseFloat(pkg.hours || 0);
-      let total = qty * hours;
-      
+    customPackages.forEach((pkg: any, idx: number) => {
+      if (!isCategoryActive(pkg.category)) return;
+      const qty = parseFloat(pkg.qty || 0) || 0;
+      const unit = parseFloat(pkg.hours || 0) || 0;
+      let hours = qty * unit;
       if (pkg.overrideCheck) {
         const val = parseFloat(pkg.overrideVal);
-        if (!isNaN(val)) total = val;
+        if (!isNaN(val)) hours = val;
       }
-      
-      customTotals[idx] = total;
-      subtotal += total;
-      catTotals[pkg.category] = (catTotals[pkg.category] || 0) + total;
-      const skillKey = pkg.skillName || pkg.skill;
-      const sdDisc = Boolean((pkg as any).sdDiscovery || false);
-      // Pacotes personalizados não têm configuração de incidência, então
-      // permanecem elegíveis às três variáveis — mesmo tratamento que recebem
-      // no detalhamento por categoria.
-
-      if (sdDisc) hasSdDiscoveryOnAnyItem = true;
-      if (skillKey === 'Desenvolvimento') hasAnyDesenvolvimento = true;
-
-      if (skillKey === 'Desenvolvimento') {
-        skillTotals['Desenvolvimento'] += total;
-        devHorasSetupContribuicao += total;
-        return;
-      }
-      if (skillTotals[skillKey] !== undefined) skillTotals[skillKey] += total;
-      if (skillKey === 'Implantação') assignImplantBucket(pkg.category, total);
+      out.push({
+        key: `custom:${idx}`,
+        kind: 'custom',
+        customIndex: idx,
+        category: pkg.category,
+        subcategory: CUSTOM_SUBCATEGORY,
+        label: String(pkg.name || ''),
+        quantity: qty,
+        unitHours: unit,
+        hours,
+        skill: String(pkg.skill || SKILL_IMPL),
+        phase: phaseOf(pkg.category),
+        excluded: [],
+      });
     });
 
-    // Helper to calculate a variable's contribution
-    /*
-     * NOTA (rodada 6): a antiga `calculateVariable` foi REMOVIDA daqui.
-     *
-     * Ela montava a base de cada percentual respeitando as tags de
-     * incidência, mas nunca era chamada — Discovery e Validação incidiam
-     * sobre todo o Setup e o GP sobre todo o consolidado, então a
-     * configuração do painel Admin não surtia efeito nenhum.
-     *
-     * A regra agora vive no fluxo real de cálculo: `trackExclusions` acumula
-     * as horas não incidentes durante a varredura dos itens, e elas são
-     * descontadas em `baseDiscovery`, `baseValidation` e `totalBaseGP`.
-     * Manter a função aqui, morta, foi justamente o que fez parecer que as
-     * tags funcionavam.
-     */
-
-    // NOTA: GP será calculado ABAIXO, sobre o total consolidado (impl + SD + DEV + DESIGN), incluindo discovery/validação e marketplace/safety.
-    // GP inicial é 0 para não duplicar.
-    let gpValRawInitial = 0;
-    if (overrides.gp !== null) {
-      // Se o usuário travou o override manual, respeitamos logo após fechar os totais (abaixo).
-      gpValRawInitial = 0;
+    if (marketplaceActive) {
+      marketplaceApps.forEach((app: any, idx: number) => {
+        out.push({
+          key: `marketplace:${idx}`,
+          kind: 'marketplace',
+          category: MARKETPLACE_CATEGORY,
+          subcategory: MARKETPLACE_SUBCATEGORY,
+          label: String(app?.name || '').trim(),
+          quantity: 1,
+          unitHours: MARKETPLACE_APP_HOURS,
+          hours: MARKETPLACE_APP_HOURS,
+          skill: SKILL_IMPL,
+          phase: phaseOf(MARKETPLACE_CATEGORY),
+          excluded: [],
+        });
+      });
     }
 
-    // Contribuição de horas por skill LÍQUIDA (antes de %/segregar subitens)
-    const skillLiquido: Record<string, number> = {
-      'Implantação': 0, 'GP': 0, 'Solution Design': 0, 'Desenvolvimento': 0, 'Design': 0
-    };
-    Object.keys(skillTotals).forEach(k => {
-      if (skillLiquido[k] !== undefined) skillLiquido[k] = Number(skillTotals[k]) || 0;
+    // Valores ORIGINAIS: itens que só existem no retrato da versão (removidos
+    // da biblioteca, ou sem categoria ativa) contam com os valores salvos, para
+    // a versão fechar com o total com que foi salva. Ficam listados no aviso de
+    // preços (são as únicas linhas sem lugar na tabela de itens).
+    if (priceMode === 'original' && priceSnapshot) {
+      Object.entries(priceSnapshot.items || {}).forEach(([id, snap]) => {
+        if (packageById[id]) return;
+        const qty = parseFloat(formData[`item_${id}_qty`] || 0) || 0;
+        if (qty <= 0) return;
+        let hours = qty * (Number(snap.h) || 0);
+        if (formData[`item_override_check_${id}`] === 'on') {
+          const overrideVal = parseFloat(formData[`item_override_val_${id}`]);
+          if (!isNaN(overrideVal)) hours = overrideVal;
+        }
+        const category = snap.c && categories.includes(snap.c) ? snap.c : REMOVED_CATEGORY;
+        out.push({
+          key: `snapshot:${id}`,
+          kind: 'package',
+          packageId: Number(id),
+          category,
+          subcategory: ROOT_SUBCATEGORY,
+          label: String(snap.n || `#${id}`),
+          quantity: qty,
+          unitHours: Number(snap.h) || 0,
+          hours,
+          skill: String(snap.s || ''),
+          phase: category === REMOVED_CATEGORY ? 'SETUP' : phaseOf(category),
+          excluded: (snap.x || []).map(String),
+        });
+      });
+    }
+    return out;
+  }, [categories, isCategoryActive, packagesByCategory, formData, isPackageVisible, priceOf, phaseOf, customPackages, marketplaceActive, marketplaceApps, priceMode, priceSnapshot, packageById]);
+
+  /** Linhas que só existem no retrato da versão (contam apenas com valores originais). */
+  const snapshotOnlyLines = useMemo(() => calcLines.filter((l) => l.key.startsWith('snapshot:')), [calcLines]);
+
+  const totals = useMemo(() => {
+    const defOf = (key: string) => (variables || []).find((v: any) => v.key === key) || null;
+    return computeFrameworkTotals({
+      lines: calcLines,
+      percents,
+      drnPct: effectiveDrnPct,
+      overrides,
+      variableDefs: {
+        discovery: defOf(VARIABLE_KEYS.discovery),
+        validation: defOf(VARIABLE_KEYS.validation),
+        gp: defOf(VARIABLE_KEYS.gp),
+      },
     });
-    // NOTA: o marketplace só é somado ao skillTotals mais abaixo, então não há o
-    // que descontar aqui (descontar fazia as horas de marketplace sumirem do Setup).
-    skillLiquido['GP'] = 0; // GP é variável, não item catalogado
+  }, [calcLines, percents, effectiveDrnPct, overrides, variables]);
 
-    // Nova lógica de buckets de Implantação:
-    // Cada bucket é a soma EXATA das categorias daquele tipo (Workshop → Workshop, Treinamento → Treinamento, etc)
-    // Discovery e Validação (variáveis %) são calculadas SOBRE APENAS O SETUP
-    // Safety Implantação → Go-Live
-    // Marketplace → Setup
-    // NÃO HÁ MAIS linha genérica "Implantação" → tudo é distribuído nos 6 buckets
-    const safetyImplantacao = Number((safetyHours || {})['Implantação']) || 0;
+  /** Skills além das cinco padrão (cadastradas no Admin, ou item sem skill). */
+  const extraSkills = useMemo(
+    () => Object.keys(totals.skillTotals).filter((s) => !CORE_SKILLS.includes(s) && totals.skillTotals[s] > 0),
+    [totals.skillTotals],
+  );
 
-    const implantacaoBuckets: Record<string, number> = {
-      implantacao_workshop: implantationBreakdown.implantacao_workshop || 0,
-      implantacao_discovery: implantationBreakdown.implantacao_discovery || 0,
-      implantacao_setup: implantationBreakdown.implantacao_setup || 0,
-      implantacao_validacao: implantationBreakdown.implantacao_validacao || 0,
-      implantacao_treinamento: implantationBreakdown.implantacao_treinamento || 0,
-      implantacao_golive: implantationBreakdown.implantacao_golive || 0,
-    };
+  /** Itens ocultos (para este usuário) que têm horas neste projeto. */
+  const hiddenWithHours = useMemo(
+    () => hiddenItems.filter((id) => itemHasHours(id)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [hiddenItems, formData],
+  );
 
-    // Fechamento normal (buckets só contêm Implantação; as horas de DEV ficam em
-    // devHorasSetupContribuicao, acumuladas na varredura dos itens)
-    const valorJaAplicado = Object.values(implantacaoBuckets).reduce((a, b) => a + (b || 0), 0);
-    const implantacaoTotalLiquido = Math.max(0, skillLiquido['Implantação'] || 0);
-    if (valorJaAplicado < implantacaoTotalLiquido - 0.0001) {
-      const sobra = roundHalfUp(Math.max(0, implantacaoTotalLiquido - valorJaAplicado), 1);
-      implantacaoBuckets['implantacao_setup'] = roundHalfUp((implantacaoBuckets['implantacao_setup'] || 0) + sobra, 1);
-    }
+  /** Itens com horas neste projeto que não estão em nenhuma categoria ativa do Admin. */
+  const orphansWithHours = useMemo(
+    () => {
+      // Os que estão contando pelos valores originais já aparecem no aviso de preços.
+      const countedFromSnapshot = new Set(snapshotOnlyLines.map((l) => String(l.packageId)));
+      return (orphanPackages || []).filter((p: any) => itemHasHours(Number(p.id)) && !countedFromSnapshot.has(String(p.id)));
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [orphanPackages, formData, snapshotOnlyLines],
+  );
 
-    // 3) Marketplace FLAT → entra em “Setup” (itens acessórios de implantação)
-    // Primeiro adicionamos o marketplace no SETUP para formar a BASE DE CÁLCULO de Discovery e Validação
-    implantacaoBuckets['implantacao_setup'] = roundHalfUp((implantacaoBuckets['implantacao_setup'] || 0) + (flatHoursMarketplace || 0), 1);
-
-    // Discovery e Validação variáveis incidem APENAS sobre o valor de SETUP
-    // + horas de DEV que também entram na base de cálculo de Validação/Discovery (mas não no display)
-    const setupBaseParaVariaveis = Math.max(0,
-      (implantacaoBuckets['implantacao_setup'] || 0) + (devHorasSetupContribuicao || 0)
-    );
-    /**
-     * Base efetiva de cada percentual, já sem as horas que os itens declararam
-     * como não incidentes.
-     *
-     * Até a rodada 5 essas tags eram inertes: a função que as lia
-     * (`calculateVariable`) nunca era chamada, e Discovery/Validação incidiam
-     * sobre TODO o Setup. Agora a configuração do painel Admin passa a valer.
-     */
-    // Discovery NÃO incide sobre Dev: o discovery de Dev é todo feito pelo DRN
-    // (SD > Desenvolvimento). Incluir Dev aqui contaria essas horas duas vezes.
-    const baseDiscovery = Math.max(0,
-      (implantacaoBuckets['implantacao_setup'] || 0)
-      - (setupExcluded.discovery - devSetupExcludedDiscovery)
-    );
-    const baseValidation = Math.max(0, setupBaseParaVariaveis - setupExcluded.validation);
-    // Recalcular discValRaw e validVal (mantendo overrides manuais se existirem)
-    let discValRawFinal = 0;
-    let validValRawFinal = 0;
-    if (overrides.discovery !== null) {
-      discValRawFinal = Number(overrides.discovery) || 0;
-    } else {
-      // Base = apenas setup; percentual = percents.discovery (se houver vDef com tipo, respeitamos flat/mixed? mantendo padrão percentual simples)
-      const vDef = variables?.find((v: any) => v.key === 'DISCOVERY_STANDARD');
-      if (!vDef) {
-        discValRawFinal = baseDiscovery * (percents.discovery / 100);
-      } else {
-        const pctValue = percents.discovery;
-        if (vDef.type === 'PERCENT') discValRawFinal = baseDiscovery * (pctValue / 100);
-        else if (vDef.type === 'FLAT') discValRawFinal = parseFloat(vDef.flatValue || 0);
-        else if (vDef.type === 'MIXED') discValRawFinal = (baseDiscovery * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-        else discValRawFinal = baseDiscovery * (pctValue / 100);
-      }
-    }
-    if (overrides.validation !== null) {
-      validValRawFinal = Number(overrides.validation) || 0;
-    } else {
-      const vDef = variables?.find((v: any) => v.key === 'VALIDATION_STANDARD');
-      if (!vDef) {
-        validValRawFinal = baseValidation * (percents.validation / 100);
-      } else {
-        const pctValue = percents.validation;
-        if (vDef.type === 'PERCENT') validValRawFinal = baseValidation * (pctValue / 100);
-        else if (vDef.type === 'FLAT') validValRawFinal = parseFloat(vDef.flatValue || 0);
-        else if (vDef.type === 'MIXED') validValRawFinal = (baseValidation * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-        else validValRawFinal = baseValidation * (pctValue / 100);
-      }
-    }
-
-    // =========================================================================
-    // REGRAS SD / DRN — REGRAS NOVAS (removida distribuição fixa 60/40)
-    // =========================================================================
-    const totalDevFull = Math.max(0,
-      Number(skillLiquido['Desenvolvimento'] || 0) +
-      (Number((safetyHours || {})['Desenvolvimento']) || 0)
-    );
-    const sdLiquido = skillLiquido['Solution Design'] || 0;
-    const safetySD = Number((safetyHours || {})['Solution Design']) || 0;
-    const totalSdBruto = sdLiquido + safetySD;
-
-    const hasSD   = totalSdBruto > 0.0001 || hasSdDiscoveryOnAnyItem;
-    const hasDEV  = totalDevFull  > 0.0001 || hasAnyDesenvolvimento;
-
-    // --- Discovery de Implantação ---
-    // Havendo QUALQUER hora de SD ou de Dev, o discovery deixa de ser de Implantação:
-    //  • com SD (com ou sem Dev) → transferido para SD > Discovery
-    //  • só com Dev             → transferido para SD > Desenvolvimento (DRN)
-    // Sem SD e sem Dev, permanece em Implantação.
-    const transferImplantDiscovery = hasSD || hasDEV;
-
-    if (transferImplantDiscovery) {
-      implantacaoBuckets['implantacao_discovery'] = 0;
-    } else {
-      implantacaoBuckets['implantacao_discovery'] = roundHalfUp(
-        (implantacaoBuckets['implantacao_discovery'] || 0) + discValRawFinal, 1
-      );
-    }
-    implantacaoBuckets['implantacao_validacao'] = roundHalfUp(
-      (implantacaoBuckets['implantacao_validacao'] || 0) + validValRawFinal, 1
-    );
-
-    // 4) Safety de Implantação → Go-Live e Pós Go-live (apoio na estabilização)
-    if (safetyImplantacao > 0) {
-      implantacaoBuckets['implantacao_golive'] = roundHalfUp(
-        (implantacaoBuckets['implantacao_golive'] || 0) + safetyImplantacao, 1
-      );
-    }
-
-    // Redefine discVal e validVal para a fórmula final (consolidado total) usar os valores baseados em Setup
-    const discValRaw = discValRawFinal;
-    const validValRaw = validValRawFinal;
-
-    // --- Segmentação de SD (Solution Design) ---
-    let sd_discovery = 0;
-    let sd_desenvolvimento = 0;
-
-    // SD > Discovery: SD bruto (líquido + safety), 100% configurável
-    sd_discovery += totalSdBruto * (pctSdLiquidoParaSd / 100);
-
-    // SD > Desenvolvimento (DRN): pctDRNDevops % sobre TUDO que for Desenvolvimento (SEMPRE)
-    const drnValRaw = totalDevFull * (pctDRNDevops / 100);
-    sd_desenvolvimento += drnValRaw;
-
-    // Discovery de Implantação transferido (ver acima): SD tem prioridade sobre Dev
-    if (hasSD) sd_discovery += discValRawFinal;
-    else if (hasDEV) sd_desenvolvimento += discValRawFinal;
-
-    // Arredonda e evita negativo
-    sd_discovery       = Math.max(0, roundHalfUp(sd_discovery,       1));
-    sd_desenvolvimento = Math.max(0, roundHalfUp(sd_desenvolvimento, 1));
-
-    // Distribuição por SKILL para o engine da UI (retorna exibido + por subitem)
-    const skillBreakdownBySkill: Record<string, Record<string, number>> = {
-      'Implantação': {
-        implantacao_workshop: implantacaoBuckets.implantacao_workshop,
-        implantacao_discovery: implantacaoBuckets.implantacao_discovery,
-        implantacao_setup: implantacaoBuckets.implantacao_setup,
-        implantacao_validacao: implantacaoBuckets.implantacao_validacao,
-        implantacao_treinamento: implantacaoBuckets.implantacao_treinamento,
-        implantacao_golive: implantacaoBuckets.implantacao_golive,
-      },
-      'GP': {},
-      'Solution Design': {
-        sd_discovery,
-        sd_desenvolvimento,
-      },
-      'Desenvolvimento': {},
-      'Design': {},
-    };
-
-    // Add safety hours to skill totals
-    Object.entries(safetyHours).forEach(([skill, hours]) => {
-      if (skillTotals[skill] !== undefined) {
-        skillTotals[skill] += (hours || 0);
-      }
-    });
-
-    const totalSafetyRaw = Object.values(safetyHours).reduce((a, b) => a + (b || 0), 0);
-
-    // Add Marketplace FLAT hours to Implantação for skill breakdown but not to subtotal for GP calc
-    skillTotals['Implantação'] = (skillTotals['Implantação'] || 0) + flatHoursMarketplace;
-
-    // O total agregado mostrado no card deve bater com a soma dos subitens (inclui variáveis, marketplace, safety).
-    const implantacaoSomaSubitens = Object.values(skillBreakdownBySkill['Implantação']).reduce((a, b) => a + (b || 0), 0);
-    skillTotals['Implantação'] = implantacaoSomaSubitens;
-
-    const sdSomaSubitens = Object.values(skillBreakdownBySkill['Solution Design']).reduce((a, b) => a + (b || 0), 0);
-    skillTotals['Solution Design'] = sdSomaSubitens;
-
-    // Cards DEV e DESIGN não têm subitens (breakdown vazio), então o total mostrado é apenas skillTotals[skill]
-    // (já composto por horas cheias dos itens + safety adicionado acima). Mantemos.
-
-    // GP = x% sobre TODO o projeto (TOTAIS consolidados de cada um dos 4 containers):
-    //  - Implantação (soma subitens: Setup + Workshop/Treinamento/GoLive + Discovery + Validação + Marketplace + Safety)
-    //  - Solution Design (soma subitens: Discovery SD + DRN Desenvolvimento, já com routed + liquido 60/40)
-    //  - Desenvolvimento (horas cheias itens dev + safety)
-    //  - Design (horas cheias itens design + safety)
-    // Excluímos o próprio GP (skillTotals['GP']) para não haver circularidade.
-    // Base do GP: consolidado dos quatro containers, menos as horas de itens
-    // que se declararam fora do GP.
-    const totalBaseGP = Math.max(0,
-      Number(skillTotals['Implantação'] || 0)
-      + Number(skillTotals['Solution Design'] || 0)
-      + Number(skillTotals['Desenvolvimento'] || 0)
-      + Number(skillTotals['Design'] || 0)
-      - gpExcluded
-    );
-
-    // Cálculo do GP sobre a base consolidada
-    let gpValRawFinal = 0;
-    if (overrides.gp !== null) {
-      gpValRawFinal = Number(overrides.gp) || 0;
-    } else {
-      const vDef = variables?.find((v: any) => v.key === 'GP_STANDARD');
-      if (!vDef) {
-        gpValRawFinal = totalBaseGP * (percents.gp / 100);
-      } else {
-        const pctValue = percents.gp;
-        if (vDef.type === 'PERCENT') gpValRawFinal = totalBaseGP * (pctValue / 100);
-        else if (vDef.type === 'FLAT') gpValRawFinal = parseFloat(vDef.flatValue || 0);
-        else if (vDef.type === 'MIXED') gpValRawFinal = (totalBaseGP * (pctValue / 100)) + parseFloat(vDef.flatValue || 0);
-        else gpValRawFinal = totalBaseGP * (pctValue / 100);
-      }
-    }
-    const gpValRaw = gpValRawFinal;
-    skillTotals['GP'] = gpValRaw;
-
-    const subtotalRounded = roundHalfUp(subtotal, 1);
-    const gpVal = roundHalfUp(gpValRaw, 1);
-    const discVal = roundHalfUp(discValRaw, 1);
-    const validVal = roundHalfUp(validValRaw, 1);
-    const totalSafety = roundHalfUp(totalSafetyRaw, 1);
-    // Total geral: TODOS os containers + GP. Não parte de `totalBaseGP`, porque
-    // ela desconta os itens fora do GP — que não recebem GP, mas continuam
-    // sendo horas do projeto.
-    const consolidatedBase =
-      Number(skillTotals['Implantação'] || 0)
-      + Number(skillTotals['Solution Design'] || 0)
-      + Number(skillTotals['Desenvolvimento'] || 0)
-      + Number(skillTotals['Design'] || 0)
-      + gpVal;
-    const grandTotal = roundHalfUp(consolidatedBase, 0);
-
-    return {
-      subtotal: subtotalRounded,
-      skillTotals,
-      skillBreakdownBySkill,
-      // Expostos para o detalhamento por categoria/subcategoria.
-      itemTotals,
-      catTotals,
-      customTotals,
-      gpVal,
-      discVal,
-      // DRN (% sobre Dev) — exposto para o detalhamento por categoria.
-      drnVal: roundHalfUp(drnValRaw, 1),
-      drnPct: pctDRNDevops,
-      safetyHours,
-      // Bases efetivas e horas descontadas pelas tags de não incidência —
-      // expostas para que a UI possa explicar de onde veio o número.
-      baseDiscovery,
-      baseValidation,
-      totalBaseGP,
-      excludedFromVariables: {
-        discovery: roundHalfUp(setupExcluded.discovery, 1),
-        validation: roundHalfUp(setupExcluded.validation, 1),
-        gp: roundHalfUp(gpExcluded, 1),
-      },
-      validVal,
-      flatHoursMarketplace,
-      totalSafety,
-      grandTotal
-    };
-  }, [formData, customPackages, marketplaceApps, safetyHours, percents, overrides, packagesByCategory, variables, allPackages, skuType, planTier, isCategoryOnPlan, variableEligibility]);
-
+  /**
+   * Pacotes personalizados com horas em módulos que não existem mais como
+   * categoria raiz no Admin (desativados ou transformados em subcategoria):
+   * não aparecem na tela, então não contam — e o aviso diz isso.
+   */
+  const customOrphansWithHours = useMemo(
+    () => customPackages.filter((pkg: any) => {
+      if (categories.includes(pkg.category)) return false;
+      const total = pkg.overrideCheck ? parseFloat(pkg.overrideVal) : (parseFloat(pkg.qty) || 0) * (parseFloat(pkg.hours) || 0);
+      return (Number(total) || 0) > 0;
+    }),
+    [customPackages, categories],
+  );
 
   /**
    * Detalhamento por categoria e, dentro dela, por subcategoria.
-   * Reaproveita `totals.itemTotals`, então reflete exatamente o que está sendo
-   * contado (quantidade > 0, módulo marcado, overrides manuais aplicados).
+   * Sai das mesmas linhas do resumo, então reflete exatamente o que está sendo
+   * contado; as parcelas de Discovery, Validação, GP e DRN são os valores já
+   * calculados, repartidos na proporção das horas elegíveis de cada linha.
    */
   const categoryBreakdown = useMemo(() => {
-    type VarKey = 'discovery' | 'validation' | 'gp' | 'drn';
-    type Elig = Record<VarKey, number>;
+    type Elig = Record<ShareKey, number>;
     type Bucket = {
       total: number;
-      /** Base elegível a cada variável, para repartir proporcionalmente. */
       elig: Elig;
       subs: Map<string, { hours: number; elig: Elig }>;
     };
-    const VAR_KEYS: VarKey[] = ['discovery', 'validation', 'gp', 'drn'];
-
-    const byCategory = new Map<string, Bucket>();
+    const VAR_KEYS: ShareKey[] = ['discovery', 'validation', 'gp', 'drn'];
     const zero = (): Elig => ({ discovery: 0, validation: 0, gp: 0, drn: 0 });
+    const byCategory = new Map<string, Bucket>();
 
-    const bump = (
-      cat: string,
-      sub: string,
-      hours: number,
-      elig: Record<VarKey, boolean>,
-    ) => {
+    totals.lines.forEach((line) => {
+      const hours = Number(line.hours) || 0;
       if (!hours) return;
-      if (!byCategory.has(cat)) {
-        byCategory.set(cat, { total: 0, elig: zero(), subs: new Map() });
+      const elig = lineEligibility(line, totals);
+      if (!byCategory.has(line.category)) {
+        byCategory.set(line.category, { total: 0, elig: zero(), subs: new Map() });
       }
-      const entry = byCategory.get(cat)!;
+      const entry = byCategory.get(line.category)!;
       entry.total += hours;
-      if (!entry.subs.has(sub)) entry.subs.set(sub, { hours: 0, elig: zero() });
-      const subEntry = entry.subs.get(sub)!;
+      if (!entry.subs.has(line.subcategory)) entry.subs.set(line.subcategory, { hours: 0, elig: zero() });
+      const subEntry = entry.subs.get(line.subcategory)!;
       subEntry.hours += hours;
-
       VAR_KEYS.forEach((key) => {
         if (!elig[key]) return;
         entry.elig[key] += hours;
         subEntry.elig[key] += hours;
       });
-    };
-
-    // Itens da biblioteca
-    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
-      (pkgs as any[]).forEach((pkg: any) => {
-        const hours = totals.itemTotals?.[pkg.id];
-        if (!hours) return;
-        const itemId = String(pkg.id);
-        const sub =
-          layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
-        const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
-        bump(cat, sub, hours, {
-          // Discovery não incide sobre Dev (o discovery de Dev é o DRN).
-          discovery: !isDev && variableEligibility.discovery(pkg, cat),
-          validation: variableEligibility.validation(pkg, cat),
-          gp: variableEligibility.gp(pkg, cat),
-          drn: isDev,
-        });
-      });
     });
 
-    // Pacotes personalizados: agrupados pela categoria digitada pelo usuário.
-    // Usa as horas que o resumo de fato contou (override e módulo marcado
-    // incluídos). Não têm configuração de incidência, então entram elegíveis
-    // às variáveis — mesmo tratamento da base de cálculo do resumo.
-    customPackages.forEach((pkg: any, idx: number) => {
-      const hours = Number(totals.customTotals?.[idx]) || 0;
-      if (!hours) return;
-      const isDev = (pkg.skillName || pkg.skill) === 'Desenvolvimento';
-      bump(pkg.category || t('common.custom'), t('common.manual'), hours, {
-        discovery: !isDev, validation: true, gp: true, drn: isDev,
-      });
-    });
-
-    // Apps de marketplace entram como bloco FLAT próprio. São somados ao Setup
-    // antes do cálculo de Discovery/Validação, logo incidem normalmente.
-    if (totals.flatHoursMarketplace) {
-      bump(t('editor.marketplaceApps'), t('editor.flat5h'), totals.flatHoursMarketplace, {
-        discovery: true, validation: true, gp: true, drn: false,
-      });
-    }
-
-    // Horas de Safety por skill: entram no total geral, então precisam de uma
-    // linha própria. Recebem GP; o Safety de Dev também compõe a base do DRN.
-    Object.entries(totals.safetyHours || {}).forEach(([skill, raw]) => {
-      const hours = Number(raw) || 0;
-      if (!hours) return;
-      bump(t('editor.breakdownSafety'), skillLabel(t, skill), hours, {
-        discovery: false, validation: false, gp: true, drn: skill === 'Desenvolvimento',
-      });
-    });
-
-    // ---- Repartição proporcional das variáveis --------------------------------
-    // Os valores repartidos são os JÁ CALCULADOS no resumo (respeitando
-    // overrides manuais e as tags de não incidência), então a soma das
-    // contribuições fecha exatamente com o que o bloco "Resumo de horas" exibe.
-    const varTotals: Record<VarKey, number> = {
+    const varTotals: Record<ShareKey, number> = {
       discovery: Number(totals.discVal) || 0,
       validation: Number(totals.validVal) || 0,
       gp: Number(totals.gpVal) || 0,
@@ -1530,29 +1353,27 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       VAR_KEYS.forEach((key) => { eligibleGrand[key] += entry.elig[key]; });
     });
 
-    const share = (eligible: number, key: VarKey) => {
+    const share = (eligible: number, key: ShareKey) => {
       const denominator = eligibleGrand[key];
       if (!denominator) return 0;
       return varTotals[key] * (eligible / denominator);
     };
-    const contribOf = (elig: Elig): Record<VarKey, number> => ({
+    const contribOf = (elig: Elig): Record<ShareKey, number> => ({
       discovery: share(elig.discovery, 'discovery'),
       validation: share(elig.validation, 'validation'),
       gp: share(elig.gp, 'gp'),
       drn: share(elig.drn, 'drn'),
     });
-    const sumOf = (c: Record<VarKey, number>) => VAR_KEYS.reduce((acc, key) => acc + c[key], 0);
+    const sumOf = (c: Record<ShareKey, number>) => VAR_KEYS.reduce((acc, key) => acc + c[key], 0);
 
     const rows = Array.from(byCategory.entries())
       .map(([cat, entry]) => {
         const contrib = contribOf(entry.elig);
-        const contribSum = sumOf(contrib);
-
         return {
           cat,
           total: entry.total,
           contrib,
-          totalWithVariables: entry.total + contribSum,
+          totalWithVariables: entry.total + sumOf(contrib),
           subs: Array.from(entry.subs.entries())
             .map(([sub, subEntry]) => {
               const subContrib = contribOf(subEntry.elig);
@@ -1572,26 +1393,39 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const grandWithVariables = rows.reduce((acc, r) => acc + r.totalWithVariables, 0);
 
     return { rows, grand, grandWithVariables, varTotals };
-  }, [
-    totals.itemTotals,
-    totals.customTotals,
-    totals.safetyHours,
-    totals.flatHoursMarketplace,
-    totals.discVal,
-    totals.validVal,
-    totals.gpVal,
-    totals.drnVal,
-    packagesByCategory,
-    layoutConfig.itemSubcategories,
-    customPackages,
-    variableEligibility,
-    t,
-  ]);
+  }, [totals]);
 
   /** Total do detalhamento conforme o toggle das horas proporcionais. */
   const breakdownGrand = breakdownWithVariables
     ? categoryBreakdown.grandWithVariables
     : categoryBreakdown.grand;
+
+  /**
+   * Módulos do resumo lateral: os que têm horas (do maior para o menor) e, em
+   * seguida, os selecionados ainda sem horas — todos clicáveis, para navegar
+   * direto ao cabeçalho do módulo na página.
+   */
+  const liveSummaryModules = (() => {
+    const withHours = categoryBreakdown.rows.map((row) => ({
+      cat: row.cat,
+      value: breakdownWithVariables ? row.totalWithVariables : row.total,
+    }));
+    const listed = new Set(withHours.map((r) => r.cat));
+    const withoutHours = visibleCategories
+      .filter((cat: string) => formData[`check_area_${cat}`] === 'on' && !listed.has(cat))
+      .map((cat: string) => ({ cat, value: 0 }));
+    return [...withHours, ...withoutHours];
+  })();
+
+  /** Rola até o cabeçalho do módulo (expandindo-o, se estiver recolhido). */
+  const jumpToCategory = (cat: string) => {
+    if (cat === REMOVED_CATEGORY) return;
+    setShowHiddenTab(false);
+    setCollapsedSections((prev) => ({ ...prev, [cat]: false }));
+    requestAnimationFrame(() => {
+      document.getElementById(`cat_section_${domSafeId(cat)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  };
 
   /**
    * Grade de colunas do detalhamento, compartilhada por cabeçalho, linhas de
@@ -1616,50 +1450,34 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   /**
    * Itens que efetivamente entraram no escopo, com categoria e subcategoria.
-   * Sai de `totals.itemTotals`, então reflete quantidade, override manual e os
-   * dois filtros de plano — exatamente o que a tela está somando.
+   * Sai das MESMAS linhas do resumo (`totals.lines`): itens visíveis com
+   * quantidade, override manual, pacotes personalizados de módulos ativos e
+   * apps de Marketplace só com o módulo ativo. Rótulos sempre em português,
+   * porque o template da skill só existe em pt-BR.
    */
   const scopeItems = useMemo(() => {
-    const out: ScopeExportItem[] = [];
-
-    Object.entries(packagesByCategory || {}).forEach(([cat, pkgs]) => {
-      (pkgs as any[]).forEach((pkg: any) => {
-        const hours = totals.itemTotals?.[pkg.id];
-        if (!hours) return;
-        const itemId = String(pkg.id);
-        const sub = layoutConfig.itemSubcategories?.[itemId] || inferDefaultSubcategory(cat, pkg);
-        out.push({
-          // Nome canônico em português: é ele que a skill casa contra o
-          // template, que hoje só existe em pt-BR.
-          category: catLabelOf(cat),
-          subcategory: subcategoryLabel(t, sub),
-          label: String(pkg.name || ''),
-          quantity: parseFloat(formData[`item_${pkg.id}_qty`] || 0) || 0,
-          hours,
-        });
-      });
-    });
-
-    customPackages.forEach((pkg: any) => {
-      const hours = Number(pkg.hours) * Number(pkg.qty || 1);
-      if (!hours) return;
-      out.push({
-        category: pkg.category || t('common.custom'),
-        subcategory: t('common.manual'),
-        label: String(pkg.name || t('common.custom')),
-        quantity: Number(pkg.qty || 1),
-        hours,
-      });
-    });
-
-    marketplaceApps.forEach((app: any) => {
-      out.push({
-        category: t('editor.marketplaceApps'),
-        subcategory: t('editor.flat5h'),
-        label: String(app?.name || app || 'App Marketplace'),
-        quantity: 1,
-        hours: 5,
-      });
+    const out: ScopeExportItem[] = totals.lines.map((line) => {
+      const pkg = line.kind === 'package' ? packageById[String(line.packageId)] : null;
+      const custom = line.kind === 'custom' ? customPackages[line.customIndex ?? -1] : null;
+      const app = line.kind === 'marketplace' ? marketplaceApps[Number(line.key.split(':')[1])] : null;
+      return {
+        category: catLabelPt(line.category),
+        subcategory: subLabelPt(line.subcategory),
+        label:
+          line.kind === 'marketplace' ? (line.label || 'App de Marketplace (sem nome)')
+            : line.kind === 'custom' ? (line.label || 'Item personalizado (sem nome)')
+              : line.label,
+        quantity: line.quantity,
+        hours: line.hours,
+        unitHours: line.unitHours,
+        skill: line.skill || null,
+        manualHours: line.kind === 'package'
+          ? formData[`item_override_check_${line.packageId}`] === 'on'
+          : Boolean(custom?.overrideCheck),
+        includes: pkg ? pkg.scopeIncluded : custom ? custom.scopeIn : null,
+        excludes: pkg ? pkg.scopeExcluded : custom ? custom.scopeOut : null,
+        link: app ? app.link : null,
+      };
     });
 
     return out.sort(
@@ -1668,12 +1486,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         a.subcategory.localeCompare(b.subcategory) ||
         a.label.localeCompare(b.label),
     );
-  }, [
-    packagesByCategory, totals.itemTotals, layoutConfig.itemSubcategories,
-    customPackages, marketplaceApps, formData, catLabelOf, t,
-  ]);
+  }, [totals.lines, catLabelPt, subLabelPt, packageById, customPackages, marketplaceApps, formData]);
 
-  const scopePrompt = useMemo(() => {
+  const scopePromptInput = useMemo(() => {
     // Módulos: derivados das CATEGORIAS que têm hora lançada. Um mapa fixo de
     // módulos daria errado assim que a biblioteca mudasse.
     const modules = Array.from(new Set(scopeItems.map((i) => i.category))).sort();
@@ -1693,8 +1508,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       })
       .map((i) => ({ kind: i.category, label: i.label, quantity: i.quantity }));
 
-    const devHours = Number(totals.skillTotals?.['Desenvolvimento'] || 0);
-    const designHours = Number(totals.skillTotals?.['Design'] || 0);
+    const devHours = Number(totals.skillTotals?.[SKILL_DEV] || 0);
+    const designHours = Number(totals.skillTotals?.[SKILL_DESIGN] || 0);
 
     const flags = detectSuppressionFlags(scopeItems, {
       // Estas duas não vêm de palavra-chave: vêm das horas por skill, que é o
@@ -1704,12 +1519,38 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       design: designHours > 0,
     });
 
-    return buildScopePrompt({
+    // Percentuais REALMENTE aplicados (com projeto SD o Discovery vale 0).
+    const manual = (hours: number) => `ajuste manual: ${String(hours).replace('.', ',')}h`;
+    const percentLines = [
+      {
+        label: 'Discovery',
+        value: totals.discoveryMode === 'sd' ? 0 : percents.discovery,
+        note: totals.discoveryMode === 'sd'
+          ? 'projeto com SD — sem discovery percentual'
+          : overrides.discovery !== null
+            ? manual(totals.discVal)
+            : totals.discoveryMode === 'dev' ? 'conduzido pelo Solution Design' : undefined,
+      },
+      {
+        label: 'Validação',
+        value: percents.validation,
+        note: overrides.validation !== null ? manual(totals.validVal) : undefined,
+      },
+      {
+        label: 'GP',
+        value: percents.gp,
+        note: overrides.gp !== null ? manual(totals.gpVal) : undefined,
+      },
+      { label: 'DRN', value: totals.drnPct },
+    ];
+
+    const input: ScopeExportInput = {
       origin: 'framework',
       template: 'pacote-de-horas',
       clientName: projectName,
       projectName,
       versionName: versionName || 'V1',
+      versionDescription: currentVersion?.description || null,
       generatedAt: new Date(),
       technicalScopeLink: techLink,
       zohoLink,
@@ -1717,6 +1558,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       totalHours: totals.grandTotal,
       skillHours: totals.skillTotals,
       percents: percents,
+      percentLines,
+      calculatedHours: [
+        {
+          label: 'Discovery',
+          hours: totals.discVal,
+          note: totals.discoveryMode === 'sd'
+            ? 'projeto com SD — as horas de SD são o discovery'
+            : totals.discoveryMode === 'dev' ? 'em Solution Design' : undefined,
+        },
+        { label: 'Validação', hours: totals.validVal },
+        { label: 'DRN - Desenvolvimento', hours: totals.drnVal },
+        { label: 'GP', hours: totals.gpVal },
+      ],
       planTierLabel: PLAN_LABEL[planTier],
       skuLabel: skuType === 'ES' ? t('plans.employeeService') : t('plans.customerService'),
       deploymentType,
@@ -1727,38 +1581,48 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       integrations,
       flags,
       categories: categoryBreakdown.rows.map((row) => ({
-        label: catLabelOf(row.cat),
+        label: catLabelPt(row.cat),
         hours: row.total,
         subcategories: row.subs.map((s) => ({
-          label: subcategoryLabel(t, s.sub),
+          label: subLabelPt(s.sub) || 'Itens da categoria',
           hours: s.hours,
         })),
       })),
       items: scopeItems,
-      // Fase 2: preencher a partir do Zoho CRM.
-      crm: null,
-    });
+    };
+    return input;
   }, [
-    scopeItems, project, projectName, versionName, currentVersion, techLink, zohoLink,
-    totals.grandTotal, totals.skillTotals, percents, planTier, skuType,
-    deploymentType, language,
-    categoryBreakdown.rows, catLabelOf, t,
+    scopeItems, project, projectName, versionName, techLink, zohoLink,
+    totals, percents, overrides, planTier, skuType,
+    deploymentType, language, currentVersion,
+    categoryBreakdown.rows, catLabelPt, subLabelPt, t,
   ]);
 
+  const scopePrompt = useMemo(() => buildScopePrompt(scopePromptInput), [scopePromptInput]);
+
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
+  const [scopePromptLoading, setScopePromptLoading] = useState(false);
 
   const handleCopyScopePrompt = async () => {
-    // O escopo exportado descreve a versão SALVA; avisar é mais honesto do que
-    // exportar silenciosamente um rascunho.
+    // O escopo exportado descreve a versão SALVA: com alterações pendentes, o
+    // número e o rótulo da versão não bateriam com o que foi salvo.
     if (!currentVersion) {
       alert(t('editor.scopePromptNeedsSave'));
       return;
     }
+    if (isDirty) {
+      alert(t('editor.scopePromptNeedsSaveChanges'));
+      return;
+    }
+    setScopePromptLoading(true);
+    const zohoSection = await zohoSectionFor(zohoLink);
+    setScopePromptLoading(false);
+    const text = buildScopePrompt({ ...scopePromptInput, zohoSection });
     try {
-      await navigator.clipboard.writeText(scopePrompt);
+      await navigator.clipboard.writeText(text);
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = scopePrompt;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand('copy'); } catch (_) {}
@@ -1766,6 +1630,143 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     }
     setScopePromptCopied(true);
     setTimeout(() => setScopePromptCopied(false), 2500);
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /*                      ALTERAÇÕES NÃO SALVAS (guarda)                       */
+  /* ------------------------------------------------------------------------ */
+
+  /** Tudo o que o salvar grava, num texto comparável. */
+  const serializedState = useMemo(() => JSON.stringify({
+    formData, customPackages, marketplaceApps, percents, overrides,
+    techLink, zohoLink, skuType, planTier, deploymentType, priceMode,
+  }), [formData, customPackages, marketplaceApps, percents, overrides, techLink, zohoLink, skuType, planTier, deploymentType, priceMode]);
+  const savedStateRef = useRef<string | null>(null);
+  if (savedStateRef.current === null) savedStateRef.current = serializedState;
+  const isDirty = serializedState !== savedStateRef.current;
+  const { confirmLeave } = useUnsavedChangesGuard(isDirty && !isPending, t('common.unsavedChangesConfirm'));
+
+  /** Trocar de versão pelo seletor: confirma antes de descartar alterações. */
+  const goToVersion = (versionId: string) => {
+    if (!versionId || String(versionId) === String(currentVersion?.id || '')) return;
+    if (!confirmLeave()) return;
+    savedStateRef.current = serializedState; // a guarda não pergunta de novo
+    router.push(`/sc/project/${project.id}?version_id=${versionId}`);
+  };
+
+  /* ------------------------------------------------------------------------ */
+  /*                    EXPORTAÇÃO (CSV, XLSX, PDF, PNG)                       */
+  /* ------------------------------------------------------------------------ */
+
+  const exportPreviewRef = useRef<HTMLDivElement>(null);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+
+  /** Linhas do resumo de horas, na mesma ordem e com os mesmos valores da tela. */
+  const summaryLines = useMemo(() => {
+    const out: ExportDocument['summary'] = [];
+    const impl = totals.skillBreakdownBySkill[SKILL_IMPL] || {};
+    const sd = totals.skillBreakdownBySkill[SKILL_SD] || {};
+    out.push({ label: skillLabel(t, SKILL_IMPL), hours: totals.skillTotals[SKILL_IMPL] || 0, level: 0 });
+    SKILL_BREAKDOWN_SUBITEMS[SKILL_IMPL].forEach((sub) => {
+      if (sub.source === 'implantacao_discovery' && totals.discoveryMode !== 'implementation') {
+        out.push({ label: subitemLabel(t, sub.key, sub.label), hours: null, note: t('editor.discoveryHandledBySD'), level: 1 });
+        return;
+      }
+      out.push({ label: subitemLabel(t, sub.key, sub.label), hours: Number(impl[sub.source] || 0), level: 1 });
+    });
+    out.push({ label: skillLabel(t, SKILL_SD), hours: totals.skillTotals[SKILL_SD] || 0, level: 0 });
+    SKILL_BREAKDOWN_SUBITEMS[SKILL_SD].forEach((sub) => {
+      out.push({ label: subitemLabel(t, sub.key, sub.label), hours: Number(sd[sub.source] || 0), level: 1 });
+    });
+    [SKILL_DEV, SKILL_DESIGN, ...extraSkills].forEach((skill) => {
+      out.push({ label: skillLabel(t, skill), hours: totals.skillTotals[skill] || 0, level: 0 });
+    });
+    out.push({ label: `${skillLabel(t, SKILL_GP)} (${percents.gp}%)`, hours: totals.skillTotals[SKILL_GP] || 0, level: 0 });
+    return out;
+  }, [totals, extraSkills, percents.gp, t]);
+
+  const exportDocument = useMemo<ExportDocument>(() => {
+    const versionLabel = versionName
+      ? `${versionName}${currentVersion?.description ? ` — ${currentVersion.description}` : ''}`
+      : t('editor.versionNotSaved', { name: nextVersionLabel });
+    const meta = [
+      { label: t('export.version'), value: isDirty ? `${versionLabel} (${t('export.unsavedChanges')})` : versionLabel },
+      { label: t('plans.tier'), value: `${PLAN_LABEL[planTier]} · ${skuType === 'ES' ? t('plans.employeeService') : t('plans.customerService')}` },
+      { label: t('export.generatedAt'), value: new Date().toLocaleString(dateLocale) },
+    ];
+    if (priceMode === 'original' && hasPriceChanges) {
+      meta.push({ label: t('editor.priceModeLabel'), value: t('editor.priceModeOriginal') });
+    }
+    const rows = [...totals.lines]
+      .sort((a, b) =>
+        catLabelOf(a.category).localeCompare(catLabelOf(b.category)) ||
+        subLabelOf(a.subcategory).localeCompare(subLabelOf(b.subcategory)) ||
+        a.label.localeCompare(b.label))
+      .map((line) => {
+        const pkg = line.packageId != null ? packageById[String(line.packageId)] : null;
+        return {
+          category: catLabelOf(line.category),
+          subcategory: line.subcategory === ROOT_SUBCATEGORY ? '' : subLabelOf(line.subcategory),
+          item: pkg ? packageName(pkg, language)
+            : line.label || (line.kind === 'marketplace' ? t('editor.marketplaceAppUnnamed') : t('common.custom')),
+          skill: skillLabel(t, line.skill || SKILL_NONE),
+          quantity: line.quantity,
+          unitHours: line.unitHours,
+          total: line.hours,
+        };
+      });
+    return {
+      locale: language,
+      fileBase: safeFileBase(`${projectName}-${versionName || 'rascunho'}`),
+      title: projectName,
+      meta,
+      columns: [
+        { key: 'category', label: t('common.category'), width: 28 },
+        { key: 'subcategory', label: t('editor.subcategory'), width: 26 },
+        { key: 'item', label: t('common.item'), width: 48 },
+        { key: 'skill', label: t('export.skill'), width: 18 },
+        { key: 'quantity', label: t('common.quantity'), numeric: true, width: 10 },
+        { key: 'unitHours', label: t('editor.unitHours'), numeric: true, width: 12 },
+        { key: 'total', label: t('common.subtotal'), numeric: true, width: 12 },
+      ],
+      rows,
+      summaryTitle: `${t('editor.summaryOf')} ${t('editor.summaryOfHours')}`,
+      summary: summaryLines,
+      grandTotalLabel: t('editor.grandTotal'),
+      grandTotal: totals.grandTotal,
+      hoursUnit: t('common.hours'),
+    };
+  }, [totals, summaryLines, versionName, currentVersion, nextVersionLabel, isDirty, planTier, skuType, language, dateLocale, priceMode, hasPriceChanges, projectName, catLabelOf, subLabelOf, packageById, t]);
+
+  const handleExport = async (format: ExportFormat) => {
+    setIsExportMenuOpen(false);
+    setExportingFormat(format);
+    try {
+      if (format === 'csv') exportCsv(exportDocument);
+      else if (format === 'xlsx') await exportXlsx(exportDocument);
+      else if (format === 'pdf') await exportPdf(exportDocument);
+      else {
+        // O PNG fotografa uma prévia montada fora da tela (ver render).
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        if (exportPreviewRef.current) await exportPng(exportPreviewRef.current, exportDocument.fileBase);
+      }
+    } catch (e: any) {
+      console.error('[export]', e);
+      alert(`${t('export.failed')}\n\n${e?.message || String(e)}`);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
+  /** Grava (ou remove, quando vazio) um campo numérico já validado pelo NumericInput. */
+  const setFormValue = (key: string, value: string) => {
+    setFormData((prev: any) => {
+      const next = { ...prev };
+      if (value === '') delete next[key];
+      else next[key] = value;
+      return next;
+    });
   };
 
   const handleInputChange = (e: any) => {
@@ -1795,14 +1796,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       // Get all quantity inputs in the form
       const qtyInputs = Array.from(form.querySelectorAll('input[name^="item_"][name$="_qty"]')) as HTMLInputElement[];
       const currentIndex = qtyInputs.indexOf(e.currentTarget);
-      
-      if (currentIndex !== -1 && currentIndex < qtyInputs.length - 1) {
-        // Focus and select the next quantity input
-        const nextInput = qtyInputs[currentIndex + 1];
+      // Shift+Tab volta para a quantidade anterior; Tab e Enter avançam.
+      const step = e.key === 'Tab' && e.shiftKey ? -1 : 1;
+      const targetIndex = currentIndex + step;
+
+      if (currentIndex !== -1 && targetIndex >= 0 && targetIndex < qtyInputs.length) {
+        // Focus and select the neighbouring quantity input
+        const nextInput = qtyInputs[targetIndex];
         nextInput.focus();
         nextInput.select();
       } else {
-        // If it's the last one, just blur
+        // If it's the last one (or the first, going back), just blur
         e.currentTarget.blur();
       }
     }
@@ -1841,6 +1845,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           if (k.startsWith('custom_pkg_')) delete mergedFormData[k];
         });
 
+        // Itens ocultos não contam hora: a versão salva também não os carrega,
+        // para que o total gravado seja o mesmo para qualquer usuário.
+        hiddenItems.forEach((id) => {
+          delete mergedFormData[`item_${id}_qty`];
+          delete mergedFormData[`item_override_check_${id}`];
+          delete mergedFormData[`item_override_val_${id}`];
+        });
+
         // 2. Escreve as flat keys a partir do estado atual customPackages
         customPackages.forEach(pkg => {
           const fields = [
@@ -1875,14 +1887,16 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           gpOverride: overrides.gp,
           discoveryOverride: overrides.discovery,
           validationOverride: overrides.validation,
-          safetyHours: JSON.stringify(safetyHours),
+          // Horas de safety foram removidas do cálculo: a versão deixa de carregá-las.
+          safetyHours: null,
           totalHours: Number(totals.grandTotal) || 0,
           data: {
             ...mergedFormData,
             marketplace_apps: JSON.stringify(marketplaceApps),
             __skuType: skuType,
             __planTier: planTier,
-            __deploymentType: deploymentType
+            __deploymentType: deploymentType,
+            __priceSnapshot: buildPriceSnapshot(mergedFormData),
           }
         };
         console.log('[DEBUG:SAVE] Tamanho do JSON.stringify(payload.data) antes da requisição:',
@@ -1896,17 +1910,44 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             ? (result as any).data.slice(0, 300)
             : JSON.stringify((result as any).data ?? null).slice(0, 300));
 
+        // A tela passa a refletir exatamente o que foi gravado, e a guarda de
+        // alterações não salvas recomeça a partir daqui.
+        const { __priceSnapshot: savedSnapshot, ...savedData } = payload.data as any;
+        setFormData(savedData);
+        setPriceSnapshot(savedSnapshot);
+        savedStateRef.current = null;
+
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
         // Ao atualizar, a URL não muda: força a releitura da versão salva.
         router.refresh();
         alert(saveMode === 'update'
           ? t('editor.versionUpdated', { name: result.versionName })
           : t('editor.versionCreated', { name: result.versionName }));
-      } catch (e) {
+      } catch (e: any) {
         console.error('[DEBUG:SAVE] saveProjectVersionAction ERROR:', e);
-        alert(t('editor.versionSaveError'));
+        alert(`${t('editor.versionSaveError')}\n\n${e?.message || String(e)}`);
       }
     });
+  };
+
+  /**
+   * Retrato de preços gravado junto com a versão: horas, skill e tags de
+   * não incidência de cada item com quantidade, com os valores usados agora
+   * (originais ou atuais, conforme o modo escolhido), mais o % de DRN.
+   */
+  const buildPriceSnapshot = (data: any): PriceSnapshot => {
+    const items: PriceSnapshot['items'] = {};
+    allPackages.forEach((pkg: any) => {
+      if ((parseFloat(data?.[`item_${pkg.id}_qty`] || 0) || 0) <= 0) return;
+      const price = priceOf(pkg);
+      items[String(pkg.id)] = { h: price.hours, s: price.skill, x: price.excluded, n: String(pkg.name || ''), c: packageRootCategoryById[String(pkg.id)] };
+    });
+    // Item que saiu da biblioteca mas ainda tem quantidade: mantém o retrato antigo.
+    Object.entries(priceSnapshot?.items || {}).forEach(([id, snap]) => {
+      if (items[id] || packageById[id]) return;
+      if ((parseFloat(data?.[`item_${id}_qty`] || 0) || 0) > 0) items[id] = snap;
+    });
+    return { v: 1, savedAt: new Date().toISOString(), drnPct: effectiveDrnPct, items };
   };
 
   const handleClone = async () => {
@@ -1914,6 +1955,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       alert(t('editor.selectVersionToClone'));
       return;
     }
+    // A cópia parte da versão SALVA: alterações pendentes seriam descartadas.
+    if (!confirmLeave()) return;
 
     // A cópia vira uma NOVA versão com número automático; só a descrição é pedida.
     const description = (prompt(
@@ -1931,6 +1974,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     startTransition(async () => {
       try {
         const result = await cloneProjectVersionAction(project.id, currentVersion.id, description, newLink);
+        savedStateRef.current = serializedState; // a guarda não pergunta de novo
         router.push(`/sc/project/${project.id}?version_id=${result.id}`);
         alert(t('editor.versionCloned'));
       } catch (e) {
@@ -1990,8 +2034,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     if (!pkg) return;
 
     let finalValue = value;
-    if (['hours', 'qty', 'overrideVal'].includes(field)) {
+    if (['hours', 'qty'].includes(field)) {
       finalValue = Math.max(0, parseFloat(value) || 0);
+    }
+    // Ajuste manual vazio = sem ajuste (o item volta a valer quantidade × horas),
+    // igual aos itens da biblioteca.
+    if (field === 'overrideVal') {
+      finalValue = value === '' ? '' : Math.max(0, parseFloat(value) || 0);
     }
 
     setCustomPackages(prev =>
@@ -2046,8 +2095,8 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     const key = subcategoryKey(category, subcategory);
     const orderedIds = layoutConfig.itemOrder[key] || [];
     const visiblePackages = (packagesByCategory[category] || [])
-      .filter((pkg: any) => !hiddenItems.includes(pkg.id))
-      .filter((pkg: any) => (layoutConfig.itemSubcategories[String(pkg.id)] || DEFAULT_SUBCATEGORY) === subcategory);
+      .filter((pkg: any) => !hiddenSet.has(Number(pkg.id)))
+      .filter((pkg: any) => subcategoryOf(pkg) === subcategory);
 
     return [...visiblePackages].sort((a: any, b: any) => {
       const indexA = orderedIds.indexOf(String(a.id));
@@ -2134,7 +2183,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
-                    onChange={(e) => router.push(`/sc/project/${project.id}?version_id=${e.target.value}`)}
+                    onChange={(e) => goToVersion(e.target.value)}
                     className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {allVersions.map((v: any) => (
@@ -2261,7 +2310,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
                 {!formData.needsSC && (
                   <div className="pt-6 border-t border-white/10 flex items-center justify-center space-x-3 text-label font-medium text-slate-400">
-                    <span>Inclui GP ({((variables?.find((v:any)=>v.key==='AE_GP_PERCENTAGE')?.value || 0.15)*100).toFixed(0)}%)</span>
+                    <span>{t('editor.includesGp', { pct: ((variables?.find((v:any)=>v.key==='AE_GP_PERCENTAGE')?.value || 0.15)*100).toFixed(0) })}</span>
                   </div>
                 )}
               </div>
@@ -2272,8 +2321,24 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     );
   }
 
+  // Módulos marcados. Com ultracompacto + 2 colunas (em telas a partir de
+  // 1400px), eles se dividem em duas colunas equilibradas pela quantidade de
+  // itens; abaixo disso voltam a uma coluna, na ordem original (CSS order).
+  const checkedCategories: string[] = visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on');
+  const categoryColumns: string[][] = twoColumns ? [[], []] : [checkedCategories];
+  if (twoColumns) {
+    const weight = [0, 0];
+    checkedCategories.forEach((cat) => {
+      const items = (packagesByCategory[cat] || []).filter((p: any) => isPackageVisible(p)).length
+        + customPackages.filter((cp: any) => cp.category === cat).length;
+      const column = weight[0] <= weight[1] ? 0 : 1;
+      categoryColumns[column].push(cat);
+      weight[column] += 2 + items;
+    });
+  }
+
   return (
-    <form className="space-y-8 pb-12 xl:mx-[calc((100%_-_min(100vw_-_80px,1680px))/2)]" onSubmit={(e) => e.preventDefault()}>
+    <form className={`${ultraCompact ? 'editor-ultra space-y-3' : 'space-y-8'} pb-12 xl:mx-[calc((100%_-_min(100vw_-_80px,1680px))/2)]`} onSubmit={(e) => e.preventDefault()}>
       {/* Header: Project Controls */}
       <div className="bg-white p-8 rounded-3xl border border-slate-300 mb-8 shadow-sm">
         <div className="flex flex-col space-y-6">
@@ -2321,7 +2386,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 <div className="relative">
                   <select 
                     value={currentVersion?.id || ''}
-                    onChange={(e) => router.push(`/sc/project/${project.id}?version_id=${e.target.value}`)}
+                    onChange={(e) => goToVersion(e.target.value)}
                     className="bg-white border border-slate-200 rounded-lg text-caption font-medium p-2 pr-8 focus:ring-2 focus:ring-brand-primary outline-none appearance-none cursor-pointer shadow-sm transition-all"
                   >
                     {!currentVersion && !allVersions.length && <option value="">{t('editor.initialDraft')}</option>}
@@ -2350,7 +2415,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <button
                 type="button"
                 onClick={handleCopyScopePrompt}
-                disabled={isPending || !currentVersion}
+                disabled={isPending || !currentVersion || scopePromptLoading}
                 title={currentVersion ? t('editor.copyScopePromptHint') : t('editor.scopePromptNeedsSave')}
                 className={`shrink-1 min-w-0 lg:flex-none lg:shrink-0 px-4 lg:px-6 py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden ${
                   scopePromptCopied
@@ -2358,9 +2423,44 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     : 'border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]'
                 }`}
               >
-                {scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
-                <span className="truncate">{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                {scopePromptLoading ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : scopePromptCopied ? <Check className="w-3.5 h-3.5 shrink-0" /> : <MessageSquare className="w-3.5 h-3.5 shrink-0" />}
+                <span className="truncate">{scopePromptLoading ? t('editor.scopePromptLoadingZoho') : scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
               </button>
+              {/* Exportação: escolhe o formato; o arquivo sai do mesmo cálculo da tela. */}
+              <div className="relative shrink-1 min-w-0 lg:flex-none lg:shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setIsExportMenuOpen((v) => !v)}
+                  disabled={exportingFormat !== null}
+                  aria-haspopup="menu"
+                  aria-expanded={isExportMenuOpen}
+                  className="w-full px-4 lg:px-6 py-3.5 rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-label disabled:opacity-50 overflow-hidden border-2 border-brand-dark text-brand-dark hover:bg-brand-dark hover:text-[color:var(--bg-main)]"
+                >
+                  {exportingFormat ? <Loader2 className="w-3.5 h-3.5 shrink-0 animate-spin" /> : <Download className="w-3.5 h-3.5 shrink-0" />}
+                  <span className="truncate">{t('export.button')}</span>
+                  <ChevronDown className="w-3.5 h-3.5 shrink-0" />
+                </button>
+                {isExportMenuOpen && (
+                  <div role="menu" className="absolute right-0 mt-2 w-56 z-[60] bg-white dark:bg-[color:var(--bg-card-solid)] border border-slate-200 dark:border-[color:var(--border-main)] rounded-2xl shadow-2xl overflow-hidden">
+                    {([
+                      ['csv', t('export.formatCsv')],
+                      ['xlsx', t('export.formatXlsx')],
+                      ['pdf', t('export.formatPdf')],
+                      ['png', t('export.formatPng')],
+                    ] as Array<[ExportFormat, string]>).map(([format, label]) => (
+                      <button
+                        key={format}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => void handleExport(format)}
+                        className="w-full text-left px-4 py-3 text-label font-medium text-brand-dark dark:text-[color:var(--text-main)] hover:bg-slate-50 dark:hover:bg-[color:var(--bg-input)] transition-colors"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -2456,6 +2556,127 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
       </div>
 
+      {/* Avisos da versão aberta. */}
+      {hasPriceChanges && (
+        <div role="status" className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-800 rounded-3xl p-6 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="text-title font-bold text-amber-800 dark:text-amber-200">{t('editor.priceChangedTitle')}</h3>
+                <p className="text-label text-amber-700 dark:text-amber-300 mt-1">
+                  {priceMode === 'original' ? t('editor.priceChangedHintOriginal') : t('editor.priceChangedHintCurrent')}
+                </p>
+              </div>
+            </div>
+            <div className="flex bg-white dark:bg-[color:var(--bg-input)] p-1 rounded-xl border border-amber-200 dark:border-amber-800 shrink-0" role="group" aria-label={t('editor.priceModeLabel')}>
+              {(['original', 'current'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPriceMode(mode)}
+                  aria-pressed={priceMode === mode}
+                  className={`px-4 py-2 rounded-lg text-caption font-medium transition-all ${
+                    priceMode === mode ? 'bg-amber-500 text-white shadow-sm' : 'text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30'
+                  }`}
+                >
+                  {mode === 'original' ? t('editor.priceModeOriginal') : t('editor.priceModeCurrent')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ul className="text-label text-amber-800 dark:text-amber-200 space-y-1 pl-8 list-disc">
+            {priceChanges.changes.map((change) => (
+              <li key={`${change.id}-${change.kind}`}>
+                <span className="font-medium">{change.name}</span>
+                {': '}
+                {change.kind === 'hours' && t('editor.priceChangeHours', { from: change.from, to: change.to })}
+                {change.kind === 'skill' && t('editor.priceChangeSkill', { from: change.from, to: change.to })}
+                {change.kind === 'exclusions' && t('editor.priceChangeExclusions')}
+                {change.kind === 'removed' && (priceMode === 'original' ? t('editor.priceChangeRemovedOriginal') : t('editor.priceChangeRemoved'))}
+                {change.kind === 'orphaned' && (priceMode === 'original' ? t('editor.priceChangeOrphanedOriginal') : t('editor.priceChangeOrphaned'))}
+              </li>
+            ))}
+            {priceChanges.drn && (
+              <li>
+                <span className="font-medium">DRN</span>
+                {': '}
+                {t('editor.priceChangeDrn', { from: priceChanges.drn.from, to: priceChanges.drn.to })}
+              </li>
+            )}
+          </ul>
+          {/* Linhas que só existem no retrato (sem lugar na tabela de itens):
+              mostradas aqui com as horas que estão contando. */}
+          {priceMode === 'original' && snapshotOnlyLines.length > 0 && (
+            <div className="pl-8">
+              <p className="text-caption font-bold text-amber-800 dark:text-amber-200 mb-1">{t('editor.snapshotOnlyLinesTitle')}</p>
+              <ul className="text-label text-amber-800 dark:text-amber-200 space-y-0.5">
+                {snapshotOnlyLines.map((line) => (
+                  <li key={line.key} className="tabular-nums">
+                    {line.label} — {line.quantity} × {line.unitHours}h = <span className="font-bold">{roundHalfUp(line.hours, 2)}h</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!priceSnapshot && currentVersion && Number(currentVersion.totalHours) > 0 && !isDirty
+        && Math.abs(Number(totals.grandTotal) - Number(currentVersion.totalHours)) >= 0.5 && (
+        <div role="status" className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-3xl px-6 py-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <p className="text-label text-amber-800 dark:text-amber-200">
+            {t('editor.legacyTotalMismatch', { saved: Math.round(Number(currentVersion.totalHours)), now: Math.round(Number(totals.grandTotal)) })}
+          </p>
+        </div>
+      )}
+
+      {hiddenWithHours.length > 0 && (
+        <div role="status" className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-3xl px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <EyeOff className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <p className="text-label text-rose-800 dark:text-rose-200">
+              {t('editor.hiddenWithHoursWarning', { count: hiddenWithHours.length, names: hiddenWithHours.map(packageNameById).join(', ') })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void unhideItems(hiddenWithHours)}
+            className="shrink-0 inline-flex items-center gap-2 bg-white dark:bg-[color:var(--bg-card)] border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-200 px-4 py-2 rounded-xl text-caption font-medium hover:bg-rose-100 transition-colors"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {t('editor.showHiddenItems')}
+          </button>
+        </div>
+      )}
+
+      {orphansWithHours.length > 0 && (
+        <div role="status" className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-3xl px-6 py-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <p className="text-label text-rose-800 dark:text-rose-200">
+            {t('editor.orphanItemsWarning', {
+              count: orphansWithHours.length,
+              names: orphansWithHours.map((p: any) => packageName(p, language)).join(', '),
+            })}
+          </p>
+        </div>
+      )}
+
+      {customOrphansWithHours.length > 0 && (
+        <div role="status" className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 rounded-3xl px-6 py-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <p className="text-label text-rose-800 dark:text-rose-200">
+            {t('editor.customOrphanWarning', {
+              count: customOrphansWithHours.length,
+              names: customOrphansWithHours
+                .map((pkg: any) => `${pkg.name || t('common.custom')} (${catLabelOf(pkg.category)})`)
+                .join(', '),
+            })}
+          </p>
+        </div>
+      )}
+
       {/* Grade do editor: conteúdo à esquerda e, a partir de xl, o resumo de horas
           fixo à direita, atualizado a cada alteração da estimativa. */}
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_320px] gap-8">
@@ -2503,7 +2724,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           >
                             <div className="flex flex-col">
                               <span>{packageName(p, language)}</span>
-                              <span className="text-caption text-slate-300 dark:text-[color:var(--text-muted)] font-medium">{Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0} itens ocultos</span>
+                              <span className="text-caption text-slate-300 dark:text-[color:var(--text-muted)] font-medium">{t('editor.presetHiddenCount', { count: Array.isArray(p.hiddenItems) ? p.hiddenItems.length : 0 })}</span>
                             </div>
                             <Check className="w-3 h-3 text-emerald-500 opacity-0 group-hover/preset:opacity-100 transition-opacity" />
                           </button>
@@ -2546,7 +2767,54 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
         
         <div className="flex flex-col gap-4">
+          {/* Seleção de módulos: lista suspensa ou todos visíveis (preferência lembrada). */}
+          <div className="inline-flex items-center gap-1 p-1 rounded-xl border border-slate-200 dark:border-[color:var(--border-main)] bg-slate-50 dark:bg-[color:var(--bg-input)] w-fit" role="group" aria-label={t('editor.moduleViewLabel')}>
+            {([
+              [false, t('editor.moduleViewDropdown'), ChevronsUpDown],
+              [true, t('editor.moduleViewAll'), LayoutGrid],
+            ] as Array<[boolean, string, any]>).map(([chips, text, Icon]) => (
+              <button
+                key={String(chips)}
+                type="button"
+                aria-pressed={editorView.moduleChips === chips}
+                onClick={() => updateEditorView({ moduleChips: chips })}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-caption font-medium transition-colors ${
+                  editorView.moduleChips === chips ? 'brand-bg-primary text-brand-ink shadow-sm' : 'text-slate-500 hover:text-brand-dark'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                {text}
+              </button>
+            ))}
+          </div>
+          {editorView.moduleChips && (
+            <div className="flex flex-wrap gap-2">
+              {visibleCategories.map((cat: string) => {
+                const isChecked = formData[`check_area_${cat}`] === 'on';
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    aria-pressed={isChecked}
+                    onClick={() => {
+                      setCategoryChecked(cat, !isChecked);
+                      setShowHiddenTab(false);
+                    }}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-label font-medium border transition-all ${
+                      isChecked
+                        ? 'brand-bg-primary text-brand-ink border-transparent shadow-sm'
+                        : 'bg-white dark:bg-[color:var(--bg-card-solid)] text-slate-500 dark:text-[color:var(--text-muted)] border-slate-200 dark:border-[color:var(--border-main)] hover:text-brand-dark hover:border-slate-400'
+                    }`}
+                  >
+                    {isChecked && <Check className="w-3.5 h-3.5" />}
+                    {catLabelOf(cat)}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            {!editorView.moduleChips && (
             <div className="relative w-full sm:max-w-xl" ref={moduleSelectRef}>
               <button
                 type="button"
@@ -2633,6 +2901,50 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </div>
               )}
             </div>
+            )}
+
+            {/* Atalhos: preenchem as quantidades de Treinamento e Workshop de cada
+                módulo selecionado, e as de Go-live / Pós Go-live. */}
+            <div className="flex flex-col gap-2 sm:pt-1">
+              <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">{t('editor.shortcutsLabel')}</span>
+              <div className="flex flex-wrap gap-2">
+                {(['training', 'workshop', 'golive'] as ShortcutKind[]).map((kind) => {
+                  const on = formData[SHORTCUT_FLAG[kind]] === 'on';
+                  return (
+                    <label
+                      key={kind}
+                      title={t(`editor.shortcutHint_${kind}`)}
+                      className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-caption font-medium transition-colors ${
+                        on
+                          ? 'border-brand-primary bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)]'
+                          : 'border-slate-300 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)] hover:border-brand-primary'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        onChange={(e) => toggleShortcut(kind, e.target.checked)}
+                        className="accent-[color:var(--primary)]"
+                      />
+                      {t(`editor.shortcut_${kind}`)}
+                    </label>
+                  );
+                })}
+              </div>
+              {(['training', 'workshop'] as ShortcutKind[]).map((kind) => {
+                if (formData[SHORTCUT_FLAG[kind]] !== 'on') return null;
+                const missing = selectedSetupModules(formData).filter((m) => shortcutTargets(kind, [m]).length === 0);
+                if (!missing.length) return null;
+                return (
+                  <p key={kind} className="text-caption text-amber-700 dark:text-amber-300 max-w-xs">
+                    {t('editor.shortcutMissing', { kind: t(`editor.shortcut_${kind}`), modules: missing.map((m) => catLabelOf(m)).join(', ') })}
+                  </p>
+                );
+              })}
+              {formData[SHORTCUT_FLAG.golive] === 'on' && shortcutTargets('golive', []).length === 0 && (
+                <p className="text-caption text-amber-700 dark:text-amber-300 max-w-xs">{t('editor.shortcutMissingGoLive')}</p>
+              )}
+            </div>
 
             <button
               type="button"
@@ -2660,6 +2972,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </button>
           </div>
 
+          {/* Módulos escolhidos (com "x" para tirar) — no modo "todos visíveis"
+              os próprios botões já mostram a seleção. */}
+          {!editorView.moduleChips && (
           <div className="flex flex-wrap gap-2">
             {visibleCategories.filter((cat: string) => formData[`check_area_${cat}`] === 'on').length === 0 ? (
               <div className="text-caption font-medium text-slate-400">
@@ -2682,6 +2997,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 ))
             )}
           </div>
+          )}
         </div>
 
         <div className="mt-6 relative">
@@ -2752,7 +3068,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       </div>
 
       {/* Package Sections */}
-      <div className="space-y-6">
+      <div className={ultraCompact ? 'space-y-3' : 'space-y-6'}>
         {/* Renderização da aba de itens ocultos */}
         {showHiddenTab && (
           <div className="bg-white rounded-3xl border-2 border-red-100 shadow-xl shadow-red-900/5 overflow-hidden transition-all duration-300">
@@ -2794,7 +3110,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {allPackages
-                        .filter((p: any) => hiddenItems.includes(p.id))
+                        .filter((p: any) => hiddenSet.has(Number(p.id)))
                         .map((p: any) => (
                           <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
                             <td className="py-4">
@@ -2826,53 +3142,62 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         )}
 
-        {visibleCategories.map((cat: string) => (
+        <div className={twoColumns ? 'grid grid-cols-1 min-[1400px]:grid-cols-2 gap-3 items-start' : ''}>
+        {categoryColumns.map((columnCats, columnIndex) => (
+          <div key={columnIndex} className={twoColumns ? 'contents min-[1400px]:flex min-[1400px]:flex-col min-[1400px]:gap-3 min-w-0' : (ultraCompact ? 'space-y-3' : 'space-y-6')}>
+        {columnCats.map((cat: string) => (
           formData[`check_area_${cat}`] === 'on' && (
-            <div id={`cat_section_${domSafeId(cat)}`} key={cat} className="scroll-mt-24 bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm transition-all duration-300">
+            <div id={`cat_section_${domSafeId(cat)}`} key={cat} style={twoColumns ? { order: checkedCategories.indexOf(cat) } : undefined} className="min-w-0 scroll-mt-24 bg-white dark:bg-[color:var(--bg-card)] dark:border-[color:var(--border-main)] rounded-3xl border border-slate-300 shadow-sm transition-all duration-300">
               {/* Cabeçalho da CATEGORIA (ex.: Zendesk Support): faixa verde-clara,
                   título em Bebas e total da categoria. Fica preso no topo enquanto
                   a lista da categoria rola, para saber sempre em que seção se está. */}
               <div
-                className={`sticky top-[68px] z-20 bg-brand-soft text-brand-soft-fg px-6 md:px-8 py-4 flex justify-between items-center gap-4 cursor-pointer select-none group ${collapsedSections[cat] ? 'rounded-3xl' : 'rounded-t-3xl border-b border-slate-300'}`}
+                className={`sticky top-[68px] z-20 bg-brand-soft text-brand-soft-fg ${ultraCompact ? 'px-4 py-1.5' : 'px-6 md:px-8 py-4'} flex justify-between items-center gap-4 cursor-pointer select-none group ${collapsedSections[cat] ? 'rounded-3xl' : 'rounded-t-3xl border-b border-slate-300'}`}
                 onClick={() => toggleSection(cat)}
               >
                 <div className="flex items-center gap-4 min-w-0">
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-brand-dark shrink-0">
-                    <Box className="w-5 h-5" />
+                  <div className={`${ultraCompact ? 'w-7 h-7 rounded-lg' : 'w-10 h-10 rounded-xl'} bg-white flex items-center justify-center text-brand-dark shrink-0`}>
+                    <Box className={ultraCompact ? 'w-4 h-4' : 'w-5 h-5'} />
                   </div>
-                  <h3 className="font-heading text-section leading-none text-brand-dark truncate">{catLabelOf(cat)}</h3>
+                  <h3 className={`font-heading ${ultraCompact ? 'text-[22px]' : 'text-section'} leading-none text-brand-dark truncate`}>{catLabelOf(cat)}</h3>
                 </div>
                 <div className="flex items-center gap-4 shrink-0">
-                  <span className="font-heading text-[26px] leading-none text-brand-dark tabular-nums">{fmtWholeHours(totals.catTotals?.[cat])}</span>
-                  <span className="hidden md:inline text-label font-medium text-brand-dark">{t('editor.configureItems')}</span>
+                  <span className={`font-heading ${ultraCompact ? 'text-[20px]' : 'text-[26px]'} leading-none text-brand-dark tabular-nums`}>{fmtWholeHours(totals.catTotals?.[cat])}</span>
+                  <span className={`${ultraCompact ? 'hidden' : 'hidden md:inline'} text-label font-medium text-brand-dark`}>{t('editor.configureItems')}</span>
                   <ChevronDown className={`w-5 h-5 text-brand-dark transition-transform ${collapsedSections[cat] ? '' : 'rotate-180'}`} />
                 </div>
               </div>
               
               {!collapsedSections[cat] && (
-                <div className="p-6">
-                  <div className="overflow-x-auto">
+                <div className={ultraCompact ? 'px-3 pt-1 pb-2' : 'p-6'}>
+                  <div className="overflow-x-auto overflow-y-hidden">
                     <table className="min-w-full">
                       <thead>
                         <tr className="border-b border-slate-300 dark:border-[color:var(--border-main)]">
                           <th className="pb-3 text-left text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.items')}</th>
                           <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.unitHours')}</th>
                           <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] w-32">{t('common.quantity')}</th>
-                          <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>
+                          {!ultraCompact && <th className="pb-3 text-center text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.organization')}</th>}
                           <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('editor.manualAdjustment')}</th>
                           <th className="pb-3 text-right text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{t('common.subtotal')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
-                        {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((subcategory, subcategoryIndex, allSubcategories) => {
-                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory).filter(isAvailable);
-                          const subcategoryCollapsed = Boolean(collapsedSubcats[subcategoryKey(cat, subcategory)]);
+                        {(layoutConfig.subcategoryOrder[cat] || []).map((subcategory) => {
+                          // Só itens que aparecem (plano, ocultos, dependência) — os mesmos que contam hora.
+                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory).filter((p: any) => isPackageVisible(p));
+                          if (orderedPackages.length === 0) return null;
+                          const isRootGroup = subcategory === ROOT_SUBCATEGORY;
+                          const adminSubcategories = (layoutConfig.subcategoryOrder[cat] || []).filter((s) => s !== ROOT_SUBCATEGORY);
+                          const subcategoryIndex = adminSubcategories.indexOf(subcategory);
+                          const subcategoryCollapsed = !isRootGroup && Boolean(collapsedSubcats[subcategoryKey(cat, subcategory)]);
                           const subcategoryHours = orderedPackages.reduce((acc: number, pkg: any) => acc + (Number(totals.itemTotals?.[pkg.id]) || 0), 0);
 
                           return (
                             <Fragment key={`${cat}_${subcategory}`}>
+                              {!isRootGroup && (
                               <tr id={`subcat_${domSafeId(cat)}_${domSafeId(subcategory)}`} key={`${cat}_${subcategory}_header`} className="bg-slate-100 dark:bg-[color:var(--bg-input-solid)] border-t-2 border-slate-300">
-                                <td colSpan={6} className="py-3.5 px-4">
+                                <td colSpan={ultraCompact ? 5 : 6} className="py-3.5 px-4">
                                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                     {/* Cabeçalho da SUBCATEGORIA (ex.: Campos e Formulários) */}
                                     {/* Clicar no nome também recolhe/expande a subcategoria */}
@@ -2883,11 +3208,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       className="flex items-center gap-3 min-w-0 text-left"
                                     >
                                       <span aria-hidden className={`w-0 h-0 shrink-0 border-l-[9px] border-l-[color:var(--primary)] border-y-[6px] border-y-transparent transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-90'}`} />
-                                      <span className="text-title font-bold text-brand-dark truncate">
-                                        {subcategoryLabel(t, subcategory)}
+                                      <span className={`${ultraCompact ? 'text-body' : 'text-title'} font-bold text-brand-dark truncate`}>
+                                        {subLabelOf(subcategory)}
                                       </span>
                                       <span className="text-label text-slate-500 whitespace-nowrap">
-                                        {orderedPackages.length} item(ns)
+                                        {t('editor.itemCount', { count: orderedPackages.length })}
                                       </span>
                                     </button>
                                     <div className="flex flex-wrap items-center gap-3">
@@ -2904,12 +3229,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       <button
                                         type="button"
                                         onClick={() => void reorderSubcategory(cat, subcategory, 'down')}
-                                        disabled={subcategoryIndex === allSubcategories.length - 1}
+                                        disabled={subcategoryIndex === adminSubcategories.length - 1}
                                         className="p-1.5 rounded-lg bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-muted)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-400 hover:text-brand-primary disabled:opacity-30"
                                         title={t('editor.moveSubcategoryDown')}
                                       >
                                         <ChevronDown className="w-3 h-3" />
                                       </button>
+                                      {!ultraCompact && (
                                       <button
                                         type="button"
                                         onClick={() => toggleSubcategory(cat, subcategory)}
@@ -2919,35 +3245,52 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                         {subcategoryCollapsed ? t('editor.expandSubcategory', 'Expandir') : t('editor.collapseSubcategory', 'Recolher')}
                                         <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${subcategoryCollapsed ? '' : 'rotate-180'}`} />
                                       </button>
+                                      )}
                                     </div>
                                   </div>
                                 </td>
                               </tr>
+                              )}
 
-                              {subcategoryCollapsed ? null : orderedPackages.length === 0 ? (
-                                <tr key={`${cat}_${subcategory}_empty`} className="bg-white dark:bg-[color:var(--bg-card)]">
-                                  <td colSpan={6} className="py-4 px-4 text-caption font-medium text-slate-300 dark:text-[color:var(--text-muted)] text-center">
-                                    {t('editor.noItemsInSubcategory')}
-                                  </td>
-                                </tr>
-                              ) : (
+                              {subcategoryCollapsed ? null : (
                                 orderedPackages.map((p: any) => {
-                                  const isDependencyMet = !p.dependsOnItemId ||
-                                    (formData[`item_${p.dependsOnItemId}_qty`] > 0);
-
-                                  if (!isDependencyMet) return null;
-
-                                  const qty = parseFloat(formData[`item_${p.id}_qty`] || 0);
-                                  const isOverride = formData[`item_override_check_${p.id}`] === 'on';
-                                  const overrideVal = parseFloat(formData[`item_override_val_${p.id}`] || 0);
-                                  const rowTotal = isOverride ? overrideVal : qty * p.hours;
+                                  // Subtotal = o que o cálculo conta para esta linha.
+                                  const rowTotal = Number(totals.itemTotals?.[p.id]) || 0;
+                                  const rowPrice = priceOf(p);
+                                  const currentUnitHours = Number(p.hours) || 0;
+                                  const showsOriginalPrice = priceMode === 'original' && Math.abs(rowPrice.hours - currentUnitHours) > 1e-9;
                                   const itemId = String(p.id);
                                   const currentItemOrder = layoutConfig.itemOrder[subcategoryKey(cat, subcategory)] || [];
                                   const itemIndex = currentItemOrder.indexOf(itemId);
+                                  const reorderButtons = (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
+                                        disabled={itemIndex <= 0}
+                                        className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title={t('editor.moveItemUp')}
+                                      >
+                                        <ChevronDown className="w-3 h-3 rotate-180" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
+                                        disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
+                                        className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
+                                        title={t('editor.moveItemDown')}
+                                      >
+                                        <ChevronDown className="w-3 h-3" />
+                                      </button>
+                                    </>
+                                  );
 
                                   return (
                                     <tr key={p.id} className="hover:bg-slate-50/20 dark:hover:bg-[color:var(--bg-input)] transition-colors group">
-                                      <td className="py-4 pr-4">
+                                      <td className={`py-4 pr-4 ${ultraCompact ? 'relative' : ''}`}>
+                                        {/* Ultracompacto: nome e skill numa linha só; as setas de ordem
+                                            aparecem por cima, no fim da célula, ao passar o mouse. */}
+                                        <div className={ultraCompact ? 'flex flex-wrap items-center gap-x-3 gap-y-0.5' : ''}>
                                         <div className="flex items-center space-x-2">
                                           <div className="font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label mb-0.5 tracking-tight ">{packageName(p, language)}</div>
                                           <button
@@ -2967,69 +3310,59 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                             </div>
                                           )}
                                         </div>
-                                        <div className="flex items-center space-x-2 mb-1">
-                                          <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 py-1 rounded-lg font-medium ">{p.skillName || p.skill}</span>
+                                        <div className={`flex items-center space-x-2 ${ultraCompact ? '' : 'mb-1'}`}>
+                                          <span className={`text-caption bg-slate-100 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] text-slate-500 px-2 ${ultraCompact ? 'py-0.5' : 'py-1'} rounded-lg font-medium `}>{p.skillName || p.skill}</span>
                                           {p.dependsOnItemId && (
-                                            <span className="text-caption bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 py-1 rounded-lg font-medium ">Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
+                                            <span className={`text-caption bg-amber-50 dark:bg-amber-900/30 dark:text-amber-300 text-amber-600 px-2 ${ultraCompact ? 'py-0.5' : 'py-1'} rounded-lg font-medium `}>Dep: {allPackages.find((ap:any) => ap.id === p.dependsOnItemId)?.name}</span>
                                           )}
                                         </div>
+                                        {ultraCompact && (
+                                          <span className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex items-center gap-1 rounded-md bg-white dark:bg-[color:var(--bg-card-solid)] p-0.5 shadow-sm opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto transition-opacity">
+                                            {reorderButtons}
+                                          </span>
+                                        )}
+                                        </div>
+                                        {!ultraCompact && (
                                         <div className="text-caption text-slate-400 dark:text-[color:var(--text-muted)] font-bold max-w-md leading-relaxed line-clamp-1 opacity-60" title={p.scopeIncluded}>
                                           {p.scopeIncluded}
                                         </div>
+                                        )}
                                       </td>
                                       <td className="py-4 text-center text-label font-medium text-slate-400 dark:text-[color:var(--text-main)] ">
-                                        <div>{p.hours}</div>
+                                        <div className={showsOriginalPrice ? 'text-amber-700 dark:text-amber-300' : ''}>{rowPrice.hours}</div>
+                                        {!ultraCompact && (
                                         <div className="text-caption font-bold text-slate-300 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
-                                          {formatHoursMinutes(p.hours)}
+                                          {formatHoursMinutes(rowPrice.hours)}
                                         </div>
+                                        )}
+                                        {showsOriginalPrice && (
+                                          <div className="text-caption font-medium text-amber-600 dark:text-amber-300 mt-0.5" title={t('editor.priceModeOriginal')}>
+                                            {t('editor.currentPriceHint', { hours: currentUnitHours })}
+                                          </div>
+                                        )}
                                       </td>
                                       <td className="py-4 px-4">
                                         <div className="flex justify-center">
-                                          <input
-                                            type="number"
-                                            min="0"
+                                          <NumericInput
+                                            mode="integer"
                                             name={`item_${p.id}_qty`}
                                             value={formData[`item_${p.id}_qty`] || ''}
-                                            onChange={handleInputChange}
+                                            onValueChange={(v) => setFormValue(`item_${p.id}_qty`, v)}
                                             onKeyDown={handleKeyDown}
-                                            className="w-16 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all"
+                                            className={`w-16 bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-300 rounded-lg px-2 ${ultraCompact ? 'py-0.5' : 'py-1.5'} text-label font-medium text-center focus:ring-2 focus:ring-brand-primary focus:bg-white dark:focus:bg-[color:var(--bg-card)] outline-none transition-all`}
                                           />
                                         </div>
                                       </td>
+                                      {!ultraCompact && (
                                       <td className="py-4 text-center">
                                         <div className="flex items-center justify-center gap-2">
-                                          <select
-                                            value={subcategory}
-                                            onChange={(e) => void moveItemToSubcategory(cat, itemId, e.target.value)}
-                                            className="bg-white dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-caption font-medium outline-none"
-                                          >
-                                            {(layoutConfig.subcategoryOrder[cat] || [DEFAULT_SUBCATEGORY]).map((option) => (
-                                              <option key={option} value={option}>{option}</option>
-                                            ))}
-                                          </select>
-                                          <button
-                                            type="button"
-                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'up')}
-                                            disabled={itemIndex <= 0}
-                                            className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title={t('editor.moveItemUp')}
-                                          >
-                                            <ChevronDown className="w-3 h-3 rotate-180" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => void reorderItemInSubcategory(cat, subcategory, itemId, 'down')}
-                                            disabled={itemIndex === -1 || itemIndex >= currentItemOrder.length - 1}
-                                            className="p-1 rounded-md bg-slate-50 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:border-[color:var(--border-main)] border border-slate-200 text-slate-400 hover:text-brand-primary disabled:opacity-30"
-                                            title={t('editor.moveItemDown')}
-                                          >
-                                            <ChevronDown className="w-3 h-3" />
-                                          </button>
+                                          {reorderButtons}
                                         </div>
                                       </td>
+                                      )}
                                       <td className="py-4 text-right">
                                         <div className="flex items-center justify-end space-x-2">
-                                          <label className="flex items-center cursor-pointer group/toggle">
+                                          <label className="flex items-center cursor-pointer group/toggle" title={t('editor.manualAdjustment')}>
                                             <input
                                               type="checkbox"
                                               name={`item_override_check_${p.id}`}
@@ -3044,16 +3377,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                                 formData[`item_override_check_${p.id}`] === 'on' ? 'translate-x-3' : ''
                                               }`} />
                                             </div>
-                                            <span className="ml-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors ">{t('common.manual')}</span>
+                                            {!ultraCompact && <span className="ml-1.5 text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] group-hover/toggle:text-brand-secondary dark:group-hover/toggle:text-[color:var(--secondary)] transition-colors ">{t('common.manual')}</span>}
                                           </label>
                                           {formData[`item_override_check_${p.id}`] === 'on' && (
-                                            <input
-                                              type="number"
-                                              min="0"
-                                              step="0.1"
+                                            <NumericInput
+                                              mode="decimal"
                                               name={`item_override_val_${p.id}`}
                                               value={formData[`item_override_val_${p.id}`] || ''}
-                                              onChange={handleInputChange}
+                                              onValueChange={(v) => setFormValue(`item_override_val_${p.id}`, v)}
                                               placeholder="0.0"
                                               className="w-16 bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1 text-label font-medium text-right focus:ring-2 focus:ring-brand-secondary outline-none"
                                             />
@@ -3062,9 +3393,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                       </td>
                                       <td className="py-4 text-right font-medium text-brand-dark dark:text-[color:var(--text-main)] text-label ">
                                         <div>{rowTotal.toFixed(1)}</div>
+                                        {!ultraCompact && (
                                         <div className="text-caption font-bold text-slate-400 dark:text-[color:var(--text-muted)] tracking-normal normal-case mt-0.5">
                                           {formatHoursMinutes(rowTotal)}
                                         </div>
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -3119,30 +3452,29 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                 </div>
                               </td>
                               <td className="py-4 text-label align-top text-center pt-6 font-medium text-slate-400 dark:text-[color:var(--text-main)]">
-                                <input 
-                                  type="number" 
-                                  min="0"
-                                  step="0.1"
+                                <NumericInput
+                                  mode="decimal"
                                   value={pkg.hours || ''}
-                                  onChange={(e) => updateCustomPackage(pkg.id, 'hours', e.target.value)}
+                                  onValueChange={(v) => updateCustomPackage(pkg.id, 'hours', v)}
                                   placeholder="0.0" 
                                   className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none"
                                 />
                               </td>
                               <td className="py-4 text-label align-top text-center pt-6">
-                                <input 
-                                  type="number" 
-                                  min="0"
+                                <NumericInput
+                                  mode="integer"
                                   value={pkg.qty || ''}
-                                  onChange={(e) => updateCustomPackage(pkg.id, 'qty', e.target.value)}
+                                  onValueChange={(v) => updateCustomPackage(pkg.id, 'qty', v)}
                                   className="w-16 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-center focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none"
                                 />
                               </td>
+                              {!ultraCompact && (
                               <td className="py-4 text-center align-top pt-6">
                                 <span className="inline-flex px-3 py-1 rounded-lg bg-slate-50 border border-slate-200 text-caption font-medium text-slate-400">
                                   {t('common.custom')}
                                 </span>
                               </td>
+                              )}
                               <td className="py-4 text-label align-top text-right pt-6">
                                 <div className="flex items-center justify-end space-x-2">
                                   <label className="flex items-center cursor-pointer group/toggle">
@@ -3162,12 +3494,10 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                     <span className="ml-2 text-caption font-medium text-slate-400 group-hover/toggle:text-brand-secondary transition-colors ">{t('common.manual')}</span>
                                   </label>
                                   {pkg.overrideCheck && (
-                                    <input 
-                                      type="number" 
-                                      min="0"
-                                      step="0.1"
+                                    <NumericInput
+                                      mode="decimal"
                                       value={pkg.overrideVal || ''}
-                                      onChange={(e) => updateCustomPackage(pkg.id, 'overrideVal', e.target.value)}
+                                      onValueChange={(v) => updateCustomPackage(pkg.id, 'overrideVal', v)}
                                       placeholder={t('common.total')} 
                                       className="w-16 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1.5 text-label font-medium text-right focus:ring-2 focus:ring-brand-secondary outline-none"
                                     />
@@ -3195,7 +3525,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     </table>
                   </div>
                   
-                  <div className="mt-6 pt-4 border-t border-slate-50 dark:border-[color:var(--border-main)]">
+                  <div className={`${ultraCompact ? 'mt-2 pt-2' : 'mt-6 pt-4'} border-t border-slate-50 dark:border-[color:var(--border-main)]`}>
                     <button 
                       type="button" 
                       onClick={() => addCustomPackage(cat)}
@@ -3208,7 +3538,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                     </button>
                   </div>
 
-                  {cat === 'Marketplace' && (
+                  {cat === MARKETPLACE_CATEGORY && (
                     <div className="mt-8 space-y-6 pt-6 border-t-2 border-slate-50">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center space-x-3">
@@ -3284,6 +3614,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </div>
           )
         ))}
+          </div>
+        ))}
+        </div>
       </div>
 
       {/* Totals & Calculations Summary */}
@@ -3308,6 +3641,11 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               <SkillCard skill="GP" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
               <SkillCard skill="Desenvolvimento" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
               <SkillCard skill="Design" totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
+              {/* Skills cadastradas no Admin além das cinco padrão (ou item sem skill):
+                  as horas delas contam no total, então aparecem aqui. */}
+              {extraSkills.map((skill) => (
+                <SkillCard key={skill} skill={skill} totals={totals} percents={percents} overrides={overrides} variables={variables} setPercents={setPercents} setOverrides={setOverrides} compact />
+              ))}
             </div>
           </div>
 
@@ -3403,7 +3741,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <div className="flex items-center gap-1.5">
                         <span className={`w-1.5 h-1.5 rounded-full ${col.dotClass}`} />
                         <span className="text-caption font-medium opacity-80">
-                          {t(col.labelKey)} · {col.key === 'drn' ? totals.drnPct : percents[col.key]}%
+                          {t(col.labelKey)} · {col.key === 'drn' ? totals.drnPct : col.key === 'discovery' && totals.discoveryMode === 'sd' ? 0 : percents[col.key]}%
                         </span>
                       </div>
                       <div className="text-body font-bold tabular-nums mt-1">
@@ -3539,7 +3877,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                                   className={`md:grid ${breakdownGridClass} gap-x-4 items-center flex flex-wrap justify-between px-4 py-2.5 md:pl-10`}
                                 >
                                   <span className="text-label font-bold text-slate-500 dark:text-[color:var(--text-muted)] truncate">
-                                    {subcategoryLabel(t, sub)}
+                                    {subLabelOf(sub)}
                                   </span>
 
                                   <div className="hidden md:flex items-center gap-2 min-w-0">
@@ -3638,7 +3976,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             <p className="text-label text-slate-500 mt-1">{t('editor.grandTotal')}</p>
           </div>
           <ul className="tabular-nums">
-            {LIVE_SUMMARY_SKILLS.map((skill) => (
+            {[...LIVE_SUMMARY_SKILLS, ...extraSkills].map((skill) => (
               <li key={skill} className="flex items-baseline justify-between gap-3 py-2 border-b border-slate-200 last:border-b-0">
                 <span className="text-body text-brand-dark">
                   {skillLabel(t, skill)}
@@ -3648,23 +3986,32 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
               </li>
             ))}
           </ul>
-          {categoryBreakdown.rows.length > 0 && breakdownGrand > 0 && (
+          {liveSummaryModules.length > 0 && (
             <div>
-              <p className="text-label font-medium text-brand-dark mb-3">{t('editor.byCategory', 'Por categoria')}</p>
-              <div className="space-y-3">
-                {categoryBreakdown.rows.slice(0, 6).map((row) => {
-                  const value = breakdownWithVariables ? row.totalWithVariables : row.total;
-                  const pct = Math.max(0, Math.min(100, (value / breakdownGrand) * 100));
+              <p className="text-label font-medium text-brand-dark mb-1">{t('editor.byCategory', 'Por categoria')}</p>
+              <p className="text-caption text-slate-500 mb-3">{t('editor.byCategoryJumpHint')}</p>
+              <div className="space-y-1">
+                {liveSummaryModules.map(({ cat, value }) => {
+                  const pct = breakdownGrand > 0 ? Math.max(0, Math.min(100, (value / breakdownGrand) * 100)) : 0;
+                  const canJump = cat !== REMOVED_CATEGORY;
                   return (
-                    <div key={row.cat}>
+                    // Clicar no módulo leva ao cabeçalho dele na página (e o expande).
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => jumpToCategory(cat)}
+                      disabled={!canJump}
+                      title={canJump ? t('editor.jumpToModule', { name: catLabelOf(cat) }) : undefined}
+                      className="w-full text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-brand-primary outline-none transition-colors disabled:cursor-default disabled:hover:bg-transparent group/jump"
+                    >
                       <div className="flex justify-between gap-2 text-label tabular-nums mb-1">
-                        <span className="truncate text-brand-dark">{catLabelOf(row.cat)}</span>
+                        <span className="truncate text-brand-dark group-hover/jump:underline decoration-[color:var(--primary)] decoration-2 underline-offset-[3px]">{catLabelOf(cat)}</span>
                         <span className="shrink-0 text-slate-500">{fmtLiveHours(value)}</span>
                       </div>
                       <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                         <div className="h-full rounded-full bg-brand-primary" style={{ width: `${pct}%` }} />
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
@@ -3710,6 +4057,31 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             </span>
           </label>
           <div className="flex items-center justify-between md:justify-end gap-4 shrink-0">
+            {/* Modo de exibição: ultracompacto e, com ele ligado, duas colunas. */}
+            <div className="inline-flex items-center gap-1.5 shrink-0" role="group" aria-label={t('editor.viewModeGroup')}>
+              <button
+                type="button"
+                onClick={() => updateEditorView({ ultra: !editorView.ultra })}
+                aria-pressed={editorView.ultra}
+                title={t('editor.viewUltraCompactHint')}
+                className={`h-10 px-3 rounded-full border inline-flex items-center gap-1.5 text-label font-medium transition-colors ${editorView.ultra ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-300 bg-white text-slate-500 hover:text-brand-dark'}`}
+              >
+                <Rows3 className="w-4 h-4" />
+                <span className="hidden 2xl:inline">{t('editor.viewUltraCompact')}</span>
+              </button>
+              {editorView.ultra && (
+                <button
+                  type="button"
+                  onClick={() => updateEditorView({ twoColumns: !editorView.twoColumns })}
+                  aria-pressed={editorView.twoColumns}
+                  title={t('editor.viewTwoColumnsHint')}
+                  className={`h-10 px-3 rounded-full border inline-flex items-center gap-1.5 text-label font-medium transition-colors ${editorView.twoColumns ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-300 bg-white text-slate-500 hover:text-brand-dark'}`}
+                >
+                  <Columns2 className="w-4 h-4" />
+                  <span className="hidden 2xl:inline">{t('editor.viewTwoColumns')}</span>
+                </button>
+              )}
+            </div>
             {/* Navegação rápida: ir ao topo / ao fim da página sem rolar tudo. */}
             <div className="inline-flex items-center rounded-full border border-slate-300 bg-white overflow-hidden shrink-0" role="group" aria-label={t('editor.pageNavigation')}>
               <button
@@ -3858,6 +4230,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           </div>
         </div>
       )}
+
+      {/* Prévia fora da tela, fotografada pela exportação em PNG. */}
+      {exportingFormat === 'png' && <ExportPreview ref={exportPreviewRef} doc={exportDocument} />}
     </form>
   );
 }
@@ -3958,7 +4333,32 @@ function SkillCard({
             const val = Number(breakBy[sub.source] ?? 0) || 0;
             const isDiscovery = sub.source === 'implantacao_discovery' || sub.source === 'sd_discovery';
             const isValidation = sub.source === 'implantacao_validacao';
-            const hasOverride = isImpl && isDiscovery;
+            // Com SD ou Dev no projeto, o Discovery não é de Implantação: a linha
+            // mostra o motivo em vez de "0,0h".
+            const discoveryHandledElsewhere = isImpl && sub.source === 'implantacao_discovery'
+              && totals.discoveryMode !== 'implementation';
+            // A trava manual do Discovery fica na linha onde as horas estão: em
+            // Implantação (projeto sem SD/Dev) ou em SD > Discovery (Dev sem SD).
+            // Com SD o Discovery percentual vale 0, então não há o que travar.
+            const hasOverride = isDiscovery && (
+              (isImpl && totals.discoveryMode === 'implementation')
+              || (isSD && totals.discoveryMode === 'dev')
+            );
+            if (discoveryHandledElsewhere) {
+              return (
+                <div key={sub.key} className="flex items-center justify-between gap-3 px-4 py-2.5">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-[#a9e29a]" />
+                    <span className="text-caption font-medium text-slate-600 dark:text-[color:var(--text-main)] truncate">
+                      {subitemLabel(t, sub.key, sub.label)}
+                    </span>
+                  </div>
+                  <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] text-right italic">
+                    {t('editor.discoveryHandledBySD')}
+                  </span>
+                </div>
+              );
+            }
             return (
               <div
                 key={sub.key}
@@ -4035,21 +4435,18 @@ function SkillCard({
                     <div className="w-[72px] shrink-0 text-right">
                       {
                         (hasOverride && overrides.discovery !== null) ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
+                          <NumericInput
+                            mode="decimal"
                             value={overrides.discovery}
-                            onChange={(e) => setOverrides(o => ({ ...o, discovery: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                            // Campo vazio não destrava: ao sair, volta o último valor válido.
+                            onValueChange={(v) => { if (v) setOverrides(o => ({ ...o, discovery: parseFloat(v) })); }}
                             className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-1.5 py-1 text-caption font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
                           />
                         ) : (isImpl && isValidation && overrides.validation !== null) ? (
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.1"
+                          <NumericInput
+                            mode="decimal"
                             value={overrides.validation}
-                            onChange={(e) => setOverrides(o => ({ ...o, validation: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                            onValueChange={(v) => { if (v) setOverrides(o => ({ ...o, validation: parseFloat(v) })); }}
                             className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-1.5 py-1 text-caption font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
                           />
                         ) : (
@@ -4115,12 +4512,10 @@ function SkillCard({
                 <span className="text-caption font-medium text-slate-500 dark:text-[color:var(--text-muted)] mb-0.5">h</span>
               </div>
             ) : (
-              <input
-                type="number"
-                min="0"
-                step="0.1"
+              <NumericInput
+                mode="decimal"
                 value={overrides.gp}
-                onChange={(e) => setOverrides(o => ({ ...o, gp: Math.max(0, parseFloat(e.target.value) || 0) }))}
+                onValueChange={(v) => { if (v) setOverrides(o => ({ ...o, gp: parseFloat(v) })); }}
                 className="w-full bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-md px-2 py-1 text-label font-medium text-right text-brand-secondary dark:text-[color:var(--secondary)] outline-none tabular-nums"
               />
             )}
@@ -4151,11 +4546,12 @@ function InlinePercentCtrl({
         {label}
       </span>
       <div className="flex items-center justify-end gap-1 ml-auto">
-        <input
-          type="number"
-          min="0"
+        <NumericInput
+          mode="decimal"
+          allowZero
           value={value}
-          onChange={(e) => onChange(Math.max(0, parseFloat(e.target.value) || 0))}
+          // Até 2 casas, zero permitido; campo vazio volta ao último valor ao sair.
+          onValueChange={(v) => { if (v) onChange(parseFloat(v)); }}
           className="w-10 md:w-12 bg-white dark:bg-[color:var(--bg-card)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-md px-1.5 py-1 text-caption font-medium outline-none text-center text-brand-dark dark:text-[color:var(--text-main)] tabular-nums"
         />
         <span className="text-brand-secondary dark:text-[color:var(--secondary)] text-caption font-medium">%</span>

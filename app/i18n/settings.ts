@@ -2,7 +2,7 @@
 // Para adicionar um novo idioma: crie app/i18n/locales/<code>/common.json,
 // registre-o em LANGUAGES abaixo e importe-o em app/i18n/resources.ts.
 
-export const LANGUAGES = ['pt', 'en'] as const;
+export const LANGUAGES = ['pt', 'en', 'es'] as const;
 
 export type Language = (typeof LANGUAGES)[number];
 
@@ -18,18 +18,22 @@ export const DEFAULT_NAMESPACE = 'common';
 export const LANGUAGE_LABELS: Record<Language, { short: string; full: string }> = {
   pt: { short: 'PT', full: 'Português (BR)' },
   en: { short: 'EN', full: 'English (US)' },
+  es: { short: 'ES', full: 'Español' },
 };
 
 /** Valor usado no atributo lang do <html>. */
 export const HTML_LANG: Record<Language, string> = {
   pt: 'pt-BR',
   en: 'en-US',
+  es: 'es',
 };
 
 /** Locale usado em toLocaleDateString / toLocaleString. */
 export const DATE_LOCALE: Record<Language, string> = {
   pt: 'pt-BR',
   en: 'en-US',
+  // Espanhol latino-americano: o público da Aktie Now em espanhol.
+  es: 'es-419',
 };
 
 /** Normaliza qualquer string para um idioma suportado. */

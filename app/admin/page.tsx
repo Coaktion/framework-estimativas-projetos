@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
+import { getActiveAeConfig, listAeConfigs } from "@/lib/ae-config-server";
+import { loadZohoConfig, zohoConfigured } from "@/lib/zoho";
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);
@@ -13,10 +15,10 @@ export default async function AdminPage() {
   }
 
   // ===========================================================================
-  // 🎛️  UPSERT AUTOMÁTICO das variáveis de regras SD / DRN.
-  //     Garante que as variáveis abaixo EXISTAM e fiquem 100% funcionais SEM o primeiro acesso
-  //     ao painel de Admin (não precisa criar variável manualmente).
-  //     Se já existirem, mantém o valor atual do banco (não sobrescreve customizações).
+  // 🎛️  UPSERT AUTOMÁTICO da variável de DRN (% sobre Desenvolvimento).
+  //     O cálculo do framework depende dela; se já existir, mantém o valor atual.
+  //     As antigas SD_DISCOVERY_DEVOPS_PERCENT e SD_LIQUID_TO_DISCOVERY_PCT não
+  //     são mais lidas por nada e deixaram de ser recriadas aqui.
   // ===========================================================================
   try {
     await prisma.variable.upsert({
@@ -27,34 +29,6 @@ export default async function AdminPage() {
         label: 'DRN - % sobre Desenvolvimento',
         labelEn: 'DRN - % over Development',
         value: '15',
-        type:  'PERCENT',
-        category: 'Solution Design',
-        isActive: true
-      }
-    });
-
-    await prisma.variable.upsert({
-      where: { key: 'SD_DISCOVERY_DEVOPS_PERCENT' },
-      update: { isActive: true },
-      create: {
-        key:   'SD_DISCOVERY_DEVOPS_PERCENT',
-        label: 'SD c/ Dev - % Discovery sobre Desenvolvimento',
-        labelEn: 'SD with Dev - % Discovery over Development',
-        value: '15',
-        type:  'PERCENT',
-        category: 'Solution Design',
-        isActive: true
-      }
-    });
-
-    await prisma.variable.upsert({
-      where: { key: 'SD_LIQUID_TO_DISCOVERY_PCT' },
-      update: { isActive: true },
-      create: {
-        key:   'SD_LIQUID_TO_DISCOVERY_PCT',
-        label: 'SD - % do bruto para Discovery',
-        labelEn: 'SD - % gross value to Discovery',
-        value: '100',
         type:  'PERCENT',
         category: 'Solution Design',
         isActive: true
@@ -100,6 +74,11 @@ export default async function AdminPage() {
     orderBy: { email: 'asc' },
   });
 
+  // Calculadora AE: configuração ativa (números e fórmulas) e histórico.
+  const [activeAeConfig, aeConfigHistory] = await Promise.all([getActiveAeConfig(), listAeConfigs()]);
+  // Zoho CRM: campos que entram no prompt de escopo (Admin › Zoho CRM).
+  const zohoConfig = await loadZohoConfig();
+
   return (
     <AdminClient 
       packages={packages} 
@@ -108,6 +87,10 @@ export default async function AdminPage() {
       variables={variables} 
       versions={versions} 
       users={users} 
+      activeAeConfig={activeAeConfig}
+      aeConfigHistory={aeConfigHistory}
+      zohoConfig={zohoConfig}
+      zohoConfigured={zohoConfigured()}
     />
   );
 }

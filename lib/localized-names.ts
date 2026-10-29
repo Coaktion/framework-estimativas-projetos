@@ -1,13 +1,14 @@
 import type { Language } from '@/app/i18n/settings';
 
 /**
- * Nomes bilíngues dos itens configuráveis (pacotes, categorias, skills, variáveis).
+ * Nomes multilíngues dos itens configuráveis (pacotes, categorias, skills, variáveis).
  *
  * REGRA CENTRAL: o campo em português continua sendo a CHAVE canônica gravada no
  * banco e usada em buscas de pacote, relações do Prisma e no layoutConfig.
- * O campo `...En` é APENAS exibição. Nunca grave o nome em inglês como valor.
+ * Os campos `...En` e `...Es` são APENAS exibição. Nunca grave um nome traduzido
+ * como valor.
  *
- * Se o campo em inglês estiver vazio, a exibição cai no português — assim nada
+ * Se o campo do idioma estiver vazio, a exibição cai no português — assim nada
  * some da tela enquanto as traduções ainda não foram preenchidas.
  */
 
@@ -15,7 +16,7 @@ import type { Language } from '@/app/i18n/settings';
 export function foldText(value: unknown): string {
   return String(value ?? '')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .toLowerCase()
     .trim();
 }
@@ -25,36 +26,43 @@ function pick(primary: unknown, fallback: unknown): string {
   return value || String(fallback ?? '').trim();
 }
 
+/** Escolhe o texto do idioma (en/es), caindo no português. */
+function localized(language: Language, pt: unknown, en: unknown, es: unknown): string {
+  if (language === 'en') return pick(en, pt);
+  if (language === 'es') return pick(es, pt);
+  return String(pt ?? '');
+}
+
 /** Nome de exibição de um pacote/item. */
 export function packageName(pkg: any, language: Language): string {
   if (!pkg) return '';
-  return language === 'en' ? pick(pkg.nameEn, pkg.name) : String(pkg.name ?? '');
+  return localized(language, pkg.name, pkg.nameEn, pkg.nameEs);
 }
 
 /** Tooltip de exibição de um pacote/item. */
 export function packageTooltip(pkg: any, language: Language): string {
   if (!pkg) return '';
-  return language === 'en' ? pick(pkg.tooltipEn, pkg.tooltip) : String(pkg.tooltip ?? '');
+  return localized(language, pkg.tooltip, pkg.tooltipEn, pkg.tooltipEs);
 }
 
 /** Nome de exibição de uma categoria. */
 export function categoryName(category: any, language: Language): string {
   if (!category) return '';
   const pt = pick(category.displayName, category.name);
-  return language === 'en' ? pick(category.displayNameEn, pt) : pt;
+  return localized(language, pt, category.displayNameEn, category.displayNameEs);
 }
 
 /** Nome de exibição de uma skill. */
 export function skillName(skill: any, language: Language): string {
   if (!skill) return '';
-  return language === 'en' ? pick(skill.nameEn, skill.name) : String(skill.name ?? '');
+  return localized(language, skill.name, skill.nameEn, skill.nameEs);
 }
 
 /** Rótulo de exibição de uma variável (cai na key técnica se não houver rótulo). */
 export function variableLabel(variable: any, language: Language): string {
   if (!variable) return '';
   const pt = pick(variable.label, variable.key);
-  return language === 'en' ? pick(variable.labelEn, pt) : pt;
+  return localized(language, pt, variable.labelEn, variable.labelEs);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -62,11 +70,11 @@ export function variableLabel(variable: any, language: Language): string {
 /* -------------------------------------------------------------------------- */
 
 /**
- * Junta TODOS os textos pesquisáveis de um registro, nos dois idiomas.
+ * Junta TODOS os textos pesquisáveis de um registro, em todos os idiomas.
  *
  * É isto que faz um usuário em português encontrar "Campo de Usuário" digitando
- * "user field", e vice-versa: a busca sempre varre os dois idiomas,
- * independentemente do idioma que está sendo exibido.
+ * "user field" (ou "campo de usuario" em espanhol), e vice-versa: a busca sempre
+ * varre todos os idiomas, independentemente do idioma que está sendo exibido.
  */
 export function searchHaystack(...values: unknown[]): string {
   return values
@@ -75,24 +83,24 @@ export function searchHaystack(...values: unknown[]): string {
     .join(' \u0001 ');
 }
 
-/** Haystack bilíngue de um pacote/item. */
+/** Haystack multilíngue de um pacote/item. */
 export function packageHaystack(pkg: any): string {
-  return searchHaystack(pkg?.name, pkg?.nameEn, pkg?.tooltip, pkg?.tooltipEn);
+  return searchHaystack(pkg?.name, pkg?.nameEn, pkg?.nameEs, pkg?.tooltip, pkg?.tooltipEn, pkg?.tooltipEs);
 }
 
-/** Haystack bilíngue de uma categoria. */
+/** Haystack multilíngue de uma categoria. */
 export function categoryHaystack(category: any): string {
-  return searchHaystack(category?.name, category?.displayName, category?.displayNameEn);
+  return searchHaystack(category?.name, category?.displayName, category?.displayNameEn, category?.displayNameEs);
 }
 
-/** Haystack bilíngue de uma skill. */
+/** Haystack multilíngue de uma skill. */
 export function skillHaystack(skill: any): string {
-  return searchHaystack(skill?.name, skill?.nameEn);
+  return searchHaystack(skill?.name, skill?.nameEn, skill?.nameEs);
 }
 
-/** Haystack bilíngue de uma variável. */
+/** Haystack multilíngue de uma variável. */
 export function variableHaystack(variable: any): string {
-  return searchHaystack(variable?.key, variable?.label, variable?.labelEn, variable?.category);
+  return searchHaystack(variable?.key, variable?.label, variable?.labelEn, variable?.labelEs, variable?.category);
 }
 
 /**

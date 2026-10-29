@@ -13,8 +13,8 @@ export type Quem = { id: number; email: string; isAdmin: boolean };
 export async function exigirAcesso(): Promise<Quem | NextResponse> {
   const session: any = await getServerSession(authOptions);
   const u = session?.user;
-  if (!u?.email || !u?.id) return NextResponse.json({ ok: false, erro: 'nao autenticado' }, { status: 401 });
-  if (!canAccessZdAutoConfig(u)) return NextResponse.json({ ok: false, erro: 'sem permissao para o ZD Auto Config' }, { status: 403 });
+  if (!u?.email || !u?.id) return NextResponse.json({ ok: false, erro: 'não autenticado' }, { status: 401 });
+  if (!canAccessZdAutoConfig(u)) return NextResponse.json({ ok: false, erro: 'sem permissão para o ZD Auto Config' }, { status: 403 });
   return { id: parseInt(String(u.id), 10), email: String(u.email).toLowerCase(), isAdmin: Boolean(u.isAdmin) };
 }
 

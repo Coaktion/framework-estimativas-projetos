@@ -3,9 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
 import { packageName } from '@/lib/localized-names';
-import { canViewExecutiveReport } from '@/lib/segments';
-import { buildAEScopePrompt } from '@/lib/ae-scope-prompt';
+import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
+import { zohoSectionFor } from '@/lib/zoho-section';
 import AEResultTable from '@/components/AEResultTable';
+import { aeChannelOptions } from '@/lib/ae-channel-options';
+import { AE_VIEW_COOKIE } from '@/lib/editor-view';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { 
@@ -14,167 +16,95 @@ import {
   Settings, Loader2,
   AlertTriangle, CheckCircle2, 
   MessageSquare, Users, Shield, Clock, Box,
-  Copy, BookOpen, Hash, Search
+  Copy, BookOpen, Hash, Search, Rows3
 } from 'lucide-react';
 import Link from 'next/link';
 import { saveAEEstimateAction } from './actions';
+import {
+  AE_PLAN_RANK,
+  buildEngineInputs,
+  isSideConversationEligible,
+  normalizeAESku,
+} from '@/lib/ae-inputs';
+import { DEFAULT_AE_CONFIG } from '@/lib/ae-config';
+import { useUnsavedChangesGuard } from '@/lib/use-unsaved-changes';
 import {
   ACTION_FLOW_OPTIONS,
   calculateAEEstimate,
   validateAEInputs,
   type AEInputData,
   type ModuleKey,
-  type ChannelKey,
   type ZendeskPlan,
   type SkuType,
   type OperationType,
-  type MarketplaceAppKey,
 } from '@/lib/ae-engine';
 
-const PLAN_RANK = {
-  team: 1,
-  growth: 2,
-  professional: 3,
-  enterprise: 4
-} as const;
+// Conversão formulário → inputs do engine: implementação ÚNICA, compartilhada
+// com a tela de visualização (ver lib/ae-inputs.ts).
+const PLAN_RANK = AE_PLAN_RANK;
+const normalizeSku = normalizeAESku;
 
-const MARKETPLACE_APP_LABEL_TO_KEY: Record<string, MarketplaceAppKey> = {
-  'WooCommerce': 'woocommerce',
-  'Woo Commerce': 'woocommerce',
-  'Dialpad': 'dialpad',
-  'Aircall': 'aircall',
-  'VTEX': 'vtex',
-  'Stripe': 'stripe',
-  'Pipedrive': 'pipedrive',
-  'SweetHawk': 'sweethawk',
-  'Outros': 'other_marketplace',
-  'App Marketplace': 'other_marketplace',
-  'Outro Marketplace': 'other_marketplace',
-  'other_marketplace': 'other_marketplace',
-};
-
-function isSideConversationEligible(skuType: SkuType, zendeskPlan: ZendeskPlan): boolean {
-  const planRank = PLAN_RANK[zendeskPlan] ?? 1;
-  if (skuType === 'CS') {
-    return planRank >= PLAN_RANK.professional;
-  }
-  return planRank >= PLAN_RANK.growth;
-}
-
-function normalizeSku(raw: string): SkuType {
-  const key = String(raw || '').toUpperCase();
-  if (key.includes('ES') || key.includes('EMPLOYEE')) return 'ES';
-  return 'CS';
-}
-
-const CHANNEL_LEGACY_TO_KEY: Record<string, ChannelKey> = {
-  web_form: 'web_form',
-  email: 'email',
-  web_widget: 'web_widget',
-  whatsapp: 'whatsapp',
-  facebook: 'facebook_messenger',
-  facebook_messenger: 'facebook_messenger',
-  instagram: 'instagram_dm',
-  instagram_dm: 'instagram_dm',
-  instagram_page: 'instagram_page',
-  voice: 'voice',
-  teams: 'microsoft_teams',
-  microsoft_teams: 'microsoft_teams',
-  slack: 'slack',
-  x: 'x_dm', // legado: estimativas salvas antes da separação DM / público
-  x_dm: 'x_dm',
-  x_pages: 'x_pages',
-  sms: 'sms',
-  ios: 'ios',
-  unity: 'unity',
-  line: 'line',
-  apple_business: 'apple_messages',
-  apple_messages: 'apple_messages',
-  wechat: 'wechat',
-  google_rcs: 'google_rcs',
-  google_business: 'google_business_messages',
-  google_business_messages: 'google_business_messages',
-  kakaotalk: 'kakaotalk',
-  facebook_pages: 'facebook_pages',
-  telegram: 'telegram',
-};
-
-function buildEngineInputs(formState: any): AEInputData {
-  const selectedChannels: ChannelKey[] = (formState.selectedChannels || [])
-    .map((c: string) => CHANNEL_LEGACY_TO_KEY[c])
-    .filter(Boolean);
-
-  const channelQuantities: Partial<Record<ChannelKey, number>> = {};
-  for (const [k, v] of Object.entries<number>(formState.channelQuantities || {})) {
-    const key = CHANNEL_LEGACY_TO_KEY[k];
-    if (!key) continue;
-    channelQuantities[key] = Math.max(0, Number(v) || 0);
-  }
-
-  const selectedApps: MarketplaceAppKey[] = [];
-  const appQuantities: Partial<Record<MarketplaceAppKey, number>> = {};
-  for (const appLabel of formState.selectedApps || []) {
-    const key = MARKETPLACE_APP_LABEL_TO_KEY[String(appLabel)];
-    if (!key) continue;
-    if (!selectedApps.includes(key)) selectedApps.push(key);
-    const qtyRaw = formState.appQuantities?.[appLabel];
-    if (qtyRaw != null) {
-      appQuantities[key] = Math.max(0, Number(qtyRaw) || 0);
-    }
-  }
-
-  const sku = normalizeSku(formState.skuType);
-  const zendeskPlan = (String(formState.zendeskPlan || 'professional').toLowerCase().replace(/^suite\s+/, '').trim() as ZendeskPlan) || 'professional';
-  const planRank = PLAN_RANK[zendeskPlan] ?? PLAN_RANK.team;
-
-  const selectedModules = (formState.selectedModules || ['Support']).filter((m: string) => {
-    // AI Agents saiu da Calculadora AE. Estimativas salvas antes disso ainda
-    // trazem o módulo no JSON, então ele é descartado já na entrada.
-    if (m === 'AI Agents') return false;
-    if (['Analytics', 'Community', 'Copilot', 'QA', 'WFM'].includes(m)) return planRank >= PLAN_RANK.professional;
-    if (m === 'ADPP') return planRank >= PLAN_RANK.enterprise;
-    return true;
-  }) as ModuleKey[];
-
-  const inputs: AEInputData = {
-    agents: Math.max(1, Number(formState.agents) || 1),
-    brands: Math.max(1, Number(formState.brands) || 1),
-    areas: Math.max(1, Number(formState.areas) || 1),
-    skuType: sku,
-    zendeskPlan,
-    operationTypes: ((formState.operationTypes || []) as OperationType[]).filter(Boolean),
-    selectedModules: selectedModules.length ? selectedModules : ['Support'],
-    selectedChannels: selectedChannels.length ? selectedChannels : ['web_form'],
-    channelQuantities,
-    knowledgeArticles: Math.max(0, Number(formState.knowledgeArticles) || 0),
-    selectedNativeConnections: formState.selectedNativeConnections || [],
-    selectedActionFlows: formState.selectedActionFlows || [],
-    selectedApps,
-    appQuantities,
-    hasAppCondicionais: Boolean(formState.hasAppCondicionais),
-    hasAppTicketManager: Boolean(formState.hasAppTicketManager),
-    hasSSO: Boolean(formState.hasSSO),
-    hasTeamsSideConv: isSideConversationEligible(sku, zendeskPlan) && Boolean(formState.hasTeamsSideConv),
-    hasSlackSideConv: isSideConversationEligible(sku, zendeskPlan) && Boolean(formState.hasSlackSideConv),
+/**
+ * Estado completo do formulário a partir do JSON salvo de uma estimativa (ou
+ * vazio). Usado TANTO no estado inicial dos campos quanto na reidratação
+ * quando os dados mudam sem remontar o componente.
+ *
+ * Começar já com os valores restaurados (em vez de restaurar num efeito) é o
+ * que garante que os efeitos de consistência — zerar artigos sem Knowledge,
+ * filtrar módulos pelo plano — nunca enxerguem o formulário vazio. Antes,
+ * "Criar nova versão" perdia os artigos de Knowledge e o ADPP, e no modo de
+ * desenvolvimento (StrictMode roda os efeitos duas vezes) nem a trava de
+ * hidratação bastava.
+ */
+function formFromInitial(initialData: any, initialClientName: string) {
+  const d = initialData && typeof initialData === 'object' ? initialData : null;
+  const plan = String(d?.zendeskPlan || '').toLowerCase().replace(/^suite\s+/, '').trim();
+  const sku = String(d?.skuType || '').toLowerCase();
+  const restoredModules = Array.isArray(d?.selectedModules)
+    // Estimativas antigas podem trazer 'AI Agents'; ele não existe mais aqui.
+    ? d.selectedModules.filter((m: string) => Boolean(m) && m !== 'AI Agents')
+    : [];
+  const restoredChannels = Array.isArray(d?.channels) && d.channels.length
+    ? d.channels.filter(Boolean)
+    : Array.isArray(d?.selectedChannels) && d.selectedChannels.length ? d.selectedChannels.filter(Boolean) : [];
+  const selectedApps = Array.isArray(d?.selectedApps) ? d.selectedApps.filter(Boolean) : [];
+  const selectedNativeConnections = Array.isArray(d?.selectedNativeConnections) ? d.selectedNativeConnections.filter(Boolean) : [];
+  return {
+    clientName: String(initialClientName || ''),
+    clientObjectives: typeof d?.clientObjectives === 'string' ? d.clientObjectives : '',
+    successIndicators: typeof d?.successIndicators === 'string' ? d.successIndicators : '',
+    selectedModules: (restoredModules.length ? restoredModules : ['Support']) as string[],
+    knowledgeArticles: d?.knowledgeArticles != null ? Math.max(0, Number(d.knowledgeArticles) || 0) : 0,
+    operationTypes: (Array.isArray(d?.operationTypes) ? d.operationTypes.filter(Boolean) : []) as string[],
+    skuType: (sku === 'employee_service' || sku === 'es' ? 'employee_service' : 'customer_service') as 'customer_service' | 'employee_service',
+    deploymentType: (d?.deploymentType === 'optimization' ? 'optimization' : 'new') as 'new' | 'optimization',
+    hasAppsMarketplace: selectedApps.length > 0,
+    selectedApps: selectedApps as string[],
+    appQuantities: (d?.appQuantities && typeof d.appQuantities === 'object' ? { ...d.appQuantities } : {}) as Record<string, number>,
+    otherApp: typeof d?.otherApp === 'string' ? d.otherApp : '',
+    zendeskPlan: (['team', 'growth', 'professional', 'enterprise'].includes(plan) ? plan : 'professional') as 'team' | 'growth' | 'professional' | 'enterprise',
+    hasNativeConnections: selectedNativeConnections.length > 0,
+    selectedNativeConnections: selectedNativeConnections as string[],
+    agents: d?.agents != null ? Math.max(1, Number(d.agents) || 1) : 1,
+    brands: d?.brands != null ? Math.max(1, Number(d.brands) || 1) : 1,
+    selectedChannels: (restoredChannels.length ? restoredChannels : ['web_form']) as string[],
+    channelQuantities: (d?.channelQuantities && typeof d.channelQuantities === 'object' ? { ...d.channelQuantities } : { web_form: 1 }) as Record<string, number>,
+    areas: d?.areas != null ? Math.max(1, Number(d.areas) || 1) : 1,
+    selectedActionFlows: (Array.isArray(d?.selectedActionFlows) ? d.selectedActionFlows.filter(Boolean) : []) as string[],
+    hasSSO: Boolean(d?.hasSSO),
+    hasTeamsSideConv: Boolean(d?.hasTeamsSideConv),
+    hasSlackSideConv: Boolean(d?.hasSlackSideConv),
+    hasAppCondicionais: Boolean(d?.hasAppCondicionais),
+    hasAppTicketManager: Boolean(d?.hasAppTicketManager),
   };
-
-  return inputs;
 }
 
-export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null }: any) {
+export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null, aeConfig = DEFAULT_AE_CONFIG, aeConfigId = null, initialCompact = false }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   const [isPending, setIsPending] = useState(false);
   const [showResult, setShowResult] = useState(false);
-  const [markdownReport, setMarkdownReport] = useState('');
-
-  /**
-   * O Relatório Executivo é exclusivo de administradores. Os demais segmentos
-   * ficam apenas com a tabela de resultado — que já se adapta ao leitor
-   * (versão simplificada para o AE, completa para os outros).
-   */
-  const showExecutiveReport = canViewExecutiveReport(session?.user as any);
 
   /**
    * Resultado CONGELADO no momento do cálculo.
@@ -196,73 +126,90 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     clientName: string;
   } | null>(null);
 
-  const [clientName, setClientName] = useState(initialClientName);
+  // Estado inicial já restaurado a partir da estimativa de origem (clone) — ver
+  // `formFromInitial`.
+  const [initialForm] = useState(() => formFromInitial(initialData, initialClientName));
+
+  const [clientName, setClientName] = useState(initialForm.clientName);
   const [zohoLink, setZohoLink] = useState('');
-  const [clientObjectives, setClientObjectives] = useState('');
-  const [successIndicators, setSuccessIndicators] = useState('');
-  
-  const [selectedModules, setSelectedModules] = useState<string[]>(['Support']);
-  const [knowledgeArticles, setKnowledgeArticles] = useState(0);
-  
-  const [operationTypes, setOperationTypes] = useState<string[]>([]);
-  const [skuType, setSkuType] = useState<'customer_service' | 'employee_service'>('customer_service');
-  const [deploymentType, setDeploymentType] = useState<'new' | 'optimization'>('new');
-  
-  const [hasAppsMarketplace, setHasAppsMarketplace] = useState(false);
-  const [selectedApps, setSelectedApps] = useState<string[]>([]);
-  const [appQuantities, setAppQuantities] = useState<Record<string, number>>({});
-  const [otherApp, setOtherApp] = useState('');
-  
-  const [zendeskPlan, setZendeskPlan] = useState<'team' | 'growth' | 'professional' | 'enterprise'>('professional');
-  const [hasNativeConnections, setHasNativeConnections] = useState(false);
-  const [selectedNativeConnections, setSelectedNativeConnections] = useState<string[]>([]);
+  const [clientObjectives, setClientObjectives] = useState(initialForm.clientObjectives);
+  const [successIndicators, setSuccessIndicators] = useState(initialForm.successIndicators);
 
-  const [agents, setAgents] = useState(1);
-  const [brands, setBrands] = useState(1);
-  const [selectedChannels, setSelectedChannels] = useState<string[]>(['web_form']);
-  const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>({ web_form: 1 });
-  const [areas, setAreas] = useState(1);
+  const [selectedModules, setSelectedModules] = useState<string[]>(initialForm.selectedModules);
+  const [knowledgeArticles, setKnowledgeArticles] = useState(initialForm.knowledgeArticles);
+
+  const [operationTypes, setOperationTypes] = useState<string[]>(initialForm.operationTypes);
+  const [skuType, setSkuType] = useState<'customer_service' | 'employee_service'>(initialForm.skuType);
+  const [deploymentType, setDeploymentType] = useState<'new' | 'optimization'>(initialForm.deploymentType);
+
+  const [hasAppsMarketplace, setHasAppsMarketplace] = useState(initialForm.hasAppsMarketplace);
+  const [selectedApps, setSelectedApps] = useState<string[]>(initialForm.selectedApps);
+  const [appQuantities, setAppQuantities] = useState<Record<string, number>>(initialForm.appQuantities);
+  const [otherApp, setOtherApp] = useState(initialForm.otherApp);
+
+  const [zendeskPlan, setZendeskPlan] = useState<'team' | 'growth' | 'professional' | 'enterprise'>(initialForm.zendeskPlan);
+  const [hasNativeConnections, setHasNativeConnections] = useState(initialForm.hasNativeConnections);
+  const [selectedNativeConnections, setSelectedNativeConnections] = useState<string[]>(initialForm.selectedNativeConnections);
+
+  const [agents, setAgents] = useState(initialForm.agents);
+  const [brands, setBrands] = useState(initialForm.brands);
+  const [selectedChannels, setSelectedChannels] = useState<string[]>(initialForm.selectedChannels);
+  const [channelQuantities, setChannelQuantities] = useState<Record<string, number>>(initialForm.channelQuantities);
+  const [areas, setAreas] = useState(initialForm.areas);
   const [showExtraChannels, setShowExtraChannels] = useState(false);
-  const [selectedActionFlows, setSelectedActionFlows] = useState<string[]>([]);
+  // Visão compacta (preferência lembrada em cookie): tudo mais denso, todos os
+  // canais à vista e os dois textos longos com o tamanho de sempre.
+  const [compact, setCompact] = useState(Boolean(initialCompact));
+  const toggleCompact = () => {
+    const next = !compact;
+    setCompact(next);
+    document.cookie = `${AE_VIEW_COOKIE}=${next ? 'compact' : 'normal'}; path=/; max-age=31536000; SameSite=Lax`;
+  };
+  const [selectedActionFlows, setSelectedActionFlows] = useState<string[]>(initialForm.selectedActionFlows);
 
-  const [hasSSO, setHasSSO] = useState(false);
-  const [hasTeamsSideConv, setHasTeamsSideConv] = useState(false);
-  const [hasSlackSideConv, setHasSlackSideConv] = useState(false);
+  const [hasSSO, setHasSSO] = useState(initialForm.hasSSO);
+  const [hasTeamsSideConv, setHasTeamsSideConv] = useState(initialForm.hasTeamsSideConv);
+  const [hasSlackSideConv, setHasSlackSideConv] = useState(initialForm.hasSlackSideConv);
 
-  const [hasAppCondicionais, setHasAppCondicionais] = useState(false);
-  const [hasAppTicketManager, setHasAppTicketManager] = useState(false);
+  const [hasAppCondicionais, setHasAppCondicionais] = useState(initialForm.hasAppCondicionais);
+  const [hasAppTicketManager, setHasAppTicketManager] = useState(initialForm.hasAppTicketManager);
+
+  /** Aplica um estado completo de formulário (restauração ou limpeza). */
+  const applyForm = (form: ReturnType<typeof formFromInitial>) => {
+    setClientName(form.clientName);
+    setClientObjectives(form.clientObjectives);
+    setSuccessIndicators(form.successIndicators);
+    setSelectedModules(form.selectedModules);
+    setKnowledgeArticles(form.knowledgeArticles);
+    setOperationTypes(form.operationTypes);
+    setSkuType(form.skuType);
+    setDeploymentType(form.deploymentType);
+    setHasAppsMarketplace(form.hasAppsMarketplace);
+    setSelectedApps(form.selectedApps);
+    setAppQuantities(form.appQuantities);
+    setOtherApp(form.otherApp);
+    setZendeskPlan(form.zendeskPlan);
+    setHasNativeConnections(form.hasNativeConnections);
+    setSelectedNativeConnections(form.selectedNativeConnections);
+    setAgents(form.agents);
+    setBrands(form.brands);
+    setSelectedChannels(form.selectedChannels);
+    setChannelQuantities(form.channelQuantities);
+    setAreas(form.areas);
+    setSelectedActionFlows(form.selectedActionFlows);
+    setHasSSO(form.hasSSO);
+    setHasTeamsSideConv(form.hasTeamsSideConv);
+    setHasSlackSideConv(form.hasSlackSideConv);
+    setHasAppCondicionais(form.hasAppCondicionais);
+    setHasAppTicketManager(form.hasAppTicketManager);
+  };
 
   const resetForm = () => {
-    setClientName('');
+    applyForm(formFromInitial(null, ''));
     setZohoLink('');
-    setClientObjectives('');
-    setSuccessIndicators('');
-    setSelectedModules(['Support']);
-    setKnowledgeArticles(0);
-    setOperationTypes([]);
-    setSkuType('customer_service');
-    setDeploymentType('new');
-    setHasAppsMarketplace(false);
-    setSelectedApps([]);
-    setAppQuantities({});
-    setOtherApp('');
-    setZendeskPlan('professional');
-    setHasNativeConnections(false);
-    setSelectedNativeConnections([]);
-    setAgents(1);
-    setBrands(1);
-    setSelectedChannels(['web_form']);
-    setChannelQuantities({ web_form: 1 });
-    setAreas(1);
-    setSelectedActionFlows([]);
-    setHasSSO(false);
-    setHasTeamsSideConv(false);
-    setHasSlackSideConv(false);
-    setHasAppCondicionais(false);
-    setHasAppTicketManager(false);
     setShowResult(false);
-    setMarkdownReport('');
     setResultSnapshot(null);
+    setSaveState({ status: 'idle' });
   };
 
   /**
@@ -284,74 +231,28 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     }
   }, [initialData, initialClientName, cloneFromId]);
 
-  const hydratedKeyRef = useRef<string | null>(null);
+  // Começa marcado como hidratado: o estado inicial JÁ veio de `formFromInitial`.
+  // O efeito abaixo só reidrata quando os dados mudam sem remontar a página
+  // (ex.: outro ?cloneFrom= pela navegação do próprio app).
+  const hydratedKeyRef = useRef<string | null>(initialDataKey);
+  /**
+   * Verdadeiro durante o commit de uma REIDRATAÇÃO (dados novos sem remontar).
+   * Os efeitos de consistência abaixo rodam nesse mesmo commit ainda com o
+   * estado anterior; a trava evita que zerem artigos ou filtrem módulos com
+   * base nele. No commit seguinte eles rodam de novo, já com o estado novo.
+   */
+  const justHydratedRef = useRef(false);
+  /** Momento da última hidratação/limpeza — base da guarda de alterações. */
+  const [hydratedAt, setHydratedAt] = useState(() => Date.now());
 
   useEffect(() => {
     // Já hidratamos exatamente este payload — não sobrescrever o que o usuário
     // editou desde então.
     if (hydratedKeyRef.current === initialDataKey) return;
     hydratedKeyRef.current = initialDataKey;
-
-    if (initialData && typeof initialData === 'object') {
-      const d = initialData;
-      if (typeof d.clientObjectives === 'string') setClientObjectives(d.clientObjectives);
-      if (typeof d.successIndicators === 'string') setSuccessIndicators(d.successIndicators);
-      if (Array.isArray(d.selectedModules) && d.selectedModules.length) {
-        // Estimativas antigas podem trazer 'AI Agents'; ele não existe mais aqui.
-        const restored = d.selectedModules.filter((m: string) => Boolean(m) && m !== 'AI Agents');
-        if (restored.length) setSelectedModules(restored);
-      }
-      if (d.knowledgeArticles != null) setKnowledgeArticles(Math.max(0, Number(d.knowledgeArticles) || 0));
-      if (Array.isArray(d.operationTypes)) setOperationTypes(d.operationTypes.filter(Boolean));
-      if (typeof d.skuType === 'string') {
-        const sku = String(d.skuType).toLowerCase();
-        setSkuType(sku === 'employee_service' || sku === 'es' ? 'employee_service' : 'customer_service');
-      }
-      if (typeof d.deploymentType === 'string') {
-        setDeploymentType(d.deploymentType === 'optimization' ? 'optimization' : 'new');
-      }
-      if (Array.isArray(d.selectedApps)) {
-        setSelectedApps(d.selectedApps.filter(Boolean));
-        if (d.selectedApps.length) setHasAppsMarketplace(true);
-      }
-      if (d.appQuantities && typeof d.appQuantities === 'object') {
-        setAppQuantities({ ...d.appQuantities });
-      }
-      if (typeof d.otherApp === 'string') setOtherApp(d.otherApp);
-      if (typeof d.zendeskPlan === 'string') {
-        const plan = String(d.zendeskPlan).toLowerCase().replace(/^suite\s+/, '').trim();
-        if (['team','growth','professional','enterprise'].includes(plan)) {
-          setZendeskPlan(plan as any);
-        }
-      }
-      if (Array.isArray(d.selectedNativeConnections)) {
-        setSelectedNativeConnections(d.selectedNativeConnections.filter(Boolean));
-        if (d.selectedNativeConnections.length) setHasNativeConnections(true);
-      }
-      if (Array.isArray(d.selectedActionFlows)) {
-        setSelectedActionFlows(d.selectedActionFlows.filter(Boolean));
-      }
-      if (d.agents != null) setAgents(Math.max(1, Number(d.agents) || 1));
-      if (d.brands != null) setBrands(Math.max(1, Number(d.brands) || 1));
-      if (Array.isArray(d.channels) && d.channels.length) {
-        setSelectedChannels(d.channels.filter(Boolean));
-      } else if (Array.isArray(d.selectedChannels) && d.selectedChannels.length) {
-        setSelectedChannels(d.selectedChannels.filter(Boolean));
-      }
-      if (d.channelQuantities && typeof d.channelQuantities === 'object') {
-        setChannelQuantities({ ...d.channelQuantities });
-      }
-      if (d.areas != null) setAreas(Math.max(1, Number(d.areas) || 1));
-      setHasSSO(Boolean(d.hasSSO));
-      setHasTeamsSideConv(Boolean(d.hasTeamsSideConv));
-      setHasSlackSideConv(Boolean(d.hasSlackSideConv));
-      setHasAppCondicionais(Boolean(d.hasAppCondicionais));
-      setHasAppTicketManager(Boolean(d.hasAppTicketManager));
-    } else if (initialClientName) {
-      setClientName(initialClientName);
-    } else {
-      resetForm();
-    }
+    justHydratedRef.current = true;
+    setHydratedAt(Date.now());
+    applyForm(formFromInitial(initialData, initialClientName));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDataKey]);
 
@@ -387,6 +288,8 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   }, [planRank]);
 
   useEffect(() => {
+    // Commit da hidratação: o estado restaurado ainda não está visível aqui.
+    if (justHydratedRef.current) return;
     if (!selectedModules.includes('Support')) {
       setHasSSO(false);
       setHasTeamsSideConv(false);
@@ -399,6 +302,8 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   }, [selectedModules]);
 
   useEffect(() => {
+    // Commit da hidratação: o plano restaurado ainda não está visível aqui.
+    if (justHydratedRef.current) return;
     setSelectedModules(prev => {
       const filtered = prev.filter(module => availableModules.includes(module));
       return filtered.length > 0 ? filtered : ['Support'];
@@ -412,55 +317,40 @@ export default function AEClient({ packages, variables, initialClientName = '', 
    * ~0 hora de voz, então ligamos o módulo automaticamente ao escolher o canal.
    */
   useEffect(() => {
+    if (justHydratedRef.current) return;
     const voiceChannelOn = selectedChannels.includes('voice') && (channelQuantities.voice ?? 1) > 0;
     if (voiceChannelOn && availableModules.includes('Voice')) {
       setSelectedModules(prev => (prev.includes('Voice') ? prev : [...prev, 'Voice']));
     }
   }, [selectedChannels, channelQuantities, availableModules]);
 
+  // Último efeito do commit: libera a trava da hidratação para os próximos.
+  useEffect(() => {
+    justHydratedRef.current = false;
+  });
+
   const handleNewSimulation = () => {
+    // Limpar o formulário descarta o que não foi salvo (inclusive um salvamento
+    // que falhou): pede confirmação, como sair da página.
+    if (!confirmLeaveForm()) return;
     resetForm();
+    // Formulário limpo é o novo ponto de partida da guarda de alterações.
+    setHydratedAt(Date.now());
     // Recarrega a URL sem parâmetros
     window.history.pushState({}, '', '/ae');
   };
  
-  // Channels Checklist
-  const channelOptions = [
-    { id: 'web_form', label: 'Web Form', package: 'Ticket: Formulários/Catálogos (por form)' },
-    { id: 'email', label: 'Email', package: 'Ticket: Email (por endereço)' },
-    { id: 'web_widget', label: 'Web Widget', package: 'Messaging: Web Widget (por widget)' },
-    { id: 'whatsapp', label: 'WhatsApp', package: 'Messaging: WhatsApp' },
-    { id: 'facebook', label: 'Facebook', package: 'Messaging: Facebook Messenger (por página)' },
-    { id: 'instagram', label: 'Instagram', package: 'Messaging: Instagram Direct (por página)' },
-    { id: 'voice', label: 'Voice (Zendesk)', package: 'Voz: Configurações gerais (Fila, Espera)' },
-    { id: 'teams', label: 'MS Teams', package: 'Ticket: Microsoft Teams integration' },
-    { id: 'slack', label: 'Slack', package: 'Messaging: Slack' },
-    { id: 'x_dm', label: 'X DMs', package: 'Messaging: X Corp DM (por página)' },
-    { id: 'x_pages', label: t('channel.xPublic'), package: 'Ticket: X (Mensagens Públicas)' },
-    { id: 'sms', label: 'SMS/Text', package: 'Messaging: Text/SMS (por número)' }
-  ];
-
-  const extraChannelOptions = [
-    { id: 'ios', label: 'iOS', package: 'Messaging: iOS SDK' },
-    { id: 'unity', label: 'Unity', package: 'Messaging: Unity SDK' },
-    { id: 'line', label: 'LINE', package: 'Messaging: LINE' },
-    { id: 'apple_business', label: 'Apple Messages for Business', package: 'Messaging: Apple Messages for Business' },
-    { id: 'wechat', label: 'WeChat', package: 'Messaging: WeChat' },
-    { id: 'google_rcs', label: 'Google RCS', package: 'Messaging: Google RCS' },
-    { id: 'google_business', label: t('channel.googleBusiness'), package: 'Messaging: Google Business Messages' },
-    { id: 'kakaotalk', label: 'KakaoTalk', package: 'Messaging: KakaoTalk' },
-    { id: 'facebook_pages', label: t('channel.facebookPage'), package: 'Ticket: Facebook Page (Timeline)' },
-    { id: 'instagram_page', label: t('channel.instagramPage'), package: 'Ticket: Instagram Page (Feed)' },
-    { id: 'telegram', label: 'Telegram', package: 'Messaging: Telegram' }
-  ];
+  // Canais (lista compartilhada com a página da estimativa salva).
+  const { main: channelOptions, extra: extraChannelOptions } = aeChannelOptions(t);
 
   // `value` é o nome canônico em português — é ele que vai para o banco e para o
   // engine de cálculo. `label` é só exibição e segue o idioma ativo.
   const nativeConnectionOptions = useMemo(() => {
     return packages
-      .filter((p: any) => p.categoryName === 'Integrações Nativas')
+      // Categoria configurável no painel Admin › Calculadora AE.
+      .filter((p: any) => p.categoryName === (aeConfig?.settings?.nativeIntegrationsCategory || 'Integrações Nativas'))
       .map((p: any) => ({ value: p.name as string, label: packageName(p, language) }));
-  }, [packages, language]);
+  }, [packages, language, aeConfig]);
 
   const marketplaceOptions = useMemo(
     () => [
@@ -588,7 +478,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     let result: ReturnType<typeof calculateAEEstimate> | null = null;
     if (validation.valid) {
       try {
-        result = calculateAEEstimate(inputs);
+        result = calculateAEEstimate(inputs, aeConfig);
       } catch (err) {
         // Antes o erro era engolido em silêncio e a estimativa saía zerada, o que
         // parecia um resultado válido. Agora fica registrado no console.
@@ -718,7 +608,101 @@ export default function AEClient({ packages, variables, initialClientName = '', 
     hasSlackSideConv,
     hasAppCondicionais,
     hasAppTicketManager,
+    aeConfig,
   ]);
+
+  /* ------------------------------------------------------------------------ */
+  /*               SALVAMENTO (com erro detalhado) e GUARDA                    */
+  /* ------------------------------------------------------------------------ */
+
+  type SaveError = { message: string; code?: string; details?: string; step: string; at: string };
+  const [saveState, setSaveState] = useState<{
+    status: 'idle' | 'saving' | 'saved' | 'error';
+    error?: SaveError;
+    id?: number;
+    version?: number;
+  }>({ status: 'idle' });
+  const lastSavePayloadRef = useRef<any>(null);
+  const [saveErrorCopied, setSaveErrorCopied] = useState(false);
+
+  /** Tudo o que o salvar grava do formulário, num texto comparável. */
+  const aeFormSnapshot = JSON.stringify({
+    clientName, zohoLink, clientObjectives, successIndicators, selectedModules, knowledgeArticles,
+    operationTypes, skuType, deploymentType, selectedApps, appQuantities, otherApp, zendeskPlan,
+    selectedNativeConnections, selectedActionFlows, agents, brands, selectedChannels, channelQuantities,
+    areas, hasSSO, hasTeamsSideConv, hasSlackSideConv, hasAppCondicionais, hasAppTicketManager,
+  });
+  // Ponto de partida da guarda. É ESTADO (não ref) para que, ao acompanhar o
+  // formulário logo depois de carregar, a tela re-renderize e a guarda desarme.
+  const [aeBaseline, setAeBaseline] = useState<string>(aeFormSnapshot);
+  // Logo após carregar (ou limpar) o formulário, os efeitos de consistência
+  // ainda ajustam o estado em cascata: nesse intervalo o ponto de partida
+  // acompanha, e a guarda fica desligada, para não acusar alterações que o
+  // usuário não fez.
+  const SETTLE_MS = 800;
+  const inSettleWindow = Date.now() - hydratedAt < SETTLE_MS;
+  useEffect(() => {
+    if (Date.now() - hydratedAt < SETTLE_MS && aeBaseline !== aeFormSnapshot) setAeBaseline(aeFormSnapshot);
+  }, [aeFormSnapshot, hydratedAt, aeBaseline]);
+  const isFormDirty = !inSettleWindow && aeFormSnapshot !== aeBaseline;
+  const { confirmLeave: confirmLeaveForm } = useUnsavedChangesGuard(
+    isFormDirty && saveState.status !== 'saving',
+    t('common.unsavedChangesConfirm'),
+  );
+
+  const persistEstimate = async (payload: any, snapshotAtSave: string) => {
+    lastSavePayloadRef.current = { payload, snapshotAtSave };
+    setSaveState({ status: 'saving' });
+    setIsPending(true);
+    try {
+      const result: any = await saveAEEstimateAction(payload);
+      if (result?.ok) {
+        setSaveState({ status: 'saved', id: result.id, version: result.version });
+        setAeBaseline(snapshotAtSave);
+      } else {
+        setSaveState({
+          status: 'error',
+          error: result?.error || { message: t('errors.aeSaveFailed'), step: 'unknown', at: new Date().toISOString() },
+        });
+      }
+    } catch (error: any) {
+      // Falha de rede/servidor antes de a action responder.
+      console.error('Error saving estimate:', error);
+      setSaveState({
+        status: 'error',
+        error: {
+          message: t('ae.saveErrorRequest'),
+          details: String(error?.message || error),
+          step: 'request',
+          at: new Date().toISOString(),
+        },
+      });
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const retrySave = () => {
+    const last = lastSavePayloadRef.current;
+    if (last) void persistEstimate(last.payload, last.snapshotAtSave);
+  };
+
+  const copySaveErrorDetails = async () => {
+    const err = saveState.error;
+    if (!err) return;
+    const text = [
+      `${t('ae.saveErrorTitle')}`,
+      `${t('ae.saveErrorMessage')}: ${err.message}`,
+      err.code ? `${t('ae.saveErrorCode')}: ${err.code}` : '',
+      `${t('ae.saveErrorStep')}: ${err.step}`,
+      `${t('ae.saveErrorAt')}: ${err.at}`,
+      `${t('ae.saveErrorClient')}: ${clientName}`,
+      err.details ? `${t('ae.saveErrorDetails')}:\n${err.details}` : '',
+    ].filter(Boolean).join('\n');
+    try { await navigator.clipboard.writeText(text); } catch { /* sem permissão: o texto continua na tela */ }
+    setSaveErrorCopied(true);
+    setTimeout(() => setSaveErrorCopied(false), 2500);
+  };
 
   const handleCalculate = async () => {
     if (!validation.valid) {
@@ -728,371 +712,6 @@ export default function AEClient({ packages, variables, initialClientName = '', 
 
     setIsPending(true);
     
-    const breakdown = (estimation.breakdown || {}) as Record<string, number>;
-    const q = (estimation.quantities || {}) as Record<string, number>;
-
-    const num = (v: any, digits = 2) => {
-      const n = Number(v) || 0;
-      return Number.isFinite(n) ? n.toFixed(digits) : '0.00';
-    };
-
-    const modulesList = (selectedModules || []).filter(Boolean);
-    const rawChannelsList = (selectedChannels || []).filter(Boolean);
-    const channelsKeyList: ChannelKey[] = rawChannelsList
-      .map((c) => CHANNEL_LEGACY_TO_KEY[c])
-      .filter(Boolean);
-    const channelsList = rawChannelsList;
-    const nativeList = (selectedNativeConnections || []).filter(Boolean);
-    const appsLabels = (selectedApps || []).filter(Boolean);
-    const appsKeys = appsLabels
-      .map((label) => MARKETPLACE_APP_LABEL_TO_KEY[label] || null)
-      .filter((v): v is MarketplaceAppKey => Boolean(v));
-
-    const sweethawkQty = Number(appQuantities['SweetHawk'] ?? 0);
-    const otherQty =
-      Number(appQuantities['Outros'] ?? 0) ||
-      Number(appQuantities['App Marketplace'] ?? 0) ||
-      Number(appQuantities['other_marketplace'] ?? 0) ||
-      0;
-    const oneOffApps = appsKeys.filter((k) => k !== 'sweethawk' && k !== 'other_marketplace');
-    const oneOffAppLabels = appsLabels.filter((label) => {
-      const k = MARKETPLACE_APP_LABEL_TO_KEY[label];
-      return k && k !== 'sweethawk' && k !== 'other_marketplace';
-    });
-
-    const extraChannelsQty = channelsKeyList.reduce((acc, ch) => {
-      if (ch === 'email' || ch === 'web_form' || ch === 'web_widget' || ch === 'voice') return acc;
-      const legacyKey = (Object.keys(CHANNEL_LEGACY_TO_KEY).find(
-        (k) => CHANNEL_LEGACY_TO_KEY[k] === ch
-      ) as string) || ch;
-      const qtyEntry = Math.max(0, Number(channelQuantities[legacyKey as any] || channelQuantities[ch as any] || 0));
-      return acc + qtyEntry || (channelsKeyList.includes(ch) ? 1 : 0);
-    }, 0);
-
-    const actionFlowsQty = (selectedActionFlows || []).filter(Boolean).length;
-
-    const supportItems: Array<[string, number, number]> = [
-      [t('cfg.roles'), Number(q.funcoes || 0), 0.25],
-      [t('cfg.groups'), Number(q.grupos || 0), 0.05],
-      [t('cfg.ticketFields'), Number(q.campos_ticket || 0), 0.08],
-      [t('cfg.forms'), Number(q.formularios || 0), 0.08],
-      [t('cfg.fieldConditions'), Number(q.condicionais_campos || 0), 0.02],
-      [t('cfg.userFields'), Number(q.campos_usuario || 0), 0.05],
-      [t('cfg.orgFields'), Number(q.campos_organizacao || 0), 0.05],
-      [t('cfg.views'), Number(q.visualizacoes || 0), 0.08],
-      [t('cfg.macros'), Number(q.macros || 0), 0.08],
-      [t('cfg.simpleTriggers'), Number(q.gatilhos_simples || 0), 0.08],
-      [t('cfg.complexTriggers'), Number(q.gatilhos_complexos || 0), 0.33],
-      [t('cfg.simpleAutomations'), Number(q.automacoes_simples || 0), 0.08],
-      [t('cfg.complexAutomations'), Number(q.automacoes_complexas || 0), 0.33],
-      [t('cfg.slaPolicies'), Number(q.politicas_sla || 0), 0.17],
-    ];
-
-    const voiceItems: Array<[string, number, number]> = [
-      ['IVR', Number(q.ivr || 0), 0.59],
-      [t('cfg.greetings'), Number(q.saudacoes || 0), 0.05],
-    ];
-
-    const copilotItems: Array<[string, number, number]> = [
-      [t('cfg.intents'), Number(q.intencoes || 0), 0.25],
-      [t('cfg.entities'), Number(q.entidades || 0), 0.33],
-      [t('cfg.procedures'), Number(q.procedimentos || 0), 0.67],
-    ];
-
-    const wfmItems: Array<[string, number, number]> = [
-      [t('cfg.locations'), Number(q.wfm_localizacoes || 0), 0.25],
-      [t('cfg.shifts'), Number(q.wfm_turnos || 0), 0.25],
-      [t('cfg.workGroups'), Number(q.wfm_grupos_trabalho || 0), 0.08],
-      [t('cfg.teams'), Number(q.wfm_equipes || 0), 0.08],
-      [t('cfg.timeOffReasons'), Number(q.wfm_motivos_folga || 0), 0.08],
-      [t('cfg.generalTasks'), Number(q.wfm_tarefas_gerais || 0), 0.08],
-      [t('cfg.wfmAutomations'), Number(q.wfm_automacoes || 0), 0.25],
-      [t('cfg.wfmRoles'), Number(q.wfm_funcoes || 0), 0.17],
-    ];
-
-    const qaItems: Array<[string, number, number]> = [
-      [t('cfg.highlights'), Number(q.qa_destaques || 0), 0.75],
-      [t('cfg.quizzes'), Number(q.qa_quizzes || 0), 0.5],
-      [t('cfg.filters'), Number(q.qa_filtros || 0), 0.5],
-      [t('cfg.scorecards'), Number(q.qa_tabelas_desempenho || 0), 0.5],
-      [t('cfg.manualCategories'), Number(q.qa_categorias_manuais || 0), 0.17],
-      [t('cfg.aiCategories'), Number(q.qa_categorias_ia || 0), 0.5],
-      [t('cfg.users'), Number(q.qa_usuarios || 0), 0.05],
-      [t('cfg.bots'), Number(q.qa_bots || 0), 0.17],
-      [t('cfg.workspace'), Number(q.qa_espaco_trabalho || 0), 0.25],
-      [t('cfg.assignments'), Number(q.qa_atribuicoes || 0), 0.5],
-      [t('cfg.qaGroups'), Number(q.qa_grupos || 0), 0.08],
-      [t('cfg.hashtags'), Number(q.qa_hashtags || 0), 0.05],
-    ];
-
-    const renderQtyTable = (rows: Array<[string, number, number]>, totalHoras: number) => {
-      const lines = rows.map(([label, qtd, uh]) =>
-        `| ${label} | ${num(qtd, 2)} | ${uh.toFixed(2)}h | ${num(qtd * uh, 2)}h |`
-      ).join('\n');
-      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-${lines}
-| **${t('aeReport.blockSubtotal')}** | — | — | **${num(totalHoras, 2)}h** |`;
-    };
-
-    // Generate Markdown Report
-    // Só administradores veem o Relatório Executivo, então para os demais o
-    // texto nem é montado — não há por que gerar e guardar em estado algo que
-    // não será exibido.
-    const report = !showExecutiveReport ? '' : `
-# ${t('aeReport.title')} — ${clientName}
-
-## ${t('report.section1')}
-
-- **${t('report.client')}:** ${clientName}
-${zohoLink ? `- **${t('report.deal')}:** ${zohoLink}` : ''}
-- **${t('ae.sku')}:** ${skuType === 'employee_service' ? t('report.employeeService') : t('report.customerService')}
-- **${t('aeReport.deploymentType')}:** ${deploymentType === 'new' ? t('report.newDeployment') : t('report.optimizationExisting')}
-- **${t('report.zendeskPlan')}:** ${String(zendeskPlan || 'professional').toUpperCase()}
-- **${t('report.selectedModules')}:** ${modulesList.length ? modulesList.join(', ') : '—'}
-- **${t('aeReport.operations')}:** ${(operationTypes || []).filter(Boolean).join(', ') || '—'}
-- **${t('report.agents')}:** ${agents}
-- **${t('aeReport.brandsLabel')}:** ${brands}
-- **${t('ae.areas')}:** ${areas}
-- **${t('aeReport.knowledgeArticles')}:** ${knowledgeArticles}
-
----
-
-## ${t('aeReport.section2')}
-
-| ${t('report.group')} | ${t('report.hours')} | ${t('aeReport.note')} |
-| :--- | ---: | :--- |
-| ${t('aeReport.supportConfig')} | ${num(breakdown.supportConfig, 2)}h | ${t('aeReport.module')} Support |
-| ${t('aeReport.voiceConfig')} | ${num(breakdown.voiceConfig, 2)}h | ${t('aeReport.module')} Voice |
-| ${t('aeReport.copilotConfig')} | ${num(breakdown.copilotConfig, 2)}h | ${t('aeReport.module')} Copilot |
-| ${t('aeReport.wfmConfig')} | ${num(breakdown.wfmConfig, 2)}h | ${t('aeReport.module')} WFM |
-| ${t('aeReport.qaConfig')} | ${num(breakdown.qaConfig, 2)}h | ${t('aeReport.module')} QA |
-| ${t('aeReport.baseSetupRow')} | ${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h | ${t('aeReport.baseSetupNote')} |
-| ${t('aeReport.aktieAppsRow')} | ${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h | ${t('aeReport.aktieAppsNote')} |
-| 2.8 SSO | ${num(breakdown.sso, 2)}h | ${t('aeReport.ssoNote')} |
-| ${t('aeReport.generalConfigRow')} | ${num(breakdown.generalConfig, 2)}h | ${t('aeReport.generalConfigNote')} |
-| ${t('aeReport.trainingRow')} | ${num(breakdown.training, 2)}h | ${t('aeReport.trainingNote')} |
-| ${t('aeReport.fixedPackagesRow')} | ${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h | ${t('aeReport.fixedPackagesNote')} |
-| ${t('aeReport.nativeRow')} | ${num(breakdown.nativeConnections, 2)}h | ${t('aeReport.flat2hEach')} |
-| ${t('aeReport.knowledgeRow')} | ${num(breakdown.knowledge, 2)}h | ${t('aeReport.articles')} |
-| ${t('aeReport.sideConvRow')} | ${num(breakdown.sideConversations, 2)}h | ${t('aeReport.sideConvNote')} |
-| ${t('aeReport.thirdPartyRow')} | ${num(breakdown.thirdPartyApps, 2)}h | ${t('aeReport.thirdPartyNote')} |
-| ${t('aeReport.workshopsRow')} | ${num(breakdown.workshops, 2)}h | ${t('aeReport.workshopsNote')} |
-| ${t('aeReport.actionFlowsRow')} | ${num(breakdown.actionFlows, 2)}h | ${t('aeReport.externalServices')} |
-| | | |
-| **${t('aeReport.totalLineItems')}** | | **${num(estimation.lineItemHours, 2)}h** |
-
----
-
-## ${t('aeReport.section3')}
-
-### 3.1 Support (${num(breakdown.supportConfig, 2)}h)
-${renderQtyTable(supportItems, Number(breakdown.supportConfig || 0))}
-
-### 3.2 Voice (${num(breakdown.voiceConfig, 2)}h)
-${modulesList.includes('Voice') || breakdown.voiceConfig ? renderQtyTable(voiceItems, Number(breakdown.voiceConfig || 0)) : t('report.moduleNotSelected', { module: 'Voice' })}
-
-### 3.3 Copilot (${num(breakdown.copilotConfig, 2)}h)
-${modulesList.includes('Copilot') || breakdown.copilotConfig ? renderQtyTable(copilotItems, Number(breakdown.copilotConfig || 0)) : t('report.moduleNotSelected', { module: 'Copilot' })}
-
-### 3.4 WFM (${num(breakdown.wfmConfig, 2)}h)
-${modulesList.includes('WFM') || breakdown.wfmConfig ? renderQtyTable(wfmItems, Number(breakdown.wfmConfig || 0)) : t('report.moduleNotSelected', { module: 'WFM' })}
-
-### 3.5 QA (${num(breakdown.qaConfig, 2)}h)
-${modulesList.includes('QA') || breakdown.qaConfig ? renderQtyTable(qaItems, Number(breakdown.qaConfig || 0)) : t('report.moduleNotSelected', { module: 'QA' })}
-
----
-
-## ${t('aeReport.section4')}
-    ${(() => {
-      const chQty = (id: ChannelKey | string) => {
-        const k: ChannelKey = (CHANNEL_LEGACY_TO_KEY[id] || id) as ChannelKey;
-        const legacyKey = (Object.keys(CHANNEL_LEGACY_TO_KEY).find(
-          (lk) => CHANNEL_LEGACY_TO_KEY[lk] === k
-        ) as string) || id;
-        const v =
-          Number(channelQuantities[legacyKey as any] ?? 0) ||
-          Number(channelQuantities[k as any] ?? 0) ||
-          0;
-        const active = channelsKeyList.includes(k) || rawChannelsList.includes(id as any);
-        if (!active) return 0;
-        return v > 0 ? v : 1;
-      };
-      return `| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-| ${t('aeReport.agentSetupRow')} | ${agents} | 0.05h | ${num(Number(breakdown.agentSetup || 0), 2)}h |
-| ${t('report.brands')} | ${brands} | 0.25h | ${num(Number(breakdown.brandSetup || 0), 2)}h |
-| ${t('aeReport.channelsEmail')} | ${chQty('email')} | 0.17h | ${num(chQty('email') * 0.17, 2)}h |
-| ${t('aeReport.channelsWebWidget')} | ${chQty('web_widget')} | 0.42h | ${num(chQty('web_widget') * 0.42, 2)}h |
-| ${t('aeReport.otherChannelsRow')} | ${extraChannelsQty} | ${t('aeReport.minIfOver')} | ${num(Number(breakdown.channelSetup || 0) -
-  chQty('email') * 0.17 -
-  chQty('web_widget') * 0.42, 2)}h |
-| **${t('common.subtotal')}** | — | — | **${num(Number(breakdown.agentSetup || 0) + Number(breakdown.brandSetup || 0) + Number(breakdown.channelSetup || 0), 2)}h** |`;
-    })()}
-
-### ${t('aeReport.selectedChannels')}
-| ${t('aeReport.channel')} | ${t('aeReport.qty')} |
-| :--- | ---: |
-${channelsList.length ? channelsList.map((c) => {
-  const qtd = Math.max(0, Number(channelQuantities[c as any] || 1)) || 0;
-  return `| ${c} | ${qtd} |`;
-}).join('\n') : `| ${t('report.emptyMasc')} | — |`}
-
----
-
-## ${t('aeReport.section5')}
-
-### ${t('aeReport.section51')}
-| App | ${t('report.hours')} |
-| :--- | ---: |
-| ${t('aeReport.advancedConditionals')} ${hasAppCondicionais ? '(✓)' : '(✗)'} | ${num(breakdown.appCondicionais, 2)}h |
-| Ticket Manager ${hasAppTicketManager ? '(✓)' : '(✗)'} | ${num(breakdown.appTicketManager, 2)}h |
-| **${t('aeReport.subtotalAktieApps')}** | **${num(Number(breakdown.appCondicionais || 0) + Number(breakdown.appTicketManager || 0), 2)}h** |
-
-### ${t('aeReport.section52')}
-| ${t('aeReport.integration')} | ${t('common.total')} |
-| :--- | ---: |
-${nativeList.length ? nativeList.map((n) => `| ${n} | 2.00h |`).join('\n') : `| ${t('report.emptyFem')} | — |`}
-| **${t('aeReport.subtotalNative')}** | **${num(breakdown.nativeConnections, 2)}h** |
-
-### ${t('aeReport.section53')}
-| ${t('common.item')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: | ---: |
-| ${t('aeReport.teamsSideConv')} | ${hasTeamsSideConv ? 1 : 0} | 0.50h | ${num(hasTeamsSideConv ? 0.5 : 0, 2)}h |
-| ${t('aeReport.slackSideConv')} | ${hasSlackSideConv ? 1 : 0} | 0.50h | ${num(hasSlackSideConv ? 0.5 : 0, 2)}h |
-| **${t('aeReport.subtotalSideConv')}** | — | — | **${num(breakdown.sideConversations, 2)}h** |
-
-### ${t('aeReport.section54')}
-| App | ${t('common.type')} | ${t('aeReport.qty')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | :--- | ---: | ---: | ---: |
-${oneOffAppLabels.length ? oneOffAppLabels.map((label) => {
-  const key = MARKETPLACE_APP_LABEL_TO_KEY[label] as any;
-  const uh = {
-    woocommerce: 1.5,
-    dialpad: 1.5,
-    aircall: 2.0,
-    vtex: 1.0,
-    stripe: 1.0,
-    pipedrive: 1.0,
-  }[key] || 0;
-  return `| ${label} | ${t('report.oneOff')} | 1 | ${uh.toFixed(2)}h | ${num(uh, 2)}h |`;
-}).join('\n') : ''}
-${(sweethawkQty || 0) > 0 || (otherQty || 0) > 0 ? [
-  (sweethawkQty > 0 ? `| SweetHawk | ${t('report.count')} | ${sweethawkQty} | 2.00h | ${num(sweethawkQty * 2, 2)}h |` : ''),
-  (otherQty > 0 ? `| ${t('report.otherMarketplace')} | ${t('report.count')} | ${otherQty} | 5.00h | ${num(otherQty * 5, 2)}h |` : ''),
-].filter(Boolean).join('\n') : ''}
-${!(oneOffAppLabels.length || sweethawkQty || otherQty) ? `| ${t('report.emptyMasc')} | — | — | — | — |` : ''}
-| **${t('aeReport.subtotalMarketplace')}** | — | — | — | **${num(breakdown.thirdPartyApps, 2)}h** |
-
-### ${t('aeReport.section55')}
-| ${t('aeReport.service')} | ${t('aeReport.hoursPerUnit')} | ${t('common.total')} |
-| :--- | ---: | ---: |
-${actionFlowsQty > 0 ? (selectedActionFlows || []).filter(Boolean).map((name: any) => `| ${String(name)} | 4.50h | 4.50h |`).join('\n') : `| ${t('report.emptyMasc')} | — | — |`}
-| **${t('aeReport.subtotalActionFlows')} (${actionFlowsQty})** | — | **${num(breakdown.actionFlows, 2)}h** |
-
----
-
-## ${t('aeReport.section6')}
-
-### ${t('aeReport.section61')}
-| ${t('aeReport.module')} | H |
-| :--- | ---: |
-| Support | ${modulesList.includes('Support') ? '1.00h' : '0.00h'} |
-| Community | ${modulesList.includes('Community') ? '1.00h' : '0.00h'} |
-| Analytics (Explore) | ${modulesList.includes('Analytics') ? '3.50h' : '0.00h'} |
-| Voice (Talk) | ${modulesList.includes('Voice') ? '0.50h' : '0.00h'} |
-| Copilot | ${modulesList.includes('Copilot') ? '0.50h' : '0.00h'} |
-| QA | ${modulesList.includes('QA') ? '1.00h' : '0.00h'} |
-| WFM | ${modulesList.includes('WFM') ? '0.33h' : '0.00h'} |
-| ADPP | ${modulesList.includes('ADPP') ? '1.50h' : '0.00h'} |
-| **${t('common.subtotal')}** | **${num(breakdown.generalConfig, 2)}h** |
-
-> ${t('aeReport.knowledgeConfigNote')}
-
-### ${t('aeReport.section62')}
-- Suite (Support / Knowledge / Analytics): ${num(Number(breakdown.training || 0) > 0 ? 3.0 : 0, 2)}h
-- Community: ${num(modulesList.includes('Community') ? 1.5 : 0, 2)}h
-- Voice: ${num(modulesList.includes('Voice') ? 2.5 : 0, 2)}h
-- Copilot: ${num(modulesList.includes('Copilot') ? 2.5 : 0, 2)}h
-- QA: ${num(modulesList.includes('QA') ? 2.0 : 0, 2)}h
-- WFM: ${num(modulesList.includes('WFM') ? 3.0 : 0, 2)}h
-- ADPP: ${num(modulesList.includes('ADPP') ? 1.0 : 0, 2)}h
-- ${t('aeReport.subtotalTraining')} **${num(breakdown.training, 2)}h**
-
-### ${t('aeReport.section63')}
-| ${t('aeReport.block')} | ${t('aeReport.qty')} × H | ${t('common.total')} |
-| :--- | :--- | ---: |
-| ${t('aeReport.supportFixedRow')} | 1.83h | 1.83h |
-| ${t('aeReport.supportNonTeamRow')} | ${String(zendeskPlan || 'professional').toLowerCase() !== 'team' ? '0.50h' : '0.00h'} | ${num(Number(breakdown.supportFixed || 0) - 1.83, 2)}h |
-| ${t('aeReport.wfmFixedRow')} | — | ${num(breakdown.wfmFixed, 2)}h |
-| ${t('aeReport.adppFixedRow')} | — | ${num(breakdown.adppFixed, 2)}h |
-| **${t('aeReport.subtotalFixed')}** | — | **${num(Number(breakdown.supportFixed || 0) + Number(breakdown.wfmFixed || 0) + Number(breakdown.adppFixed || 0), 2)}h** |
-
-### ${t('aeReport.section64')}
-| ${t('aeReport.module')} | H |
-| :--- | ---: |
-| ${t('aeReport.suiteWorkshopRow')} | ${(modulesList.includes('Support') || modulesList.includes('Knowledge') || modulesList.includes('Analytics')) ? '1.00h' : '0.00h'} |
-| Voice | ${modulesList.includes('Voice') ? '0.50h' : '0.00h'} |
-| Copilot | ${modulesList.includes('Copilot') ? '0.50h' : '0.00h'} |
-| QA | ${modulesList.includes('QA') ? '0.50h' : '0.00h'} |
-| WFM | ${modulesList.includes('WFM') ? '0.50h' : '0.00h'} |
-| **${t('aeReport.subtotalWorkshops')}** | **${num(breakdown.workshops, 2)}h** |
-
-### ${t('aeReport.section66')}
-- SSO ${hasSSO ? t('aeReport.ssoEnabled') : t('aeReport.ssoDisabled')}: **${num(breakdown.sso, 2)}h** ${t('aeReport.ssoFlatNote')}
-
-### ${t('aeReport.section67')}
-- ${t('aeReport.articles')}: ${knowledgeArticles}
-- ${t('aeReport.hoursPerArticle')}
-- ${t('aeReport.knowledgeConfigNote')}
-- ${t('aeReport.subtotalKnowledge')} **${num(breakdown.knowledge, 2)}h**
-
----
-
-## ${t('aeReport.section7')}
-
-${t('aeReport.pctBaseNote')} **${num(Math.max(0, Number(estimation.lineItemHours || 0) - Number(breakdown.training || 0) - Number(breakdown.nativeConnections || 0) - Number(breakdown.thirdPartyApps || 0)), 2)}h**
-
-| ${t('report.variable')} | ${t('report.rule')} | ${t('report.hours')} |
-| :--- | :--- | ---: |
-| ${t('ae.discovery')} | 20% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.discoveryHours, 2)}h** |
-| ${t('ae.validation')} | 15% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.validationHours, 2)}h** |
-| ${t('report.techComm')} | 10% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.commTechHours, 2)}h** |
-| ${t('ae.goLive')} | 5% ${t('aeReport.pctOverBaseAbove')} | **${num(estimation.goLiveHours, 2)}h** |
-| ${t('report.projectMgmt')} | ${t('aeReport.gpRule')} | **${num(estimation.gpHours, 2)}h** ${Number(estimation.gpHours || 0) === 0 ? t('report.belowGpThreshold') : ''} |
-| **${t('report.variablesSubtotal')}** | | **${num(Number(estimation.discoveryHours || 0) + Number(estimation.validationHours || 0) + Number(estimation.commTechHours || 0) + Number(estimation.goLiveHours || 0) + Number(estimation.gpHours || 0), 2)}h** |
-
----
-
-## ${t('aeReport.section8')}
-
-| ${t('common.item')} | ${t('report.hours')} |
-| :--- | ---: |
-| ${t('aeReport.allGroups')} | ${num(estimation.lineItemHours, 2)}h |
-| + ${t('ae.discovery')} | ${num(estimation.discoveryHours, 2)}h |
-| + ${t('ae.validation')} | ${num(estimation.validationHours, 2)}h |
-| + ${t('ae.goLive')} | ${num(estimation.goLiveHours, 2)}h |
-| + ${t('report.techComm')} | ${num(estimation.commTechHours, 2)}h |
-| + ${t('report.projectMgmt')} | ${num(estimation.gpHours, 2)}h |
-| **${t('report.totalEstimatedEffort')}** | **${num(estimation.total, 2)}h** |
-
----
-
-## ${t('aeReport.section9')}
-
-${estimation.needsSC ? [
-  t('report.requiresSC'),
-  estimation.escalationMessage ? `- ${String(estimation.escalationMessage)}` : '',
-  t('report.triggerCriteria'),
-].filter(Boolean).join('\n') : [
-  t('report.withinLimits'),
-  t('report.reviewAnyway'),
-].join('\n')}
-
-${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.total, 2) }) : ''}
-`;
-    
-    setMarkdownReport(report.trim());
 
     // Congela o resultado ANTES de salvar. O save chama revalidatePath('/ae'),
     // o que reinjeta `initialData` e faz o formulário voltar ao estado clonado;
@@ -1108,8 +727,8 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
     });
     setShowResult(true);
 
-    try {
-      await saveAEEstimateAction({
+    setIsPending(false);
+    await persistEstimate({
         clientName,
         zohoLink,
         clientObjectives,
@@ -1139,12 +758,11 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
         needsSC: estimation.needsSC,
         appQuantities,
         parentId: cloneFromId || undefined,
-      });
-    } catch (error) {
-      console.error("Error saving estimate:", error);
-    } finally {
-      setIsPending(false);
-    }
+        aeConfigId: aeConfigId ?? null,
+        // Horas efetivas usadas no cálculo (com as da biblioteca já aplicadas):
+        // a estimativa reabre igual mesmo que a biblioteca mude depois.
+        aeNumbers: { numbers: aeConfig.numbers, nativeIntegrationHours: aeConfig.nativeIntegrationHours || null },
+      }, aeFormSnapshot);
   };
 
   /**
@@ -1176,15 +794,17 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
    * Sai do SNAPSHOT congelado, não do estado vivo — assim o prompt descreve a
    * estimativa que foi calculada e salva, e não um rascunho editado depois.
    */
-  const scopePrompt = useMemo(() => {
-    if (!resultSnapshot) return '';
+  const scopePromptInput = useMemo<AEScopePromptInput | null>(() => {
+    // O prompt descreve a estimativa SALVA, com o número de versão que o
+    // servidor atribuiu (antes saía o número da versão de origem do clone).
+    if (!resultSnapshot || saveState.status !== 'saved') return null;
 
     const appQuantitiesByLabel = appQuantities || {};
-    return buildAEScopePrompt({
+    return {
       estimate: resultSnapshot.engineResult,
       inputs: resultSnapshot.engineInputs,
       clientName: resultSnapshot.clientName,
-      versionLabel: initialVersion != null ? `v${initialVersion}` : 'v1',
+      versionLabel: saveState.version != null ? `v${saveState.version}` : null,
       zohoLink,
       preSalesName: (session?.user as any)?.name || null,
       // Texto livre do AE — vira o bloco [CONTEXTO DO CLIENTE] no prompt, que é
@@ -1192,42 +812,43 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
       clientObjectives,
       successIndicators,
       deploymentType,
-      marketplaceApps: (selectedApps || []).filter(Boolean).map((label: string) => ({
-        label: String(label),
-        quantity: Math.max(1, Number(appQuantitiesByLabel[label] ?? 1)),
-      })),
+      // Mesma lista da tela de visualização (ver marketplaceAppsForPrompt).
+      marketplaceApps: marketplaceAppsForPrompt(selectedApps, appQuantitiesByLabel),
+      otherApp: selectedApps.includes('Outros') ? otherApp : '',
       hasAppCondicionais,
       hasAppTicketManager,
       // O prompt sai no idioma da interface: quem trabalha em inglês recebe as
       // instruções em inglês e IDIOMA DE SAÍDA: en-US.
       locale: language,
-      channelLabels: Object.fromEntries(
-        [...channelOptions, ...extraChannelOptions].map((o) => [
-          CHANNEL_LEGACY_TO_KEY[o.id] || o.id,
-          o.label,
-        ]),
-      ),
+      // Sem rótulos próprios: os canais saem com os nomes canônicos de
+      // lib/ae-scope-prompt.ts, iguais aos da tela de visualização.
       skuLabel: skuType === 'employee_service'
         ? t('plans.employeeService')
         : t('plans.customerService'),
       generatedAt: new Date(),
-    });
+    };
   }, [
-    resultSnapshot, selectedApps, appQuantities, hasAppCondicionais,
+    resultSnapshot, selectedApps, appQuantities, otherApp, hasAppCondicionais,
     hasAppTicketManager, zohoLink, clientObjectives, successIndicators,
-    deploymentType, skuType, initialVersion, session, language, t,
+    deploymentType, skuType, saveState.status, saveState.version, session, language, t,
   ]);
 
+  const scopePrompt = useMemo(() => (scopePromptInput ? buildAEScopePrompt(scopePromptInput) : ''), [scopePromptInput]);
 
   const [scopePromptCopied, setScopePromptCopied] = useState(false);
+  const [scopePromptLoading, setScopePromptLoading] = useState(false);
 
   const handleCopyScopePrompt = async () => {
-    if (!scopePrompt) return;
+    if (!scopePromptInput) return;
+    setScopePromptLoading(true);
+    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink);
+    setScopePromptLoading(false);
+    const text = buildAEScopePrompt({ ...scopePromptInput, zohoSection });
     try {
-      await navigator.clipboard.writeText(scopePrompt);
+      await navigator.clipboard.writeText(text);
     } catch {
       const ta = document.createElement('textarea');
-      ta.value = scopePrompt;
+      ta.value = text;
       document.body.appendChild(ta);
       ta.select();
       try { document.execCommand('copy'); } catch (_) {}
@@ -1262,6 +883,18 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               <Clock className="w-4 h-4" />
               <span>{t('ae.myHistory')}</span>
             </Link>
+            <button
+              type="button"
+              onClick={toggleCompact}
+              aria-pressed={compact}
+              title={t('ae.compactViewHint')}
+              className={`px-5 py-3 rounded-2xl text-label font-medium flex items-center gap-2 border transition-all ${
+                compact ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'bg-white border-slate-200 text-slate-400 hover:border-brand-primary hover:text-brand-primary'
+              }`}
+            >
+              <Rows3 className="w-4 h-4" />
+              <span>{t('ae.compactView')}</span>
+            </button>
             {showResult && (
               <button 
                 onClick={handleNewSimulation}
@@ -1275,7 +908,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
         </div>
 
       {!showResult ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-10 ${compact ? 'ae-compact' : ''}`}>
           {/* Left Column: Strategic & Operation */}
           <div className="space-y-8">
             <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-xl shadow-slate-200/50 space-y-8">
@@ -1317,7 +950,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                   <textarea 
                     value={clientObjectives}
                     onChange={(e) => setClientObjectives(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="ae-long-text w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
                 <div className="space-y-2">
@@ -1325,7 +958,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                   <textarea 
                     value={successIndicators}
                     onChange={(e) => setSuccessIndicators(e.target.value)}
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
+                    className="ae-long-text w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-medium focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all h-24 resize-none"
                   />
                 </div>
               </div>
@@ -1342,7 +975,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
               <div className="space-y-8">
                 <div className="space-y-4">
                   <label className="text-label font-medium text-slate-400 ml-1">{t('ae.modules')}</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <div className={`grid gap-3 ${compact ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3'}`}>
                     {availableModules.map(m => (
                       <button
                         key={m}
@@ -1488,8 +1121,8 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
                 <div className="space-y-4">
                   <label className="text-label font-medium text-slate-400 ml-1">{t('ae.activeChannels')}</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {channelOptions.map((opt) => (
+                  <div className={`grid gap-3 ${compact ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-1 sm:grid-cols-2'}`}>
+                    {(compact ? [...channelOptions, ...extraChannelOptions] : channelOptions).map((opt) => (
                       <div key={opt.id} className={`flex items-center justify-between p-3 rounded-2xl border transition-all ${
                         selectedChannels.includes(opt.id) ? 'bg-white border-brand-primary shadow-sm' : 'bg-transparent border-slate-200 opacity-60'
                       }`}>
@@ -1515,7 +1148,8 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                     ))}
                   </div>
 
-                  {/* Ver mais canais */}
+                  {/* Ver mais canais (na visão compacta todos já estão à vista) */}
+                  {!compact && (
                   <div className="mt-4">
                     <button
                       onClick={() => setShowExtraChannels(!showExtraChannels)}
@@ -1554,6 +1188,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                       </div>
                     )}
                   </div>
+                  )}
                 </div>
             </div>
 
@@ -1779,7 +1414,7 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                       ? 'text-amber-600 dark:text-[color:var(--accent)]'
                       : 'text-slate-400 dark:text-[color:var(--text-muted)]'
                   }`}>
-                    Resultado para {shown.clientName}
+                    {t('ae.resultFor', { name: shown.clientName })}
                   </h3>
                 </div>
               </div>
@@ -1833,18 +1468,54 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
 
             <div className="relative z-10 pt-10">
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                {isPending ? (
+                {saveState.status === 'saving' && (
                   <div className="flex items-center space-x-3 text-label font-medium text-slate-400 dark:text-[color:var(--text-muted)]">
                     <Loader2 className="w-4 h-4 animate-spin" />
                     <span>{t('ae.savingRecord')}</span>
                   </div>
-                ) : (
+                )}
+                {saveState.status === 'saved' && (
                   <div className="flex items-center space-x-3 text-label font-medium text-brand-primary dark:text-[color:var(--primary)]">
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>{t('ae.recordSaved')}</span>
+                    <span>{t('ae.recordSavedVersion', { version: saveState.version })}</span>
                   </div>
                 )}
               </div>
+              {/* Erro de salvamento: explicado por inteiro, para o usuário poder reportar. */}
+              {saveState.status === 'error' && saveState.error && (
+                <div role="alert" className="mt-2 text-left rounded-3xl border-2 border-red-300 bg-red-50 text-red-900 dark:bg-red-950/40 dark:text-red-100 dark:border-red-800 p-6 space-y-4 max-w-2xl mx-auto">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-red-600" />
+                    <div className="space-y-1">
+                      <h4 className="text-body font-bold">{t('ae.saveErrorTitle')}</h4>
+                      <p className="text-label">{t('ae.saveErrorExplanation')}</p>
+                    </div>
+                  </div>
+                  <dl className="text-label grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                    <dt className="font-bold">{t('ae.saveErrorMessage')}</dt>
+                    <dd>{saveState.error.message}</dd>
+                    {saveState.error.code && (<><dt className="font-bold">{t('ae.saveErrorCode')}</dt><dd className="font-mono">{saveState.error.code}</dd></>)}
+                    <dt className="font-bold">{t('ae.saveErrorStep')}</dt>
+                    <dd className="font-mono">{saveState.error.step}</dd>
+                    <dt className="font-bold">{t('ae.saveErrorAt')}</dt>
+                    <dd className="font-mono">{new Date(saveState.error.at).toLocaleString(dateLocale)}</dd>
+                  </dl>
+                  {saveState.error.details && (
+                    <details className="text-caption">
+                      <summary className="cursor-pointer font-bold">{t('ae.saveErrorDetails')}</summary>
+                      <pre className="mt-2 whitespace-pre-wrap break-all font-mono bg-white/70 dark:bg-black/30 rounded-xl p-3 max-h-48 overflow-auto">{saveState.error.details}</pre>
+                    </details>
+                  )}
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" onClick={retrySave} disabled={isPending} className="px-4 py-2 rounded-xl bg-red-600 text-white text-label font-medium hover:bg-red-700 disabled:opacity-50">
+                      {t('ae.saveErrorRetry')}
+                    </button>
+                    <button type="button" onClick={copySaveErrorDetails} className="px-4 py-2 rounded-xl border border-red-300 text-label font-medium hover:bg-red-100 dark:hover:bg-red-900/40">
+                      {saveErrorCopied ? t('ae.saveErrorCopied') : t('ae.saveErrorCopy')}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1862,49 +1533,21 @@ ${estimation.total > 60 ? t('report.scTriggerNote', { total: num(estimation.tota
                 <button
                   type="button"
                   onClick={handleCopyScopePrompt}
-                  disabled={!scopePrompt}
+                  disabled={!scopePrompt || scopePromptLoading}
+                  title={scopePrompt ? undefined : t('ae.scopePromptNeedsSave')}
                   className={`shrink-0 px-6 py-3 rounded-2xl text-label font-medium transition-all flex items-center gap-2 disabled:opacity-50 ${
                     scopePromptCopied
                       ? 'brand-bg-primary text-brand-ink'
                       : 'bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-200 dark:border-[color:var(--border-main)] text-slate-500 dark:text-[color:var(--text-muted)] hover:border-brand-primary hover:text-brand-primary'
                   }`}
                 >
-                  {scopePromptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
+                  {scopePromptLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : scopePromptCopied ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{scopePromptLoading ? t('editor.scopePromptLoadingZoho') : scopePromptCopied ? t('editor.scopePromptCopied') : t('editor.copyScopePrompt')}</span>
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Relatório Executivo — exclusivo de administradores. Os demais
-              segmentos ficam com a tabela de resultado acima. */}
-          {showExecutiveReport && (
-          <div className="mt-12 space-y-12">
-            <div className="bg-white dark:bg-[color:var(--bg-card)] dark:border dark:border-[color:var(--border-main)] rounded-3xl border border-slate-200 p-10 shadow-xl overflow-hidden">
-              <div className="flex items-center justify-between mb-8 border-b border-slate-50 dark:border-[color:var(--border-main)] pb-6">
-                <div className="flex items-center space-x-4">
-                  <div className="bg-brand-primary/10 p-3 rounded-2xl text-brand-primary dark:bg-[color:var(--primary)]/15 dark:text-[color:var(--primary)]">
-                    <MessageSquare className="w-6 h-6" />
-                  </div>
-                  <h2 className="text-xl font-bold text-brand-dark dark:text-[color:var(--text-main)] tracking-tight">{t('ae.executiveReport')}</h2>
-                </div>
-                <button 
-                  onClick={() => {
-                    navigator.clipboard.writeText(markdownReport);
-                    alert(t('ae.reportCopied'));
-                  }}
-                  className="bg-slate-50 hover:bg-slate-100 text-slate-500 dark:bg-[color:var(--bg-input)] dark:text-[color:var(--text-muted)] dark:hover:opacity-90 dark:border dark:border-[color:var(--border-main)] px-4 py-2 rounded-xl text-label font-medium transition-all flex items-center space-x-2"
-                >
-                  <Copy className="w-3.5 h-3.5" />
-                  <span>{t('ae.copyMarkdown')}</span>
-                </button>
-              </div>
-              <div className="prose prose-slate max-w-none text-label font-medium leading-relaxed whitespace-pre-wrap dark:bg-[color:var(--bg-card)] dark:text-[color:var(--text-main)]">
-                {markdownReport}
-              </div>
-            </div>
-          </div>
-          )}
 
           <div className="mt-12 text-center">
           </div>

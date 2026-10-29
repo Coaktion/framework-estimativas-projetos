@@ -30,11 +30,11 @@ export type Resultado = {
 const id = (r: any, chave: string) => (r?.[chave] && typeof r[chave] === 'object' ? r[chave] : r)?.id;
 
 function grupo(ctx: Ctx, nome: string): number {
-  if (!(nome in ctx.groups)) throw new FaltaRef(`Grupo nao resolvido: '${nome}'`);
+  if (!(nome in ctx.groups)) throw new FaltaRef(`Grupo não resolvido: '${nome}'`);
   return ctx.groups[nome];
 }
 function campo(ctx: Ctx, ref: string): number {
-  if (!(ref in ctx.fields)) throw new FaltaRef(`Campo (chave_ref) nao resolvido: '${ref}'`);
+  if (!(ref in ctx.fields)) throw new FaltaRef(`Campo (chave_ref) não resolvido: '${ref}'`);
   return ctx.fields[ref];
 }
 function relancar(e: unknown) {
@@ -187,8 +187,8 @@ export async function executarPasso(
       }
       const linhas: string[] = [];
       if (colisoes.length) linhas.push(`TAGS EM COLISAO (${colisoes.length}): ${colisoes.slice(0, 20).join(', ')}`);
-      if (camposEx.length) linhas.push(`Campos ja existentes: ${camposEx.slice(0, 20).join(', ')}`);
-      if (gruposEx.length) linhas.push(`Grupos ja existentes: ${gruposEx.slice(0, 20).join(', ')}`);
+      if (camposEx.length) linhas.push(`Campos já existentes: ${camposEx.slice(0, 20).join(', ')}`);
+      if (gruposEx.length) linhas.push(`Grupos já existentes: ${gruposEx.slice(0, 20).join(', ')}`);
       log(linhas.join('\n') || 'Sem colisoes detectadas.');
       return out({ preflightOk: c.dryRun ? !colisoes.length : !(colisoes.length || camposEx.length) });
     }
@@ -214,7 +214,7 @@ export async function executarPasso(
             'duplicate', 'ja existe', 'já existe'].some((t) => body.includes(t));
           if (!colisao) throw e;
           const novo = novoSub(sub);
-          log(`subdominio '${sub}' indisponivel (reservado/duplicado); tentando '${novo}'`);
+          log(`subdomínio '${sub}' indisponível (reservado/duplicado); tentando '${novo}'`);
           sub = novo;
         }
       }
@@ -223,7 +223,7 @@ export async function executarPasso(
 
     case 'hc_check': {
       if (!ctx.brandId) return out();
-      if (c.dryRun) { log('(dry-run) Help Center nao e ativado de verdade; seguindo.'); return out(); }
+      if (c.dryRun) { log('(dry-run) Help Center não é ativado de verdade; seguindo.'); return out(); }
       try { await c.put(`/brands/${ctx.brandId}.json`, { brand: { has_help_center: true } }); } catch (e) { relancar(e); }
       let b: any = {};
       try { b = (await c.get(`/brands/${ctx.brandId}.json`)).brand || {}; } catch (e) { relancar(e); }
@@ -232,9 +232,9 @@ export async function executarPasso(
         return out();
       }
       const url = `https://${c.subdomain}.zendesk.com/knowledge/generation/newHelpCenter/?brand_id=${ctx.brandId}`;
-      log(`ATENCAO: ative o Help Center da marca '${c.guideSub}'. Ao ativar, escolha a opcao 'Comece do zero' `
-        + '(NAO deixe a IA da Zendesk criar artigos - nos criamos os artigos por API). Depois clique em Continuar.');
-      log(`Abrindo a pagina de ativacao: ${url}`);
+      log(`ATENÇÃO: ative o Help Center da marca '${c.guideSub}'. Ao ativar, escolha a opção 'Comece do zero' `
+        + '(NÃO deixe a IA da Zendesk criar artigos: nós criamos os artigos por API). Depois clique em Continuar.');
+      log(`Abrindo a página de ativação: ${url}`);
       return out({ pausa: { url } });
     }
 
@@ -293,7 +293,7 @@ export async function executarPasso(
       const r = await c.post('/ticket_forms.json', { ticket_form: form });
       ctx.formId = id(r, 'ticket_form');
       rec('ticket_form', ctx.formId);
-      log(`formulario: ${nome} -> ${ctx.formId} (visivel em: ${ctx.brandId ? `marca ${ctx.brandId}` : 'todas as marcas'})`);
+      log(`formulário: ${nome} -> ${ctx.formId} (visível em: ${ctx.brandId ? `marca ${ctx.brandId}` : 'todas as marcas'})`);
       return out();
     }
 
@@ -307,7 +307,7 @@ export async function executarPasso(
       const ag = build((p) => p === 'agente' || p === 'ambos');
       if (eu.length || ag.length) {
         await c.put(`/ticket_forms/${ctx.formId}.json`, { ticket_form: { id: ctx.formId, end_user_conditions: eu, agent_conditions: ag } });
-        log(`condicionais: ${eu.length} usuario / ${ag.length} agente`);
+        log(`condicionais: ${eu.length} usuário / ${ag.length} agente`);
       }
       return out();
     }
@@ -386,7 +386,7 @@ export async function executarPasso(
       const v = passo.view;
       const b = viewBase(v.nome);
       if (b === 'Tickets com sentimento negativo' && !ctx.sentId) {
-        log(`view PULADA: ${v.nome} (campo de sentimento/IA nao encontrado neste ambiente)`);
+        log(`view PULADA: ${v.nome} (campo de sentimento/IA não encontrado neste ambiente)`);
         return out({ view: 'pulada' });
       }
       const cond = catalogo(ctx.sentId)[b] || condDoCriterio(v.criterio) || { all: [OPEN_LT, STYPE], any: [] };
@@ -410,7 +410,7 @@ export async function executarPasso(
     case 'macro': {
       const m = passo.macro;
       if (!m.status_ticket || !m.grupo_destino) {
-        log(`AVISO: macro '${m.nome}' sem status e/ou grupo destino (regra: macros devem alterar status e grupo de atribuicao)`);
+        log(`AVISO: macro '${m.nome}' sem status e/ou grupo destino (regra: macros devem alterar status e grupo de atribuição)`);
       }
       const actions: object[] = [
         { field: 'comment_value_html', value: `<p>${m.mensagem}</p>` },
@@ -445,8 +445,8 @@ export async function executarPasso(
             else {
               const b = w.split('-')[0];
               const cand = locais.find((x) => x === b || x.startsWith(`${b}-`));
-              if (cand) { log(`locale: '${idi}' nao habilitado; usando '${cand}' do Help Center`); loc = cand; }
-              else { log(`locale: '${idi}' indisponivel; usando default do Help Center '${padrao}'`); loc = padrao; }
+              if (cand) { log(`locale: '${idi}' não habilitado; usando '${cand}' do Help Center`); loc = cand; }
+              else { log(`locale: '${idi}' indisponível; usando default do Help Center '${padrao}'`); loc = padrao; }
             }
           }
         } catch (e) { relancar(e); }
@@ -478,7 +478,7 @@ export async function executarPasso(
           const cats = (await c.get(`/help_center/${loc}/categories.json`)).categories || [];
           if (cats.length) { cat = cats[0].id; log(`categoria existente reutilizada -> ${cat}`); }
         } catch (e2) { relancar(e2); }
-        if (cat === null) log(`nao foi possivel criar categoria (HTTP ${(e as ZendeskError).status})`);
+        if (cat === null) log(`não foi possível criar categoria (HTTP ${(e as ZendeskError).status})`);
       }
       ctx.guide = { loc, cat, segs, perm };
       if (cat === null) { log('sem categoria - pulando Guide'); return out({ fimModulo: true }); }
@@ -492,7 +492,7 @@ export async function executarPasso(
       const sid = id(r, 'section');
       ctx.sections[passo.titulo] = sid;
       rec('section', sid);
-      log(`secao: ${passo.titulo} -> ${sid}`);
+      log(`seção: ${passo.titulo} -> ${sid}`);
       return out();
     }
 
@@ -503,7 +503,7 @@ export async function executarPasso(
       const guia = passo.tipo === 'guia_article';
       const secao = guia ? SECAO_APRESENTACAO[base.idioma] ?? SECAO_APRESENTACAO['pt-br'] : a.secao_titulo;
       const sid = ctx.sections[secao];
-      if (sid === undefined) { log(`artigo '${a.titulo}': secao '${a.secao_titulo}' nao encontrada - pulando`); return out(); }
+      if (sid === undefined) { log(`artigo '${a.titulo}': seção '${a.secao_titulo}' não encontrada - pulando`); return out(); }
       const seg = guia ? g.segs.staff : a.acesso === 'logado' ? g.segs.logado : a.acesso === 'agente' ? g.segs.staff : undefined;
       const titulo = guia ? disp(a.titulo) : a.titulo;
       const art: any = { title: titulo, body: a.corpo, locale: g.loc, draft: false };
@@ -512,7 +512,7 @@ export async function executarPasso(
       const r = await c.post(`/help_center/${g.loc}/sections/${sid}/articles.json`, { article: art });
       rec('article', id(r, 'article'));
       log(`artigo: ${titulo}`);
-      if (guia) log('guia de apresentacao: artigo interno (Agentes e admins) criado');
+      if (guia) log('guia de apresentação: artigo interno (Agentes e admins) criado');
       return out();
     }
 
@@ -535,13 +535,13 @@ export async function executarPasso(
       const zipResp = await fetch(new URL(`/zdcfg/temas/${encodeURIComponent(passo.arquivo)}`, origem),
         { signal: AbortSignal.timeout(15_000), redirect: 'manual', cache: 'no-store' });
       if (zipResp.status !== 200) {
-        log(`tema: arquivo nao encontrado '${passo.arquivo}' (HTTP ${zipResp.status}) - pulando`);
+        log(`tema: arquivo não encontrado '${passo.arquivo}' (HTTP ${zipResp.status}) - pulando`);
         return out({ fimModulo: true });
       }
       const zip = await zipResp.arrayBuffer();
       const cab = new Uint8Array(zip.slice(0, 4));
       if (cab[0] !== 0x50 || cab[1] !== 0x4b) {
-        log(`tema: '${passo.arquivo}' nao e um .zip valido (${zip.byteLength} bytes, ${zipResp.headers.get('content-type')}) - pulando`);
+        log(`tema: '${passo.arquivo}' não é um .zip válido (${zip.byteLength} bytes, ${zipResp.headers.get('content-type')}) - pulando`);
         return out({ fimModulo: true });
       }
       const r = await c.post('/guide/theming/jobs/themes/imports', { job: { attributes: { brand_id: String(ctx.brandId), format: 'zip' } } });
@@ -575,7 +575,7 @@ export async function executarPasso(
 
     case 'theme_publish': {
       const t = ctx.theme!;
-      if (!t.themeId) { log('tema: nao obtive theme_id (verifique o job na tela)'); return out(); }
+      if (!t.themeId) { log('tema: não obtive theme_id (verifique o job na tela)'); return out(); }
       rec('theme', t.themeId);
       try {
         const pub = await c.post(`/guide/theming/themes/${t.themeId}/publish`, {});
@@ -611,7 +611,7 @@ export async function executarPasso(
       const r = await c.post('/business_hours/schedules.json', { schedule: { name: disp(passo.nome), time_zone: 'Brasilia' } });
       ctx.scheduleId = id(r, 'schedule');
       rec('schedule', ctx.scheduleId);
-      log(`programacao: ${passo.nome} -> ${ctx.scheduleId}`);
+      log(`programação: ${passo.nome} -> ${ctx.scheduleId}`);
       return out();
     }
 
@@ -632,10 +632,10 @@ export async function executarPasso(
       if (intervals.length) {
         try {
           await c.put(`/business_hours/schedules/${ctx.scheduleId}/workweek.json`, { workweek: { intervals } });
-          log(`programacao: workweek aplicado (${full ? '24h' : `${hi}h-${hf}h`})`);
+          log(`programação: workweek aplicado (${full ? '24h' : `${hi}h-${hf}h`})`);
         } catch (e) {
           relancar(e);
-          log(`programacao: workweek nao aplicado (HTTP ${(e as ZendeskError).status}); horario padrao mantido`);
+          log(`programação: workweek não aplicado (HTTP ${(e as ZendeskError).status}); horário padrão mantido`);
         }
       }
       return out();
@@ -651,7 +651,7 @@ export async function executarPasso(
         log(`feriado: ${h.nome} (${start}..${end})`);
       } catch (e) {
         relancar(e);
-        log(`feriado '${h.nome}' nao criado (HTTP ${(e as ZendeskError).status})`);
+        log(`feriado '${h.nome}' não criado (HTTP ${(e as ZendeskError).status})`);
       }
       return out();
     }

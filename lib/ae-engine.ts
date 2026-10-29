@@ -1,3 +1,7 @@
+import { CHANNEL_KEYS, type ChannelKey } from './ae-engine-keys';
+import { DEFAULT_AE_CONFIG, DEFAULT_AE_NUMBERS, FIXED_QTY_FORMULAS, QUANTITY_FORMULAS, fixedQtyKey, quantityEvaluationOrder, type AEConfig } from './ae-config';
+import { runFormula } from './formula';
+
 export const ACTION_FLOW_OPTIONS = [
   'Airtable',
   'Asana',
@@ -52,220 +56,21 @@ const PLAN_RANK = {
   enterprise: 4
 } as const;
 
-export const AE_DATABASE = {
-  /** Unit hours ('Planilha de horas' column C) */
-  horas_unitarias: {
-    // Support configuration [rows 7-19]
-    funcoes: 0.25,
-    grupos: 0.05,
-    campos_ticket: 0.08,
-    /**
-     * Formulários — substitui o antigo "Canal: Formulário web".
-     *
-     * O canal media só os formulários VOLTADOS AO USUÁRIO FINAL. Este item mede
-     * o total de formulários criados, inclusive os internos que existem mesmo
-     * quando nenhum formulário é publicado para o cliente.
-     */
-    formularios: 0.08,
-    condicionais_campos: 0.02,
-    campos_usuario: 0.05,
-    campos_organizacao: 0.05,
-    visualizacoes: 0.08,
-    macros: 0.08,
-    gatilhos_simples: 0.08,
-    gatilhos_complexos: 0.33,
-    automacoes_simples: 0.08,
-    automacoes_complexas: 0.33,
-    politicas_sla: 0.17,
-    // Voice configuration [rows 20-21]
-    ivr: 0.59,
-    saudacoes: 0.05,
-    // Copilot configuration [rows 22-24]
-    intencoes: 0.25,
-    entidades: 0.33,
-    procedimentos: 0.67,
-    // WFM configuration [rows 25-32]
-    wfm_localizacoes: 0.25,
-    wfm_turnos: 0.25,
-    wfm_grupos_trabalho: 0.08,
-    wfm_equipes: 0.08,
-    wfm_motivos_folga: 0.08,
-    wfm_tarefas_gerais: 0.08,
-    wfm_automacoes: 0.25,
-    wfm_funcoes: 0.17,
-    // QA configuration [rows 33-44]
-    qa_destaques: 0.75,
-    qa_quizzes: 0.5,
-    qa_filtros: 0.5,
-    qa_tabelas_desempenho: 0.5,
-    qa_categorias_manuais: 0.17,
-    qa_categorias_ia: 0.5,
-    qa_usuarios: 0.05,
-    qa_bots: 0.17,
-    qa_espaco_trabalho: 0.25,
-    qa_atribuicoes: 0.5,
-    qa_grupos: 0.08,
-    qa_hashtags: 0.05,
-    // Base setup [rows 45-47]
-    membro_equipe: 0.05,
-    marca: 0.25,
-    canal_email: 0.17,
-    canal_web_widget: 0.42,
-    canal_exige_reuniao: 0.17,
-    /** Floor applied to the "channels requiring a meeting" bucket [row 47] */
-    canal_exige_reuniao_minimo: 0.5,
-    // Misc
-    artigo: 0.1, // Knowledge article [row 93] — é a configuração geral de Knowledge
-    /** Piso da configuração geral de Knowledge, mesmo com 0 artigos [row 93] */
-    knowledge_minimo: 2.0,
-    integracao_nativa: 2.0, // flat, every native integration [rows 74-79]
-    action_flow: 4.5, // per external service [row 111]
-    conversa_paralela: 0.5, // Teams / Slack side conversation [rows 94-95]
-    sso: 2.0, // [row 51]
-  },
-
-  /**
-   * Per-module general configuration [row 52].
-   *
-   * Knowledge NÃO aparece aqui: a configuração geral de Knowledge É o cálculo
-   * de artigos (0,1 h por artigo, piso de 2 h). Antes havia as duas coisas —
-   * uma linha fixa de 0,1 h somada à linha de artigos —, o que exibia um
-   * "Configuração geral: Knowledge · 0.1h" sem significado ao lado do valor
-   * real. Ver `knowledgeHoras` abaixo.
-   *
-   * AI Agents também saiu: a Calculadora AE não dimensiona AI Agents (o módulo
-   * continua existindo no Framework e no painel admin).
-   */
-  configuracoes_gerais: {
-    support: 1.0,
-    community: 1.0,
-    analytics: 3.5,
-    voice: 0.5,
-    copilot: 0.5,
-    qa: 1.0,
-    wfm: 0.33,
-    adpp: 1.5,
-  },
-
-  /**
-   * Admin + agent training, summed per module [row 53].
-   *
-   * `analytics_avancado` foi removido: a Calculadora AE não oferece mais a
-   * escolha entre treinamento básico e avançado de Analytics — Analytics entra
-   * pelo treinamento de Suite, como Support e Knowledge.
-   */
-  treinamentos: {
-    suite: 3.0, // Support and/or Knowledge and/or Analytics
-    community: 1.5,
-    voice: 2.5,
-    copilot: 2.5,
-    qa: 2.0,
-    wfm: 3.0,
-    adpp: 1.0,
-  },
-
-  /** Fixed line items with hard-coded quantities [rows 54-63] */
-  itens_fixos: {
-    support: {
-      encaminhamento_omnichannel: { qtd: 1, horas: 1.0 }, // [row 54]
-      gatilho_webhook_instancia: { qtd: 1, horas: 0.5 }, // [row 55]
-      webhooks: { qtd: 1, horas: 0.33 }, // [row 56]
-    },
-    /** Support items additionally requiring plan !== 'team' [rows 57-58] */
-    support_nao_team: {
-      pesquisa_satisfacao: { qtd: 1, horas: 0.25 },
-      programacao_feriados: { qtd: 1, horas: 0.25 },
-    },
-    wfm: {
-      cenarios_previsao: { qtd: 2, horas: 0.75 }, // [row 59]
-      paineis_desempenho: { qtd: 1, horas: 0.75 }, // [row 60]
-      urls_monitoradas: { qtd: 10, horas: 0.05 }, // [row 61]
-    },
-    adpp: {
-      programacoes_exclusao: { qtd: 2, horas: 0.25 }, // [row 62]
-      gatilhos_supressao: { qtd: 5, horas: 0.08 }, // [row 63]
-    },
-  },
-
-  /** Aktie Now + marketplace apps [rows 49-50, 96-103] */
-  apps: {
-    condicionais_avancadas_base: 0.33, // [row 49]
-    ticket_manager_base: 0.67, // [row 50]
-    woocommerce: 1.5,
-    dialpad: 1.5,
-    aircall: 2.0,
-    vtex: 1.0,
-    stripe: 1.0,
-    pipedrive: 1.0,
-    sweethawk: 2.0, // per app
-    other_marketplace: 5.0, // per app
-  },
-
-  /** Workshops [rows 104-109]. Sem AI Agents — fora do escopo da Calculadora. */
-  workshops: {
-    suite: 1.0,
-    voice: 0.5,
-    copilot: 0.5,
-    qa: 0.5,
-    wfm: 0.5,
-  },
-
-  /** Additional-hours block ('Calculadora AE' H3:H7 / I3:I7) */
-  percentuais: {
-    gerente_projetos: 0.176470588235294,
-    comunicacao_tecnica: 0.1,
-    discovery: 0.2,
-    validacao: 0.15,
-    go_live: 0.05,
-    /** GP is only charged when the pre-GP total exceeds this, strictly [I3] */
-    limite_gerente_projetos: 30,
-  },
-
-  /** Plan factors [rows 2-4] */
-  fatores_plano: {
-    funcoes: { team: 0, growth: 0, professional: 0, enterprise: 1 },
-    campos_ticket: { team: 1, growth: 1.04, professional: 1.08, enterprise: 1.12 },
-    sla: { team: 0, growth: 1, professional: 1, enterprise: 1.5 },
-  },
-
-  /** Operation-type factors [rows 5-6] */
-  fatores_operacao: {
-    campos_usuario: { B2C: 0, B2B: 0, B2E: 3 },
-    campos_organizacao: { B2C: 0, B2B: 3, B2E: 3 },
-  },
-} as const;
+/**
+ * Números do engine (horas unitárias, percentuais, fatores...).
+ *
+ * Os valores agora vivem em `ae-config.ts` e são editáveis no painel Admin
+ * (aba "Calculadora AE"). `AE_DATABASE` continua exportado com os PADRÕES de
+ * fábrica para quem só precisa deles.
+ */
+export const AE_DATABASE = DEFAULT_AE_NUMBERS;
 
 // ---------------------------------------------------------------------------
 // Channel taxonomy — 'Calculadora AE' rows 13-35, in sheet order
 // ---------------------------------------------------------------------------
 
-export const CHANNEL_KEYS = [
-  'email', // B13
-  'web_form', // B14
-  'facebook_pages', // B15
-  'x_pages', // B16
-  'microsoft_teams', // B17
-  'web_widget', // B18
-  'facebook_messenger', // B19
-  'slack', // B20
-  'x_dm', // B21
-  'sms', // B22
-  'voice', // B23
-  'ios', // B24
-  'unity', // B25
-  'line', // B26
-  'apple_messages', // B27
-  'wechat', // B28
-  'google_rcs', // B29
-  'google_business_messages', // B30
-  'kakaotalk', // B31
-  'telegram', // B32
-  'whatsapp', // B33
-  'instagram_page', // B34
-  'instagram_dm', // B35
-] as const;
-
-export type ChannelKey = (typeof CHANNEL_KEYS)[number];
+export { CHANNEL_KEYS };
+export type { ChannelKey };
 
 /**
  * Channels billed individually in [row 47]; everything else falls into the
@@ -551,6 +356,8 @@ export interface AEEstimateResult {
     baseSetup: AEDetailLine[];
     knowledge: AEDetailLine[];
     sideConversations: AEDetailLine[];
+    /** Uma linha por integração nativa (key = nome do item da biblioteca). */
+    nativeConnections: AEDetailLine[];
   };
   /**
    * Módulos que o plano de fato permite — e portanto os únicos que geraram
@@ -559,6 +366,24 @@ export interface AEEstimateResult {
    * seção cujo subtotal é zero.
    */
   allowedModules: string[];
+  /** Horas unitárias usadas neste cálculo (vêm da configuração do Admin). */
+  unitHours: Record<string, number>;
+  /** Tarifas de apps usadas neste cálculo. */
+  appRates: Record<string, number>;
+  /** Base de Discovery/Validação/Go-live/Comunicação técnica (fórmula base_percentuais). */
+  percentBase: number;
+  /** Gatilho do GP (comparado a limite_gerente_projetos) e base sobre a qual o GP incide. */
+  gpTrigger: number;
+  gpBase: number;
+  /** Percentuais usados neste cálculo (frações: 0.2 = 20%). */
+  percents: {
+    discovery: number;
+    validacao: number;
+    go_live: number;
+    comunicacao_tecnica: number;
+    gerente_projetos: number;
+    limite_gerente_projetos: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -601,19 +426,29 @@ function modulesAllowedOnPlan(selected: ModuleKey[], plan: ZendeskPlan): Set<str
   return allowed;
 }
 
-export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
+/**
+ * Calcula a estimativa com a configuração informada (padrão de fábrica quando
+ * omitida). Números e fórmulas vêm de `config` — editável no painel Admin.
+ */
+export function calculateAEEstimate(
+  inputs: AEInputData,
+  config: AEConfig = DEFAULT_AE_CONFIG,
+): AEEstimateResult {
   const validation = validateAEInputs(inputs);
   if (!validation.valid) {
     throw new Error(`Invalid AE inputs: ${validation.errors.join(' ')}`);
   }
 
-  const UH = AE_DATABASE.horas_unitarias;
-  const CFG = AE_DATABASE.configuracoes_gerais;
-  const TR = AE_DATABASE.treinamentos;
-  const FIX = AE_DATABASE.itens_fixos;
-  const APPS = AE_DATABASE.apps;
-  const WS = AE_DATABASE.workshops;
-  const PCT = AE_DATABASE.percentuais;
+  const N = config.numbers;
+  const F = config.formulas;
+  const UH = N.horas_unitarias;
+  const CFG = N.configuracoes_gerais;
+  const TR = N.treinamentos;
+  const FIX = N.itens_fixos;
+  const APPS = N.apps;
+  const WS = N.workshops;
+  const PCT = N.percentuais;
+  const SE = N.sales_engineer;
 
   // --- Sanitised scalars ---------------------------------------------------
   const agents = Math.max(1, inputs.agents || 0);
@@ -664,116 +499,77 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
 
   // --- Factors -------------------------------------------------------------
   const qtdOperacoes = inputs.operationTypes.length || 1;
-  const fatorPlanoFuncoes = AE_DATABASE.fatores_plano.funcoes[plan] ?? 0;
-  const fatorPlanoCamposTicket = AE_DATABASE.fatores_plano.campos_ticket[plan] ?? 1;
-  const fatorPlanoSLA = AE_DATABASE.fatores_plano.sla[plan] ?? 1;
+  const fatorPlanoFuncoes = N.fatores_plano.funcoes[plan] ?? 0;
+  const fatorPlanoCamposTicket = N.fatores_plano.campos_ticket[plan] ?? 1;
+  const fatorPlanoSLA = N.fatores_plano.sla[plan] ?? 1;
 
   const somaFatorOperacaoUsuario = inputs.operationTypes.reduce(
-    (acc, op) => acc + (AE_DATABASE.fatores_operacao.campos_usuario[op] ?? 0),
+    (acc, op) => acc + (N.fatores_operacao.campos_usuario[op] ?? 0),
     0
   );
   const somaFatorOperacaoOrganizacao = inputs.operationTypes.reduce(
-    (acc, op) => acc + (AE_DATABASE.fatores_operacao.campos_organizacao[op] ?? 0),
+    (acc, op) => acc + (N.fatores_operacao.campos_organizacao[op] ?? 0),
     0
   );
 
   // --- Quantities [rows 7-44] ---------------------------------------------
   // Computed unconditionally, exactly as the sheet's column B does. The module
   // gates live on the hour totals below, not here.
-  const q = {
-    funcoes: Math.min(
-      ((0.1 * agents + areas) * (0.25 + 0.75 * brands)) * fatorPlanoFuncoes,
-      agents
-    ),
-    grupos:
-      (0.1 * agents + 0.3 * areas) * (0.25 + 0.75 * brands) * (0.4 + qtdOperacoes * 0.6),
-  } as Record<string, number>;
+  //
+  // As fórmulas vêm da configuração (painel Admin › Calculadora AE), na ordem
+  // de QUANTITY_FORMULAS: cada uma enxerga as variáveis de entrada abaixo e as
+  // quantidades calculadas antes dela.
+  const formulaVars: Record<string, number> = {
+    agentes: agents,
+    marcas: brands,
+    areas,
+    artigos_knowledge: knowledgeArticles,
+    qtd_operacoes: qtdOperacoes,
+    total_qtd_canais: totalChannelQuantity,
+    tipos_canais: totalChannelTypes,
+    outros_tipos_canais: otherChannelTypes,
+    fator_plano_funcoes: fatorPlanoFuncoes,
+    fator_plano_campos_ticket: fatorPlanoCamposTicket,
+    fator_plano_sla: fatorPlanoSLA,
+    soma_fator_operacao_usuario: somaFatorOperacaoUsuario,
+    soma_fator_operacao_organizacao: somaFatorOperacaoOrganizacao,
+    plano_team: plan === 'team' ? 1 : 0,
+    plano_growth: plan === 'growth' ? 1 : 0,
+    plano_professional: plan === 'professional' ? 1 : 0,
+    plano_enterprise: plan === 'enterprise' ? 1 : 0,
+    sku_cs: sku === 'CS' ? 1 : 0,
+    sku_es: sku === 'ES' ? 1 : 0,
+    tem_support: hasSupport ? 1 : 0,
+    tem_knowledge: hasKnowledge ? 1 : 0,
+    tem_community: hasCommunity ? 1 : 0,
+    tem_analytics: hasAnalytics ? 1 : 0,
+    tem_voice: hasVoice ? 1 : 0,
+    tem_copilot: hasCopilot ? 1 : 0,
+    tem_qa: hasQA ? 1 : 0,
+    tem_wfm: hasWFM ? 1 : 0,
+    tem_adpp: hasADPP ? 1 : 0,
+  };
+  for (const channel of CHANNEL_KEYS) {
+    formulaVars[`canal_${channel}`] = channelQty(channel);
+    formulaVars[`tem_canal_${channel}`] = hasChannel(channel) ? 1 : 0;
+  }
 
-  q.campos_ticket =
-    ((hasChannel('web_form') ? 10 : 0) +
-      (hasChannel('email') ? 8 : 0) +
-      (hasChannel('whatsapp') ? 8 : 0) +
-      (hasChannel('voice') ? 5 : 0) +
-      otherChannelTypes * 6) *
-    (0.7 + 0.3 * brands) *
-    fatorPlanoCamposTicket;
+  // Ordem de cálculo pelas dependências entre fórmulas; o objeto final mantém
+  // a ordem de exibição padrão das quantidades.
+  const computed: Record<string, number> = {};
+  const defaults = new Map(QUANTITY_FORMULAS.map((spec) => [spec.key, spec.default]));
+  for (const key of quantityEvaluationOrder(F).order) {
+    computed[key] = runFormula(F[key] || defaults.get(key) || '0', { ...formulaVars, ...computed });
+  }
+  const q: Record<string, number> = {};
+  for (const spec of QUANTITY_FORMULAS) q[spec.key] = computed[spec.key] ?? 0;
 
-  /**
-   * FORMULÁRIOS — substitui o antigo "Canal: Formulário web".
-   *
-   * O canal contava apenas os formulários publicados para o usuário final.
-   * Este item conta o TOTAL de formulários criados: mesmo um projeto sem
-   * nenhum formulário voltado ao cliente precisa de formulários internos.
-   *
-   * Daí o "pegue o maior" entre três leituras do mesmo escopo — estrutura
-   * (áreas × marcas), operações e formulários web declarados. Nenhuma das três
-   * sozinha cobre todos os cenários; a maior delas é a menos errada.
-   *
-   * Team é a exceção: o plano permite UM único formulário, então a conta não
-   * se aplica (ver `validateAEInputs`, que barra web_form > 1 em Team).
-   */
-  q.formularios =
-    plan === 'team'
-      ? 1
-      : Math.max(
-          areas * 0.5 * brands,
-          qtdOperacoes,
-          channelQty('web_form'),
-        );
-
-  /**
-   * Condicionais de campo não existem em Team — o plano não tem o recurso.
-   * Antes a linha era calculada em qualquer plano e cobrava horas por algo que
-   * o cliente não conseguiria configurar.
-   */
-  q.condicionais_campos = plan === 'team' ? 0 : q.campos_ticket * 0.5;
-  q.campos_usuario = (2 * q.grupos + 2 * areas) * (1 + somaFatorOperacaoUsuario);
-  q.campos_organizacao = 2 * areas * (1 + somaFatorOperacaoOrganizacao);
-  q.visualizacoes =
-    12 + q.formularios + 0.1 * q.campos_ticket * areas + (hasCopilot ? 5 : 0);
-  q.macros = q.campos_ticket * 0.5;
-  q.gatilhos_simples =
-    3 +
-    q.campos_ticket * 0.05 * q.formularios +
-    totalChannelTypes * (3 + (hasCopilot ? 2 : 0));
-  q.gatilhos_complexos = q.gatilhos_simples * 0.25;
-  q.automacoes_simples = 3 + (q.gatilhos_simples + q.gatilhos_complexos) * 0.1;
-  q.automacoes_complexas = q.automacoes_simples * 0.25;
-  q.politicas_sla =
-    (totalChannelQuantity * (0.7 + 0.3 * brands) + q.grupos + q.formularios) *
-    fatorPlanoSLA;
-
-  q.ivr = plan === 'team' || plan === 'growth' ? 0 : 6 * channelQty('voice');
-  q.saudacoes = 4.5 * q.ivr;
-
-  q.intencoes =
-    4 + q.campos_ticket * 0.2 * (1 + (hasQA ? 0.2 : 0)) * qtdOperacoes;
-  q.entidades = q.campos_ticket * 0.1;
-  q.procedimentos = (areas + q.grupos) * 0.5 * brands * qtdOperacoes;
-
-  // Localizações de WFM seguem ÁREAS × operações (antes era marcas × operações):
-  // um turno é organizado por área de atendimento, não por marca.
-  q.wfm_localizacoes = areas * qtdOperacoes;
-  q.wfm_turnos = q.wfm_localizacoes * 2;
-  q.wfm_grupos_trabalho = q.grupos + brands * qtdOperacoes + totalChannelTypes;
-  q.wfm_equipes = q.grupos;
-  q.wfm_motivos_folga = 5 + agents * 0.1;
-  q.wfm_tarefas_gerais = (2 + q.grupos + areas + brands) * qtdOperacoes * 0.5;
-  q.wfm_automacoes = 2 + q.wfm_equipes * 0.5 * q.wfm_turnos;
-  q.wfm_funcoes = 2 + q.funcoes;
-
-  q.qa_destaques = Math.min(10, Math.max(0, brands + qtdOperacoes + areas));
-  q.qa_quizzes = areas + brands + qtdOperacoes;
-  q.qa_filtros = (1 + 0.05 * q.grupos) * q.qa_destaques;
-  q.qa_tabelas_desempenho = areas * qtdOperacoes * brands;
-  q.qa_categorias_manuais = q.qa_tabelas_desempenho * 3;
-  q.qa_categorias_ia = Math.max(0, 10 - q.qa_destaques);
-  q.qa_usuarios = agents * 0.9;
-  q.qa_bots = brands;
-  q.qa_espaco_trabalho = brands;
-  q.qa_atribuicoes = 0.5 * q.grupos;
-  q.qa_grupos = q.grupos;
-  q.qa_hashtags = q.campos_ticket * 0.05;
+  // Quantidade de cada item fixo: fórmula própria (hoje um número), com acesso
+  // às mesmas variáveis e quantidades acima.
+  const fixedQty: Record<string, number> = {};
+  for (const spec of FIXED_QTY_FORMULAS) {
+    fixedQty[spec.key] = Math.max(0, runFormula(F[spec.key] || spec.default, { ...formulaVars, ...computed }));
+  }
 
   const billed = (keys: string[]) =>
     keys.reduce((acc, key) => acc + q[key] * (UH as Record<string, number>)[key], 0);
@@ -887,12 +683,17 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const channelSetupHoras = channelSetupLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Aktie Now apps [rows 49-50] — each on its own checkbox -------------
+  const appVars = {
+    ...formulaVars,
+    ...q,
+    base_condicionais_avancadas: APPS.condicionais_avancadas_base,
+    base_ticket_manager: APPS.ticket_manager_base,
+  };
   const appCondicionaisHoras = inputs.hasAppCondicionais
-    ? APPS.condicionais_avancadas_base +
-      (q.visualizacoes * 0.1 + q.gatilhos_simples * 0.125 + q.formularios) * 0.25
+    ? runFormula(F.horas_app_condicionais, appVars)
     : 0;
   const appTicketManagerHoras = inputs.hasAppTicketManager
-    ? APPS.ticket_manager_base + q.campos_ticket * 0.02 * qtdOperacoes
+    ? runFormula(F.horas_app_ticket_manager, appVars)
     : 0;
 
   // --- SSO [row 51] --------------------------------------------------------
@@ -945,23 +746,25 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const trainingHoras = trainingLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Fixed items [rows 54-63] -------------------------------------------
-  const sumFixed = (group: Record<string, { qtd: number; horas: number }>) =>
-    Object.values(group).reduce((acc, item) => acc + item.qtd * item.horas, 0);
+  // Horas em Números › Itens fixos; quantidade na fórmula qtd_<item>.
+  const qtyOf = (key: string) => fixedQty[fixedQtyKey(key)] ?? 0;
+  const sumFixed = (group: Record<string, number>) =>
+    Object.entries(group).reduce((acc, [key, horas]) => acc + qtyOf(key) * horas, 0);
 
   const supportNaoTeamQty = hasSupport && plan !== 'team' ? 1 : 0;
 
   /** Expande um grupo de itens fixos em linhas, preservando qtd × horas. */
   const fixedLines = (
-    group: Record<string, { qtd: number; horas: number }>,
+    group: Record<string, number>,
     active: boolean,
     multiplier = 1,
   ): AEDetailLine[] =>
     active
-      ? Object.entries(group).map(([key, item]) => ({
+      ? Object.entries(group).map(([key, horas]) => ({
           key,
-          qty: item.qtd * multiplier,
-          unitHours: item.horas,
-          hours: item.qtd * multiplier * item.horas,
+          qty: qtyOf(key) * multiplier,
+          unitHours: horas,
+          hours: qtyOf(key) * multiplier * horas,
         }))
       : [];
 
@@ -978,9 +781,15 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   const wfmFixedHoras = hasWFM ? sumFixed(FIX.wfm) : 0;
   const adppFixedHoras = hasADPP ? sumFixed(FIX.adpp) : 0;
 
-  // --- Native integrations [rows 74-79] — flat 2 h each -------------------
-  const nativeConnectionsHoras =
-    inputs.selectedNativeConnections.length * UH.integracao_nativa;
+  // --- Native integrations [rows 74-79] -----------------------------------
+  // Com a configuração vinculada à biblioteca, cada integração vale as horas
+  // do próprio item; sem isso (ou item desconhecido), o valor padrão único.
+  const nativeHours = config.nativeIntegrationHours || {};
+  const nativeConnectionLines: AEDetailLine[] = inputs.selectedNativeConnections.map((name) => {
+    const hours = Number.isFinite(nativeHours[name]) ? nativeHours[name] : UH.integracao_nativa;
+    return { key: name, qty: 1, unitHours: hours, hours };
+  });
+  const nativeConnectionsHoras = nativeConnectionLines.reduce((acc, l) => acc + l.hours, 0);
 
   // --- Configuração geral de Knowledge [row 93] ---------------------------
   /*
@@ -1109,8 +918,19 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // Discovery / Validation / Go-live / Comm. Técnica all share ONE base: the
   // line-item total less training, native integrations and third-party apps.
   // Workshops and the Aktie Now apps ARE included; that is deliberate.
-  const percentBase =
-    lineItemHours - trainingHoras - nativeConnectionsHoras - thirdPartyAppsHoras;
+  // As três bases (percentuais, gatilho e base do GP) são fórmulas da
+  // configuração; os padrões reproduzem exatamente a planilha.
+  const baseVars: Record<string, number> = {
+    ...formulaVars,
+    ...q,
+    horas_itens: lineItemHours,
+    horas_treinamento: trainingHoras,
+    horas_workshops: workshopHoras,
+    horas_integracoes_nativas: nativeConnectionsHoras,
+    horas_apps_marketplace: thirdPartyAppsHoras,
+    horas_action_flow: actionFlowHoras,
+  };
+  const percentBase = runFormula(F.base_percentuais, baseVars);
 
   const discoveryHours = percentBase * PCT.discovery;
   const validationHours = percentBase * PCT.validacao;
@@ -1119,17 +939,18 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
 
   // GP has its own base: training is INCLUDED, Comm. Técnica is EXCLUDED, and the
   // other three percentage lines are added in.
-  const gpTrigger =
-    lineItemHours + commTechHours + discoveryHours + validationHours + goLiveHours;
+  const gpVars = {
+    ...baseVars,
+    horas_discovery: discoveryHours,
+    horas_validacao: validationHours,
+    horas_golive: goLiveHours,
+    horas_comunicacao_tecnica: commTechHours,
+  };
+  const gpTrigger = runFormula(F.gatilho_gp, gpVars);
+  const gpBase = runFormula(F.base_gp, gpVars);
   const gpHours =
     gpTrigger > PCT.limite_gerente_projetos
-      ? PCT.gerente_projetos *
-        (lineItemHours -
-          nativeConnectionsHoras -
-          thirdPartyAppsHoras +
-          discoveryHours +
-          validationHours +
-          goLiveHours)
+      ? PCT.gerente_projetos * gpBase
       : 0;
 
   const totalHours =
@@ -1148,14 +969,28 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
   // A cláusula "módulo AI Agents selecionado" saiu junto com o módulo: a
   // Calculadora não oferece mais AI Agents, então a condição nunca seria
   // verdadeira e só confundiria quem lesse a regra.
+  // Limites configuráveis no painel Admin (Calculadora AE › Sales Engineer).
   const requiresSalesEngineer =
-    totalHours > 60 ||
-    knowledgeArticles > 100 ||
-    agents > 100 ||
-    brands > 3 ||
-    totalChannelQuantity > 10;
+    totalHours > SE.total_horas ||
+    knowledgeArticles > SE.artigos_knowledge ||
+    agents > SE.agentes ||
+    brands > SE.marcas ||
+    totalChannelQuantity > SE.quantidade_canais;
 
   return {
+    unitHours: { ...UH },
+    appRates: { ...APPS },
+    percentBase,
+    gpTrigger,
+    gpBase,
+    percents: {
+      discovery: PCT.discovery,
+      validacao: PCT.validacao,
+      go_live: PCT.go_live,
+      comunicacao_tecnica: PCT.comunicacao_tecnica,
+      gerente_projetos: PCT.gerente_projetos,
+      limite_gerente_projetos: PCT.limite_gerente_projetos,
+    },
     lineItemHours,
     discoveryHours,
     validationHours,
@@ -1210,6 +1045,7 @@ export function calculateAEEstimate(inputs: AEInputData): AEEstimateResult {
       baseSetup: baseSetupLines,
       knowledge: knowledgeLines,
       sideConversations: sideConversationLines,
+      nativeConnections: nativeConnectionLines,
     },
   };
 }

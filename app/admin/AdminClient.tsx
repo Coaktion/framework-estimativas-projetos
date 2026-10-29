@@ -10,10 +10,13 @@ import { SEGMENTS, SEGMENT_LABEL_KEYS, DEFAULT_SEGMENT, normalizeSegment, canMan
 import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge, categoryMinPlanBadge } from '@/lib/zendesk-plans';
 
 import { useState, useTransition, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { aeBindingUsage, normalizeAEConfig } from '@/lib/ae-config';
+import { aeNumberLabel } from '@/lib/ae-number-labels';
 import { 
   Plus, Download, History, Box, Settings, Users, Trash2, ExternalLink, Shield, 
   Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw, 
-  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2
+  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator, Link2
 } from 'lucide-react';
 import { 
   createFrameworkSnapshotAction, 
@@ -33,19 +36,35 @@ import {
   updatePackageAction,
   deletePackageAction,
   updateUserAdminStatusAction,
-  reseedFrameworkAction,
   createUserAction,
+  importTranslationsAction,
 } from './actions';
+import { buildTranslationCsv, parseTranslationCsv, type TranslationRow } from '@/lib/translation-csv';
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
+import AEConfigAdmin from '@/components/AEConfigAdmin';
+import ZohoAdmin from '@/components/ZohoAdmin';
 
-export default function AdminClient({ packages, categories, skills, variables, versions, users }: any) {
+export default function AdminClient({ packages, categories, skills, variables, versions, users, activeAeConfig, aeConfigHistory, zohoConfig, zohoConfigured }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   // Somente administradores podem alterar segmentos (a verificação real é no servidor).
   const canManageSegments = canManageSegmentsFor(session?.user as any);
   const currentUserEmail = session?.user?.email || '';
-  const [activeTab, setActiveTab] = useState('packages');
+  // ?tab=aeCalculator&aeVersion=12 abre a Calculadora AE já no histórico da
+  // versão (link "ver detalhes" da página da estimativa).
+  const searchParams = useSearchParams();
+  const linkedTab = searchParams?.get('tab') || '';
+  const linkedAeVersion = searchParams?.get('aeVersion') || null;
+  const [activeTab, setActiveTab] = useState(linkedTab === 'aeCalculator' ? 'aeCalculator' : 'packages');
+
+  // Itens da biblioteca vinculados à Calculadora AE ativa: bloqueia a exclusão
+  // e mostra o "!" quando o valor está em ajuste manual.
+  const aeUsage = useMemo(
+    () => aeBindingUsage(normalizeAEConfig(activeAeConfig?.config || {})),
+    [activeAeConfig],
+  );
+  const aeLabel = (path: string) => aeNumberLabel(path, t, language);
   const [activeLibraryTab, setActiveLibraryTab] = useState('items');
   const [isPending, startTransition] = useTransition();
   const [searchQuery, setSearchQuery] = useState('');
@@ -74,8 +93,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [newItemMinPlanES, setNewItemMinPlanES] = useState('');
   const [newItemTooltip, setNewItemTooltip] = useState('');
   const [newItemTooltipEn, setNewItemTooltipEn] = useState('');
+  const [newItemNameEs, setNewItemNameEs] = useState('');
+  const [newItemTooltipEs, setNewItemTooltipEs] = useState('');
   const [newItemDependsOn, setNewItemDependsOn] = useState('');
-  const [newItemSdDiscovery, setNewItemSdDiscovery] = useState(false);
 
   // Forms for new user creation
   const [showNewUser, setShowNewUser] = useState(false);
@@ -106,6 +126,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setEditValues({
       name: pkg.name,
       nameEn: pkg.nameEn || '',
+      nameEs: pkg.nameEs || '',
+      tooltipEs: pkg.tooltipEs || '',
+      moduleLink: pkg.moduleLink || '',
+      goLiveShortcutQty: Number(pkg.goLiveShortcutQty) || 0,
       minPlanCS: pkg.minPlanCS || '',
       minPlanES: pkg.minPlanES || '',
       hours: pkg.hours,
@@ -114,7 +138,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
       tooltip: pkg.tooltip || '',
       tooltipEn: pkg.tooltipEn || '',
       dependsOnItemId: pkg.dependsOnItemId || '',
-      sdDiscovery: Boolean(pkg.sdDiscovery || false),
       excludedFromVariables: JSON.parse(pkg.excludedFromVariables || '[]')
     });
   };
@@ -137,13 +160,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
       key: v.key,
       label: v.label || '',
       labelEn: v.labelEn || '',
+      labelEs: v.labelEs || '',
       value: v.value,
       category: v.category,
       type: v.type,
       flatValue: v.flatValue || 0,
-      targetItems: JSON.parse(v.targetItems || '[]'),
-      targetCategories: JSON.parse(v.targetCategories || '[]'),
-      excludedItems: JSON.parse(v.excludedItems || '[]')
     });
   };
 
@@ -160,6 +181,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
     const formData = new FormData();
     formData.append('name', newItemName);
     formData.append('nameEn', newItemNameEn);
+    formData.append('nameEs', newItemNameEs);
     formData.append('minPlanCS', newItemMinPlanCS);
     formData.append('minPlanES', newItemMinPlanES);
     formData.append('hours', newItemHours);
@@ -167,8 +189,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
     formData.append('categoryName', newItemCategory);
     formData.append('tooltip', newItemTooltip);
     formData.append('tooltipEn', newItemTooltipEn);
+    formData.append('tooltipEs', newItemTooltipEs);
     formData.append('dependsOnItemId', newItemDependsOn);
-    if (newItemSdDiscovery) formData.append('sdDiscovery', 'on');
 
     startTransition(async () => {
       await addPackageAction(formData);
@@ -179,8 +201,9 @@ export default function AdminClient({ packages, categories, skills, variables, v
       setNewItemHours('');
       setNewItemTooltip('');
       setNewItemTooltipEn('');
+      setNewItemNameEs('');
+      setNewItemTooltipEs('');
       setNewItemDependsOn('');
-      setNewItemSdDiscovery(false);
     });
   };
 
@@ -212,6 +235,86 @@ export default function AdminClient({ packages, categories, skills, variables, v
     return [...ordered, ...missing];
   }, [categories, categoryOrderIds]);
 
+  /**
+   * A categoria editada herda a fase de Implantação da raiz só quando o pai
+   * dela está ATIVO. Com pai inativo (ou inexistente) o framework a trata como
+   * raiz e usa a fase dela mesma — então o campo precisa ficar editável.
+   */
+  const hasActiveParent = Boolean(categoryEditValues.parentName)
+    && (categories || []).some((c: any) => c.name === categoryEditValues.parentName);
+
+  /** Baixa a planilha com os nomes da biblioteca (PT / EN / ES) para tradução. */
+  const handleExportTranslations = () => {
+    const rows: TranslationRow[] = [
+      ...(packages || []).map((p: any) => ({
+        type: 'item' as const, id: p.id, category: p.categoryName || '',
+        namePt: p.name || '', nameEn: p.nameEn || '', nameEs: p.nameEs || '',
+        tooltipPt: p.tooltip || '', tooltipEn: p.tooltipEn || '', tooltipEs: p.tooltipEs || '',
+      })),
+      ...(categories || []).map((c: any) => ({
+        type: 'categoria' as const, id: c.id, category: c.parentName || '',
+        namePt: c.displayName || c.name || '', nameEn: c.displayNameEn || '', nameEs: c.displayNameEs || '',
+        tooltipPt: '', tooltipEn: '', tooltipEs: '',
+      })),
+      ...(skills || []).map((s: any) => ({
+        type: 'skill' as const, id: s.id, category: '',
+        namePt: s.name || '', nameEn: s.nameEn || '', nameEs: s.nameEs || '',
+        tooltipPt: '', tooltipEn: '', tooltipEs: '',
+      })),
+    ];
+    const blob = new Blob([buildTranslationCsv(rows)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `traducoes-biblioteca-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+
+  /** Lê a planilha traduzida e grava nomes EN/ES e tooltips PT/EN/ES (não apaga nada). */
+  const handleImportTranslations = async (file: File) => {
+    const { rows, error } = parseTranslationCsv(await file.text());
+    if (error || !rows.length) {
+      alert(t('admin.importTranslationsInvalid'));
+      return;
+    }
+    const filled = rows.filter((r) => r.nameEn || r.nameEs || r.tooltipPt || r.tooltipEn || r.tooltipEs);
+    if (!confirm(t('admin.importTranslationsConfirm', { count: filled.length }))) return;
+    startTransition(async () => {
+      try {
+        const result = await importTranslationsAction(
+          filled.map((r) => ({
+            type: r.type, id: r.id, nameEn: r.nameEn, nameEs: r.nameEs,
+            tooltipPt: r.tooltipPt, tooltipEn: r.tooltipEn, tooltipEs: r.tooltipEs,
+          })),
+        );
+        alert(t('admin.importTranslationsDone', { updated: result.updated, missing: result.notFound.length }));
+      } catch (e: any) {
+        alert(`${t('admin.importTranslationsFailed')}\n\n${e?.message || String(e)}`);
+      }
+    });
+  };
+
+  /** Fase de Implantação da categoria raiz de uma categoria (subcategorias herdam). */
+  const rootPhaseOf = (categoryName: string): string => {
+    let cat = (categories || []).find((c: any) => c.name === categoryName);
+    const seen = new Set<string>();
+    while (cat?.parentName && !seen.has(cat.name)) {
+      seen.add(cat.name);
+      const parent = (categories || []).find((c: any) => c.name === cat.parentName);
+      if (!parent) break;
+      cat = parent;
+    }
+    return String(cat?.implementationPhase || 'SETUP');
+  };
+
+  /** Módulos que um item de Workshop/Treinamento pode servir: categorias raiz de fase Setup. */
+  const shortcutModuleOptions = (categories || []).filter(
+    (c: any) => !c.parentName && String(c.implementationPhase || 'SETUP') === 'SETUP',
+  );
+
   const selectedCategory = useMemo(() => {
     return (categories || []).find((c: any) => c.id === selectedCategoryId) || null;
   }, [categories, selectedCategoryId]);
@@ -226,9 +329,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
     setCategoryEditValues({
       displayName: selectedCategory.displayName || '',
       displayNameEn: selectedCategory.displayNameEn || '',
+      displayNameEs: selectedCategory.displayNameEs || '',
       parentName: selectedCategory.parentName || '',
       minPlanCS: selectedCategory.minPlanCS || '',
-      minPlanES: selectedCategory.minPlanES || ''
+      minPlanES: selectedCategory.minPlanES || '',
+      implementationPhase: selectedCategory.implementationPhase || 'SETUP'
     });
     setBulkSelectedPackageIds([]);
     setBulkTargetCategoryName('');
@@ -288,9 +393,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
   };
 
   const handleDeletePackage = (id: number, name: string) => {
+    const bound = aeUsage[id];
+    if (bound?.length) {
+      alert(t('errors.packageBoundToAe', { items: bound.map((u) => aeLabel(u.path)).join(', ') }));
+      return;
+    }
     if (confirm(t('admin.confirmRemovePackage', { name }))) {
       startTransition(async () => {
-        await deletePackageAction(id);
+        const result = await deletePackageAction(id);
+        if (result && !result.success && result.error) alert(result.error);
       });
     }
   };
@@ -326,14 +437,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
     });
   };
 
-  const handleReseed = () => {
-    if (confirm(t('admin.confirmFactoryReset'))) {
-      startTransition(async () => {
-        await reseedFrameworkAction();
-      });
-    }
-  };
-
   return (
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -342,15 +445,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
           <p className="text-slate-400 text-label mt-2 font-medium ">{t('admin.subtitle')}</p>
         </div>
         <div className="flex items-center gap-4 w-full md:w-auto">
-          <button 
-            onClick={handleReseed}
-            disabled={isPending}
-            className="flex-1 md:flex-none bg-amber-50 text-amber-600 border border-amber-200 px-6 py-4 rounded-2xl font-medium hover:bg-amber-100 transition-all flex items-center justify-center space-x-3 text-label disabled:opacity-50"
-            title={t('admin.restoreLibrary')}
-          >
-            {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-            <span>{t('admin.resetFactory')}</span>
-          </button>
           <button 
             onClick={handleCreateSnapshot}
             disabled={isPending}
@@ -373,6 +467,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
             { id: 'packages', label: t('admin.tabLibrary'), icon: Box },
             { id: 'variables', label: t('admin.tabVariables'), icon: Settings },
             { id: 'users', label: t('admin.tabUsers'), icon: Users },
+            { id: 'aeCalculator', label: t('admin.tabAeCalculator'), icon: Calculator },
+            { id: 'zoho', label: t('admin.tabZoho'), icon: Link2 },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -391,6 +487,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
       </div>
 
       <div className="tab-content">
+        {/* Sempre montado (só escondido): trocar de aba não descarta o rascunho
+            da configuração que ainda não foi salvo. */}
+        <div className={activeTab === 'aeCalculator' ? '' : 'hidden'}>
+          <AEConfigAdmin
+            activeAeConfig={activeAeConfig}
+            aeConfigHistory={aeConfigHistory}
+            library={(packages || []).map((p: any) => ({ id: p.id, name: p.name, hours: Number(p.hours) || 0, categoryName: p.categoryName }))}
+            focusVersion={linkedTab === 'aeCalculator' ? linkedAeVersion : null}
+          />
+        </div>
+
+        <div className={activeTab === 'zoho' ? '' : 'hidden'}>
+          <ZohoAdmin initialConfig={zohoConfig} configured={Boolean(zohoConfigured)} />
+        </div>
+
         {activeTab === 'versions' && (
           <div className="bg-white rounded-3xl border border-slate-50 shadow-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-700">
             <div className="px-12 py-8 bg-slate-50/30 border-b border-slate-50 flex items-center space-x-4">
@@ -455,6 +566,36 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   )}
                 </button>
               ))}
+              {/* Planilha de traduções: exporta os nomes da biblioteca e importa
+                  de volta os nomes/tooltips em espanhol. */}
+              <div className="ml-auto flex items-center gap-2 pb-2">
+                <button
+                  type="button"
+                  onClick={handleExportTranslations}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary transition-all flex items-center gap-2"
+                  title={t('admin.exportTranslationsHint')}
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  {t('admin.exportTranslations')}
+                </button>
+                <label
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-caption font-medium text-slate-500 hover:border-brand-primary hover:text-brand-primary transition-all flex items-center gap-2 cursor-pointer"
+                  title={t('admin.importTranslationsHint')}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  {t('admin.importTranslations')}
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="sr-only"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = '';
+                      if (file) void handleImportTranslations(file);
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             {activeLibraryTab === 'items' && (
@@ -474,6 +615,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <div>
                       <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.nameEn')}</label>
                       <input type="text" value={newItemNameEn} onChange={(e) => setNewItemNameEn(e.target.value)} placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all" />
+                    </div>
+                    <div>
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.nameEs')}</label>
+                      <input type="text" value={newItemNameEs} onChange={(e) => setNewItemNameEs(e.target.value)} placeholder={t('admin.nameEsPlaceholder')} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-bold focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -500,21 +645,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
                         <option value="">{t('common.none')}</option>
                         {packages.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                       </select>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 px-3 py-3 rounded-xl bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200">
-                      <div>
-                        <div className="text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">{t('admin.sdDiscovery')}</div>
-                        <div className="text-caption text-slate-400 dark:text-[color:var(--text-muted)]">{t('admin.sdDiscoveryHint')}</div>
-                      </div>
-                      <label className="inline-flex items-center cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={newItemSdDiscovery}
-                          onChange={(e) => setNewItemSdDiscovery(e.target.checked)}
-                          className="sr-only peer"
-                        />
-                        <div className="relative w-11 h-6 bg-slate-200 dark:bg-[color:var(--bg-input-solid)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[color:var(--bg-card)] after:border-slate-300 dark:after:border-[color:var(--border-main)] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
-                      </label>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -543,6 +673,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <div>
                       <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.tooltipEn')}</label>
                       <textarea value={newItemTooltipEn} onChange={(e) => setNewItemTooltipEn(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all h-20 resize-none" />
+                    </div>
+                    <div>
+                      <label className="block text-caption font-medium text-slate-400 ml-1 mb-2">{t('admin.tooltipEs')}</label>
+                      <textarea value={newItemTooltipEs} onChange={(e) => setNewItemTooltipEs(e.target.value)} className="w-full bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-xl px-4 py-3 text-label font-medium focus:ring-2 focus:ring-brand-primary dark:focus:bg-[color:var(--bg-card)] outline-none transition-all h-20 resize-none" />
                     </div>
                     <button type="submit" disabled={isPending} className="w-full brand-bg-primary text-brand-ink py-4 rounded-xl font-medium hover:opacity-90 shadow-xl text-label disabled:opacity-50">
                       {isPending ? t('common.processing') : t('admin.addItem')}
@@ -630,18 +764,32 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     onChange={(e) => setEditValues({ ...editValues, nameEn: e.target.value })}
                                     className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                                   />
-                                  <input 
-                                    type="text" 
+                                  <input
+                                    type="text"
+                                    placeholder={t('admin.nameEsPlaceholder')}
+                                    value={editValues.nameEs || ''}
+                                    onChange={(e) => setEditValues({ ...editValues, nameEs: e.target.value })}
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                                  />
+                                  <input
+                                    type="text"
                                     placeholder={t('admin.tooltipPt')}
-                                    value={editValues.tooltip} 
+                                    value={editValues.tooltip}
                                     onChange={(e) => setEditValues({ ...editValues, tooltip: e.target.value })}
                                     className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1 text-label outline-none transition-all"
                                   />
                                   <input 
                                     type="text" 
                                     placeholder={t('admin.tooltipEn')}
-                                    value={editValues.tooltipEn || ''} 
+                                    value={editValues.tooltipEn || ''}
                                     onChange={(e) => setEditValues({ ...editValues, tooltipEn: e.target.value })}
+                                    className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1 text-label outline-none transition-all"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder={t('admin.tooltipEs')}
+                                    value={editValues.tooltipEs || ''}
+                                    onChange={(e) => setEditValues({ ...editValues, tooltipEs: e.target.value })}
                                     className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-slate-200 rounded-lg px-3 py-1 text-label outline-none transition-all"
                                   />
                                   <div className="grid grid-cols-2 gap-2 pt-1">
@@ -682,9 +830,21 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                       ES {minPlanBadge(pkg, 'ES')}
                                     </span>
                                   )}
-                                  {!String(pkg.nameEn || '').trim() && (
+                                  {(!String(pkg.nameEn || '').trim() || !String(pkg.nameEs || '').trim()) && (
                                     <span title={t('admin.missingTranslationHint')} className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-600 border border-amber-100 text-caption font-medium ">
-                                      {t('admin.missingTranslation')}
+                                      {t('admin.missingTranslationLangs', {
+                                        langs: [!String(pkg.nameEn || '').trim() && 'EN', !String(pkg.nameEs || '').trim() && 'ES'].filter(Boolean).join(', '),
+                                      })}
+                                    </span>
+                                  )}
+                                  {aeUsage[pkg.id]?.some((u) => u.override) && (
+                                    // Valor em ajuste manual na Calculadora AE: as horas deste
+                                    // item não estão sendo usadas lá.
+                                    <span
+                                      title={t('admin.aeOverrideHint', { items: aeUsage[pkg.id].filter((u) => u.override).map((u) => aeLabel(u.path)).join(', ') })}
+                                      className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 text-caption font-bold"
+                                    >
+                                      !
                                     </span>
                                   )}
                                   {packageTooltip(pkg, language) && (
@@ -763,28 +923,57 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     </div>
                                   </div>
 
-                                  <div className="flex items-center justify-between gap-2 px-2 py-2 rounded-lg bg-slate-50 dark:bg-[color:var(--bg-input-solid)] dark:border-[color:var(--border-main)] border border-slate-200">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-caption font-medium text-brand-dark dark:text-[color:var(--text-main)]">{t('admin.sdDiscovery')}</span>
-                                    </div>
-                                    <label className="inline-flex items-center cursor-pointer">
-                                      <input
-                                        type="checkbox"
-                                        checked={Boolean(editValues.sdDiscovery || false)}
-                                        onChange={(e) => setEditValues({ ...editValues, sdDiscovery: e.target.checked })}
-                                        className="sr-only peer"
-                                      />
-                                      <div className="relative w-9 h-5 bg-slate-200 dark:bg-[color:var(--bg-input-solid)] peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-brand-primary rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white dark:after:bg-[color:var(--bg-card)] after:border-slate-300 dark:after:border-[color:var(--border-main)] after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:brand-bg-primary dark:peer-checked:brand-bg-primary"></div>
-                                    </label>
-                                  </div>
+                                  {/* Atalhos do framework: o campo depende da fase da categoria do item. */}
+                                  {(() => {
+                                    const phase = rootPhaseOf(editValues.categoryName);
+                                    if (phase === 'WORKSHOP' || phase === 'TRAINING') {
+                                      return (
+                                        <div className="space-y-1 pt-1">
+                                          <label className="block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1">{t('admin.shortcutModule')}</label>
+                                          <select
+                                            value={editValues.moduleLink || ''}
+                                            onChange={(e) => setEditValues({ ...editValues, moduleLink: e.target.value })}
+                                            className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium "
+                                          >
+                                            <option value="">{t('admin.shortcutModuleNone')}</option>
+                                            {shortcutModuleOptions.map((c: any) => (
+                                              <option key={c.id} value={c.name}>{categoryLabelOf(c, language)}</option>
+                                            ))}
+                                          </select>
+                                        </div>
+                                      );
+                                    }
+                                    if (phase === 'GOLIVE') {
+                                      return (
+                                        <div className="space-y-1 pt-1">
+                                          <label className="block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1">{t('admin.shortcutGoLiveQty')}</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="1"
+                                            value={editValues.goLiveShortcutQty ?? 0}
+                                            onChange={(e) => setEditValues({ ...editValues, goLiveShortcutQty: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
+                                            className="w-24 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium text-center"
+                                          />
+                                        </div>
+                                      );
+                                    }
+                                    return null;
+                                  })()}
+
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
                                   <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{pkg.categoryName}</span>
                                   <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] text-slate-500 px-2 py-0.5 rounded-md font-medium w-fit">{pkg.skillName}</span>
-                                  {pkg.sdDiscovery && (
-                                    <span className="text-caption bg-brand-primary/10 dark:bg-brand-primary/15 text-brand-primary border border-brand-primary/30 px-2 py-0.5 rounded-md font-medium w-fit flex items-center gap-1">
-                                      {t('admin.sdDiscovery')}
+                                  {pkg.moduleLink && ['WORKSHOP', 'TRAINING'].includes(rootPhaseOf(pkg.categoryName)) && (
+                                    <span className="text-caption bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)] px-2 py-0.5 rounded-md font-medium w-fit">
+                                      {t('admin.shortcutModuleBadge', { module: categoryLabelOf(categories.find((c: any) => c.name === pkg.moduleLink) || { name: pkg.moduleLink }, language) })}
+                                    </span>
+                                  )}
+                                  {Number(pkg.goLiveShortcutQty) > 0 && rootPhaseOf(pkg.categoryName) === 'GOLIVE' && (
+                                    <span className="text-caption bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)] px-2 py-0.5 rounded-md font-medium w-fit">
+                                      {t('admin.shortcutGoLiveBadge', { qty: pkg.goLiveShortcutQty })}
                                     </span>
                                   )}
                                   {pkg.dependsOnItemId && (
@@ -905,7 +1094,8 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               onClick={() => {
                                 if (confirm(t('admin.confirmDeactivateCategory', { name: selectedCategory.displayName || selectedCategory.name }))) {
                                   startTransition(async () => {
-                                    await deleteCategoryAction(selectedCategory.id);
+                                    const result = await deleteCategoryAction(selectedCategory.id);
+                                    if (result && result.success === false && result.error) alert(result.error);
                                   });
                                 }
                               }}
@@ -936,6 +1126,16 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               value={categoryEditValues.displayNameEn || ''}
                               onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayNameEn: e.target.value })}
                               placeholder={t('admin.nameEnPlaceholder')}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.displayNameEs')}</label>
+                            <input
+                              type="text"
+                              value={categoryEditValues.displayNameEs || ''}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, displayNameEs: e.target.value })}
+                              placeholder={t('admin.nameEsPlaceholder')}
                               className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-body font-bold focus:ring-2 focus:ring-brand-primary outline-none"
                             />
                           </div>
@@ -985,6 +1185,27 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           <div className="md:col-span-2">
                             <p className="text-caption font-bold text-slate-400 leading-relaxed">
                               {t('plans.categoryGateHint')}
+                            </p>
+                          </div>
+                          {/* Linha do card de Implantação onde as horas desta categoria entram.
+                              Só vale para categorias raiz; subcategorias usam a da raiz. */}
+                          <div className="space-y-2">
+                            <label className="block text-caption font-medium text-slate-400 ml-1">{t('admin.implementationPhase')}</label>
+                            <select
+                              value={categoryEditValues.implementationPhase || 'SETUP'}
+                              onChange={(e) => setCategoryEditValues({ ...categoryEditValues, implementationPhase: e.target.value })}
+                              disabled={hasActiveParent}
+                              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-6 py-4 text-label font-medium outline-none disabled:opacity-50"
+                            >
+                              <option value="WORKSHOP">{t('editor.subitemWorkshop')}</option>
+                              <option value="SETUP">{t('editor.subitemSetup')}</option>
+                              <option value="TRAINING">{t('editor.subitemTraining')}</option>
+                              <option value="GOLIVE">{t('editor.subitemGoLive')}</option>
+                            </select>
+                          </div>
+                          <div className="flex items-end">
+                            <p className="text-caption font-bold text-slate-400 leading-relaxed">
+                              {hasActiveParent ? t('admin.implementationPhaseInherited') : t('admin.implementationPhaseHint')}
                             </p>
                           </div>
                         </div>
@@ -1160,6 +1381,18 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           }}
                           className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
                         />
+                        <input
+                          type="text"
+                          defaultValue={s.nameEs || ''}
+                          placeholder={t('admin.skillNameEs')}
+                          onBlur={(e) => {
+                            const next = e.target.value.trim();
+                            if (next !== String(s.nameEs || '')) {
+                              startTransition(() => updateSkillAction(s.id, undefined, next));
+                            }
+                          }}
+                          className="mt-1 w-full bg-white border border-slate-200 rounded-lg px-2 py-1 text-label font-bold outline-none focus:ring-2 focus:ring-brand-primary/20 transition-all"
+                        />
                       </div>
                       <button onClick={() => startTransition(() => deleteSkillAction(s.id))} className="text-slate-300 hover:text-red-500 transition-colors">
                         <Trash2 className="w-4 h-4" />
@@ -1195,6 +1428,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.variableLabelEn')}</label>
                     <input type="text" name="labelEn" placeholder={t('admin.nameEnPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-label font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                   </div>
+                </div>
+                <div>
+                  <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.variableLabelEs')}</label>
+                  <input type="text" name="labelEs" placeholder={t('admin.nameEsPlaceholder')} className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-4 text-label font-bold focus:ring-2 focus:ring-brand-primary focus:bg-white outline-none transition-all" />
                 </div>
                 <div>
                   <label className="block text-caption font-medium text-slate-400 ml-1 mb-3">{t('admin.valuePercentage')}</label>
@@ -1264,6 +1501,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none"
                               placeholder={t('admin.variableLabelEn')}
                             />
+                            <input
+                              type="text"
+                              value={editVariableValues.labelEs || ''}
+                              onChange={(e) => setEditVariableValues({ ...editVariableValues, labelEs: e.target.value })}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-label font-bold outline-none"
+                              placeholder={t('admin.variableLabelEs')}
+                            />
                             <input 
                               type="text" 
                               value={editVariableValues.category} 
@@ -1271,94 +1515,12 @@ export default function AdminClient({ packages, categories, skills, variables, v
                               className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1 text-label font-bold outline-none"
                               placeholder={t('admin.categoryPlaceholder')}
                             />
-                            
-                            <div className="space-y-2 border-t pt-4">
-                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.incidenceItems')}</label>
-                              <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
-                                {packages.map((pkg: any) => (
-                                  <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={editVariableValues.targetItems.includes(pkg.id.toString())}
-                                      onChange={(e) => {
-                                        const newItems = e.target.checked 
-                                          ? [...editVariableValues.targetItems, pkg.id.toString()]
-                                          : editVariableValues.targetItems.filter((id: string) => id !== pkg.id.toString());
-                                        setEditVariableValues({ ...editVariableValues, targetItems: newItems });
-                                      }}
-                                      className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                    />
-                                    <span className="text-caption font-medium text-slate-600 ">{pkg.name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="space-y-2">
-                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.incidenceCategories')}</label>
-                              <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
-                                {categories.map((cat: any) => (
-                                  <label key={cat.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={editVariableValues.targetCategories.includes(cat.name)}
-                                      onChange={(e) => {
-                                        const newCats = e.target.checked 
-                                          ? [...editVariableValues.targetCategories, cat.name]
-                                          : editVariableValues.targetCategories.filter((name: string) => name !== cat.name);
-                                        setEditVariableValues({ ...editVariableValues, targetCategories: newCats });
-                                      }}
-                                      className="rounded border-slate-300 text-brand-primary focus:ring-brand-primary"
-                                    />
-                                    <span className="text-caption font-medium text-slate-600 ">{cat.name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="block text-caption font-medium text-slate-400 ">{t('admin.excludedItems')}</label>
-                              <div className="max-h-32 overflow-y-auto border border-slate-100 rounded-lg p-2 space-y-1">
-                                {packages.map((pkg: any) => (
-                                  <label key={pkg.id} className="flex items-center space-x-2 cursor-pointer hover:bg-slate-50 p-1 rounded transition-colors">
-                                    <input 
-                                      type="checkbox" 
-                                      checked={editVariableValues.excludedItems.includes(pkg.id.toString())}
-                                      onChange={(e) => {
-                                        const newItems = e.target.checked 
-                                          ? [...editVariableValues.excludedItems, pkg.id.toString()]
-                                          : editVariableValues.excludedItems.filter((id: string) => id !== pkg.id.toString());
-                                        setEditVariableValues({ ...editVariableValues, excludedItems: newItems });
-                                      }}
-                                      className="rounded border-slate-300 text-red-500 focus:ring-red-500"
-                                    />
-                                    <span className="text-caption font-medium text-slate-600 ">{pkg.name}</span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
                           </div>
                         ) : (
                           <>
                             <div className="text-body font-bold text-brand-dark group-hover:text-brand-primary transition-all tracking-tight">{variableLabel(v, language)}</div>
                             <div className="text-caption font-medium text-slate-300 mt-0.5">{v.key}</div>
                             <div className="text-caption font-medium text-slate-400 mt-1">{v.category}</div>
-                            <div className="mt-3 flex flex-wrap gap-1">
-                              {JSON.parse(v.targetItems || '[]').length > 0 && (
-                                <span className="bg-slate-100 text-brand-dark px-2 py-0.5 rounded-md text-caption font-medium border border-slate-200">
-                                  {JSON.parse(v.targetItems || '[]').length} Itens
-                                </span>
-                              )}
-                              {JSON.parse(v.targetCategories || '[]').length > 0 && (
-                                <span className="bg-slate-100 text-brand-dark px-2 py-0.5 rounded-md text-caption font-medium border border-slate-200">
-                                  {JSON.parse(v.targetCategories || '[]').length} Cats
-                                </span>
-                              )}
-                              {JSON.parse(v.excludedItems || '[]').length > 0 && (
-                                <span className="bg-red-50 text-red-600 px-2 py-0.5 rounded-md text-caption font-medium border border-red-100">
-                                  {JSON.parse(v.excludedItems || '[]').length} Excluídos
-                                </span>
-                              )}
-                            </div>
                           </>
                         )}
                       </td>

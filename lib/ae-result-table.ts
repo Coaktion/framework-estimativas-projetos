@@ -13,11 +13,12 @@ import {
  * estimativa criada por um AE e ver as quantidades e horas, mesmo que o AE só
  * tenha visto a lista de itens.
  *
- * As horas por unidade vêm de AE_DATABASE, e não de números repetidos aqui, para
- * que a tabela nunca divirja do cálculo.
+ * As horas por unidade vêm do PRÓPRIO resultado do engine (`unitHours`, que
+ * reflete a configuração da Calculadora usada no cálculo), e não de números
+ * repetidos aqui, para que a tabela nunca divirja do cálculo.
  */
 
-const UH = AE_DATABASE.horas_unitarias;
+type UnitHours = typeof AE_DATABASE.horas_unitarias;
 
 export interface AETableRow {
   /** Rótulo já traduzido. */
@@ -88,6 +89,10 @@ export function buildAEResultTable(
 ): { sections: AETableSection[]; lineItemTotal: number; grandTotal: number } {
   if (!estimation) return { sections: [], lineItemTotal: 0, grandTotal: 0 };
 
+  // Estimativas calculadas antes da configuração editável não trazem
+  // `unitHours`: usam os padrões de fábrica, que foram os usados nelas.
+  const UH: UnitHours = { ...AE_DATABASE.horas_unitarias, ...((estimation as any).unitHours || {}) };
+
   const q = (estimation.quantities || {}) as Record<string, number>;
   const b = (estimation.breakdown || {}) as Record<string, number>;
   // Estimativas gravadas antes da abertura por item não têm `details`; o
@@ -97,7 +102,7 @@ export function buildAEResultTable(
     generalConfig: [], training: [], workshops: [],
     fixedItems: [], marketplaceApps: [], aktieApps: [],
     channelSetup: [],
-    baseSetup: [], knowledge: [], sideConversations: [],
+    baseSetup: [], knowledge: [], sideConversations: [], nativeConnections: [],
   };
   /**
    * Os módulos que realmente geraram horas. O engine descarta os que estão
@@ -206,14 +211,14 @@ export function buildAEResultTable(
   );
 
   // ---------------------------------------------- Integrações, apps e extras
-  const nativeCount = inputs?.selectedNativeConnections?.length || 0;
   const actionFlowCount = inputs?.selectedActionFlows?.length || 0;
   const sideConvCount =
     (inputs?.hasTeamsSideConv ? 1 : 0) + (inputs?.hasSlackSideConv ? 1 : 0);
 
   sections.push(
     section('integrations', t('aeTable.section5'), [
-      row(t('aeTable.nativeIntegration'), nativeCount, UH.integracao_nativa),
+      // Uma linha por integração: cada item da biblioteca tem as suas horas.
+      ...detailRows(d.nativeConnections, (key) => `${t('aeTable.nativeIntegration')}: ${key}`),
       row(t('aeTable.actionFlows'), actionFlowCount, UH.action_flow),
       // Cada app de Marketplace tem a sua própria tarifa (SweetHawk 2h, outros
       // 5h, e assim por diante); antes vinham somados numa linha só com hora

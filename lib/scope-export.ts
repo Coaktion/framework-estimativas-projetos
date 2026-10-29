@@ -32,24 +32,20 @@
  * `LOCK_OUTPUT_TO_PT` abaixo é o único interruptor. Ligar o inglês é trocar
  * `false` e passar `locale` do chamador.
  *
- * FASE 2 (Zoho CRM)
- * -----------------
- * A seção `[CRM]` NÃO é mais emitida. Os tipos (`ScopeExportCrm`, o campo
- * `crm`) continuam aqui de propósito: quando os endpoints do Zoho existirem,
- * religar é trocar `EMIT_CRM_SECTION` para `true` e preencher o objeto — sem
- * remexer no formato nem na skill.
+ * v2
+ * --
+ * - REGRA DE REDAÇÃO no cabeçalho: quantidades dimensionam horas e preço; o
+ *   documento descreve o que será feito e só cita números relevantes.
+ * - `[DADOS INFORMADOS]`: tudo o que foi digitado na tela e não cabe nas outras
+ *   seções (agentes, marcas, áreas, operação, artigos, SSO, texto de outros
+ *   apps...).
+ * - `[ITENS SELECIONADOS]` traz quantidade × horas unitárias, skill, ajuste
+ *   manual e os textos "Inclui / Não inclui" de cada item.
+ * - `[ZOHO CRM]`: campos do negócio lidos do Zoho (somente leitura) na hora da
+ *   cópia — ver lib/zoho.ts. Campos vazios saem agrupados numa linha só.
  */
 
-export const SCOPE_EXPORT_VERSION = 'v1';
-
-/**
- * Emissão da seção `[CRM]`.
- *
- * Desligada enquanto a integração com o Zoho não existe: uma seção inteira de
- * "(pendente — Zoho)" só ensinava a skill a preencher o documento com
- * placeholders. Ligue quando os endpoints estiverem prontos.
- */
-const EMIT_CRM_SECTION = false;
+export const SCOPE_EXPORT_VERSION = 'v2';
 
 /**
  * Trava a saída em pt-BR.
@@ -80,9 +76,15 @@ const PROSE = {
       'prevalecem sobre qualquer documento anexado. Use anexos apenas para ' +
       'enriquecer contexto (dores, objetivos, cenário atual). Nada que apareça ' +
       'só no anexo entra no escopo.',
+    writingRule:
+      'REGRA DE REDAÇÃO: quantidades e horas servem para dimensionar o esforço e ' +
+      'o preço. O documento descreve O QUE será feito, não quantas vezes — ' +
+      '"3 e-mails + 1 Facebook + 3 linhas" vira "configurar os canais de e-mail, ' +
+      'Facebook e telefonia no Zendesk". Cite um número só quando ele for ' +
+      'relevante para o cliente entender o escopo (ex.: número de marcas ou de ' +
+      'idiomas, integrações nomeadas, limites combinados).',
     glossary: '',
     missing: '(não informado)',
-    pendingCrm: '(pendente — Zoho)',
     noModules: '(nenhum módulo identificado)',
     noChannels: '(nenhum canal identificado)',
     noIntegrations: '(nenhuma integração ou app no escopo)',
@@ -90,16 +92,19 @@ const PROSE = {
     noItems: '(nenhum item selecionado)',
     yes: 'sim',
     no: 'nao',
-    crmNote1: '# Preenchido pela integração com o Zoho CRM (fase 2). Campos pendentes',
-    crmNote2: '# devem ser deixados como placeholder no documento, nunca inventados.',
+    zohoNote:
+      '# Campos do negócio no Zoho CRM, lidos na hora da cópia. Use como contexto ' +
+      '(cliente, negócio, contatos); não criam entregas no escopo.',
+    factsNote: '# Dados digitados na tela. Servem para entender e dimensionar; não são texto para o documento.',
     flagsNote: '# "nao" significa REMOVER do documento o trecho correspondente.',
-    itemsNote: '# Use para decidir quais bullets de capacidade permanecem no documento.',
+    itemsNote:
+      '# Use para decidir quais bullets de capacidade permanecem no documento. ' +
+      '"Inclui / Não inclui" descrevem a entrega de cada item.',
     contextNote:
       '# Texto livre escrito pelo Account Executive. Use para redigir as seções ' +
       'de contexto, dores e objetivos — nunca para acrescentar entregas ao escopo.',
     skillHoursLabel: 'Horas por skill',
     percentsLabel: 'Percentuais aplicados',
-    painsLabel: 'Dores identificadas',
     end: '===== FIM =====',
   },
   en: {
@@ -120,8 +125,14 @@ const PROSE = {
       'DETALHAMENTO POR CATEGORIA=Breakdown by category, ITENS ' +
       'SELECIONADOS=Selected items. Values "sim"/"nao" mean yes/no. ' +
       'Write the DOCUMENT in the language given by IDIOMA DE SAÍDA.',
+    writingRule:
+      'WRITING RULE: quantities and hours size the effort and the price. The ' +
+      'document describes WHAT will be done, not how many times — "3 emails + ' +
+      '1 Facebook + 3 lines" becomes "set up the email, Facebook and phone ' +
+      'channels in Zendesk". Only cite a number when it matters for the client ' +
+      'to understand the scope (e.g. number of brands or languages, named ' +
+      'integrations, agreed limits).',
     missing: '(not provided)',
-    pendingCrm: '(pending — Zoho)',
     noModules: '(no module identified)',
     noChannels: '(no channel identified)',
     noIntegrations: '(no integration or app in scope)',
@@ -129,16 +140,19 @@ const PROSE = {
     noItems: '(no item selected)',
     yes: 'sim',
     no: 'nao',
-    crmNote1: '# Filled by the Zoho CRM integration (phase 2). Pending fields must be',
-    crmNote2: '# left as placeholders in the document, never invented.',
+    zohoNote:
+      '# Deal fields from Zoho CRM, read when the prompt was copied. Use them as ' +
+      'context (client, deal, contacts); they never add deliverables to the scope.',
+    factsNote: '# Data typed on screen. It helps understand and size the project; it is not text for the document.',
     flagsNote: '# "nao" means REMOVE the corresponding passage from the document.',
-    itemsNote: '# Use this to decide which capability bullets stay in the document.',
+    itemsNote:
+      '# Use this to decide which capability bullets stay in the document. ' +
+      '"Inclui / Não inclui" describe what each item delivers.',
     contextNote:
       '# Free text written by the Account Executive. Use it to write the context, ' +
       'pain-point and goal sections — never to add deliverables to the scope.',
     skillHoursLabel: 'Horas por skill',
     percentsLabel: 'Percentuais aplicados',
-    painsLabel: 'Dores identificadas',
     end: '===== FIM =====',
   },
 } as const;
@@ -166,30 +180,23 @@ export interface ScopeExportItem {
   label: string;
   quantity: number;
   hours: number;
+  /** Horas por unidade (quando o item tem quantidade × horas). */
+  unitHours?: number | null;
+  skill?: string | null;
+  /** As horas foram digitadas à mão (ajuste manual), não quantidade × horas. */
+  manualHours?: boolean;
+  /** Texto "o que está incluído" do item (biblioteca ou linha personalizada). */
+  includes?: string | null;
+  /** Texto "o que não está incluído". */
+  excludes?: string | null;
+  /** Link de referência (ex.: página do app no Marketplace). */
+  link?: string | null;
 }
 
 export interface ScopeExportCategory {
   label: string;
   hours: number;
   subcategories: Array<{ label: string; hours: number }>;
-}
-
-/**
- * Campos que hoje vêm em branco e serão preenchidos pelo Zoho CRM na fase 2.
- * Mantidos num tipo próprio para deixar explícito o que é do site e o que é do
- * CRM.
- */
-export interface ScopeExportCrm {
-  dealId?: string | null;
-  accountExecutive?: string | null;
-  clientLegalName?: string | null;
-  clientWebsite?: string | null;
-  segment?: string | null;
-  region?: string | null;
-  serviceModel?: string | null;
-  painPoints?: string[] | null;
-  bant?: string | null;
-  hoursValidityMonths?: number | string | null;
 }
 
 export interface ScopeExportInput {
@@ -208,6 +215,8 @@ export interface ScopeExportInput {
   clientName: string;
   projectName?: string | null;
   versionName?: string | null;
+  /** Descrição digitada ao salvar a versão. */
+  versionDescription?: string | null;
   generatedAt?: Date | null;
 
   technicalScopeLink?: string | null;
@@ -219,6 +228,17 @@ export interface ScopeExportInput {
   /** Horas por skill, na chave canônica em português. */
   skillHours?: Record<string, number> | null;
   percents?: { discovery?: number; validation?: number; gp?: number } | null;
+  /**
+   * Percentuais efetivamente aplicados, com observação opcional (ex.: "projeto
+   * com SD — sem discovery percentual"). Quando presente, substitui a linha
+   * montada a partir de `percents`.
+   */
+  percentLines?: Array<{ label: string; value: number; note?: string }> | null;
+  /**
+   * Horas de cada parcela calculada (Discovery, Validação, GP...). Saem logo
+   * abaixo das horas por skill, para que o total feche à vista.
+   */
+  calculatedHours?: Array<{ label: string; hours: number; note?: string }> | null;
 
   planTierLabel: string;
   skuLabel: string;
@@ -248,7 +268,11 @@ export interface ScopeExportInput {
   clientObjectives?: string | null;
   successIndicators?: string | null;
 
-  crm?: ScopeExportCrm | null;
+  /** Demais dados digitados na tela, como "Rótulo: valor" (seção [DADOS INFORMADOS]). */
+  facts?: Array<{ label: string; value: string }> | null;
+
+  /** Linhas já formatadas da seção [ZOHO CRM] (ver lib/zoho.ts). Ausente = seção omitida. */
+  zohoSection?: string[] | null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -402,6 +426,8 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   push();
   push(L.precedence);
   push();
+  push(L.writingRule);
+  push();
 
   // ---- Envelope -----------------------------------------------------------
   push(`===== Aktie Now Tool Center · ESCOPO TÉCNICO · ${SCOPE_EXPORT_VERSION} =====`);
@@ -417,6 +443,8 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   push(`Cliente: ${missing(input.clientName)}`);
   push(`Projeto: ${missing(input.projectName, missing(input.clientName))}`);
   push(`Versão da proposta técnica: ${missing(input.versionName, 'v1')}`);
+  const versionDescription = textBlock(input.versionDescription);
+  if (versionDescription.length) push(`Descrição da versão: ${versionDescription.join(' / ')}`);
   push(`Data: ${dateBR(input.generatedAt)}`);
   push(`Pre-Sales responsável: ${missing(input.preSalesName)}`);
   push(`Link do escopo técnico: ${missing(input.technicalScopeLink)}`);
@@ -425,32 +453,6 @@ export function buildScopePrompt(input: ScopeExportInput): string {
     push(`Tipo de projeto: ${input.deploymentType === 'optimization' ? 'Otimização' : 'Nova implantação'}`);
   }
   push();
-
-  // ---- CRM (fase 2) -------------------------------------------------------
-  // Desligado enquanto os endpoints do Zoho não existem — ver EMIT_CRM_SECTION.
-  if (EMIT_CRM_SECTION) {
-    const crm = input.crm || {};
-    push('[CRM]');
-    push(L.crmNote1);
-    push(L.crmNote2);
-    push(`Razão social do cliente: ${missing(crm.clientLegalName, L.pendingCrm)}`);
-    push(`ID do negócio: ${missing(crm.dealId, L.pendingCrm)}`);
-    push(`Account Executive: ${missing(crm.accountExecutive, L.pendingCrm)}`);
-    push(`Site do cliente: ${missing(crm.clientWebsite, L.pendingCrm)}`);
-    push(`Segmento: ${missing(crm.segment, L.pendingCrm)}`);
-    push(`Região de operação: ${missing(crm.region, L.pendingCrm)}`);
-    push(`Modelo de atendimento: ${missing(crm.serviceModel, L.pendingCrm)}`);
-    push(`Vigência para uso das horas: ${missing(crm.hoursValidityMonths, L.pendingCrm)}`);
-    push(`BANT: ${missing(crm.bant, L.pendingCrm)}`);
-    const pains = (crm.painPoints || []).filter(Boolean);
-    if (pains.length) {
-      push(`${L.painsLabel}:`);
-      pains.forEach((pain) => push(`- ${pain}`));
-    } else {
-      push(`${L.painsLabel}: ${L.pendingCrm}`);
-    }
-    push();
-  }
 
   // ---- Contexto do cliente (texto livre do AE) ---------------------------
   const objectives = textBlock(input.clientObjectives);
@@ -469,6 +471,23 @@ export function buildScopePrompt(input: ScopeExportInput): string {
     push();
   }
 
+  // ---- Zoho CRM (lido na hora da cópia) -----------------------------------
+  if (input.zohoSection && input.zohoSection.length) {
+    push('[ZOHO CRM]');
+    push(L.zohoNote);
+    input.zohoSection.forEach((line) => push(line));
+    push();
+  }
+
+  // ---- Dados informados na tela ------------------------------------------
+  const facts = (input.facts || []).filter((f) => f && f.label && String(f.value ?? '').trim());
+  if (facts.length) {
+    push('[DADOS INFORMADOS]');
+    push(L.factsNote);
+    facts.forEach((f) => push(`${f.label}: ${textBlock(f.value).join(' / ')}`));
+    push();
+  }
+
   // ---- Dimensionamento ---------------------------------------------------
   push('[DIMENSIONAMENTO]');
   push(`Total de horas: ${hrs(input.totalHours)}`);
@@ -482,11 +501,30 @@ export function buildScopePrompt(input: ScopeExportInput): string {
     const value = Number(skills[skill] || 0);
     push(`- ${skillNames[skill] || skill}: ${hrs(value)}`);
   });
-  const p = input.percents || {};
-  push(
-    `${L.percentsLabel}: Discovery ${pct(p.discovery)} · ` +
-      `Validação ${pct(p.validation)} · GP ${pct(p.gp)}`,
-  );
+  // Skills além das cinco padrão (cadastradas no Admin) também entram no total.
+  Object.keys(skills)
+    .filter((skill) => !skillOrder.includes(skill) && Number(skills[skill]) > 0)
+    .sort()
+    .forEach((skill) => push(`- ${skill}: ${hrs(skills[skill])}`));
+  const calculated = (input.calculatedHours || []).filter((c) => c && c.label);
+  if (calculated.length) {
+    push('Horas calculadas:');
+    calculated.forEach((c) => push(`- ${c.label}: ${hrs(c.hours)}${c.note ? ` (${c.note})` : ''}`));
+  }
+  if (input.percentLines && input.percentLines.length) {
+    push(
+      `${L.percentsLabel}: ` +
+        input.percentLines
+          .map((line) => `${line.label} ${pct(line.value)}${line.note ? ` (${line.note})` : ''}`)
+          .join(' · '),
+    );
+  } else {
+    const p = input.percents || {};
+    push(
+      `${L.percentsLabel}: Discovery ${pct(p.discovery)} · ` +
+        `Validação ${pct(p.validation)} · GP ${pct(p.gp)}`,
+    );
+  }
   push();
 
   // ---- Plataforma --------------------------------------------------------
@@ -567,13 +605,24 @@ export function buildScopePrompt(input: ScopeExportInput): string {
   if (items.length) {
     let currentGroup = '';
     items.forEach((item) => {
-      const group = `${item.category} / ${item.subcategory}`;
+      const group = item.subcategory ? `${item.category} / ${item.subcategory}` : item.category;
       if (group !== currentGroup) {
         currentGroup = group;
         push(group);
       }
       const qty = Number(item.quantity) || 0;
-      push(`- ${item.label}${qty > 1 ? ` ×${qty}` : ''} — ${hrs(item.hours)}`);
+      const unit = Number(item.unitHours);
+      const sizing = item.manualHours
+        ? `${hrs(item.hours)} (horas ajustadas manualmente${qty > 0 ? `; quantidade ${qty}` : ''})`
+        : Number.isFinite(unit) && item.unitHours != null
+          ? `${qty} × ${hrs(unit)} = ${hrs(item.hours)}`
+          : `${qty > 1 ? `×${qty} — ` : ''}${hrs(item.hours)}`;
+      push(`- ${item.label} — ${sizing}${item.skill ? ` · ${item.skill}` : ''}`);
+      const includes = textBlock(item.includes);
+      const excludes = textBlock(item.excludes);
+      if (includes.length) push(`  Inclui: ${includes.join(' / ')}`);
+      if (excludes.length) push(`  Não inclui: ${excludes.join(' / ')}`);
+      if (String(item.link ?? '').trim()) push(`  Link: ${String(item.link).trim()}`);
     });
   } else {
     push(L.noItems);

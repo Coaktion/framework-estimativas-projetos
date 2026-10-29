@@ -26,11 +26,12 @@ const DOT_WARN = 'w-2 h-2 rounded-full bg-[color:var(--warning)] shrink-0';
 const DOT_OK = 'w-2 h-2 rounded-full bg-[#3f9d36] shrink-0';
 
 /** Horas em formato curto: 148h, 47,5h. Evita "47.66h" na listagem. */
-function formatHours(value: number): string {
+function formatHours(value: number, language: string = 'pt'): string {
   const rounded = Math.round((Number(value) || 0) * 10) / 10;
+  // Vírgula decimal só em português: no inglês fica 47.5h.
   const text = Number.isInteger(rounded)
     ? String(rounded)
-    : rounded.toFixed(1).replace('.', ',');
+    : language === 'en' ? rounded.toFixed(1) : rounded.toFixed(1).replace('.', ',');
   return `${text}h`;
 }
 
@@ -92,7 +93,7 @@ export default function AEHistoryClient(
 
   const showOwnerChip = sessionIsAdmin && projectScope === 'all';
   const [searchQuery, setSearchQuery] = useState('');
-  const { dateLocale } = useLanguage();
+  const { dateLocale, language } = useLanguage();
 
   // Lista (tabela) é o padrão, como em Projetos; a escolha fica lembrada no navegador.
   const [view, setView] = useState<'list' | 'cards'>('list');
@@ -230,7 +231,7 @@ export default function AEHistoryClient(
                         {showOwnerChip && g.owner && (
                           <span className="inline-flex items-center gap-1 text-label text-slate-500">
                             <Shield className="w-3 h-3" />
-                            {String(g.owner.name || g.owner.email || t('common.unknown', 'Desconhecido'))}
+                            {String(g.owner.name || g.owner.email || t('common.unknown'))}
                             {g.owner.role ? ` (${g.owner.role})` : ''}
                           </span>
                         )}
@@ -240,7 +241,7 @@ export default function AEHistoryClient(
                           <span className={g.latestNeedsSC ? DOT_WARN : DOT_OK} />
                           {g.latestNeedsSC ? t('aeHistory.needsSC') : t('aeHistory.aeEstimate')}
                           {/* Estimativa que exige SE não tem número fechado: sem horas */}
-                          {!g.latestNeedsSC && g.latestHours > 0 ? ` · ${formatHours(g.latestHours)}` : ''}
+                          {!g.latestNeedsSC && g.latestHours > 0 ? ` · ${formatHours(g.latestHours, language)}` : ''}
                         </span>
                       </td>
                       <td className="px-4 py-3.5">
@@ -256,7 +257,7 @@ export default function AEHistoryClient(
                               >
                                 {!latest && <span className={v.needsSC ? DOT_WARN : DOT_OK} />}
                                 V{v.version}
-                                {v.needsSC ? ` · ${t('aeHistory.scShort')}` : v.hours > 0 ? ` · ${formatHours(v.hours)}` : ''}
+                                {v.needsSC ? ` · ${t('aeHistory.scShort')}` : v.hours > 0 ? ` · ${formatHours(v.hours, language)}` : ''}
                               </Link>
                             );
                           })}
@@ -296,7 +297,7 @@ export default function AEHistoryClient(
 
 function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner: boolean }) {
   const { t } = useTranslation();
-  const { dateLocale } = useLanguage();
+  const { dateLocale, language } = useLanguage();
   const showOwnerChip = canSeeOwner;
   const orderedVersions = useMemo(
     () => [...(group.versions || [])].sort((a, b) => b.version - a.version),
@@ -316,7 +317,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
 
             <span className="inline-flex items-center space-x-2 px-4 py-1.5 rounded-xl text-caption font-medium border bg-slate-50 dark:bg-[color:var(--bg-input-solid)] text-slate-600 dark:text-[color:var(--text-main)] border-slate-200 dark:border-[color:var(--border-main)]">
               <Clock className="w-3.5 h-3.5" />
-              <span>V{group.latestVersion} · {group.count} versões</span>
+              <span>V{group.latestVersion} · {t('aeHistory.versionCount', { count: group.count })}</span>
             </span>
           </div>
 
@@ -332,7 +333,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-100 text-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]">
               <Shield className="w-3.5 h-3.5 shrink-0" />
               <span className="text-caption font-medium ">
-                {String(group.owner.name || group.owner.email || t('common.unknown') || 'Desconhecido')}
+                {String(group.owner.name || group.owner.email || t('common.unknown'))}
                 {group.owner.role ? ` (${group.owner.role})` : ''}
               </span>
             </div>
@@ -350,7 +351,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
               {/* Estimativa que exige SE não tem número fechado — mostrar horas
                   ali passaria a ideia de um valor acordado que não existe. */}
               {!group.latestNeedsSC && group.latestHours > 0
-                ? ` · ${formatHours(group.latestHours)}`
+                ? ` · ${formatHours(group.latestHours, language)}`
                 : ''}
             </span>
           </span>
@@ -384,7 +385,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
                       V{v.version}
                       {v.needsSC
                         ? ` · ${t('aeHistory.scShort')}`
-                        : v.hours > 0 ? ` · ${formatHours(v.hours)}` : ''}
+                        : v.hours > 0 ? ` · ${formatHours(v.hours, language)}` : ''}
                     </span>
                   </Link>
                 );

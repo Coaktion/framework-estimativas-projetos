@@ -230,3 +230,33 @@ export function canAccessPreSalesOps(
   if (!user) return false;
   return Boolean(user.isAdmin) || PRE_SALES_OPS_SEGMENTS.includes(normalizeSegment(user.role));
 }
+
+/**
+ * Quem enxerga o Agendamento (regras de agenda de cada SE e agendamento com
+ * outro SE pelo Google Agenda). Por enquanto só Solution Engineers e ADMIN;
+ * os demais segmentos ainda não veem a ferramenta.
+ */
+const BOOKING_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem enxerga o Agendamento. */
+export function canAccessBooking(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || BOOKING_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/**
+ * Quem enxerga o Criador de Pastas (estrutura padrão do cliente no Google
+ * Drive, criada pelo Apps Script). Pedido do time comercial: Sales Engineer
+ * e Account Executive, além do ADMIN.
+ */
+const FOLDERS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC', 'AE'];
+
+/** Quem enxerga o Criador de Pastas. */
+export function canAccessFolders(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || FOLDERS_SEGMENTS.includes(normalizeSegment(user.role));
+}

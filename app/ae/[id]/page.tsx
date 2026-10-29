@@ -1,4 +1,6 @@
 import prisma from "@/lib/prisma";
+import { getActiveAeConfig, getAeConfigById, getAeLibrary } from "@/lib/ae-config-server";
+import { normalizeAEConfig, resolveAEConfig, type AEConfig } from "@/lib/ae-config";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AEViewClient from "./AEViewClient";
@@ -102,8 +104,43 @@ export default async function AEViewPage({ params }: { params: { id: string } })
     data = {};
   }
 
+  // Recalcula com a configuração da Calculadora que gerou a estimativa (sem
+  // id = estimativa anterior à configuração editável → padrão de fábrica).
+  const usedConfig = await getAeConfigById(data?.aeConfigId);
+  // Estimativas novas guardam as horas efetivas do cálculo (biblioteca +
+  // ajustes manuais): reabrem iguais mesmo que a biblioteca mude depois.
+  const snapshot = data?.aeNumbers && typeof data.aeNumbers === 'object' ? data.aeNumbers : null;
+  const viewConfig: AEConfig = snapshot?.numbers
+    ? {
+        ...usedConfig.config,
+        numbers: normalizeAEConfig({ numbers: snapshot.numbers }).numbers,
+        nativeIntegrationHours: snapshot.nativeIntegrationHours || undefined,
+      }
+    : usedConfig.config;
+
+  // Para o bloco do admin: versão usada × ativa, e se as horas da biblioteca
+  // mudaram desde o cálculo (mesma versão, valores efetivos diferentes).
+  const activeConfig = await getActiveAeConfig();
+  let valuesChanged = false;
+  if (snapshot?.numbers && activeConfig.id === usedConfig.id) {
+    const current = resolveAEConfig(activeConfig.config, await getAeLibrary());
+    const selectedNative: string[] = Array.isArray(data?.selectedNativeConnections) ? data.selectedNativeConnections : [];
+    const nativeOf = (cfg: AEConfig) => selectedNative.map((name) => cfg.nativeIntegrationHours?.[name] ?? null);
+    valuesChanged =
+      JSON.stringify(current.numbers) !== JSON.stringify(viewConfig.numbers) ||
+      JSON.stringify(nativeOf(current)) !== JSON.stringify(nativeOf(viewConfig));
+  }
+
   return (
     <AEViewClient
+      aeConfig={viewConfig}
+      aeConfigInfo={{
+        usedId: usedConfig.id,
+        usedAt: usedConfig.createdAt,
+        activeId: activeConfig.id,
+        activeAt: activeConfig.createdAt,
+        valuesChanged,
+      }}
       estimateId={estimate.id}
       clientName={estimate.clientName}
       zohoLink={estimate.zohoLink || null}
