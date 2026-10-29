@@ -14,5 +14,7 @@ export const config = {
   // Essas duas se protegem sozinhas: exigem o header x-psops-secret OU sessão de admin.
   // A limpeza do Agendamento (api/booking/cleanup) idem: exige x-booking-secret.
   // O MCP do Tool Center (api/mcp) idem: exige chave de API (Authorization: Bearer).
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup|api/mcp).*)"],
+  // .well-known e register só devolvem erro em JSON para clientes MCP sem chave
+  // (ver lib/mcp-oauth-stub.ts) — não expõem nada.
+  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup|api/mcp|api/oauth-stub/|\\.well-known/|register$).*)"],
 };
