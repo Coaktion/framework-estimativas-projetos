@@ -7,19 +7,23 @@ import { getServerT } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin } from "@/lib/segments";
 
 /**
- * URL do NextAuth por deploy no Netlify. O NEXTAUTH_URL é uma variável só, mas
- * cada deploy tem a sua URL (produção, design--site, development--site,
- * previews). Sem isto, o login com Google de um branch deploy pedia ao Google
- * para voltar à URL de OUTRO deploy (redirect_uri_mismatch).
+ * URL do NextAuth por deploy no Netlify. O NEXTAUTH_URL é uma variável só (o
+ * valor de "Branch deploys" vale para TODAS as branches), mas cada deploy tem a
+ * sua URL. Sem isto, o login com Google da `design` pedia ao Google para
+ * voltar à URL da `development` (redirect_uri_mismatch).
  *
- * O Netlify informa a URL do deploy em DEPLOY_PRIME_URL; em produção ela é
- * igual a URL e o NEXTAUTH_URL configurado (ex.: domínio próprio) é mantido.
+ * BUILD_DEPLOY_URL é gravada no build (next.config.js) só em deploys que não
+ * são de produção; DEPLOY_PRIME_URL/URL em tempo de execução ficam de reserva.
+ * Em produção, o NEXTAUTH_URL configurado (ex.: domínio próprio) é mantido.
  * O NextAuth lê process.env.NEXTAUTH_URL a cada requisição, então basta
  * ajustar aqui, antes do primeiro uso.
  */
+const buildDeployUrl = (process.env.BUILD_DEPLOY_URL || '').trim();
 const deployUrl = (process.env.DEPLOY_PRIME_URL || '').trim().replace(/\/$/, '');
 const siteUrl = (process.env.URL || '').trim().replace(/\/$/, '');
-if (deployUrl && siteUrl && deployUrl !== siteUrl) {
+if (buildDeployUrl) {
+  process.env.NEXTAUTH_URL = buildDeployUrl;
+} else if (deployUrl && siteUrl && deployUrl !== siteUrl) {
   process.env.NEXTAUTH_URL = deployUrl;
 } else if (siteUrl && !process.env.NEXTAUTH_URL?.trim()) {
   process.env.NEXTAUTH_URL = siteUrl; // produção sem NEXTAUTH_URL configurado

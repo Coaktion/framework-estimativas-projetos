@@ -1,5 +1,20 @@
+/**
+ * URL do deploy no Netlify, fixada no BUILD (onde CONTEXT e DEPLOY_PRIME_URL
+ * sempre existem; em tempo de execução o servidor do Next nem sempre as
+ * recebe). Só vale fora de produção: branch deploys (design--site,
+ * development--site) e previews. Lida em lib/auth.ts para o NEXTAUTH_URL.
+ */
+const netlifyContext = process.env.CONTEXT || '';
+const BUILD_DEPLOY_URL =
+    process.env.NETLIFY === 'true' && netlifyContext && netlifyContext !== 'production'
+        ? String(process.env.DEPLOY_PRIME_URL || '').replace(/\/$/, '')
+        : '';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    env: {
+        BUILD_DEPLOY_URL,
+    },
     eslint: {
         ignoreDuringBuilds: true,
     },
