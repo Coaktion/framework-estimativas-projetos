@@ -62,10 +62,14 @@ function limparFalhas(email: string) {
  */
 export const SSO_DOMAIN = 'aktienow.com';
 
-/** O botão do Google só aparece quando o OAuth está configurado. */
-export const googleSsoEnabled = Boolean(
-  process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim(),
-);
+/**
+ * O botão do Google só aparece quando o OAuth do login está configurado.
+ * Variáveis PRÓPRIAS do SSO: GOOGLE_CLIENT_ID/SECRET pertencem a outra
+ * integração (Agendamento) e não devem ser trocadas por causa do login.
+ */
+const ssoClientId = process.env.GOOGLE_SSO_CLIENT_ID?.trim() || '';
+const ssoClientSecret = process.env.GOOGLE_SSO_CLIENT_SECRET?.trim() || '';
+export const googleSsoEnabled = Boolean(ssoClientId && ssoClientSecret);
 
 export const authOptions: NextAuthOptions = {
   // Sem adapter: as sessões são JWT e os usuários já existem no banco. Um
@@ -74,8 +78,8 @@ export const authOptions: NextAuthOptions = {
     ...(googleSsoEnabled
       ? [
           GoogleProvider({
-            clientId: process.env.GOOGLE_CLIENT_ID!.trim(),
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET!.trim(),
+            clientId: ssoClientId,
+            clientSecret: ssoClientSecret,
             authorization: {
               params: {
                 // `hd` só filtra a tela de contas do Google; a checagem de

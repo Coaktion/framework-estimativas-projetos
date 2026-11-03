@@ -81,7 +81,7 @@ Cada usuário tem **um segmento** (coluna `User.role`). A matriz completa fica e
 
 ### Login
 
-- **Google (SSO)** — só contas `@aktienow.com` do Google Workspace, e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (ver `.env.example`).
+- **Google (SSO)** — só contas `@aktienow.com` do Google Workspace, e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_SSO_CLIENT_ID` / `GOOGLE_SSO_CLIENT_SECRET`, um cliente OAuth próprio do login (ver `.env.example`).
 - **E-mail e senha** — continua disponível. Usuário criado sem senha entra só pelo Google.
 
 Projetos privados só são vistos pelo dono e por admins. Em projetos públicos, qualquer usuário de Escopo pode abrir e salvar versões, mas só o dono ou um admin renomeia ou exclui.
