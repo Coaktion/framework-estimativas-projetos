@@ -59,8 +59,6 @@
     "noRecords": "Nenhum registro encontrado",
     "noneRootCategory": "Nenhuma (Categoria raiz)",
     "parentCategory": "Categoria Pai (Subcategoria)",
-    "passwordPlaceholder": "Mín. 8 caracteres — vazio: entra só com Google",
-    "passwordRequired": "Senha (opcional)",
     "promptMoveCategory": "Nome da nova categoria para mover os itens selecionados:",
     "promptNewCategory": "Nome da nova categoria:",
     "promptNewCategoryEn": "Nome da nova categoria em inglês (opcional):",
@@ -680,28 +678,21 @@
   "errors": {
     "aeClientNameRequired": "Informe o nome do cliente antes de salvar.",
     "aeSaveFailed": "Não foi possível gravar a estimativa no banco de dados.",
-    "allFieldsRequired": "Todos os campos são obrigatórios.",
     "cannotChangeSegment": "Somente administradores podem alterar segmentos de usuário.",
     "categoryNotEmpty": "Esta categoria ainda tem {{items}} item(ns) e {{children}} subcategoria(s) ativos. Mova-os para outra categoria antes de desativá-la, para que nenhum item desapareça do framework.",
     "categoryNotFound": "Categoria não encontrada.",
     "createUserFailed": "Erro ao criar usuário",
-    "emailPasswordRequired": "Email e senha são obrigatórios",
     "emailRequired": "E-mail obrigatório",
+    "emailDomain": "Use um e-mail @aktienow.com: o login é feito com a conta Google da empresa.",
     "emailTaken": "Já existe usuário com este e-mail",
     "generic": "Erro inesperado. Tente novamente.",
-    "hashFailed": "Erro ao gerar hash da senha",
     "invalidSegment": "Segmento inválido",
     "lastAdmin": "Não é possível remover o último administrador do sistema.",
     "notAuthenticated": "Usuário não autenticado",
     "notAuthorized": "Não autorizado",
     "packageBoundToAe": "Este item está vinculado à Calculadora AE ({{items}}). Antes de excluí-lo, reatribua esses valores a outro item em Admin › Calculadora AE › Números.",
     "packageNameTaken": "Já existe um pacote cadastrado com este nome. Por favor, utilize um nome exclusivo.",
-    "packageUpdateFailed": "Erro ao atualizar o pacote. Tente novamente.",
-    "passwordMismatch": "A confirmação da nova senha não coincide.",
-    "passwordRequired": "Senha obrigatória",
-    "passwordSameAsCurrent": "A nova senha não pode ser igual à senha atual.",
-    "passwordTooShort": "A nova senha deve ter pelo menos 8 caracteres.",
-    "wrongPassword": "Senha incorreta"
+    "packageUpdateFailed": "Erro ao atualizar o pacote. Tente novamente."
   },
   "export": {
     "button": "Exportar",
@@ -756,21 +747,15 @@
     "brand": "Aktie Now Tool Center"
   },
   "login": {
-    "authenticating": "Autenticando...",
-    "corporateEmail": "Email Corporativo",
     "dataProtection": "Proteção de Dados Coaktion",
-    "emailPlaceholder": "seu.email@aktienow.com",
-    "genericError": "Ocorreu um erro ao tentar entrar.",
-    "invalidCredentials": "Credenciais inválidas. Verifique seu email e senha.",
-    "tooManyAttempts": "Muitas tentativas de login. Aguarde 15 minutos e tente de novo.",
     "signInWithGoogle": "Entrar com Google",
-    "orWithPassword": "ou com e-mail e senha",
     "ssoDomain": "Use sua conta Google @aktienow.com.",
     "ssoNotRegistered": "Sua conta Google não está cadastrada no Tool Center. Peça acesso a um admin.",
     "ssoGenericError": "Não foi possível entrar com o Google. Tente de novo.",
     "restrictedAccess": "Acesso restrito ao time Aktie Now",
     "signIn": "Entrar no Sistema",
-    "yourPassword": "Sua Senha"
+    "ssoNotConfigured": "O login com Google não está configurado neste ambiente. Avise um admin.",
+    "ssoHint": "Use sua conta Google @aktienow.com. O acesso é liberado por um admin."
   },
   "meta": {
     "description": "Central de ferramentas do time de pré-vendas",
@@ -869,16 +854,8 @@
     "solutionDesigner": "Solution Designer"
   },
   "profile": {
-    "changePassword": "Alterar Senha",
-    "changePasswordHint": "Atualize periodicamente para manter sua conta segura.",
     "googleOnlyTitle": "Login com Google",
-    "googleOnlyHint": "Sua conta não tem senha: você entra com o Google (@aktienow.com). Se precisar de uma senha, peça a um admin.",
-    "confirmPassword": "Confirmar Nova Senha",
-    "currentPassword": "Senha Atual",
-    "minPasswordHint": "Mínimo de 8 caracteres.",
-    "newPassword": "Nova Senha",
-    "passwordChanged": "Senha alterada com sucesso!",
-    "savePassword": "Salvar Nova Senha",
+    "googleOnlyHint": "Você entra com sua conta Google @aktienow.com. Não há senha no Tool Center.",
     "titleAccent": "Profile"
 ,
     "apiKeys": "Chaves de API (MCP)",
@@ -898,12 +875,12 @@
     "apiKeyRevokeConfirm": "Revogar a chave \"{{name}}\"? Ela para de funcionar na hora."
   },
   "userMenu": {
-    "changePassword": "Alterar Senha",
     "member": "Membro",
     "signIn": "Entrar no Perfil",
     "signOut": "Sair do Perfil",
     "signedInAs": "Conectado como",
-    "user": "Usuário"
+    "user": "Usuário",
+    "profile": "Meu Perfil"
   },
   "zdcfg": {
     "adminEmail": "E-mail do admin",

@@ -1,7 +1,7 @@
 'use client';
 
 import { useSession, signOut } from "next-auth/react";
-import { LogOut, ChevronDown, LogIn, Key } from "lucide-react";
+import { LogOut, ChevronDown, LogIn, User as UserIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";
@@ -72,8 +72,8 @@ export default function UserMenu() {
             onClick={() => setIsOpen(false)}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-brand-dark hover:bg-slate-100 transition-colors"
           >
-            <Key className="w-4 h-4" />
-            <span className="text-body font-medium">{t('userMenu.changePassword')}</span>
+            <UserIcon className="w-4 h-4" />
+            <span className="text-body font-medium">{t('userMenu.profile')}</span>
           </Link>
 
           <button 

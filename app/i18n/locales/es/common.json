@@ -59,8 +59,6 @@
     "noRecords": "No se encontraron registros",
     "noneRootCategory": "Ninguna (categoría raíz)",
     "parentCategory": "Categoría principal (subcategoría)",
-    "passwordPlaceholder": "Mín. 8 caracteres — vacío: solo con Google",
-    "passwordRequired": "Contraseña (opcional)",
     "promptMoveCategory": "Nombre de la nueva categoría a la que mover los ítems seleccionados:",
     "promptNewCategory": "Nombre de la nueva categoría:",
     "promptNewCategoryEn": "Nombre de la nueva categoría en inglés (opcional):",
@@ -680,28 +678,21 @@
   "errors": {
     "aeClientNameRequired": "Ingresa el nombre del cliente antes de guardar.",
     "aeSaveFailed": "No fue posible guardar la estimación en la base de datos.",
-    "allFieldsRequired": "Todos los campos son obligatorios.",
     "cannotChangeSegment": "Solo los administradores pueden cambiar los segmentos de usuario.",
     "categoryNotEmpty": "Esta categoría todavía tiene {{items}} ítem(s) y {{children}} subcategoría(s) activos. Muévelos a otra categoría antes de desactivarla, para que ningún ítem desaparezca del framework.",
     "categoryNotFound": "Categoría no encontrada.",
     "createUserFailed": "Error al crear el usuario",
-    "emailPasswordRequired": "El correo electrónico y la contraseña son obligatorios",
     "emailRequired": "El correo electrónico es obligatorio",
+    "emailDomain": "Usa un correo @aktienow.com: el inicio de sesión usa la cuenta de Google de la empresa.",
     "emailTaken": "Ya existe un usuario con este correo electrónico",
     "generic": "Error inesperado. Inténtalo de nuevo.",
-    "hashFailed": "Error al generar el hash de la contraseña",
     "invalidSegment": "Segmento no válido",
     "lastAdmin": "No es posible quitar al último administrador del sistema.",
     "notAuthenticated": "Usuario no autenticado",
     "notAuthorized": "No autorizado",
     "packageBoundToAe": "Este ítem está vinculado a la Calculadora AE ({{items}}). Antes de eliminarlo, reasigna esos valores a otro ítem en Admin › Calculadora AE › Números.",
     "packageNameTaken": "Ya existe un paquete registrado con este nombre. Usa un nombre único.",
-    "packageUpdateFailed": "Error al actualizar el paquete. Inténtalo de nuevo.",
-    "passwordMismatch": "La confirmación de la nueva contraseña no coincide.",
-    "passwordRequired": "La contraseña es obligatoria",
-    "passwordSameAsCurrent": "La nueva contraseña no puede ser igual a la contraseña actual.",
-    "passwordTooShort": "La nueva contraseña debe tener al menos 8 caracteres.",
-    "wrongPassword": "Contraseña incorrecta"
+    "packageUpdateFailed": "Error al actualizar el paquete. Inténtalo de nuevo."
   },
   "export": {
     "button": "Exportar",
@@ -756,21 +747,15 @@
     "brand": "Aktie Now Tool Center"
   },
   "login": {
-    "authenticating": "Autenticando...",
-    "corporateEmail": "Correo electrónico corporativo",
     "dataProtection": "Protección de datos Coaktion",
-    "emailPlaceholder": "tu.correo@aktienow.com",
-    "genericError": "Ocurrió un error al intentar iniciar sesión.",
-    "invalidCredentials": "Credenciales no válidas. Verifica tu correo electrónico y contraseña.",
-    "tooManyAttempts": "Demasiados intentos de inicio de sesión. Espera 15 minutos e inténtalo de nuevo.",
     "signInWithGoogle": "Iniciar sesión con Google",
-    "orWithPassword": "o con correo y contraseña",
     "ssoDomain": "Usa tu cuenta de Google @aktienow.com.",
     "ssoNotRegistered": "Tu cuenta de Google no está registrada en Tool Center. Pide acceso a un admin.",
     "ssoGenericError": "No se pudo iniciar sesión con Google. Inténtalo de nuevo.",
     "restrictedAccess": "Acceso restringido al equipo de Aktie Now",
     "signIn": "Iniciar sesión",
-    "yourPassword": "Tu contraseña"
+    "ssoNotConfigured": "El inicio de sesión con Google no está configurado en este entorno. Avisa a un admin.",
+    "ssoHint": "Usa tu cuenta de Google @aktienow.com. El acceso lo concede un admin."
   },
   "meta": {
     "description": "Centro de herramientas del equipo de preventa",
@@ -869,16 +854,8 @@
     "solutionDesigner": "Solution Designer"
   },
   "profile": {
-    "changePassword": "Cambiar contraseña",
-    "changePasswordHint": "Actualízala periódicamente para mantener tu cuenta segura.",
     "googleOnlyTitle": "Inicio de sesión con Google",
-    "googleOnlyHint": "Tu cuenta no tiene contraseña: entras con Google (@aktienow.com). Si necesitas una contraseña, pídela a un admin.",
-    "confirmPassword": "Confirmar nueva contraseña",
-    "currentPassword": "Contraseña actual",
-    "minPasswordHint": "Mínimo 8 caracteres.",
-    "newPassword": "Nueva contraseña",
-    "passwordChanged": "¡Contraseña cambiada correctamente!",
-    "savePassword": "Guardar nueva contraseña",
+    "googleOnlyHint": "Entras con tu cuenta de Google @aktienow.com. Tool Center no usa contraseñas.",
     "titleAccent": "Perfil"
 ,
     "apiKeys": "Claves de API (MCP)",
@@ -898,12 +875,12 @@
     "apiKeyRevokeConfirm": "¿Revocar la clave \"{{name}}\"? Deja de funcionar de inmediato."
   },
   "userMenu": {
-    "changePassword": "Cambiar contraseña",
     "member": "Miembro",
     "signIn": "Iniciar sesión",
     "signOut": "Cerrar sesión",
     "signedInAs": "Conectado como",
-    "user": "Usuario"
+    "user": "Usuario",
+    "profile": "Mi Perfil"
   },
   "zdcfg": {
     "adminEmail": "Correo electrónico del administrador",

@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, SSO_DOMAIN } from "@/lib/auth";
 import { getServerT, getServerLanguage } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
 import { ZENDESK_PLANS } from "@/lib/zendesk-plans";
@@ -124,7 +124,6 @@ export async function deleteUserAction(userId: number) {
 export async function createUserAction(data: {
   email: string;
   name?: string;
-  password?: string;
   role?: string;
   isAdmin?: boolean;
 }) {
@@ -133,33 +132,20 @@ export async function createUserAction(data: {
 
   const email = String(data.email || '').trim().toLowerCase();
   if (!email) return { success: false, error: getServerT()('errors.emailRequired') };
+  // O login é só pelo Google do Workspace: outro domínio nunca conseguiria entrar.
+  if (!email.endsWith(`@${SSO_DOMAIN}`)) return { success: false, error: getServerT()('errors.emailDomain') };
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { success: false, error: getServerT()('errors.emailTaken') };
 
-  // Senha é opcional: sem ela, o usuário só entra pelo Google (SSO).
-  const password = String(data.password || '').trim();
-  if (password && password.length < 8) return { success: false, error: getServerT()('errors.passwordTooShort') };
-
   // O segmento é a única fonte da verdade: ADMIN implica privilégio de admin.
   const segment = normalizeSegment(data.role);
-
-  let hashedPassword: string | null = null;
-  if (password) {
-    try {
-      const bcrypt = (await import('bcryptjs')).default;
-      hashedPassword = await bcrypt.hash(password, 10);
-    } catch {
-      return { success: false, error: getServerT()('errors.hashFailed') };
-    }
-  }
 
   try {
     await prisma.user.create({
       data: {
         email,
         name: String(data.name || '').trim() || null,
-        password: hashedPassword,
         role: segment,
         isAdmin: syncIsAdmin(segment),
       },

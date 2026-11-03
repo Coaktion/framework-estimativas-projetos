@@ -100,13 +100,11 @@ export default function AdminClient({ packages, categories, skills, variables, v
   const [showNewUser, setShowNewUser] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserName, setNewUserName] = useState('');
-  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState<string>(DEFAULT_SEGMENT);
 
   const resetNewUserForm = () => {
     setNewUserEmail('');
     setNewUserName('');
-    setNewUserPassword('');
     setNewUserRole(DEFAULT_SEGMENT);
   };
 
@@ -1662,16 +1660,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     />
                   </div>
                   <div>
-                    <label className="text-caption font-medium text-slate-400 mb-2 block">{t('admin.passwordRequired')}</label>
-                    <input
-                      type="password"
-                      value={newUserPassword}
-                      onChange={(e) => setNewUserPassword(e.target.value)}
-                      placeholder={t('admin.passwordPlaceholder')}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-body outline-none focus:ring-2 focus:ring-brand-primary transition-all"
-                    />
-                  </div>
-                  <div>
                     <label className="text-caption font-medium text-slate-400 mb-2 block">{t('segment.label')}</label>
                     <select
                       value={newUserRole}
@@ -1715,7 +1703,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
                           const result = await createUserAction({
                             email: newUserEmail,
                             name: newUserName || undefined,
-                            password: newUserPassword || undefined,
                             role: newUserRole,
                           });
                           if (result?.success) {

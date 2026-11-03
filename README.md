@@ -26,7 +26,7 @@ Módulos:
 | ORM | Prisma 5 |
 | Banco (produção) | PostgreSQL via Neon |
 | Banco (local) | Na máquina do dev ou outra conta no Neon |
-| Autenticação | NextAuth.js v4 — Google (SSO @aktienow.com) + e-mail/senha, sessão JWT |
+| Autenticação | NextAuth.js v4 — só Google (SSO @aktienow.com), sessão JWT |
 | Deploy | Netlify (com `@netlify/plugin-nextjs`) |
 | i18n | i18next |
 
@@ -82,7 +82,7 @@ Cada usuário tem **um segmento** (coluna `User.role`). A matriz completa fica e
 ### Login
 
 - **Google (SSO)** — só contas `@aktienow.com` do Google Workspace, e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_SSO_CLIENT_ID` / `GOOGLE_SSO_CLIENT_SECRET`, um cliente OAuth próprio do login (ver `.env.example`).
-- **E-mail e senha** — continua disponível. Usuário criado sem senha entra só pelo Google.
+- Não existe login por senha. Para dar acesso, o admin cria o usuário (e-mail `@aktienow.com`) no painel Admin.
 
 Projetos privados só são vistos pelo dono e por admins. Em projetos públicos, qualquer usuário de Escopo pode abrir e salvar versões, mas só o dono ou um admin renomeia ou exclui.
 
@@ -119,7 +119,7 @@ npx prisma migrate deploy
 npx prisma db seed
 ```
 
-O seed só cria o admin se a base ainda não tiver nenhum, e nunca altera a senha de usuários existentes. Defina `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`; sem a senha, ela é gerada e mostrada uma vez no console. As demais variáveis (Agendamento, ZD Auto Config, Pre-Sales Ops, Zoho, Pastas) estão documentadas no `.env.example`.
+O seed só cria o admin se a base ainda não tiver nenhum, e nunca altera usuários existentes. Defina `SEED_ADMIN_EMAIL` com o e-mail `@aktienow.com` de quem será o admin (ele entra com a conta Google). As demais variáveis (Agendamento, ZD Auto Config, Pre-Sales Ops, Zoho, Pastas) estão documentadas no `.env.example`.
 
 ### 4. Rodar
 
@@ -139,7 +139,7 @@ npm test   # testes do Pre-Sales Ops (test runner do Node)
 
 O schema completo está em `prisma/schema.prisma`. Principais modelos:
 
-- `User` — usuários com perfil e senha
+- `User` — usuários e seus segmentos (a coluna `password` é legada: o login é só com Google)
 - `Package` — biblioteca de pacotes de implantação com horas estimadas
 - `Variable` — variáveis globais de cálculo (ex: percentual de GP)
 - `Project` / `ProjectVersion` — projetos técnicos e suas versões

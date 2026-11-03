@@ -1,6 +1,4 @@
-import { randomBytes } from 'crypto'
 import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
@@ -8,29 +6,20 @@ async function main() {
   console.log('Iniciando seed...')
 
   // Usuário admin inicial — só é criado se a base ainda não tem NENHUM admin.
-  // Nunca regrava senha de usuário existente (rodar o seed em produção não
-  // pode resetar acessos). A senha vem de SEED_ADMIN_PASSWORD; sem ela, é
-  // gerada uma aleatória e mostrada uma única vez no console.
+  // O login é só com Google: o e-mail (SEED_ADMIN_EMAIL) precisa ser uma conta
+  // do Workspace @aktienow.com. Usuários existentes nunca são alterados.
   const adminCount = await prisma.user.count({ where: { isAdmin: true } })
   if (adminCount === 0) {
-    const email = (process.env.SEED_ADMIN_EMAIL || 'admin@aktienow.com').trim().toLowerCase()
-    const fromEnv = (process.env.SEED_ADMIN_PASSWORD || '').trim()
-    if (fromEnv && fromEnv.length < 12) {
-      throw new Error('SEED_ADMIN_PASSWORD precisa ter pelo menos 12 caracteres.')
+    const email = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase()
+    if (!email.endsWith('@aktienow.com')) {
+      throw new Error('Defina SEED_ADMIN_EMAIL com o e-mail @aktienow.com do primeiro admin (login com Google).')
     }
-    const password = fromEnv || randomBytes(18).toString('base64url')
     await prisma.user.upsert({
       where: { email },
       update: { role: 'ADMIN', isAdmin: true },
-      create: {
-        email,
-        name: 'Admin',
-        password: await bcrypt.hash(password, 12),
-        role: 'ADMIN',
-        isAdmin: true,
-      },
+      create: { email, name: email.split('@')[0], role: 'ADMIN', isAdmin: true },
     })
-    console.log(`Admin inicial: ${email}` + (fromEnv ? ' (senha de SEED_ADMIN_PASSWORD)' : ` — senha gerada: ${password}  (troque no Perfil)`))
+    console.log(`Admin inicial: ${email} (entra com a conta Google)`)
   } else {
     console.log('Já existe admin: nenhum usuário foi criado ou alterado.')
   }

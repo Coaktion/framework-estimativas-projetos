@@ -59,8 +59,6 @@
     "noRecords": "No records found",
     "noneRootCategory": "None (Root category)",
     "parentCategory": "Parent Category (Subcategory)",
-    "passwordPlaceholder": "Min. 8 characters — empty: Google sign-in only",
-    "passwordRequired": "Password (optional)",
     "promptMoveCategory": "Name of the new category to move the selected items into:",
     "promptNewCategory": "Name for the new category:",
     "promptNewCategoryEn": "English name for the new category (optional):",
@@ -680,28 +678,21 @@
   "errors": {
     "aeClientNameRequired": "Enter the client name before saving.",
     "aeSaveFailed": "The estimate couldn't be written to the database.",
-    "allFieldsRequired": "All fields are required.",
     "cannotChangeSegment": "Only administrators can change user segments.",
     "categoryNotEmpty": "This category still has {{items}} active item(s) and {{children}} active subcategory(ies). Move them to another category before deactivating it, so no item disappears from the framework.",
     "categoryNotFound": "Category not found.",
     "createUserFailed": "Failed to create the user",
-    "emailPasswordRequired": "Email and password are required",
     "emailRequired": "Email is required",
+    "emailDomain": "Use an @aktienow.com email: sign-in uses the company Google account.",
     "emailTaken": "A user with this email already exists",
     "generic": "Unexpected error. Please try again.",
-    "hashFailed": "Failed to hash the password",
     "invalidSegment": "Invalid segment",
     "lastAdmin": "You cannot remove the last administrator in the system.",
     "notAuthenticated": "User not authenticated",
     "notAuthorized": "Not authorized",
     "packageBoundToAe": "This item is bound to the AE Calculator ({{items}}). Before deleting it, reassign those values to another item in Admin › AE Calculator › Numbers.",
     "packageNameTaken": "A package with this name already exists. Please use a unique name.",
-    "packageUpdateFailed": "Failed to update the package. Please try again.",
-    "passwordMismatch": "New password confirmation does not match.",
-    "passwordRequired": "Password is required",
-    "passwordSameAsCurrent": "New password cannot be the same as your current password.",
-    "passwordTooShort": "New password must be at least 8 characters long.",
-    "wrongPassword": "Incorrect password"
+    "packageUpdateFailed": "Failed to update the package. Please try again."
   },
   "export": {
     "button": "Export",
@@ -756,21 +747,15 @@
     "brand": "Aktie Now Tool Center"
   },
   "login": {
-    "authenticating": "Signing in...",
-    "corporateEmail": "Corporate Email",
     "dataProtection": "Coaktion Data Protection",
-    "emailPlaceholder": "your.email@aktienow.com",
-    "genericError": "Something went wrong while signing in.",
-    "invalidCredentials": "Invalid credentials. Please check your email and password.",
-    "tooManyAttempts": "Too many login attempts. Wait 15 minutes and try again.",
     "signInWithGoogle": "Sign in with Google",
-    "orWithPassword": "or with email and password",
     "ssoDomain": "Use your @aktienow.com Google account.",
     "ssoNotRegistered": "Your Google account isn't registered in Tool Center. Ask an admin for access.",
     "ssoGenericError": "Couldn't sign in with Google. Please try again.",
     "restrictedAccess": "Restricted to the Aktie Now team",
     "signIn": "Sign In",
-    "yourPassword": "Your Password"
+    "ssoNotConfigured": "Google sign-in isn't configured in this environment. Contact an admin.",
+    "ssoHint": "Use your @aktienow.com Google account. Access is granted by an admin."
   },
   "meta": {
     "description": "Tools center for the pre-sales team",
@@ -869,16 +854,8 @@
     "solutionDesigner": "Solution Designer"
   },
   "profile": {
-    "changePassword": "Change Password",
-    "changePasswordHint": "Update it periodically to keep your account safe.",
     "googleOnlyTitle": "Google sign-in",
-    "googleOnlyHint": "Your account has no password: you sign in with Google (@aktienow.com). If you need a password, ask an admin.",
-    "confirmPassword": "Confirm New Password",
-    "currentPassword": "Current Password",
-    "minPasswordHint": "Minimum 8 characters.",
-    "newPassword": "New Password",
-    "passwordChanged": "Password changed successfully!",
-    "savePassword": "Save New Password",
+    "googleOnlyHint": "You sign in with your @aktienow.com Google account. Tool Center has no passwords.",
     "titleAccent": "Profile"
 ,
     "apiKeys": "API keys (MCP)",
@@ -898,12 +875,12 @@
     "apiKeyRevokeConfirm": "Revoke the key \"{{name}}\"? It stops working immediately."
   },
   "userMenu": {
-    "changePassword": "Change Password",
     "member": "Member",
     "signIn": "Sign In",
     "signOut": "Sign Out",
     "signedInAs": "Signed in as",
-    "user": "User"
+    "user": "User",
+    "profile": "My Profile"
   },
   "zdcfg": {
     "adminEmail": "Admin e-mail",

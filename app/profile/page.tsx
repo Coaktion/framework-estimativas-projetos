@@ -2,7 +2,6 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { authOptions } from "@/lib/auth";
-import prisma from "@/lib/prisma";
 import { canAccessScopes } from "@/lib/segments";
 import ProfileClient from "./ProfileClient";
 import ApiKeysCard from "./ApiKeysCard";
@@ -30,14 +29,12 @@ export default async function ProfilePage() {
   // Chaves de API só para quem usa o editor de escopos — é o que elas permitem.
   const canUseApi = canAccessScopes(user);
   const apiKeys = canUseApi ? await listApiKeysAction() : [];
-  const dbUser = await prisma.user.findUnique({ where: { id: parseInt(user.id) }, select: { password: true } });
 
   return (
     <ProfileClient
       name={String(user.name || '')}
       email={String(user.email || '')}
       role={String(user.role || '')}
-      hasPassword={Boolean(dbUser?.password)}
     >
       {canUseApi && <ApiKeysCard initialKeys={apiKeys} mcpUrl={`${appOrigin()}/api/mcp`} />}
     </ProfileClient>
