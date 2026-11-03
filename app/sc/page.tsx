@@ -31,13 +31,6 @@ export default async function ProjectDashboard() {
       // Ordem CRESCENTE por criação: é ela que define o número ordinal da
       // versão (V1, V2...), já que `versionName` é texto livre e pode ser
       // qualquer coisa ("Proposta Final", "Rev. cliente").
-      //
-      // NOTA: NÃO usamos `select` aqui para não quebrar em ambientes onde o
-      // Prisma Client ainda não foi regenerado após a adição da coluna
-      // `totalHours`. Sem `select`, todos os campos conhecidos pelo Client
-      // são retornados. Se `totalHours` não vier (Client desatualizado), o
-      // código abaixo cai em `0` e o chip mostra só "V1" sem horas — o que
-      // já é previsto no comentário imediatamente abaixo.
       versions: {
         orderBy: { createdAt: 'asc' },
       },
@@ -47,9 +40,9 @@ export default async function ProjectDashboard() {
   /**
    * Achata as versões no formato que o card consome, já numeradas.
    *
-   * `totalHours` pode vir 0 em versões salvas antes da coluna existir; nesse
-   * caso o chip mostra só "V2", sem horas — melhor do que anunciar "0h" como
-   * se fosse um escopo vazio.
+   * `totalHours` é 0 em versões salvas antes da coluna existir; nesse caso o
+   * chip mostra só "V2", sem horas — melhor do que anunciar "0h" como se
+   * fosse um escopo vazio.
    */
   const projectsWithVersions = projects.map((project: any) => ({
     ...project,

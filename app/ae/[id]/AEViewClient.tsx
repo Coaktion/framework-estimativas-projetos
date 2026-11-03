@@ -19,13 +19,12 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from "next/link";
 import {
-  Zap, ArrowLeft, ExternalLink, MessageSquare, ShieldCheck, Shield, Settings, Users, Bot, Layout, Activity,
-  Clock, BookOpen, Hash, Search, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers, Download, Loader2
+  Zap, ArrowLeft, ExternalLink, MessageSquare, Shield,
+  Clock, Hash, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers, Download, Loader2
 } from "lucide-react";
 import {
   calculateAEEstimate,
   validateAEInputs,
-  type AEInputData,
 } from '@/lib/ae-engine';
 import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
 import { zohoSectionFor } from '@/lib/zoho-section';

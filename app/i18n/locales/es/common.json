@@ -701,7 +701,6 @@
     "passwordRequired": "La contraseña es obligatoria",
     "passwordSameAsCurrent": "La nueva contraseña no puede ser igual a la contraseña actual.",
     "passwordTooShort": "La nueva contraseña debe tener al menos 8 caracteres.",
-    "userNotFound": "Usuario no encontrado o sin contraseña definida",
     "wrongPassword": "Contraseña incorrecta"
   },
   "export": {

@@ -105,8 +105,6 @@ export function isSegment(value?: string | null): value is Segment {
 
 /**
  * `isAdmin` é derivado do segmento — um único lugar decide quem é administrador.
- * Usuários já existentes com isAdmin=true são preservados na migração
- * (ver o script em prisma/migrate-segments.ts).
  */
 export function syncIsAdmin(segment: Segment): boolean {
   return segment === 'ADMIN';

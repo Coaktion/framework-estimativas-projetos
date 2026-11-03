@@ -206,11 +206,6 @@ export async function updateUserSegmentAction(userId: number, segment: string) {
   return { success: true };
 }
 
-/** @deprecated Use updateUserSegmentAction. Mantido para chamadas antigas. */
-export async function updateUserRoleAction(userId: number, role: string) {
-  return updateUserSegmentAction(userId, role);
-}
-
 export async function updatePackageAction(id: number, data: any) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
@@ -540,15 +535,6 @@ export async function deletePackageAction(id: number): Promise<{ success: boolea
   });
   revalidatePath("/admin");
   return { success: true };
-}
-
-/**
- * Privilégio de admin agora é consequência do segmento: promover alguém a
- * administrador significa movê-lo para o segmento ADMIN. Esta função foi
- * mantida para não quebrar chamadas antigas e apenas delega o trabalho.
- */
-export async function updateUserAdminStatusAction(userId: number, isAdmin: boolean) {
-  return updateUserSegmentAction(userId, isAdmin ? 'ADMIN' : 'IMPL');
 }
 
 /**

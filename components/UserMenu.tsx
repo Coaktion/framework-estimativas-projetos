@@ -1,7 +1,7 @@
 'use client';
 
-import { useSession, signOut, signIn } from "next-auth/react";
-import { LogOut, User as UserIcon, ChevronDown, LogIn, Key } from "lucide-react";
+import { useSession, signOut } from "next-auth/react";
+import { LogOut, ChevronDown, LogIn, Key } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useTranslation } from "react-i18next";

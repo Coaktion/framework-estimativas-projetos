@@ -13,6 +13,9 @@
 # production
 /build
 
+# netlify
+.netlify/
+
 # misc
 .DS_Store
 *.pem
@@ -26,34 +29,13 @@ yarn-error.log*
 .env
 .env*.local
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
 
-# prisma
-/prisma/dev.db
-/prisma/dev.db-journal
-/prisma/createUsers.ts
-
-# database
-*.db
-*.db-journal
-
 # IDEs
 .vscode/
 .idea/
-
-# temporary scripts
-reset-admin.js
-check-db.js
-check-admin.js
-
-# Vercel local config
-.vercel/
-
 
 # Artefatos que não pertencem ao repositório
 __pycache__/

@@ -10,12 +10,12 @@ import { aeChannelOptions } from '@/lib/ae-channel-options';
 import { AE_VIEW_COOKIE } from '@/lib/editor-view';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { 
-  Zap, Plus, X, ShieldCheck, 
-  Layers, 
+import {
+  Zap, Plus, X, ShieldCheck,
+  Layers,
   Settings, Loader2,
-  AlertTriangle, CheckCircle2, 
-  MessageSquare, Users, Shield, Clock, Box,
+  AlertTriangle, CheckCircle2,
+  MessageSquare, Users, Clock, Box,
   Copy, BookOpen, Hash, Search, Rows3
 } from 'lucide-react';
 import Link from 'next/link';
@@ -32,11 +32,6 @@ import {
   ACTION_FLOW_OPTIONS,
   calculateAEEstimate,
   validateAEInputs,
-  type AEInputData,
-  type ModuleKey,
-  type ZendeskPlan,
-  type SkuType,
-  type OperationType,
 } from '@/lib/ae-engine';
 
 // Conversão formulário → inputs do engine: implementação ÚNICA, compartilhada

@@ -4,7 +4,7 @@ import { useLanguage } from '@/components/LanguageProvider';
 import { useSession } from 'next-auth/react';
 import {
   packageName, packageTooltip, categoryName as categoryLabelOf, skillName as skillLabelOf,
-  variableLabel, packageHaystack, categoryHaystack, skillHaystack, variableHaystack, matchesQuery,
+  variableLabel, packageHaystack, matchesQuery,
 } from '@/lib/localized-names';
 import { SEGMENTS, SEGMENT_LABEL_KEYS, DEFAULT_SEGMENT, normalizeSegment, canManageSegments as canManageSegmentsFor } from '@/lib/segments';
 import { ZENDESK_PLANS, PLAN_LABEL, minPlanBadge, categoryMinPlanBadge } from '@/lib/zendesk-plans';
@@ -13,15 +13,15 @@ import { useState, useTransition, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { aeBindingUsage, normalizeAEConfig } from '@/lib/ae-config';
 import { aeNumberLabel } from '@/lib/ae-number-labels';
-import { 
-  Plus, Download, History, Box, Settings, Users, Trash2, ExternalLink, Shield, 
-  Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw, 
+import {
+  Plus, Download, History, Box, Settings, Users, Trash2,
+  Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw,
   ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator, Link2
 } from 'lucide-react';
-import { 
-  createFrameworkSnapshotAction, 
-  restoreFrameworkSnapshotAction, 
-  deleteUserAction, 
+import {
+  createFrameworkSnapshotAction,
+  restoreFrameworkSnapshotAction,
+  deleteUserAction,
   updateUserSegmentAction,
   updateSkillAction,
   addPackageAction,
@@ -35,7 +35,6 @@ import {
   mergeCategoryAction,
   updatePackageAction,
   deletePackageAction,
-  updateUserAdminStatusAction,
   createUserAction,
   importTranslationsAction,
 } from './actions';

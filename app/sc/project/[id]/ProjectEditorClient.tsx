@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { formatHoursMinutes } from '@/lib/format-hours';
 import {
-  ZENDESK_PLANS, PLAN_LABEL, PLAN_RANK as ZD_PLAN_RANK, DEFAULT_PLAN, DEFAULT_SKU,
-  normalizePlanTier, normalizeSkuType, isPackageAvailable, minPlanBadge,
+  ZENDESK_PLANS, PLAN_LABEL, DEFAULT_PLAN, DEFAULT_SKU,
+  normalizePlanTier, normalizeSkuType, isPackageAvailable,
   isCategoryAvailable,
   type ZendeskPlanTier, type ZendeskSku,
 } from '@/lib/zendesk-plans';
@@ -32,8 +32,8 @@ import {
 } from '@/lib/project-export';
 
 import { Fragment, useState, useMemo, useEffect, useTransition, useRef, useCallback } from 'react';
-import { 
-  Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Shield, Search, Zap, Layout, Settings, Users, Loader2,
+import {
+  Save, Copy, Download, Link as LinkIcon, Box, Check, ChevronDown, Plus, Trash2, Search, Zap, Layout, Settings, Users, Loader2,
   CheckSquare, MessageSquare, AlertTriangle, ShieldCheck, CheckCircle2, RotateCcw, EyeOff, Eye, X, ChevronRight,
   ArrowUp, ArrowDown, Pencil, Rows3, Columns2, LayoutGrid, ChevronsUpDown
 } from 'lucide-react';
@@ -990,7 +990,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
       return extracted;
     } catch (e) {
-      console.error('[DEBUG:LOADER] Erro no initializer de customPackages (fallback []):', e);
+      console.error('[editor] pacotes personalizados ilegíveis (usando lista vazia):', e);
       return [];
     }
   });
@@ -1878,12 +1878,6 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           });
         });
 
-        // 🔍 DEBUG: mostra exatamente o que será enviado para a Server Action
-        const debugCustomKeysFinal = Object.keys(mergedFormData).filter(k => k.startsWith('custom_pkg_'));
-        console.log('[DEBUG:SAVE] customPackages no momento do clique em Salvar:', customPackages.length, customPackages.map(p => `${p.id}:${p.name}`).join(', '));
-        console.log('[DEBUG:SAVE] flat keys custom_pkg_* que serão gravadas em data:', debugCustomKeysFinal.length, debugCustomKeysFinal.join(', '));
-        debugCustomKeysFinal.forEach(k => console.log(`[DEBUG:SAVE]   ${k} =`, (mergedFormData as any)[k]));
-
         const payload = {
           saveMode,
           versionId: saveMode === 'update' ? currentVersion?.id : null,
@@ -1908,16 +1902,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             __priceSnapshot: buildPriceSnapshot(mergedFormData),
           }
         };
-        console.log('[DEBUG:SAVE] Tamanho do JSON.stringify(payload.data) antes da requisição:',
-          typeof payload.data === 'string'
-            ? payload.data.length
-            : JSON.stringify(payload.data).length);
-
         const result = await saveProjectVersionAction(project.id, payload);
-        console.log('[DEBUG:SAVE] Versão criada. ID:', result.id, 'ProjectVersion.data (raw):',
-          typeof (result as any).data === 'string'
-            ? (result as any).data.slice(0, 300)
-            : JSON.stringify((result as any).data ?? null).slice(0, 300));
 
         // A tela passa a refletir exatamente o que foi gravado, e a guarda de
         // alterações não salvas recomeça a partir daqui.
@@ -1933,7 +1918,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           ? t('editor.versionUpdated', { name: result.versionName })
           : t('editor.versionCreated', { name: result.versionName }));
       } catch (e: any) {
-        console.error('[DEBUG:SAVE] saveProjectVersionAction ERROR:', e);
+        console.error('[editor] erro ao salvar versão:', e);
         alert(`${t('editor.versionSaveError')}\n\n${e?.message || String(e)}`);
       }
     });

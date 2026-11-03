@@ -1,7 +1,18 @@
 # PRE-SALES.AI | Smart Scoping Framework
-Última atualização: 22/06/2026
+Última atualização: 03/11/2026
 
-Framework para o time de pré-vendas (SC e AE), focado em padronização de escopo e estimativa de esforço técnico.
+Framework para o time de pré-vendas, focado em padronização de escopo e estimativa de esforço técnico.
+
+Módulos:
+
+- **Projetos / Escopo** (`/sc`) — projetos técnicos com versões e estimativa de horas pelo framework.
+- **Calculadora AE** (`/ae`) — estimativa rápida de viabilidade e histórico.
+- **ZD Auto Config** (`/zd-auto-config`) — provisionador de ambientes de demonstração Zendesk.
+- **Pre-Sales Ops** (`/pre-sales-ops`) — monitoramento das novidades do Zendesk e backlog dos ativos de pré-venda (detalhes em `lib/psops/README.md`).
+- **Agendamento** (`/booking`) — agenda dos SEs integrada ao Google Calendar.
+- **Pastas de Cliente** (`/folders`) — cria a estrutura padrão do cliente no Google Drive (Apps Script em `scripts/apps-script/`).
+- **Tool Center / MCP** (`/api/mcp`) — acesso às estimativas por clientes MCP com chave de API (gerada no Perfil).
+- **Admin** (`/admin`) — usuários, biblioteca de pacotes, variáveis, configuração da Calculadora AE e Zoho CRM.
 
 ---
 
@@ -50,6 +61,7 @@ O app roda no [Netlify](https://netlify.com) usando o plugin oficial do Next.js.
 | `DATABASE_URL` | String de conexão PostgreSQL do Neon |
 | `NEXTAUTH_SECRET` | Secret para assinar tokens JWT da sessão |
 | `NEXTAUTH_URL` | URL pública do site no Netlify |
+| demais | Segredos de cada módulo (ZD Auto Config, Pre-Sales Ops, Agendamento, Zoho, Pastas) — lista comentada no `.env.example` |
 
 Para alterar essas variáveis: **Netlify Dashboard → Site → Site configuration → Environment variables**. Após alterar, é necessário fazer um novo deploy.
 
@@ -57,11 +69,17 @@ Para alterar essas variáveis: **Netlify Dashboard → Site → Site configurati
 
 ## Estrutura de Acesso (RBAC)
 
-| Perfil | Acesso |
-|--------|--------|
-| `AE` | Calculadora de viabilidade e histórico pessoal |
-| `SC` | Projetos técnicos, checklists de escopo e calculadora |
-| `ADMIN` | Tudo acima + gestão de usuários, pacotes e variáveis globais |
+Cada usuário tem **um segmento** (coluna `User.role`). A matriz completa fica em `lib/segments.ts`, que é o único lugar que decide o acesso.
+
+| Segmento | Escopo | Calc. AE | ZD Auto Config / Pre-Sales Ops / Agendamento | Pastas | Admin |
+|----------|:------:|:--------:|:--------------------------------------------:|:------:|:-----:|
+| `ADMIN` | ✔ | ✔ | ✔ | ✔ | ✔ |
+| `SC` | ✔ | ✔ | ✔ | ✔ | |
+| `SD`, `PM`, `SALES_OPS`, `CS` | ✔ | ✔ | | | |
+| `AE` | | ✔ | | ✔ | |
+| `IMPL`, `DEV` | ✔ | | | | |
+
+Projetos privados só são vistos pelo dono e por admins. Em projetos públicos, qualquer usuário de Escopo pode abrir e salvar versões, mas só o dono ou um admin renomeia ou exclui.
 
 ---
 
@@ -89,12 +107,14 @@ A `DATABASE_URL` é obtida no console do Neon: **Dashboard → projeto → Conne
 ```bash
 npm install
 
-# Criar as tabelas no banco
-npx prisma db push
+# Criar as tabelas no banco (aplica as migrations de prisma/migrations)
+npx prisma migrate deploy
 
-# Popular com pacotes e usuários padrão
+# Popular com pacotes, variáveis e o admin inicial
 npx prisma db seed
 ```
+
+O seed só cria o admin se a base ainda não tiver nenhum, e nunca altera a senha de usuários existentes. Defina `SEED_ADMIN_EMAIL` e `SEED_ADMIN_PASSWORD`; sem a senha, ela é gerada e mostrada uma vez no console. As demais variáveis (Agendamento, ZD Auto Config, Pre-Sales Ops, Zoho, Pastas) estão documentadas no `.env.example`.
 
 ### 4. Rodar
 
@@ -103,6 +123,12 @@ npm run dev
 ```
 
 Acesse em `http://localhost:3000`.
+
+### 5. Testes
+
+```bash
+npm test   # testes do Pre-Sales Ops (test runner do Node)
+```
 
 ## Schema do banco
 
@@ -125,18 +151,14 @@ npx prisma studio
 
 ## Atualizar o schema em produção
 
-Se o schema do Prisma for alterado, após o push para `main` é necessário rodar as migrações apontando para o banco de produção:
+O schema é versionado em migrations (`prisma/migrations`). Para mudar o banco:
 
 ```bash
-# Com DATABASE_URL do Neon no .env.local
-npx prisma db push
+# cria a migration a partir da mudança no schema.prisma (banco local)
+npm run db:migrate
 ```
 
-Ou, se estiver usando migrations formais:
-
-```bash
-npx prisma migrate deploy
-```
+Commite a pasta da migration junto com o código. No deploy, o `npm run build` roda `prisma migrate deploy` e aplica as migrations pendentes no banco de produção. Não use `prisma db push` em produção: ele altera o banco sem registrar a migration.
 
 ---
 

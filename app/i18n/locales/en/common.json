@@ -701,7 +701,6 @@
     "passwordRequired": "Password is required",
     "passwordSameAsCurrent": "New password cannot be the same as your current password.",
     "passwordTooShort": "New password must be at least 8 characters long.",
-    "userNotFound": "User not found, or no password is set",
     "wrongPassword": "Incorrect password"
   },
   "export": {

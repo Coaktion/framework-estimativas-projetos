@@ -18,32 +18,10 @@ async function nextVersionNameFor(projectId: number): Promise<string> {
   return versionNameFor(nextVersionNumber(existing.map((v) => v.versionName)));
 }
 
-/**
- * Atualiza `totalHours` de uma versão em um update separado.
- *
- * Estratégia de compatibilidade com Prisma Client desatualizado em Dev:
- *  - `totalHours` existe no `schema.prisma` e no banco, mas se o dev não
- *    rodou `prisma generate`, o Client local desconhece o campo.
- *  - NÃO passamos `totalHours` dentro do `create()` (isso causaria o erro
- *    "Unknown argument `totalHours`").
- *  - Em vez disso, fazemos um `update` separado com try/catch: se o Client
- *    reconhece o campo, o valor é gravado normalmente; se não reconhece,
- *    engolimos o erro silenciosamente e a versão fica com `@default(0)` do
- *    schema — no dashboard, o chip aparece sem o total, mas nada quebra.
- */
-async function trySetTotalHours(versionId: number, hours: number | null | undefined) {
-  const safe = Number.isFinite(Number(hours)) ? Number(hours) : 0;
-  try {
-    // Usamos `as any` para contornar a checagem estática de tipos — em
-    // produção tipada isso sempre funciona; em desenvolvimento, o erro de
-    // runtime é capturado abaixo.
-    await (prisma.projectVersion as any).update({
-      where: { id: versionId },
-      data: { totalHours: safe },
-    });
-  } catch {
-    /* Prisma Client desatualizado em Dev — ignora. */
-  }
+/** Total de horas da versão (mostrado nos atalhos "V1 · 108h" do painel). */
+function safeHours(hours: unknown): number {
+  const n = Number(hours);
+  return Number.isFinite(n) ? n : 0;
 }
 
 /**
@@ -80,32 +58,10 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
     data
   } = formData;
 
-  // 🔍 DEBUG SERVER: o que chegou no servidor dentro de `data`?
-  const dataBeforeStringify = data;
-  const debugCustomKeysBefore = typeof dataBeforeStringify === 'object' && dataBeforeStringify !== null
-    ? Object.keys(dataBeforeStringify as Record<string, any>).filter(k => k.startsWith('custom_pkg_'))
-    : [];
-  console.log('[DEBUG:ACTION:SAVE] ===== saveProjectVersionAction INVOCADA =====');
-  console.log('[DEBUG:ACTION:SAVE] typeof data =', typeof data, '| É null?', data === null, '| É undefined?', data === undefined);
-  console.log('[DEBUG:ACTION:SAVE] Flat keys custom_pkg_* RECEBIDAS no data (antes de JSON.stringify):', debugCustomKeysBefore.length, debugCustomKeysBefore.join(', '));
-  debugCustomKeysBefore.forEach((k: string) => console.log(`[DEBUG:ACTION:SAVE]   RECEBIDO ${k} =`, (dataBeforeStringify as any)[k]));
-
-  // Garantia: data é SEMPRE stringificada antes de gravar. Se chegou string,
-  // re-stringificar cria JSON aninhado quebrando o parse no load.
+  // `data` é SEMPRE gravada como string JSON. Se já chegou string,
+  // re-stringificar criaria JSON aninhado e quebraria o parse na abertura.
   const safeDataString = typeof data === 'string' ? data : JSON.stringify(data ?? {});
-  if (typeof data !== 'string') {
-    console.log('[DEBUG:ACTION:SAVE] JSON.stringify(data) gravado:', safeDataString.slice(0, 500));
-    const reParsed = JSON.parse(safeDataString);
-    const afterKeys = Object.keys(reParsed).filter(k => k.startsWith('custom_pkg_'));
-    console.log('[DEBUG:ACTION:SAVE] custom_pkg_* RE-PARSEADAS da string a gravar:', afterKeys.length, afterKeys.join(', '));
-  } else {
-    console.log('[DEBUG:ACTION:SAVE] data já era string. Primeiros 500 chars:', safeDataString.slice(0, 500));
-  }
 
-  // CORREÇÃO: `zohoLink` e `safetyHours` já eram ENVIADOS pelo editor e lidos de
-  // volta na abertura da versão (`currentVersion?.zohoLink`), mas nunca eram
-  // gravados — o campo voltava vazio a cada reabertura. Passaram a ser
-  // persistidos junto com o resto.
   const contentFields = {
     technicalScopeLink,
     zohoLink: zohoLink || null,
@@ -116,7 +72,7 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
     discoveryOverride: discoveryOverride !== null ? parseFloat(discoveryOverride) : null,
     validationOverride: validationOverride !== null ? parseFloat(validationOverride) : null,
     safetyHours: safetyHours || null,
-    // NOTA: `totalHours` NÃO é passado aqui. É aplicado via update abaixo.
+    totalHours: safeHours(totalHours),
     data: safeDataString,
   };
 
@@ -143,20 +99,6 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
       }
     });
   }
-
-  const dbVersion = await prisma.projectVersion.findUnique({ where: { id: version.id } });
-  if (dbVersion) {
-    try {
-      const parsedData = typeof dbVersion.data === 'string' ? JSON.parse(dbVersion.data) : dbVersion.data;
-      const keysInDb = Object.keys(parsedData ?? {}).filter(k => k.startsWith('custom_pkg_'));
-      console.log('[DEBUG:ACTION:SAVE] Versão criada e RE-LIDA do banco. ID:', dbVersion.id, '| data keys custom_pkg_* NO BANCO:', keysInDb.length, keysInDb.join(', '));
-      keysInDb.forEach(k => console.log(`[DEBUG:ACTION:SAVE]   DB ${k} =`, parsedData[k]));
-    } catch (e) {
-      console.error('[DEBUG:ACTION:SAVE] Erro ao re-parsear data do banco pós-insert:', e);
-    }
-  }
-
-  await trySetTotalHours(version.id, totalHours);
 
   revalidatePath(`/sc/project/${projectId}`);
   return version;
@@ -196,13 +138,11 @@ export async function cloneProjectVersionAction(projectId: number, sourceVersion
       discoveryOverride: source.discoveryOverride,
       validationOverride: source.validationOverride,
       safetyHours: source.safetyHours,
-      // NOTA: `totalHours` NÃO é passado aqui. É aplicado via update abaixo.
+      totalHours: source.totalHours,
       data: source.data,
       createdBy: parseInt(session.user.id)
     }
   });
-
-  await trySetTotalHours(newVersion.id, (source as any).totalHours ?? 0);
 
   revalidatePath(`/sc/project/${projectId}`);
   return newVersion;
