@@ -1707,15 +1707,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     </button>
                     <button
                       onClick={() => {
-                        if (!newUserEmail || !newUserPassword) {
-                          alert(t('admin.emailPasswordRequired'));
+                        if (!newUserEmail) {
+                          alert(t('admin.emailRequired'));
                           return;
                         }
                         startTransition(async () => {
                           const result = await createUserAction({
                             email: newUserEmail,
                             name: newUserName || undefined,
-                            password: newUserPassword,
+                            password: newUserPassword || undefined,
                             role: newUserRole,
                           });
                           if (result?.success) {

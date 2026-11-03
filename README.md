@@ -26,7 +26,7 @@ Módulos:
 | ORM | Prisma 5 |
 | Banco (produção) | PostgreSQL via Neon |
 | Banco (local) | Na máquina do dev ou outra conta no Neon |
-| Autenticação | NextAuth.js v4 — Credentials Provider + JWT |
+| Autenticação | NextAuth.js v4 — Google (SSO @aktienow.com) + e-mail/senha, sessão JWT |
 | Deploy | Netlify (com `@netlify/plugin-nextjs`) |
 | i18n | i18next |
 
@@ -78,6 +78,11 @@ Cada usuário tem **um segmento** (coluna `User.role`). A matriz completa fica e
 | `SD`, `PM`, `SALES_OPS`, `CS` | ✔ | ✔ | | | |
 | `AE` | | ✔ | | ✔ | |
 | `IMPL`, `DEV` | ✔ | | | | |
+
+### Login
+
+- **Google (SSO)** — só contas `@aktienow.com` do Google Workspace, e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` (ver `.env.example`).
+- **E-mail e senha** — continua disponível. Usuário criado sem senha entra só pelo Google.
 
 Projetos privados só são vistos pelo dono e por admins. Em projetos públicos, qualquer usuário de Escopo pode abrir e salvar versões, mas só o dono ou um admin renomeia ou exclui.
 

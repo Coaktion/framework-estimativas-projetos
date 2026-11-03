@@ -137,19 +137,21 @@ export async function createUserAction(data: {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { success: false, error: getServerT()('errors.emailTaken') };
 
+  // Senha é opcional: sem ela, o usuário só entra pelo Google (SSO).
   const password = String(data.password || '').trim();
-  if (!password) return { success: false, error: getServerT()('errors.passwordRequired') };
-  if (password.length < 8) return { success: false, error: getServerT()('errors.passwordTooShort') };
+  if (password && password.length < 8) return { success: false, error: getServerT()('errors.passwordTooShort') };
 
   // O segmento é a única fonte da verdade: ADMIN implica privilégio de admin.
   const segment = normalizeSegment(data.role);
 
-  let hashedPassword: string | undefined = undefined;
-  try {
-    const bcrypt = (await import('bcryptjs')).default;
-    hashedPassword = await bcrypt.hash(password, 10);
-  } catch {
-    return { success: false, error: getServerT()('errors.hashFailed') };
+  let hashedPassword: string | null = null;
+  if (password) {
+    try {
+      const bcrypt = (await import('bcryptjs')).default;
+      hashedPassword = await bcrypt.hash(password, 10);
+    } catch {
+      return { success: false, error: getServerT()('errors.hashFailed') };
+    }
   }
 
   try {

@@ -9,11 +9,13 @@ type Props = {
   name: string;
   email: string;
   role: string;
+  /** Usuário criado sem senha entra só pelo Google: não há senha para trocar. */
+  hasPassword: boolean;
   /** Cartões extras abaixo da troca de senha (ex.: chaves de API). */
   children?: React.ReactNode;
 };
 
-export default function ProfileClient({ name, email, role, children }: Props) {
+export default function ProfileClient({ name, email, role, hasPassword, children }: Props) {
   const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -74,8 +76,18 @@ export default function ProfileClient({ name, email, role, children }: Props) {
         )}
       </div>
 
+      {!hasPassword && (
+        <div className="bg-[color:var(--bg-card-solid)] border border-[color:var(--border-main)] rounded-2xl p-8 shadow-sm space-y-2">
+          <div className="flex items-center gap-3">
+            <Shield className="w-5 h-5 text-brand-primary" />
+            <h2 className="text-title font-medium text-brand-dark">{t('profile.googleOnlyTitle')}</h2>
+          </div>
+          <p className="text-body text-[color:var(--text-muted)]">{t('profile.googleOnlyHint')}</p>
+        </div>
+      )}
+
       {/* Cartão de troca de senha */}
-      <div className="bg-[color:var(--bg-card-solid)] border border-[color:var(--border-main)] rounded-2xl p-8 shadow-sm space-y-6">
+      {hasPassword && <div className="bg-[color:var(--bg-card-solid)] border border-[color:var(--border-main)] rounded-2xl p-8 shadow-sm space-y-6">
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <Key className="w-5 h-5 text-brand-primary" />
@@ -184,7 +196,7 @@ export default function ProfileClient({ name, email, role, children }: Props) {
             </button>
           </div>
         </form>
-      </div>
+      </div>}
 
       {children}
     </div>

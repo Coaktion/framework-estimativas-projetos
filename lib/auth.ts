@@ -1,6 +1,6 @@
-import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 import { getServerT } from "@/app/i18n/server";
@@ -32,9 +32,38 @@ function limparFalhas(email: string) {
   falhas.delete(email);
 }
 
+/**
+ * SSO Google: só contas do Google Workspace deste domínio entram, e o e-mail
+ * precisa já existir na tabela de usuários (quem cria usuário é o admin).
+ * O Google só autentica; segmento e permissões continuam vindo do banco.
+ */
+export const SSO_DOMAIN = 'aktienow.com';
+
+/** O botão do Google só aparece quando o OAuth está configurado. */
+export const googleSsoEnabled = Boolean(
+  process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim(),
+);
+
 export const authOptions: NextAuthOptions = {
-  adapter: PrismaAdapter(prisma),
+  // Sem adapter: as sessões são JWT e os usuários já existem no banco. Um
+  // adapter faria o NextAuth tentar CRIAR usuário/conta no primeiro login OAuth.
   providers: [
+    ...(googleSsoEnabled
+      ? [
+          GoogleProvider({
+            clientId: process.env.GOOGLE_CLIENT_ID!.trim(),
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET!.trim(),
+            authorization: {
+              params: {
+                // `hd` só filtra a tela de contas do Google; a checagem de
+                // verdade é no callback `signIn` abaixo.
+                hd: SSO_DOMAIN,
+                prompt: 'select_account',
+              },
+            },
+          }),
+        ]
+      : []),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -85,6 +114,24 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
+    /**
+     * Regras do SSO Google. Recusas voltam para /login?error=<código>, que a
+     * tela traduz (ver app/login/page.tsx).
+     */
+    async signIn({ account, profile }: any) {
+      if (account?.provider !== 'google') return true; // credenciais: já validadas no authorize
+
+      const email = String(profile?.email || '').trim().toLowerCase();
+      const domainOk =
+        profile?.email_verified === true &&
+        profile?.hd === SSO_DOMAIN &&
+        email.endsWith(`@${SSO_DOMAIN}`);
+      if (!domainOk) return '/login?error=SsoDomain';
+
+      const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true } });
+      if (!dbUser) return '/login?error=SsoNotRegistered';
+      return true;
+    },
     async session({ session, token }: any) {
       if (session.user && token.id) {
         // Fetch fresh user data from database to ensure roles and isAdmin are up to date
@@ -105,7 +152,23 @@ export const authOptions: NextAuthOptions = {
       }
       return session;
     },
-    async jwt({ token, user }: any) {
+    async jwt({ token, user, account, profile }: any) {
+      if (account?.provider === 'google') {
+        // `user.id` aqui é o id do Google: troca pelo id do usuário no banco.
+        const email = String(profile?.email || user?.email || '').trim().toLowerCase();
+        const dbUser = await prisma.user.findUnique({ where: { email } });
+        if (!dbUser) throw new Error('SsoNotRegistered'); // não deveria acontecer: o signIn já barrou
+        token.id = dbUser.id.toString();
+        token.email = dbUser.email;
+        token.name = dbUser.name;
+        token.role = normalizeSegment(dbUser.role);
+        token.isAdmin = dbUser.isAdmin || syncIsAdmin(normalizeSegment(dbUser.role));
+        // Foto do Google no perfil, enquanto o usuário não tiver uma.
+        if (!dbUser.picture && profile?.picture) {
+          await prisma.user.update({ where: { id: dbUser.id }, data: { picture: String(profile.picture) } }).catch(() => {});
+        }
+        return token;
+      }
       if (user) {
         token.id = user.id;
         token.role = normalizeSegment(user.role);
