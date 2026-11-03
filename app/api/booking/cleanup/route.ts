@@ -1,3 +1,4 @@
+import { secretMatches } from '@/lib/secure-compare';
 /**
  * Limpeza automática do Agendamento, chamada de hora em hora pela Scheduled
  * Function do Netlify (netlify/functions/booking-cleanup.mts).
@@ -14,7 +15,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const secret = (process.env.BOOKING_CRON_SECRET || '').trim();
-  if (!secret || req.headers.get('x-booking-secret') !== secret) {
+  if (!secretMatches(req.headers.get('x-booking-secret'), secret)) {
     return NextResponse.json({ ok: false, error: 'forbidden' }, { status: 403 });
   }
 

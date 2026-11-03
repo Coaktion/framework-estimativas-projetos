@@ -6,12 +6,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { canAccessScopes } from "@/lib/segments";
+import { assertProjectAccess } from "@/lib/project-access";
 
 export async function createProjectAction(formData: FormData) {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
+  if (!session?.user?.id || !canAccessScopes(session.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
+  }
 
-  const name = formData.get("name") as string;
+  const name = String(formData.get("name") || '').trim().slice(0, 120);
+  if (!name) throw new Error('Project name is required');
   const isPrivate = formData.get("isPrivate") === "on";
   const userId = parseInt(session.user.id);
 
@@ -35,6 +39,8 @@ export async function renameProjectAction(projectId: number, rawName: string) {
     throw new Error(getServerT()('errors.notAuthorized'));
   }
 
+  await assertProjectAccess(projectId, session!.user as any, 'manage');
+
   const name = String(rawName || '').trim().slice(0, 120);
   if (!name) throw new Error('Project name is required');
 
@@ -53,6 +59,7 @@ export async function deleteProjectAction(projectId: number) {
   if (!canAccessScopes(session?.user as any)) {
     throw new Error(getServerT()('errors.notAuthorized'));
   }
+  await assertProjectAccess(projectId, session!.user as any, 'manage');
 
   await prisma.projectVersion.deleteMany({
     where: { projectId }

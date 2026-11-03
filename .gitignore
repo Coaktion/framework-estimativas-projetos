@@ -12,7 +12,6 @@
 
 # production
 /build
-.env.example
 
 # misc
 .DS_Store
@@ -55,3 +54,8 @@ check-admin.js
 # Vercel local config
 .vercel/
 
+
+# Artefatos que não pertencem ao repositório
+__pycache__/
+*.pyc
+Claude outputs/

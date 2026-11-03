@@ -28,6 +28,9 @@ export class TenteDepois extends Error {
 const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const ESPERA_MAX_INLINE = 4; // segundos que vale esperar dentro do mesmo passo
 
+/** Mesmo formato aceito para o subdomínio no cofre (lib/zdcfg/cofre.ts). */
+const SUBDOMINIO_OK = /^[a-z0-9][a-z0-9-]*$/i;
+
 // Access token OAuth reaproveitado enquanto a função estiver "quente".
 const bearerCache = new Map<string, { token: string; expira: number }>();
 
@@ -41,6 +44,9 @@ export class ZendeskClient {
   constructor(private creds: Credenciais, public dryRun: boolean, fakeId = 1000, guideSub?: string) {
     this.subdomain = creds.subdomain;
     this.base = `https://${creds.subdomain}.zendesk.com/api/v2`;
+    // `guideSub` chega do navegador (contexto da execução). Sem validação,
+    // "evil.com#" mandaria o Authorization do ambiente para outro host.
+    if (guideSub && !SUBDOMINIO_OK.test(guideSub)) throw new ZendeskError(400, 'subdomínio do Help Center inválido', '');
     this.guideSub = guideSub || creds.subdomain;
     this.fakeId = fakeId;
   }
@@ -118,7 +124,16 @@ export class ZendeskClient {
   }
 
   url(path: string): string {
-    if (path.startsWith('http')) return path;
+    if (path.startsWith('http')) {
+      // URLs absolutas (ex.: next_page da paginação) só podem ir para o Zendesk:
+      // a requisição leva o Authorization do ambiente.
+      let u: URL;
+      try { u = new URL(path); } catch { throw new ZendeskError(400, 'URL inválida', path); }
+      if (u.protocol !== 'https:' || !u.hostname.endsWith('.zendesk.com')) {
+        throw new ZendeskError(400, 'URL fora do Zendesk recusada', path);
+      }
+      return u.toString();
+    }
     const p = path.startsWith('/') ? path : `/${path}`;
     if (p.startsWith('/help_center')) return `https://${this.guideSub}.zendesk.com/api/v2${p}`;
     return this.base + p;

@@ -700,7 +700,7 @@
     "passwordMismatch": "La confirmación de la nueva contraseña no coincide.",
     "passwordRequired": "La contraseña es obligatoria",
     "passwordSameAsCurrent": "La nueva contraseña no puede ser igual a la contraseña actual.",
-    "passwordTooShort": "La nueva contraseña debe tener al menos 6 caracteres.",
+    "passwordTooShort": "La nueva contraseña debe tener al menos 8 caracteres.",
     "userNotFound": "Usuario no encontrado o sin contraseña definida",
     "wrongPassword": "Contraseña incorrecta"
   },
@@ -763,6 +763,7 @@
     "emailPlaceholder": "tu.correo@aktienow.com",
     "genericError": "Ocurrió un error al intentar iniciar sesión.",
     "invalidCredentials": "Credenciales no válidas. Verifica tu correo electrónico y contraseña.",
+    "tooManyAttempts": "Demasiados intentos de inicio de sesión. Espera 15 minutos e inténtalo de nuevo.",
     "restrictedAccess": "Acceso restringido al equipo de Aktie Now",
     "signIn": "Iniciar sesión",
     "yourPassword": "Tu contraseña"
@@ -868,11 +869,12 @@
     "changePasswordHint": "Actualízala periódicamente para mantener tu cuenta segura.",
     "confirmPassword": "Confirmar nueva contraseña",
     "currentPassword": "Contraseña actual",
-    "minPasswordHint": "Mínimo 6 caracteres.",
+    "minPasswordHint": "Mínimo 8 caracteres.",
     "newPassword": "Nueva contraseña",
     "passwordChanged": "¡Contraseña cambiada correctamente!",
     "savePassword": "Guardar nueva contraseña",
-    "titleAccent": "Perfil",
+    "titleAccent": "Perfil"
+,
     "apiKeys": "Claves de API (MCP)",
     "apiKeysHint": "Permiten que Claude (Claude Code, Cowork) consulte el catálogo, cree proyectos y guarde nuevas versiones de estimación en tu nombre. La clave nunca borra ni modifica versiones existentes.",
     "apiKeyNamePlaceholder": "Nombre de la clave (ej.: Claude Code — portátil)",

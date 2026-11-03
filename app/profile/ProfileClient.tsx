@@ -126,7 +126,7 @@ export default function ProfileClient({ name, email, role, children }: Props) {
             <input
               type="password"
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
               disabled={isPending}
               value={newPassword}
@@ -145,7 +145,7 @@ export default function ProfileClient({ name, email, role, children }: Props) {
             <input
               type="password"
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
               disabled={isPending}
               value={confirmPassword}

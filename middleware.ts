@@ -16,5 +16,8 @@ export const config = {
   // O MCP do Tool Center (api/mcp) idem: exige chave de API (Authorization: Bearer).
   // .well-known e register só devolvem erro em JSON para clientes MCP sem chave
   // (ver lib/mcp-oauth-stub.ts) — não expõem nada.
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|brand/|zdcfg/temas|api/pre-sales-ops/ingest/run|api/pre-sales-ops/reconcile|api/booking/cleanup|api/mcp|api/oauth-stub/|\\.well-known/|register$).*)"],
+  //
+  // Cada exceção é ANCORADA (termina em `$` ou `/`): sem isso, uma rota nova
+  // como /api/mcp-admin ou /loginX ficaria pública sem ninguém perceber.
+  matcher: ["/((?!api/auth/|login$|_next/static/|_next/image|favicon.ico$|brand/|zdcfg/temas/|api/pre-sales-ops/ingest/run$|api/pre-sales-ops/reconcile$|api/booking/cleanup$|api/mcp$|api/oauth-stub/|\\.well-known/|register$).*)"],
 };

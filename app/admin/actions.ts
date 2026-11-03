@@ -14,7 +14,10 @@ import { aeNumberLabel } from "@/lib/ae-number-labels";
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
-  if (!session?.user?.id) throw new Error(getServerT()('errors.notAuthorized'));
+  if (!session?.user || !(session.user as any).isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
+  versionName = String(versionName || '').trim().slice(0, 120);
+  if (!versionName) throw new Error('Version name is required');
+  type = String(type || 'SC_AE').slice(0, 40);
 
   // Capture current packages and variables as JSON
   const packages = await prisma.package.findMany({ where: { isActive: true } });
@@ -105,6 +108,15 @@ export async function deleteUserAction(userId: number) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
+  if (Number(userId) === Number((session.user as any).id)) {
+    throw new Error('Você não pode excluir o próprio usuário.');
+  }
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
+  if (target?.isAdmin) {
+    const admins = await prisma.user.count({ where: { isAdmin: true } });
+    if (admins <= 1) throw new Error('Não é possível excluir o último admin.');
+  }
+
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/admin");
 }
@@ -127,6 +139,7 @@ export async function createUserAction(data: {
 
   const password = String(data.password || '').trim();
   if (!password) return { success: false, error: getServerT()('errors.passwordRequired') };
+  if (password.length < 8) return { success: false, error: getServerT()('errors.passwordTooShort') };
 
   // O segmento é a única fonte da verdade: ADMIN implica privilégio de admin.
   const segment = normalizeSegment(data.role);

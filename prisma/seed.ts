@@ -1,3 +1,4 @@
+import { randomBytes } from 'crypto'
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
@@ -6,45 +7,33 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('Iniciando seed...')
 
-  // Create default admin users
-  const hashedAdmin123 = await bcrypt.hash('admin123', 10)
-  const hashedDev = await bcrypt.hash('dev', 10)
-
-  // msouza user
-  await prisma.user.upsert({
-    where: { email: 'msouza@aktienow.com' },
-    update: { 
-      name: 'Matheus Souza',
-      password: hashedAdmin123,
-      role: 'AE',
-      isAdmin: false
-    },
-    create: {
-      email: 'msouza@aktienow.com',
-      name: 'Matheus Souza',
-      password: hashedAdmin123,
-      role: 'AE',
-      isAdmin: false
+  // Usuário admin inicial — só é criado se a base ainda não tem NENHUM admin.
+  // Nunca regrava senha de usuário existente (rodar o seed em produção não
+  // pode resetar acessos). A senha vem de SEED_ADMIN_PASSWORD; sem ela, é
+  // gerada uma aleatória e mostrada uma única vez no console.
+  const adminCount = await prisma.user.count({ where: { isAdmin: true } })
+  if (adminCount === 0) {
+    const email = (process.env.SEED_ADMIN_EMAIL || 'admin@aktienow.com').trim().toLowerCase()
+    const fromEnv = (process.env.SEED_ADMIN_PASSWORD || '').trim()
+    if (fromEnv && fromEnv.length < 12) {
+      throw new Error('SEED_ADMIN_PASSWORD precisa ter pelo menos 12 caracteres.')
     }
-  })
-
-  // admin user
-  await prisma.user.upsert({
-    where: { email: 'admin@aktienow.com' },
-    update: { 
-      name: 'Admin',
-      password: hashedDev,
-      role: 'ADMIN',
-      isAdmin: true
-    },
-    create: {
-      email: 'admin@aktienow.com',
-      name: 'Admin',
-      password: hashedDev,
-      role: 'ADMIN',
-      isAdmin: true
-    }
-  })
+    const password = fromEnv || randomBytes(18).toString('base64url')
+    await prisma.user.upsert({
+      where: { email },
+      update: { role: 'ADMIN', isAdmin: true },
+      create: {
+        email,
+        name: 'Admin',
+        password: await bcrypt.hash(password, 12),
+        role: 'ADMIN',
+        isAdmin: true,
+      },
+    })
+    console.log(`Admin inicial: ${email}` + (fromEnv ? ' (senha de SEED_ADMIN_PASSWORD)' : ` — senha gerada: ${password}  (troque no Perfil)`))
+  } else {
+    console.log('Já existe admin: nenhum usuário foi criado ou alterado.')
+  }
 
   const packagesData = [
     // Zendesk Support

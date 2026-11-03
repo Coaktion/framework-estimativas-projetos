@@ -135,7 +135,15 @@ export async function saveAEEstimateAction(formData: any): Promise<AESaveResult>
     version = Math.max(1, detectedLastVersion + 1);
   }
 
-  const parentVersionId = parentId ? parseInt(parentId) : null;
+  let parentVersionId = parentId ? parseInt(parentId) : null;
+  // A estimativa "pai" tem que ser do próprio usuário: o id vem do cliente.
+  if (parentVersionId) {
+    const parent = await prisma.aEEstimate.findFirst({
+      where: { id: parentVersionId, createdBy: userId },
+      select: { id: true },
+    });
+    if (!parent) parentVersionId = null;
+  }
 
   const baseData = {
     clientName,

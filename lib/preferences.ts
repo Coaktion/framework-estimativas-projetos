@@ -25,6 +25,32 @@ export async function getUserPreferencesAction() {
   return prefs;
 }
 
+/**
+ * Só estes campos podem ser alterados pelo cliente. Gravar o objeto recebido
+ * direto permitiria trocar `userId`/`user` (mover a linha para outro usuário)
+ * ou gravar JSON inválido que quebra os presets.
+ */
+function sanitizePreferenceUpdate(data: any) {
+  const out: { theme?: string; isCompact?: boolean; language?: string; hiddenItems?: string; layoutConfig?: string } = {};
+  if (!data || typeof data !== 'object') return out;
+  if (data.theme === 'light' || data.theme === 'dark') out.theme = data.theme;
+  if (typeof data.isCompact === 'boolean') out.isCompact = data.isCompact;
+  if (['pt', 'en', 'es'].includes(data.language)) out.language = data.language;
+  const jsonField = (v: unknown, kind: 'array' | 'object') => {
+    if (typeof v !== 'string' || v.length > 200_000) return undefined;
+    try {
+      const parsed = JSON.parse(v);
+      const ok = kind === 'array' ? Array.isArray(parsed) : parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed);
+      return ok ? v : undefined;
+    } catch { return undefined; }
+  };
+  const hidden = jsonField(data.hiddenItems, 'array');
+  if (hidden !== undefined) out.hiddenItems = hidden;
+  const layout = jsonField(data.layoutConfig, 'object');
+  if (layout !== undefined) out.layoutConfig = layout;
+  return out;
+}
+
 export async function updateUserPreferenceAction(data: any) {
   const session = await getServerSession(authOptions);
   // Sem sessão (ex.: alternar idioma/tema na tela de login) não há preferência
@@ -32,11 +58,12 @@ export async function updateUserPreferenceAction(data: any) {
   if (!session?.user?.id) return null;
 
   const userId = parseInt(session.user.id);
+  const clean = sanitizePreferenceUpdate(data);
 
   const prefs = await prisma.userPreference.upsert({
     where: { userId },
-    update: data,
-    create: { ...data, userId }
+    update: clean,
+    create: { ...clean, userId }
   });
 
   revalidatePath("/");

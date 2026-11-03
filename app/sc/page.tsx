@@ -1,3 +1,4 @@
+import { canManageProject, OWNER_PUBLIC_SELECT } from "@/lib/project-access";
 import prisma from "@/lib/prisma";
 import ProjectDashboardClient from "./ProjectDashboardClient";
 import { getServerSession } from "next-auth";
@@ -23,7 +24,9 @@ export default async function ProjectDashboard() {
     },
     orderBy: { updatedAt: 'desc' },
     include: {
-      owner: true,
+      // Só os campos públicos do dono: `owner: true` mandaria o hash da senha
+      // para o navegador junto com o payload do componente cliente.
+      owner: { select: OWNER_PUBLIC_SELECT },
       // As versões vêm junto para que o card mostre os atalhos "V1 · 108h".
       // Ordem CRESCENTE por criação: é ela que define o número ordinal da
       // versão (V1, V2...), já que `versionName` é texto livre e pode ser
@@ -50,6 +53,7 @@ export default async function ProjectDashboard() {
    */
   const projectsWithVersions = projects.map((project: any) => ({
     ...project,
+    canManage: canManageProject(project, session!.user as any),
     versions: (project.versions || []).map((v: any, index: number) => ({
       id: v.id,
       ordinal: index + 1,

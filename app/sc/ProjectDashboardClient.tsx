@@ -237,7 +237,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                             {t('sc.editScope')}
                             <ChevronRight className="w-4 h-4" />
                           </Link>
-                          <button
+                          {project.canManage && <button
                             onClick={() => handleDelete(project.id, project.name)}
                             disabled={isDeletingProject}
                             className="p-2 rounded-lg text-slate-500 hover:text-[color:var(--danger)] hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -245,7 +245,7 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                             aria-label={`${t('common.delete')}: ${project.name}`}
                           >
                             {isDeletingProject ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
-                          </button>
+                          </button>}
                         </div>
                       </td>
                     </tr>
@@ -336,14 +336,14 @@ export default function ProjectDashboardClient({ projects, currentUserId }: any)
                     <span>{t('sc.editScope')}</span>
                     <ExternalLink className="w-3 h-3 shrink-0" />
                   </Link>
-                <button 
+                {project.canManage && <button
                   onClick={() => handleDelete(project.id, project.name)}
                   disabled={isDeletingProject}
                   className="text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed p-1"
                   title={t('common.delete')}
                 >
                   {isDeletingProject ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Trash2 className="w-4 h-4 shrink-0" />}
-                </button>
+                </button>}
               </div>
             </div>
           ))}

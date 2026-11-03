@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { getUserPreferencesAction } from "@/lib/preferences";
 import { loadFrameworkCatalog } from "@/lib/framework-catalog";
 import { canAccessScopes } from "@/lib/segments";
+import { canReadProject, OWNER_PUBLIC_SELECT } from "@/lib/project-access";
 import { cookies } from "next/headers";
 import { EDITOR_VIEW_COOKIE, parseEditorView } from "@/lib/editor-view";
 
@@ -27,10 +28,11 @@ export default async function ProjectEditorPage({
 
   const project = await prisma.project.findUnique({
     where: { id: projectId },
-    include: { owner: true },
+    include: { owner: { select: OWNER_PUBLIC_SELECT } },
   });
 
-  if (!project) {
+  // Projeto privado de outra pessoa: responde como se não existisse.
+  if (!project || !canReadProject(project, session!.user as any)) {
     notFound();
   }
 

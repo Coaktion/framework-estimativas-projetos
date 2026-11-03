@@ -26,6 +26,6 @@ export async function POST(req: Request) {
     if (e instanceof ZendeskError || e instanceof FaltaRef) return NextResponse.json({ ok: false, erro: e.message }, { headers: semCache });
     if (e instanceof ErroCofre) return NextResponse.json({ ok: false, erro: e.message }, { status: e.status });
     console.error('[zd-auto-config] passo', b?.passo?.tipo, e);
-    return NextResponse.json({ ok: false, erro: `erro interno: ${(e as Error).message}` }, { status: 500 });
+    return NextResponse.json({ ok: false, erro: 'erro interno (detalhes no log do servidor)' }, { status: 500 });
   }
 }

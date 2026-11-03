@@ -1,3 +1,4 @@
+import { secretMatches } from '@/lib/secure-compare';
 /**
  * POST /api/pre-sales-ops/ingest/run — dispara a coleta.
  *
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
     const segredo = env().PSOPS_INGEST_SECRET;
     const header = req.headers.get('x-psops-secret');
 
-    if (!(segredo && header && header === segredo)) {
+    if (!secretMatches(header, segredo)) {
       // sem segredo válido, exige sessão de admin
       await exigirAdmin('disparar a coleta manualmente');
     }

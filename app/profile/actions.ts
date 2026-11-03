@@ -31,7 +31,7 @@ export async function changePasswordAction(
   const confirm = String(confirmPassword || '');
 
   if (!current || !next || !confirm) return { success: false, error: t('errors.allFieldsRequired') };
-  if (next.length < 6) return { success: false, error: t('errors.passwordTooShort') };
+  if (next.length < 8) return { success: false, error: t('errors.passwordTooShort') };
   if (next !== confirm) return { success: false, error: t('errors.passwordMismatch') };
   if (next === current) return { success: false, error: t('errors.passwordSameAsCurrent') };
 

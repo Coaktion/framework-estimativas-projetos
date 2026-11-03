@@ -67,12 +67,13 @@ export default async function AdminPage() {
 
   const versions = await prisma.frameworkVersion.findMany({
     orderBy: { createdAt: 'desc' },
-    include: { creator: true },
+    include: { creator: { select: { id: true, name: true, email: true } } },
   });
 
-  const users = await prisma.user.findMany({
+  // Nunca mandar o hash da senha para o componente cliente.
+  const users = (await prisma.user.findMany({
     orderBy: { email: 'asc' },
-  });
+  })).map(({ password: _password, ...u }) => u);
 
   // Calculadora AE: configuração ativa (números e fórmulas) e histórico.
   const [activeAeConfig, aeConfigHistory] = await Promise.all([getActiveAeConfig(), listAeConfigs()]);

@@ -716,6 +716,12 @@ const DELETE: Record<string, string | null> = {
 
 /** Remove UM recurso; true = removido (ou nada a remover). Porte de _del_one. */
 export async function removerUm(c: ZendeskClient, kind: string, rid: number | string, log: (m: string) => void): Promise<boolean> {
+  // `kind` e `rid` vêm do navegador (lista de criados): o id entra no caminho
+  // do DELETE, então só aceita ids simples (números ou UUID dos temas).
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(String(rid))) {
+    log(`! id inválido para ${kind}: recusado`);
+    return false;
+  }
   try {
     if (kind === 'brand') {
       try { await c.put(`/brands/${rid}.json`, { brand: { active: false } }); } catch (e) { relancar(e); }
@@ -723,7 +729,7 @@ export async function removerUm(c: ZendeskClient, kind: string, rid: number | st
       log(`- removido brand ${rid}`);
       return true;
     }
-    const p = DELETE[kind];
+    const p = Object.prototype.hasOwnProperty.call(DELETE, kind) ? DELETE[kind] : null;
     if (!p) { log(`(mantido) ${kind} ${rid}`); return true; }
     await c.delete(p.replace('{id}', String(rid)));
     log(`- removido ${kind} ${rid}`);

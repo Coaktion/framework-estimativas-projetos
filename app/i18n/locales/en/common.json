@@ -700,7 +700,7 @@
     "passwordMismatch": "New password confirmation does not match.",
     "passwordRequired": "Password is required",
     "passwordSameAsCurrent": "New password cannot be the same as your current password.",
-    "passwordTooShort": "New password must be at least 6 characters long.",
+    "passwordTooShort": "New password must be at least 8 characters long.",
     "userNotFound": "User not found, or no password is set",
     "wrongPassword": "Incorrect password"
   },
@@ -763,6 +763,7 @@
     "emailPlaceholder": "your.email@aktienow.com",
     "genericError": "Something went wrong while signing in.",
     "invalidCredentials": "Invalid credentials. Please check your email and password.",
+    "tooManyAttempts": "Too many login attempts. Wait 15 minutes and try again.",
     "restrictedAccess": "Restricted to the Aktie Now team",
     "signIn": "Sign In",
     "yourPassword": "Your Password"
@@ -868,11 +869,12 @@
     "changePasswordHint": "Update it periodically to keep your account safe.",
     "confirmPassword": "Confirm New Password",
     "currentPassword": "Current Password",
-    "minPasswordHint": "Minimum 6 characters.",
+    "minPasswordHint": "Minimum 8 characters.",
     "newPassword": "New Password",
     "passwordChanged": "Password changed successfully!",
     "savePassword": "Save New Password",
-    "titleAccent": "Profile",
+    "titleAccent": "Profile"
+,
     "apiKeys": "API keys (MCP)",
     "apiKeysHint": "Let Claude (Claude Code, Cowork) read the catalog, create projects and save new estimate versions on your behalf. A key never deletes or changes existing versions.",
     "apiKeyNamePlaceholder": "Key name (e.g. Claude Code — laptop)",

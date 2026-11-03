@@ -28,7 +28,7 @@ export default function LoginPage() {
       });
 
       if (result?.error) {
-        setError(t('login.invalidCredentials'));
+        setError(result.error === 'TOO_MANY_ATTEMPTS' ? t('login.tooManyAttempts') : t('login.invalidCredentials'));
       } else {
         // Force a full page reload to the root to ensure session is picked up
         window.location.href = "/";

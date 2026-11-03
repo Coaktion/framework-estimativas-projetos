@@ -1,3 +1,4 @@
+import { secretMatches } from '@/lib/secure-compare';
 /**
  * POST /api/pre-sales-ops/reconcile — reconciliação.
  *
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
   return handler(async () => {
     const segredo = env().PSOPS_INGEST_SECRET;
     const header = req.headers.get('x-psops-secret');
-    if (!(segredo && header && header === segredo)) {
+    if (!secretMatches(header, segredo)) {
       await exigirAdmin('disparar a reconciliação manualmente');
     }
     return ok(await reconciliar(prisma));

@@ -6,6 +6,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { canAccessScopes } from "@/lib/segments";
+import { assertProjectAccess, canReadProject } from "@/lib/project-access";
 import { nextVersionNumber, versionNameFor } from "@/lib/version-utils";
 
 /** Próximo nome automático (V1, V2...) para uma nova versão do projeto. */
@@ -60,6 +61,7 @@ export async function saveProjectVersionAction(projectId: number, formData: any)
   if (!canAccessScopes(session?.user as any)) {
     throw new Error(getServerT()('errors.notAuthorized'));
   }
+  await assertProjectAccess(projectId, session!.user as any);
 
   const {
     saveMode,
@@ -166,14 +168,20 @@ export async function cloneProjectVersionAction(projectId: number, sourceVersion
     throw new Error(getServerT()('errors.notAuthorized'));
   }
 
+  await assertProjectAccess(projectId, session!.user as any);
+
   const cleanDescription = String(description || '').trim();
   if (!cleanDescription) throw new Error('Version description is required');
 
   const source = await prisma.projectVersion.findUnique({
-    where: { id: sourceVersionId }
+    where: { id: Number(sourceVersionId) },
+    include: { project: { select: { ownerId: true, isPrivate: true } } },
   });
 
-  if (!source) throw new Error("Source version not found");
+  // A versão de origem também tem que ser de um projeto que o usuário pode ler.
+  if (!source || !canReadProject(source.project, session!.user as any)) {
+    throw new Error("Source version not found");
+  }
 
   const newVersion = await prisma.projectVersion.create({
     data: {
