@@ -5,29 +5,10 @@ import prisma from "./prisma";
 import bcrypt from "bcryptjs";
 import { getServerT } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin } from "@/lib/segments";
+import { resolveNextAuthUrl } from "@/lib/auth-url";
 
-/**
- * URL do NextAuth por deploy no Netlify. O NEXTAUTH_URL é uma variável só (o
- * valor de "Branch deploys" vale para TODAS as branches), mas cada deploy tem a
- * sua URL. Sem isto, o login com Google da `design` pedia ao Google para
- * voltar à URL da `development` (redirect_uri_mismatch).
- *
- * BUILD_DEPLOY_URL é gravada no build (next.config.js) só em deploys que não
- * são de produção; DEPLOY_PRIME_URL/URL em tempo de execução ficam de reserva.
- * Em produção, o NEXTAUTH_URL configurado (ex.: domínio próprio) é mantido.
- * O NextAuth lê process.env.NEXTAUTH_URL a cada requisição, então basta
- * ajustar aqui, antes do primeiro uso.
- */
-const buildDeployUrl = (process.env.BUILD_DEPLOY_URL || '').trim();
-const deployUrl = (process.env.DEPLOY_PRIME_URL || '').trim().replace(/\/$/, '');
-const siteUrl = (process.env.URL || '').trim().replace(/\/$/, '');
-if (buildDeployUrl) {
-  process.env.NEXTAUTH_URL = buildDeployUrl;
-} else if (deployUrl && siteUrl && deployUrl !== siteUrl) {
-  process.env.NEXTAUTH_URL = deployUrl;
-} else if (siteUrl && !process.env.NEXTAUTH_URL?.trim()) {
-  process.env.NEXTAUTH_URL = siteUrl; // produção sem NEXTAUTH_URL configurado
-}
+// NEXTAUTH_URL certo para este deploy (branch deploys do Netlify): ver lib/auth-url.ts.
+resolveNextAuthUrl();
 
 // Hash bcrypt (cost 10) de um valor aleatório: só serve para igualar o tempo
 // de resposta quando o e-mail não existe.

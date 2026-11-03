@@ -1,4 +1,9 @@
 import { withAuth } from "next-auth/middleware";
+import { resolveNextAuthUrl } from "@/lib/auth-url";
+
+// O middleware do next-auth lê NEXTAUTH_URL e quebra ("Invalid URL: ''") se
+// ela estiver vazia; aqui recebe o mesmo valor que o servidor usa.
+resolveNextAuthUrl();
 
 export default withAuth({
   pages: {
