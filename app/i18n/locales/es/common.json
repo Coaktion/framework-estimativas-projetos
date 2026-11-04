@@ -1028,7 +1028,7 @@
       "parcial": "Recolección parcial: fallaron {{falhas}} de {{total}} fuentes. Lo que llegó de las demás ya está en la cola.",
       "nenhuma": "Todavía no hay recolecciones",
       "nenhumaAdmin": "Haz clic en Recolectar ahora para buscar las novedades en el Centro de ayuda de Zendesk.",
-      "nenhumaUsuario": "Pide a un administrador que ejecute la primera recolección.",
+      "nenhumaUsuario": "Pide al gestor del Radar que ejecute la primera recolección.",
       "reclassificada": "Cola reclasificada con las reglas nuevas: {{arquivados}} de {{total}} señales pasaron al archivo.",
       "traduzidos": "{{n}} señales recibieron la traducción de Zendesk."
     },
@@ -1125,7 +1125,7 @@
       "statAbertasSub": "necesitan actualización",
       "statAtencao": "Necesitan atención",
       "statAtencaoSub": "atrasados o divergentes",
-      "soAdmin": "Solo un administrador define el dueño de un artefacto.",
+      "soAdmin": "Solo el gestor del Radar define el dueño de un artefacto.",
       "grupo": {
         "DEMO_TEMPLATE": "Plantilla de demo",
         "FRAMEWORK": "Framework de estimación",

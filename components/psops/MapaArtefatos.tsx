@@ -20,10 +20,10 @@ import {
 import { Avatar, Badge, CaixaErro, CaixaVazia, Carregando, Painel, StatTile, rotulo } from './ui';
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 
-export function MapaArtefatos({ admin }: { admin: boolean }) {
+export function MapaArtefatos({ gestor }: { gestor: boolean }) {
   return (
     <ProvedorDeAvisos>
-      <Conteudo admin={admin} />
+      <Conteudo gestor={gestor} />
     </ProvedorDeAvisos>
   );
 }
@@ -36,7 +36,7 @@ const VARIANTE_SAUDE: Record<EstadoSaude, 'ga' | 'alerta' | 'deprecation' | 'dis
   NAO_VERIFICADO: 'discreto',
 };
 
-function Conteudo({ admin }: { admin: boolean }) {
+function Conteudo({ gestor }: { gestor: boolean }) {
   const { t } = useTranslation();
   const avisar = useAvisos();
   const [itens, setItens] = useState<Artefato[] | null>(null);
@@ -126,7 +126,7 @@ function Conteudo({ admin }: { admin: boolean }) {
         <StatTile rotulo={t('psops.mapa.statAtencao')} valor={resumo.atencao} sub={t('psops.mapa.statAtencaoSub')} />
       </div>
 
-      {!admin && resumo.semDono > 0 ? (
+      {!gestor && resumo.semDono > 0 ? (
         <p className="mb-4 text-[12px] text-psops-muted">{t('psops.mapa.soAdmin')}</p>
       ) : null}
 
@@ -166,7 +166,7 @@ function Conteudo({ admin }: { admin: boolean }) {
                       {a.pendentes}
                     </div>
                     <div className="col-span-2 md:col-span-1">
-                      {admin ? (
+                      {gestor ? (
                         <select
                           aria-label={t('psops.mapa.colDono')}
                           value={a.donoId ?? ''}

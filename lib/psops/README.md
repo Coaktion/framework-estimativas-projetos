@@ -23,7 +23,7 @@ Segue o mesmo padrão do ZD Auto Config dentro do Tool Center.
 | tabelas | `psops_*` no fim de `prisma/schema.prisma` (só acrescenta, não toca em model existente) |
 | textos | bloco `psops` em `app/i18n/locales/{pt,en}/common.json` |
 | agendamento | `netlify/functions/psops-collect.mts` (07:00 BRT) e `psops-reconcile.mts` (01:00 BRT) |
-| quem acessa | `canAccessPreSalesOps` em `lib/segments.ts`: ADMIN e SC. Coletar e definir donos: só admin |
+| quem acessa | `canAccessPreSalesOps` em `lib/segments.ts`: ADMIN e SC. Coletar, reconciliar e definir donos: só gestor do Radar (admin ou e-mail em `PSOPS_GESTORES`, ver `lib/gestores.ts`) |
 
 ## Testar na homologação
 
@@ -62,7 +62,7 @@ em `testPathIgnorePatterns` no `jest.config.ts`.
   existente. Os nomes são resolvidos em `services/usuarios.ts`.
 - **Artefatos nascem sem dono.** A atividade herda o responsável do dono do
   artefato; enquanto não houver dono, ela aparece como "sem responsável". Hoje
-  o dono se define no Mapa de Artefatos (só admin). Ao ganhar dono, as
+  o dono se define no Mapa de Artefatos (só gestor do Radar). Ao ganhar dono, as
   atividades abertas que estavam sem responsável passam para ele.
 - **As três datas de um artefato nunca se misturam**: `revisaoDeclaradaEm` (o
   clique), `revisaoVerificadaEm` (a fonte confirmou — é o que o semáforo usa) e

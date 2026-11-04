@@ -6,13 +6,13 @@ import { secretMatches } from '@/lib/secure-compare';
  *   · o agendador (Netlify Scheduled Function) com o header
  *     `x-psops-secret: $PSOPS_INGEST_SECRET` — só roda sozinho no deploy de
  *     produção; em branch deploy, o Netlify não dispara funções agendadas
- *   · uma pessoa admin logada, pelo botão "Coletar agora"
+ *   · um gestor do Radar logado, pelo botão "Coletar agora"
  *
  * Esta rota fica fora do middleware de login (ver middleware.ts) para o
- * agendador alcançá-la; a proteção é o segredo OU a sessão de admin, abaixo.
+ * agendador alcançá-la; a proteção é o segredo OU a sessão de gestor do Radar, abaixo.
  */
 import { prisma } from '@/lib/psops/lib/db';
-import { exigirAdmin } from '@/lib/psops/lib/auth';
+import { exigirGestor } from '@/lib/psops/lib/auth';
 import { erro, handler, ok } from '@/lib/psops/lib/http';
 import { env } from '@/lib/psops/lib/env';
 import { criarClienteHc } from '@/lib/psops/zendesk/client';
@@ -28,8 +28,8 @@ export async function POST(req: Request) {
     const header = req.headers.get('x-psops-secret');
 
     if (!secretMatches(header, segredo)) {
-      // sem segredo válido, exige sessão de admin
-      await exigirAdmin('disparar a coleta manualmente');
+      // sem segredo válido, exige sessão de gestor do Radar
+      await exigirGestor('disparar a coleta manualmente');
     }
 
     // banco recém-criado pelo build: garante fontes e artefatos antes de coletar

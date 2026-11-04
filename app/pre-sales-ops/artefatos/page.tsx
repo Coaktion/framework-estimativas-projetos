@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function Pagina() {
   const t = getServerT();
-  // o layout já barrou quem não tem acesso; aqui só interessa se é admin
+  // o layout já barrou quem não tem acesso; aqui só interessa se é gestor do Radar
   const usuario = await usuarioAtual();
 
   return (
@@ -22,7 +22,7 @@ export default async function Pagina() {
           {t('psops.mapa.subtitulo')}
         </p>
       </div>
-      <MapaArtefatos admin={Boolean(usuario?.admin)} />
+      <MapaArtefatos gestor={Boolean(usuario?.gestor)} />
     </>
   );
 }

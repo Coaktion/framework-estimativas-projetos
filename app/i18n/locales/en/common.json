@@ -1028,7 +1028,7 @@
       "parcial": "Partial collection: {{falhas}} of {{total}} sources failed. What came from the others is already in the queue.",
       "nenhuma": "No collection yet",
       "nenhumaAdmin": "Click Collect now to fetch the latest from the Zendesk Help Center.",
-      "nenhumaUsuario": "Ask an admin to run the first collection.",
+      "nenhumaUsuario": "Ask the Radar manager to run the first collection.",
       "reclassificada": "Queue reclassified with the new rules: {{arquivados}} of {{total}} signals moved to the archive.",
       "traduzidos": "{{n}} signals got the Zendesk translation."
     },
@@ -1125,7 +1125,7 @@
       "statAbertasSub": "need an update",
       "statAtencao": "Need attention",
       "statAtencaoSub": "overdue or mismatched",
-      "soAdmin": "Only admins set an artifact's owner.",
+      "soAdmin": "Only the Radar manager sets an artifact's owner.",
       "grupo": {
         "DEMO_TEMPLATE": "Demo template",
         "FRAMEWORK": "Estimation framework",

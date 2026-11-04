@@ -28,6 +28,12 @@ const schema = z.object({
   PSOPS_INGEST_SECRET: z.string().min(16).optional(),
 
   /**
+   * E-mails dos gestores do Radar (além dos admins), separados por vírgula.
+   * Gestor coleta, reconcilia e define o dono dos artefatos. Ver lib/gestores.ts.
+   */
+  PSOPS_GESTORES: z.string().optional(),
+
+  /**
    * Dias de tolerância entre revisaoDeclaradaEm e revisaoVerificadaEm antes de
    * marcar o artefato como divergente.
    */

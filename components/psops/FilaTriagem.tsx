@@ -29,20 +29,20 @@ import { ModalDescarte } from './ModalDescarte';
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 
 /**
- * `admin` vem do servidor (sessão do portal) e só controla se o botão
+ * `gestor` vem do servidor (sessão do portal) e só controla se o botão
  * "Coletar agora" aparece; a rota de coleta confere de novo por conta própria.
  */
-export function FilaTriagem({ admin }: { admin: boolean }) {
+export function FilaTriagem({ gestor }: { gestor: boolean }) {
   return (
     <ProvedorDeAvisos>
-      <Conteudo admin={admin} />
+      <Conteudo gestor={gestor} />
     </ProvedorDeAvisos>
   );
 }
 
 type EstadoCarga = 'carregando' | 'pronto' | 'erro';
 
-function Conteudo({ admin }: { admin: boolean }) {
+function Conteudo({ gestor }: { gestor: boolean }) {
   const avisar = useAvisos();
   const { t } = useTranslation();
   const { dateLocale } = useLanguage();
@@ -192,7 +192,7 @@ function Conteudo({ admin }: { admin: boolean }) {
     [selecionado, avisar, removerDaFila, t],
   );
 
-  // ── coleta manual (admin) ─────────────────────────────────────────────────
+  // ── coleta manual (gestor) ─────────────────────────────────────────────────
   // Em branch deploy o Netlify não dispara a função agendada: este botão é o
   // jeito de coletar na homologação. Em produção serve para não esperar as 07:00.
   const coletarAgora = useCallback(async () => {
@@ -282,7 +282,7 @@ function Conteudo({ admin }: { admin: boolean }) {
   const ultimo = resumo?.ultimoRun;
   const nuncaColetou = estado === 'pronto' && !ultimo;
 
-  const botaoColetar = admin ? (
+  const botaoColetar = gestor ? (
     <button
       type="button"
       onClick={() => void coletarAgora()}
@@ -359,7 +359,7 @@ function Conteudo({ admin }: { admin: boolean }) {
           ) : sinais.length === 0 && nuncaColetou ? (
             <CaixaVazia
               titulo={t('psops.coleta.nenhuma')}
-              texto={admin ? t('psops.coleta.nenhumaAdmin') : t('psops.coleta.nenhumaUsuario')}
+              texto={gestor ? t('psops.coleta.nenhumaAdmin') : t('psops.coleta.nenhumaUsuario')}
               acao={botaoColetar}
             />
           ) : sinais.length === 0 ? (

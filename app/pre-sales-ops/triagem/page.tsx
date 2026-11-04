@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export default async function PaginaTriagem() {
   const t = getServerT();
-  // o layout já barrou quem não tem acesso; aqui só interessa se é admin
+  // o layout já barrou quem não tem acesso; aqui só interessa se é gestor do Radar
   const usuario = await usuarioAtual();
 
   return (
@@ -22,7 +22,7 @@ export default async function PaginaTriagem() {
           {t('psops.triagem.subtitulo')}
         </p>
       </div>
-      <FilaTriagem admin={Boolean(usuario?.admin)} />
+      <FilaTriagem gestor={Boolean(usuario?.gestor)} />
     </>
   );
 }

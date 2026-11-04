@@ -7,7 +7,7 @@ import { secretMatches } from '@/lib/secure-compare';
  * cliques, não fatos.
  */
 import { prisma } from '@/lib/psops/lib/db';
-import { exigirAdmin } from '@/lib/psops/lib/auth';
+import { exigirGestor } from '@/lib/psops/lib/auth';
 import { handler, ok } from '@/lib/psops/lib/http';
 import { env } from '@/lib/psops/lib/env';
 import { reconciliar } from '@/lib/psops/services/reconcile';
@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     const segredo = env().PSOPS_INGEST_SECRET;
     const header = req.headers.get('x-psops-secret');
     if (!secretMatches(header, segredo)) {
-      await exigirAdmin('disparar a reconciliação manualmente');
+      await exigirGestor('disparar a reconciliação manualmente');
     }
     return ok(await reconciliar(prisma));
   });
