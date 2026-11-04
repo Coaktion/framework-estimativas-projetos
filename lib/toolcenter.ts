@@ -14,6 +14,7 @@
 import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { canAccessScopes } from '@/lib/segments';
+import { canReadProject } from '@/lib/project-access';
 import { loadFrameworkCatalog, type FrameworkCatalog } from '@/lib/framework-catalog';
 import {
   buildPriceSnapshot, customPackageKey, defaultPercents, estimateVersion, frameworkRules,
@@ -45,19 +46,21 @@ function assertCanUse(ctx: ToolCenterContext) {
 
 const userId = (ctx: ToolCenterContext) => parseInt(ctx.user.id);
 
-const visibleProjectsWhere = (ctx: ToolCenterContext) => ({
-  OR: [{ ownerId: userId(ctx) }, { isPrivate: false }],
-});
+/** Mesma regra de lib/project-access (canReadProject): admin vê tudo; os demais, os seus e os públicos. */
+const visibleProjectsWhere = (ctx: ToolCenterContext) =>
+  ctx.user.isAdmin ? {} : { OR: [{ ownerId: userId(ctx) }, { isPrivate: false }] };
 
 const editorUrl = (ctx: ToolCenterContext, projectId: number, versionId?: number) =>
   `${ctx.origin}/sc/project/${projectId}${versionId ? `?version_id=${versionId}` : ''}`;
 
 async function findVisibleProject(ctx: ToolCenterContext, projectId: number) {
-  const project = await prisma.project.findFirst({
-    where: { id: projectId, ...visibleProjectsWhere(ctx) },
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
     include: { owner: { select: { name: true, email: true } } },
   });
-  if (!project) throw new ToolCenterError(`Projeto ${projectId} não encontrado (ou é privado de outra pessoa).`, 'not_found');
+  if (!project || !canReadProject(project, ctx.user)) {
+    throw new ToolCenterError(`Projeto ${projectId} não encontrado (ou é privado de outra pessoa).`, 'not_found');
+  }
   return project;
 }
 
@@ -224,13 +227,14 @@ const percentsInput = z.object({
   validation: z.number().min(0).max(100).optional(),
 }).optional();
 
-export const estimateInput = z.object({
-  projectId: z.number().int(),
-  /**
-   * Título curto da versão (obrigatório, como na janela de salvar do editor).
-   * Aparece no seletor de versões: detalhes do escopo vão no documento, não aqui.
-   */
-  description: z.string().trim().min(1).max(120),
+/**
+ * Conteúdo de uma estimativa — comum à simulação e à gravação.
+ *
+ * Simular e gravar são ferramentas SEPARADAS de propósito: os apps do Claude
+ * guardam a permissão por ferramenta, então o usuário pode liberar a simulação
+ * (só leitura) de vez e continuar aprovando cada gravação.
+ */
+const estimateFields = {
   plan: z.enum(ZENDESK_PLANS).optional(),
   sku: z.enum(['CS', 'ES']).optional(),
   deploymentType: z.enum(['new', 'optimization']).optional(),
@@ -253,16 +257,36 @@ export const estimateInput = z.object({
   /** Módulos a marcar mesmo sem itens (os dos itens enviados são marcados sozinhos). */
   modules: z.array(z.string()).default([]),
   percents: percentsInput,
+};
+
+/** Título curto da versão: aparece no seletor de versões; detalhes vão no documento. */
+const versionDescription = z.string().trim().min(1).max(120);
+
+/** simulate_estimate: só calcula. O projeto é opcional (dá para simular antes de criá-lo). */
+export const simulateInput = z.object({
+  ...estimateFields,
+  projectId: z.number().int().optional(),
+});
+
+/** create_estimate_version: grava uma versão nova. */
+export const estimateInput = z.object({
+  ...estimateFields,
+  projectId: z.number().int(),
+  description: versionDescription,
   technicalScopeLink: z.string().optional(),
   zohoLink: z.string().optional(),
-  /** true = só calcula e devolve o resultado, sem gravar nada. */
+  /**
+   * Legado: a simulação virou simulate_estimate. Um cliente com a lista de
+   * ferramentas antiga que mande dryRun=true recebe erro em vez de GRAVAR.
+   */
   dryRun: z.boolean().optional(),
 });
 
+type EstimateContent = z.infer<typeof simulateInput>;
 type EstimateInput = z.infer<typeof estimateInput>;
 
 /** Monta o JSON `data` da versão no formato do editor e lista o que não vai contar. */
-function buildVersionData(catalog: FrameworkCatalog, input: EstimateInput) {
+function buildVersionData(catalog: FrameworkCatalog, input: EstimateContent) {
   const warnings: string[] = [];
   const data: Record<string, any> = {
     __skuType: input.sku ?? 'CS',
@@ -382,9 +406,8 @@ function summarize(catalog: FrameworkCatalog, totals: ReturnType<typeof estimate
   };
 }
 
-export async function createEstimateVersion(ctx: ToolCenterContext, input: EstimateInput) {
-  assertCanUse(ctx);
-  const project = await findVisibleProject(ctx, input.projectId);
+/** Monta e calcula a estimativa (sem gravar): o mesmo resultado para simular e para salvar. */
+async function computeEstimate(ctx: ToolCenterContext, input: EstimateContent) {
   const catalog = await loadFrameworkCatalog();
   const hiddenIds = await hiddenItemsOf(ctx);
 
@@ -410,11 +433,28 @@ export async function createEstimateVersion(ctx: ToolCenterContext, input: Estim
     validationOverride: null,
   };
   const totals = estimateVersion(catalog, version, { hiddenIds, priceMode: 'current' });
-  const summary = summarize(catalog, totals);
+  return { data, version, totals, warnings, summary: summarize(catalog, totals) };
+}
 
+export async function simulateEstimate(ctx: ToolCenterContext, input: EstimateContent) {
+  assertCanUse(ctx);
+  const project = input.projectId !== undefined ? await findVisibleProject(ctx, input.projectId) : null;
+  const { warnings, summary } = await computeEstimate(ctx, input);
+  return {
+    saved: false,
+    ...(project ? { project: { id: project.id, name: project.name } } : {}),
+    warnings,
+    ...summary,
+  };
+}
+
+export async function createEstimateVersion(ctx: ToolCenterContext, input: EstimateInput) {
+  assertCanUse(ctx);
   if (input.dryRun) {
-    return { saved: false, project: { id: project.id, name: project.name }, warnings, ...summary };
+    throw new ToolCenterError('Para só calcular, use a ferramenta simulate_estimate. create_estimate_version sempre grava uma versão nova.');
   }
+  const project = await findVisibleProject(ctx, input.projectId);
+  const { data, version, totals, warnings, summary } = await computeEstimate(ctx, input);
 
   const existing = await prisma.projectVersion.findMany({ where: { projectId: project.id }, select: { versionName: true } });
   const created = await prisma.projectVersion.create({

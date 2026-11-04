@@ -21,6 +21,7 @@ import {
   searchProjectsInput, searchProjects,
   getProjectInput, getProject,
   createProjectInput, createProject,
+  simulateInput, simulateEstimate,
   estimateInput, createEstimateVersion,
   getVersionInput, getVersion,
 } from '@/lib/toolcenter';
@@ -35,8 +36,8 @@ const INSTRUCTIONS = [
   'Tool Center da Aktie Now: catálogo de itens do Framework de estimativas e projetos de escopo.',
   'Fluxo para estimar um escopo novo: (1) search_projects para não duplicar o cliente;',
   '(2) get_catalog para escolher itens e quantidades SÓ entre os itens existentes (use os ids);',
-  '(3) create_project se o cliente ainda não tiver projeto; (4) create_estimate_version com dryRun=true',
-  'para conferir totais e avisos; (5) create_estimate_version sem dryRun para salvar a versão nova.',
+  '(3) simulate_estimate para conferir totais e avisos (não grava; o projeto é opcional);',
+  '(4) create_project se o cliente ainda não tiver projeto; (5) create_estimate_version para salvar a versão nova.',
   'Nenhuma ferramenta altera ou apaga versões existentes. Responda ao usuário com o link da versão.',
 ].join(' ');
 
@@ -52,6 +53,65 @@ type Tool = {
 
 const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
 const CREATES = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+
+/**
+ * Campos do conteúdo de uma estimativa — os mesmos em simulate_estimate e
+ * create_estimate_version (ver estimateFields em lib/toolcenter.ts).
+ */
+const ESTIMATE_PROPERTIES: Record<string, unknown> = {
+  plan: { type: 'string', enum: ['team', 'growth', 'professional', 'enterprise'], description: 'Plano Zendesk Suite do cliente. Padrão: professional.' },
+  sku: { type: 'string', enum: ['CS', 'ES'], description: 'CS = Customer Service, ES = Employee Service. Padrão: CS.' },
+  deploymentType: { type: 'string', enum: ['new', 'optimization'], description: 'Implantação nova ou otimização de instância existente. Padrão: new.' },
+  items: {
+    type: 'array',
+    description: 'Itens do catálogo (ids de get_catalog).',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+        quantity: { type: 'number', minimum: 0 },
+        hours: { type: 'number', minimum: 0, description: 'Opcional: total manual de horas da linha (substitui quantidade × horas unitárias).' },
+      },
+      required: ['id', 'quantity'],
+      additionalProperties: false,
+    },
+  },
+  customItems: {
+    type: 'array',
+    description: 'Itens que não existem no catálogo. Prefira sempre itens do catálogo.',
+    items: {
+      type: 'object',
+      properties: {
+        module: { type: 'string', description: 'Módulo (campo `module` de get_catalog).' },
+        name: { type: 'string' },
+        unitHours: { type: 'number', minimum: 0 },
+        quantity: { type: 'number', minimum: 0 },
+        skill: { type: 'string', description: 'Implantação (padrão), Solution Design, Desenvolvimento, Design ou GP.' },
+        scopeIncluded: { type: 'string' },
+        scopeExcluded: { type: 'string' },
+      },
+      required: ['module', 'name', 'unitHours'],
+      additionalProperties: false,
+    },
+  },
+  marketplaceApps: {
+    type: 'array',
+    description: 'Apps do Marketplace Zendesk (5h cada).',
+    items: {
+      type: 'object',
+      properties: { name: { type: 'string' }, link: { type: 'string' } },
+      required: ['name'],
+      additionalProperties: false,
+    },
+  },
+  modules: { type: 'array', items: { type: 'string' }, description: 'Módulos a marcar mesmo sem itens.' },
+  percents: {
+    type: 'object',
+    description: 'Só se o escopo pedir percentuais diferentes do padrão (defaultPercents de get_catalog).',
+    properties: { gp: { type: 'number' }, discovery: { type: 'number' }, validation: { type: 'number' } },
+    additionalProperties: false,
+  },
+};
 
 const TOOLS: Tool[] = [
   {
@@ -133,9 +193,25 @@ const TOOLS: Tool[] = [
     run: createProject,
   },
   {
+    name: 'simulate_estimate',
+    title: 'Simular estimativa',
+    description: 'Calcula uma estimativa SEM gravar nada, com o mesmo cálculo do editor: totais por skill e por módulo, Discovery/Validação/GP e avisos de itens que não contam (plano, dependência, item oculto). O projeto é opcional: dá para simular antes de criá-lo.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        projectId: { type: 'integer', description: 'Opcional: projeto em que a versão seria salva.' },
+        ...ESTIMATE_PROPERTIES,
+      },
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY,
+    input: simulateInput,
+    run: simulateEstimate,
+  },
+  {
     name: 'create_estimate_version',
     title: 'Criar versão de estimativa',
-    description: 'Calcula e salva uma NOVA versão (V1, V2...) da estimativa de um projeto, com o mesmo cálculo do editor. Marca sozinho os módulos dos itens enviados. Devolve totais, avisos (itens que não contam) e o link. Use dryRun=true para só calcular.',
+    description: 'GRAVA uma NOVA versão (V1, V2...) da estimativa de um projeto, com o mesmo cálculo do editor, e devolve totais, avisos e o link. Antes, confira o resultado com simulate_estimate (mesmos campos, não grava).',
     inputSchema: {
       type: 'object',
       properties: {
@@ -145,61 +221,9 @@ const TOOLS: Tool[] = [
           maxLength: 120,
           description: 'Título CURTO da versão (até 120 caracteres), que aparece no seletor de versões do editor. Ex.: "Cenário A — sem saneamento retroativo" ou "Sugestão inicial da discovery de 28/10". Premissas e detalhes do escopo vão no documento, não aqui.',
         },
-        plan: { type: 'string', enum: ['team', 'growth', 'professional', 'enterprise'], description: 'Plano Zendesk Suite do cliente. Padrão: professional.' },
-        sku: { type: 'string', enum: ['CS', 'ES'], description: 'CS = Customer Service, ES = Employee Service. Padrão: CS.' },
-        deploymentType: { type: 'string', enum: ['new', 'optimization'], description: 'Implantação nova ou otimização de instância existente. Padrão: new.' },
-        items: {
-          type: 'array',
-          description: 'Itens do catálogo (ids de get_catalog).',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'integer' },
-              quantity: { type: 'number', minimum: 0 },
-              hours: { type: 'number', minimum: 0, description: 'Opcional: total manual de horas da linha (substitui quantidade × horas unitárias).' },
-            },
-            required: ['id', 'quantity'],
-            additionalProperties: false,
-          },
-        },
-        customItems: {
-          type: 'array',
-          description: 'Itens que não existem no catálogo. Prefira sempre itens do catálogo.',
-          items: {
-            type: 'object',
-            properties: {
-              module: { type: 'string', description: 'Módulo (campo `module` de get_catalog).' },
-              name: { type: 'string' },
-              unitHours: { type: 'number', minimum: 0 },
-              quantity: { type: 'number', minimum: 0 },
-              skill: { type: 'string', description: 'Implantação (padrão), Solution Design, Desenvolvimento, Design ou GP.' },
-              scopeIncluded: { type: 'string' },
-              scopeExcluded: { type: 'string' },
-            },
-            required: ['module', 'name', 'unitHours'],
-            additionalProperties: false,
-          },
-        },
-        marketplaceApps: {
-          type: 'array',
-          description: 'Apps do Marketplace Zendesk (5h cada).',
-          items: {
-            type: 'object',
-            properties: { name: { type: 'string' }, link: { type: 'string' } },
-            required: ['name'],
-            additionalProperties: false,
-          },
-        },
-        modules: { type: 'array', items: { type: 'string' }, description: 'Módulos a marcar mesmo sem itens.' },
-        percents: {
-          type: 'object',
-          description: 'Só se o escopo pedir percentuais diferentes do padrão (defaultPercents de get_catalog).',
-          properties: { gp: { type: 'number' }, discovery: { type: 'number' }, validation: { type: 'number' } },
-          additionalProperties: false,
-        },
+        ...ESTIMATE_PROPERTIES,
         technicalScopeLink: { type: 'string', description: 'Link do documento de escopo técnico, se já existir.' },
         zohoLink: { type: 'string', description: 'Link do deal no Zoho CRM.' },
-        dryRun: { type: 'boolean', description: 'true = só calcula, não grava.' },
       },
       required: ['projectId', 'description'],
       additionalProperties: false,
