@@ -266,6 +266,34 @@ test('tradução: seção que não bate não recebe texto de outro item', async 
   assert.match(String(f.estado.signals.find((s) => s.id === 's-dev')!.trechoPt), /^PT: /);
 });
 
+test('tradução: artigos novos ainda sem tradução não impedem os antigos de serem traduzidos', async () => {
+  const f = criarFakePrisma();
+  semearRawENSinais(f);
+  // 15 artigos MAIS NOVOS que o release note, que o Zendesk ainda não traduziu.
+  // Com o teto antigo (12, mais novos primeiro) o release note nunca era conferido.
+  for (let i = 0; i < 15; i++) {
+    f.estado.rawItems.push({
+      ...f.estado.rawItems[0]!,
+      id: `raw-novo-${i}`,
+      externalId: `9000${i}`,
+      criadoEm: new Date(`2026-08-11T0${i % 10}:00:00Z`),
+      traducaoPtEm: null,
+    });
+  }
+  const hc = hcLista([], {
+    async pegarTraducao({ zendeskId }) {
+      return zendeskId === String(releaseNote.id)
+        ? artigo({ id: releaseNote.id, title: 'Notas da versão', body: BODY_PT, locale: 'pt-br' })
+        : null;
+    },
+  });
+
+  const r = await traduzirPendentes(asPrisma(f), hc, { agora: AGORA });
+  assert.equal(r.conferidos, 16);
+  assert.equal(r.artigosTraduzidos, 1);
+  assert.match(String(f.estado.signals.find((s) => s.id === 's-voice')!.trechoPt), /^PT: /);
+});
+
 test('tradução: nenhuma seção bate → fica em inglês e tenta de novo depois', async () => {
   const f = criarFakePrisma();
   semearRawENSinais(f);

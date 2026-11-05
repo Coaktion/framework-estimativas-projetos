@@ -14,6 +14,7 @@
  */
 import type { PrismaClient } from '@prisma/client';
 import type { ClienteHc } from '../zendesk/client';
+import type { HcArticle } from '../zendesk/types';
 import type { Classificador } from './classify';
 import { avaliarEscopo, avaliarRuido, decidirArquivamento } from './noise';
 import { brutosDoArtigo, brutosDoArtigoVivo, tituloDoBruto } from './artigo';
@@ -162,8 +163,16 @@ export interface ResultadoTraducao {
 export const TRADUCAO_LOCALE = 'pt-br';
 /** Por quantos dias um artigo continua sendo conferido à espera da tradução. */
 export const TRADUCAO_JANELA_DIAS = 30;
-/** Teto de consultas por coleta — cada uma é uma chamada ao Zendesk. */
-export const TRADUCAO_MAX_POR_COLETA = 12;
+/**
+ * Teto de consultas por coleta — cada uma é uma chamada ao Zendesk.
+ *
+ * Era 12, e os artigos mais novos (que o Zendesk ainda não traduziu) ocupavam
+ * todas as vagas a cada coleta: os mais antigos, já traduzidos, nunca eram
+ * conferidos. Com a janela de 30 dias, 40 cobre tudo o que está pendente.
+ */
+export const TRADUCAO_MAX_POR_COLETA = 40;
+/** Quantas consultas ao Zendesk por vez. */
+export const TRADUCAO_EM_PARALELO = 4;
 
 /** Mesma quebra, mesma ordem, mesmas âncoras — o artigo inteiro. */
 export function estruturaBate(en: SinalBruto[], pt: SinalBruto[]): boolean {
@@ -220,21 +229,37 @@ export async function traduzirPendentes(
 
   const fontes = await fontesPorId(prisma, Array.from(new Set(candidatos.map((c) => c.sourceId))));
 
-  for (const raw of candidatos) {
-    if (r.conferidos >= TRADUCAO_MAX_POR_COLETA) break;
-    if (opts.ate && Date.now() > opts.ate) break; // respeita o limite de tempo da função
-    const fonte = fontes.get(raw.sourceId);
-    if (!fonte || fonte.isLiveArticle) continue; // a lista de EAPs muda no lugar; fica em inglês
+  // A lista de EAPs muda no lugar: fica em inglês.
+  const elegiveis = candidatos
+    .filter((raw) => {
+      const fonte = fontes.get(raw.sourceId);
+      return Boolean(fonte && !fonte.isLiveArticle);
+    })
+    .slice(0, TRADUCAO_MAX_POR_COLETA);
 
-    r.conferidos += 1;
-    let traducao;
-    try {
-      traducao = await hc.pegarTraducao({ zendeskId: raw.externalId, locale: TRADUCAO_LOCALE });
-    } catch (e) {
-      console.warn(`[psops] tradução de ${raw.externalId} falhou:`, e instanceof Error ? e.message : e);
-      continue;
-    }
+  // Busca em lotes paralelos: com o teto alto, uma busca por vez estouraria
+  // os 30 s da função agendada que espera a coleta terminar.
+  const buscas: Array<{ raw: RawLinha; traducao: HcArticle | null }> = [];
+  for (let i = 0; i < elegiveis.length; i += TRADUCAO_EM_PARALELO) {
+    if (opts.ate && Date.now() > opts.ate) break; // respeita o limite de tempo da função
+    const lote = elegiveis.slice(i, i + TRADUCAO_EM_PARALELO);
+    const resultados = await Promise.all(
+      lote.map(async (raw) => {
+        try {
+          return { raw, traducao: await hc.pegarTraducao!({ zendeskId: raw.externalId, locale: TRADUCAO_LOCALE }) };
+        } catch (e) {
+          console.warn(`[psops] tradução de ${raw.externalId} falhou:`, e instanceof Error ? e.message : e);
+          return { raw, traducao: null };
+        }
+      }),
+    );
+    r.conferidos += lote.length;
+    buscas.push(...resultados);
+  }
+
+  for (const { raw, traducao } of buscas) {
     if (!traducao) continue; // ainda não traduzido: confere de novo na próxima coleta
+    const fonte = fontes.get(raw.sourceId)!;
 
     const p = (raw.payload ?? {}) as Payload;
     const en = brutosDoArtigo(
