@@ -205,6 +205,13 @@ function Conteudo({ gestor }: { gestor: boolean }) {
       );
       const res = 'erro' in r ? r.detalhe : r;
       const falhas = res.porFonte.filter((f) => !f.ok).length;
+      const recon = res.reconstrucao;
+      if (recon && recon.artigos > 0) {
+        avisar(
+          t('psops.coleta.reconstruida', { artigos: recon.artigos, fila: recon.sinaisCriados, arquivados: recon.sinaisArquivados }),
+          'neutro',
+        );
+      }
       const rec = res.reclassificacao;
       if (rec && rec.reclassificados > 0) {
         avisar(

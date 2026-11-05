@@ -971,6 +971,7 @@
       "ondeImpacta": "Where does this have impact?",
       "oQueSeraGerado": "What will be created",
       "lerNota": "Read the full note on the Zendesk Help Center",
+      "trechoTraduzido": "Excerpt (Zendesk translation)",
       "trechoOriginal": "Original excerpt",
       "gerar_one": "Create {{count}} activity",
       "gerar_other": "Create {{count}} activities",
@@ -1029,6 +1030,7 @@
       "nenhuma": "No collection yet",
       "nenhumaAdmin": "Click Collect now to fetch the latest from the Zendesk Help Center.",
       "nenhumaUsuario": "Ask the Radar manager to run the first collection.",
+      "reconstruida": "Queue rebuilt with the new reader: {{artigos}} articles, {{fila}} signals in the queue and {{arquivados}} archived.",
       "reclassificada": "Queue reclassified with the new rules: {{arquivados}} of {{total}} signals moved to the archive.",
       "traduzidos": "{{n}} signals got the Zendesk translation."
     },

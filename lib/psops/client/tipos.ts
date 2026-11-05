@@ -132,6 +132,7 @@ export interface ResultadoColeta {
   porFonte: Array<{ fonte: string; ok: boolean; erro?: string }>;
   totalSinaisCriados: number;
   totalSinaisArquivados: number;
+  reconstrucao?: { artigos: number; sinaisRemovidos: number; sinaisCriados: number; sinaisArquivados: number };
   reclassificacao?: { reclassificados: number; arquivados: number };
   traducao?: { conferidos: number; artigosTraduzidos: number; sinaisTraduzidos: number };
 }
@@ -149,6 +150,16 @@ export function textoDoSinal(
     return { titulo: s.tituloPt, trecho: s.trechoPt ?? s.trechoOriginal, traduzido: true, pendente: false };
   }
   return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: querPt };
+}
+
+/**
+ * Link da nota no idioma do que está na tela: com a tradução do Zendesk
+ * aplicada, abre a versão pt-br do mesmo artigo (/hc/pt-br/articles/:id).
+ * O slug em inglês sai — o Help Center redireciona para o slug do idioma.
+ */
+export function urlDaNota(url: string, traduzido: boolean): string {
+  if (!traduzido) return url;
+  return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, '/hc/pt-br/articles/$2');
 }
 
 // ─────────────────────────────── Backlog ────────────────────────────────────

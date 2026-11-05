@@ -6,11 +6,19 @@
  * produz card genérico, ninguém sabe o que é done, e o processo morre na
  * terceira semana.
  *
- * Estrutura observada nas release notes (estável desde 2024):
+ * Estrutura das release notes — dois formatos convivem:
  *
- *   <h2>  Produto            → Copilot · Contact Center · Knowledge & AI agents…
- *     <h4>  Componente       → AI Agents · Web Crawler · Editor…  (ou "New"/"Fixed")
- *       <ul><li>  Mudança    → 1 bullet = 1 SINAL
+ *   até set/2026                          a partir de out/2026
+ *   <h2>  Produto                         <h2>  Produto
+ *     <h4>  Componente (ou New/Fixed)       <p><strong>New</strong></p>  (ou Fixed)
+ *       <ul><li>  Mudança                   <h3>  Componente
+ *                                             <ul><li><strong>Rótulo</strong>
+ *                                                   <ul><li>  Mudança
+ *
+ * 1 bullet = 1 SINAL. No formato novo, o bullet que só agrupa (rótulo + lista
+ * dentro) não é sinal: cada filho é, com o rótulo como contexto do título.
+ * Fica fora: o índice antes do primeiro H2 ("This week's release notes
+ * include") e a seção "Products with no updates this week".
  *
  * Announcements, What's new e Developer updates vêm atômicos: 1 artigo = 1 sinal.
  */
@@ -26,13 +34,25 @@ export interface SinalBruto {
   assinatura: string;
   /** texto do H2 (produto), quando existir */
   grupoProduto: string | null;
-  /** texto do H4 (componente ou "New"/"Fixed") */
+  /** texto do H4 (componente ou "New"/"Fixed") — ou do H3, no formato novo */
   grupoComponente: string | null;
   /** o texto da mudança, já limpo */
   texto: string;
   /** links citados no bullet — entram na ficha de estudo */
   links: string[];
+  /** "New", "Fixed"… — no formato novo vem num <p><strong>, no antigo é o H4 */
+  marcador?: string | null;
+  /** rótulo do bullet que agrupa este (ex.: "Rastro for Bling (Support) (paid)") */
+  rotulo?: string | null;
+  /** nome em negrito que abre o bullet ("<strong>Nome</strong>: descrição") */
+  destaque?: string | null;
 }
+
+/** Cabeçalhos que dizem o tipo da mudança, e não o componente. */
+export const RX_MARCADOR = /^(new|fixed|fixes|bug fixes|updates?|changes?|improvements?|novo|novidades|corrigido|correções|corrigidos|melhorias|atualizações|nuevo|corregido|correcciones)$/i;
+
+/** Seção sem conteúdo: só lista os produtos que não mudaram. */
+const RX_SEM_ATUALIZACOES = /(no updates|sem atualiza|sin actualizaciones)/i;
 
 const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
@@ -67,9 +87,39 @@ export function parseReleaseNote(bodyHtml: string): SinalBruto[] {
   let li = 0;
   let grupoProduto: string | null = null;
   let grupoComponente: string | null = null;
+  let marcador: string | null = null;
+  /** seção "Products with no updates this week": nada aqui vira sinal */
+  let secaoVazia = false;
 
-  // Percorre todos os nós relevantes em ordem de documento, em qualquer nível
-  // de aninhamento — algumas notas embrulham seções em <div>.
+  const emitir = (texto: string, $no: cheerio.Cheerio<AnyNode>, extra: { rotulo?: string | null; destaque?: string | null }) => {
+    li += 1;
+    sinais.push(montar({ h2, h4, li, grupoProduto, grupoComponente, marcador, texto, $li: $no, $, ...extra }));
+  };
+
+  /**
+   * Um <li> que tem lista dentro só agrupa: o texto dele (sem a lista) é o
+   * rótulo, e cada filho vira sinal. Sem lista dentro, o <li> é o sinal.
+   */
+  const percorrerLista = ($lista: cheerio.Cheerio<AnyNode>, rotulo: string | null) => {
+    $lista.children('li').each((__, liEl) => {
+      const $li = $(liEl);
+      const sublistas = $li.find('ul, ol').filter((___, l) => $(l).parents('li').first()[0] === liEl);
+      if (sublistas.length > 0) {
+        const $semSub = $li.clone();
+        $semSub.find('ul, ol').remove();
+        const proprio = limpar($semSub.text()).replace(/[:\-–]\s*$/, '');
+        sublistas.each((___, sub) => percorrerLista($(sub), proprio || rotulo));
+        return;
+      }
+      const texto = limpar($li.text());
+      if (texto.length < 12) return; // ruído estrutural
+      if (ehSoAncoraInterna($li, $)) return; // item de índice: "Contact Center" → #contact_center
+      emitir(texto, $li, { rotulo, destaque: destaqueDe($li, $, texto) });
+    });
+  };
+
+  // Percorre os nós relevantes em ordem de documento, em qualquer nível de
+  // aninhamento — algumas notas embrulham seções em <div>.
   $.root()
     .find('h1, h2, h3, h4, h5, h6, ul, ol, p')
     .each((_, el) => {
@@ -79,48 +129,76 @@ export function parseReleaseNote(bodyHtml: string): SinalBruto[] {
       if (HEADINGS.has(tag)) {
         const txt = limpar($el.text());
         if (!txt) return;
-        // h2 e h3 abrem produto; h4 e além abrem componente
-        if (tag === 'h1' || tag === 'h2' || tag === 'h3') {
+        // h1/h2 abrem produto. h3 também, no formato antigo (sem h2 antes);
+        // no novo, h3 sob um h2 é componente. h4 e além: componente.
+        if (tag === 'h1' || tag === 'h2' || (tag === 'h3' && !grupoProduto)) {
           h2 += 1;
           h4 = 0;
           li = 0;
           grupoProduto = txt;
           grupoComponente = null;
+          marcador = null;
+          secaoVazia = RX_SEM_ATUALIZACOES.test(txt);
         } else {
           h4 += 1;
           li = 0;
           grupoComponente = txt;
+          // Formato antigo: cada H4 é um componente OU o próprio "New"/"Fixed".
+          // Formato novo: o marcador vem num <p> ANTES do H3 e vale para ele.
+          if (tag !== 'h3') marcador = RX_MARCADOR.test(txt) ? txt : null;
         }
         return;
       }
 
+      // Antes do primeiro H2 só há introdução e índice do artigo.
+      if (!grupoProduto || secaoVazia) return;
+
       if (tag === 'ul' || tag === 'ol') {
-        // só os <li> diretos: sublistas entram no texto do pai
-        $el.children('li').each((__, liEl) => {
-          const $li = $(liEl);
-          const texto = limpar($li.text());
-          if (texto.length < 12) return; // ruído estrutural
-          li += 1;
-          sinais.push(montar({ h2, h4, li, grupoProduto, grupoComponente, texto, $li, $ }));
-        });
+        // Sublistas são tratadas pela lista de fora (percorrerLista).
+        if ($el.parents('li').length > 0) return;
+        percorrerLista($el, null);
         return;
       }
 
       if (tag === 'p') {
+        if ($el.parents('li').length > 0) return; // já capturado pelo ramo da lista
+        const texto = limpar($el.text());
+        // formato novo: <p><strong>New</strong></p> marca o tipo das mudanças abaixo
+        if (RX_MARCADOR.test(texto)) {
+          marcador = texto;
+          return;
+        }
         // Parágrafo só conta se estiver sob um componente e não for introdução
         // genérica. Evita capturar "Veja também" e chamadas de rodapé.
         if (!grupoComponente) return;
-        const texto = limpar($el.text());
         if (texto.length < 40) return;
         if (/^(see|for more|learn more|veja|saiba)/i.test(texto)) return;
-        // parágrafo dentro de <li> já foi capturado pelo ramo da lista
-        if ($el.parents('li').length > 0) return;
-        li += 1;
-        sinais.push(montar({ h2, h4, li, grupoProduto, grupoComponente, texto, $li: $el, $ }));
+        emitir(texto, $el, { destaque: destaqueDe($el, $, texto) });
       }
     });
 
   return sinais;
+}
+
+/** Item que só aponta para uma seção do próprio artigo (índice). */
+function ehSoAncoraInterna($li: cheerio.Cheerio<AnyNode>, $: cheerio.CheerioAPI): boolean {
+  const links = $li.find('a[href]');
+  if (links.length !== 1) return false;
+  const href = links.attr('href') ?? '';
+  return href.startsWith('#') && limpar(links.text()) === limpar($li.text());
+}
+
+/**
+ * "<strong>Nome da feature</strong>: descrição" → "Nome da feature". É o
+ * melhor título que o bullet oferece. Só vale se o negrito abre o texto e é
+ * seguido de dois-pontos ou travessão.
+ */
+function destaqueDe($no: cheerio.Cheerio<AnyNode>, $: cheerio.CheerioAPI, texto: string): string | null {
+  const forte = limpar($no.find('strong, b').first().text());
+  if (!forte || forte.length < 4 || forte.length > 120) return null;
+  if (!texto.startsWith(forte)) return null;
+  const resto = texto.slice(forte.length).trimStart();
+  return /^[:\-–—]/.test(resto) ? forte.replace(/[:\-–—]\s*$/, '') : null;
 }
 
 function montar(args: {
@@ -129,11 +207,14 @@ function montar(args: {
   li: number;
   grupoProduto: string | null;
   grupoComponente: string | null;
+  marcador: string | null;
+  rotulo?: string | null;
+  destaque?: string | null;
   texto: string;
   $li: cheerio.Cheerio<AnyNode>;
   $: cheerio.CheerioAPI;
 }): SinalBruto {
-  const { h2, h4, li, grupoProduto, grupoComponente, texto, $li } = args;
+  const { h2, h4, li, grupoProduto, grupoComponente, marcador, texto, $li } = args;
   const links: string[] = [];
   $li.find('a[href]').each((_, a) => {
     const href = args.$(a).attr('href');
@@ -146,6 +227,9 @@ function montar(args: {
     grupoComponente,
     texto,
     links,
+    marcador,
+    rotulo: args.rotulo ?? null,
+    destaque: args.destaque ?? null,
   };
 }
 

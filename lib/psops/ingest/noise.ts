@@ -42,7 +42,8 @@ export interface ResultadoRuido {
 
 export function avaliarRuido(sinal: SinalBruto): ResultadoRuido {
   const texto = sinal.texto.toLowerCase();
-  const cabecalho = (sinal.grupoComponente ?? '').toLowerCase();
+  // marcador do formato novo (<p><strong>Fixed</strong>) ou o H4 do antigo
+  const cabecalho = (sinal.marcador ?? sinal.grupoComponente ?? '').toLowerCase();
 
   if (TERMOS_IRRELEVANTES.some((t) => texto.includes(t))) {
     return { arquivar: true, motivo: 'ajuste cosmético sem impacto em ativo' };

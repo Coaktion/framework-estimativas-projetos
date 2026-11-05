@@ -8,6 +8,7 @@ import {
   ATALHO_IMPACTO,
   IMPACTOS_ORDEM,
   textoDoSinal,
+  urlDaNota,
   type Impacto,
   type Sinal,
   type SinalDetalhe,
@@ -79,7 +80,7 @@ export function PainelDecisao({
 
       <blockquote className="mb-2 rounded-r-2xl border-l-[3px] border-psops-acento bg-psops-surf2 px-4 py-3 text-[12.5px] leading-relaxed text-psops-muted">
         <cite className={`${rotulo} mb-1.5 block not-italic text-psops-tinta`}>
-          {t('psops.triagem.trechoOriginal')} · {data(sinal.publicadoEm)} · {sinal.fonteNome}
+          {t(texto.traduzido ? 'psops.triagem.trechoTraduzido' : 'psops.triagem.trechoOriginal')} · {data(sinal.publicadoEm)} · {sinal.fonteNome}
         </cite>
         {texto.trecho}
         {texto.traduzido ? (
@@ -93,7 +94,7 @@ export function PainelDecisao({
       </blockquote>
 
       <a
-        href={sinal.fonteUrl}
+        href={urlDaNota(sinal.fonteUrl, texto.traduzido)}
         target="_blank"
         rel="noopener noreferrer"
         className="mb-4 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"

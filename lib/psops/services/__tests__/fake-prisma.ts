@@ -127,6 +127,12 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
       for (const r of alvos) Object.assign(r, data);
       return { count: alvos.length };
     },
+    async deleteMany({ where }: { where: Row }) {
+      const w = achatarWhere(where);
+      const antes = st[nome].length;
+      st[nome] = st[nome].filter((r) => !casaComRelacao(r, w)) as never;
+      return { count: antes - st[nome].length };
+    },
     async upsert({ where, create, update }: { where: Row; create: Row; update: Row }) {
       const w = achatarWhere(where);
       const row = st[nome].find((r) => casa(r, w));

@@ -971,6 +971,7 @@
       "ondeImpacta": "¿Dónde impacta esto?",
       "oQueSeraGerado": "Qué se va a generar",
       "lerNota": "Leer la nota completa en el Centro de ayuda de Zendesk",
+      "trechoTraduzido": "Fragmento (traducción de Zendesk)",
       "trechoOriginal": "Fragmento original",
       "gerar_one": "Generar {{count}} actividad",
       "gerar_other": "Generar {{count}} actividades",
@@ -1029,6 +1030,7 @@
       "nenhuma": "Todavía no hay recolecciones",
       "nenhumaAdmin": "Haz clic en Recolectar ahora para buscar las novedades en el Centro de ayuda de Zendesk.",
       "nenhumaUsuario": "Pide al gestor del Radar que ejecute la primera recolección.",
+      "reconstruida": "Cola rehecha con el lector nuevo: {{artigos}} artículos, {{fila}} señales en la cola y {{arquivados}} en el archivo.",
       "reclassificada": "Cola reclasificada con las reglas nuevas: {{arquivados}} de {{total}} señales pasaron al archivo.",
       "traduzidos": "{{n}} señales recibieron la traducción de Zendesk."
     },

@@ -22,7 +22,8 @@ import {
   sugestoesPara,
   type Impacto,
 } from '../config/taxonomy';
-import { titulo, type SinalBruto } from './parser';
+import type { SinalBruto } from './parser';
+import { tituloDoBruto } from './artigo';
 
 export interface Classificacao {
   titulo: string;
@@ -161,7 +162,7 @@ function detectarProduto(sinal: SinalBruto, ctx: ContextoClassificacao): Produto
   const porH2 = primeiroMatch(H2_PARA_PRODUTO, sinal.grupoProduto ?? '');
   if (porH2 && !CONTAINERS.has(porH2)) return porH2;
 
-  const porH4 = primeiroMatch(H2_PARA_PRODUTO, sinal.grupoComponente ?? '');
+  const porH4 = primeiroMatch(H2_PARA_PRODUTO, `${sinal.grupoComponente ?? ''} ${sinal.rotulo ?? ''}`);
   if (porH4 && !CONTAINERS.has(porH4)) return porH4;
 
   const alvo = `${sinal.texto} ${ctx.tituloArtigo} ${sinal.grupoComponente ?? ''}`;
@@ -178,6 +179,9 @@ function detectarTipo(texto: string, componente: string | null): SignalTipo {
   // mudança que quebra sem ser remoção (contrato de API alterado, por exemplo).
   if (RX.deprecation.test(texto)) return SignalTipo.DEPRECATION;
   if (RX.breaking.test(texto)) return SignalTipo.BREAKING_CHANGE;
+  // Sob "Fixed" é correção, mesmo que o texto use "now"/"available" — antes
+  // do teste de GA, que pegava "…now keep tags…" como novidade.
+  if (/^(fixed|fixes|bug fixes|corrigido|correções)/i.test(componente ?? '')) return SignalTipo.FIX_MINOR;
   if (RX.preco.test(texto)) return SignalTipo.PRICING_PACKAGING;
   if (RX.eap.test(texto)) return SignalTipo.EAP_BETA;
   if (RX.ga.test(texto)) return SignalTipo.GA;
@@ -200,7 +204,7 @@ function detectarTipo(texto: string, componente: string | null): SignalTipo {
  * escopo, suba o número: na coleta seguinte, os sinais ainda na fila (NOVO)
  * com versão antiga são reclassificados a partir da camada crua.
  */
-export const VERSAO_REGRAS = 'regras@2';
+export const VERSAO_REGRAS = 'regras@3';
 
 export class ClassificadorPorRegras implements Classificador {
   readonly nome = VERSAO_REGRAS;
@@ -208,7 +212,8 @@ export class ClassificadorPorRegras implements Classificador {
   async classificar(sinal: SinalBruto, ctx: ContextoClassificacao): Promise<Classificacao> {
     const texto = sinal.texto;
     const produto = detectarProduto(sinal, ctx);
-    const tipo = detectarTipo(texto, sinal.grupoComponente);
+    // marcador do formato novo (<p><strong>Fixed</strong>) ou o H4 do antigo
+    const tipo = detectarTipo(texto, sinal.marcador ?? sinal.grupoComponente);
 
     const requerConfiguracao = RX.config.test(texto);
     const requerDev = RX.dev.test(texto) || /developer/i.test(ctx.fonte);
@@ -229,7 +234,7 @@ export class ClassificadorPorRegras implements Classificador {
     const { sugeridos, avaliar } = sugestoesPara(tipo, { requerConfiguracao, requerDev });
 
     return {
-      titulo: titulo(sinal.grupoComponente ? `${sinal.grupoComponente}: ${texto}` : texto),
+      titulo: tituloDoBruto(sinal),
       // O resumo em PT-BR é trabalho da camada de LLM. Por regras, fica nulo —
       // melhor um campo vazio e honesto do que uma tradução mecânica ruim.
       resumoPtBr: null,

@@ -41,6 +41,8 @@ export interface ResultadoColeta {
   }>;
   totalSinaisCriados: number;
   totalSinaisArquivados: number;
+  /** artigos quebrados de novo porque o parser/as regras mudaram (sem decisão humana) */
+  reconstrucao: ResultadoReconstrucao;
   /** sinais da fila reprocessados porque as regras mudaram */
   reclassificacao: ResultadoReclassificacao;
   /** títulos e trechos em português vindos da tradução do Zendesk */
@@ -87,6 +89,13 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
   const inicio = Date.now();
 
   // 1. Regras mudaram? Reprocessa o que ainda está na fila antes de coletar.
+  let reconstrucao: ResultadoReconstrucao = { artigos: 0, sinaisRemovidos: 0, sinaisCriados: 0, sinaisArquivados: 0 };
+  try {
+    reconstrucao = await reconstruirArtigos(prisma, classificador);
+  } catch (e) {
+    console.error('[psops] reconstrução falhou:', e instanceof Error ? e.message : e);
+  }
+
   let reclassificacao: ResultadoReclassificacao = { reclassificados: 0, arquivados: 0 };
   try {
     reclassificacao = await reclassificarFila(prisma, classificador);
@@ -168,6 +177,7 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
     porFonte,
     totalSinaisCriados: totalCriados,
     totalSinaisArquivados: totalArquivados,
+    reconstrucao,
     reclassificacao,
     traducao,
   };
@@ -347,10 +357,91 @@ async function processarArtigoVivo(ctx: Ctx) {
   return { itensNovos: 1, sinaisCriados: r.criados, sinaisArquivados: r.arquivados, novaWatermark: null };
 }
 
+// ──────────────────── Reconstrução de artigos sem decisão ───────────────────
+
+export interface ResultadoReconstrucao {
+  artigos: number;
+  sinaisRemovidos: number;
+  sinaisCriados: number;
+  sinaisArquivados: number;
+}
+
+/** Status que só a máquina põe: artigo só com eles pode ser quebrado de novo. */
+const STATUS_SEM_DECISAO = ['NOVO', 'NAO_CLASSIFICADO', 'AUTO_ARQUIVADO'];
+
+/**
+ * Quando o parser ou as regras mudam (VERSAO_REGRAS), a reclassificação sozinha
+ * não basta: as âncoras mudam e sinais podem deixar de existir (o bullet que só
+ * agrupava) ou surgir. Para cada artigo com sinais de versão antiga e NENHUMA
+ * decisão humana, apaga os sinais e quebra de novo a partir da camada crua — o
+ * mesmo caminho da coleta. A tradução volta a ficar pendente, para casar com as
+ * âncoras novas na mesma coleta.
+ *
+ * Fica de fora: artigo com qualquer sinal triado/descartado (a reclassificação
+ * por âncora cuida dele) e o artigo-vivo de EAPs (os sinais dele vêm do diff
+ * entre versões, não da quebra do artigo inteiro).
+ */
+export async function reconstruirArtigos(
+  prisma: PrismaClient,
+  classificador: Classificador,
+): Promise<ResultadoReconstrucao> {
+  const r: ResultadoReconstrucao = { artigos: 0, sinaisRemovidos: 0, sinaisCriados: 0, sinaisArquivados: 0 };
+
+  const desatualizados = (await prisma.psOpsSignal.findMany({
+    where: { classificadoPor: { not: classificador.nome } },
+    select: { rawItemId: true },
+  })) as Array<{ rawItemId: string }>;
+  const rawIds = Array.from(new Set(desatualizados.map((x) => x.rawItemId)));
+  if (rawIds.length === 0) return r;
+
+  const raws = (await prisma.psOpsRawItem.findMany({ where: { id: { in: rawIds } } })) as any[];
+  const fontes = (await prisma.psOpsSource.findMany({
+    where: { id: { in: Array.from(new Set(raws.map((x) => x.sourceId))) } },
+  })) as any[];
+
+  for (const raw of raws) {
+    const fonte = fontes.find((f) => f.id === raw.sourceId);
+    if (!fonte || fonte.isLiveArticle) continue;
+
+    const sinais = (await prisma.psOpsSignal.findMany({
+      where: { rawItemId: raw.id },
+      select: { id: true, status: true },
+    })) as Array<{ id: string; status: string }>;
+    if (sinais.some((x) => !STATUS_SEM_DECISAO.includes(x.status))) continue; // tem decisão humana
+
+    try {
+      const p = (raw.payload ?? {}) as { title?: string; body?: string; section_id?: number | string | null };
+      const { nomeFonte, brutos } = brutosDoArtigo(
+        { title: p.title ?? raw.titulo, body: p.body ?? '', section_id: p.section_id ?? raw.secaoId },
+        fonte.nome,
+      );
+      await prisma.psOpsSignal.deleteMany({ where: { rawItemId: raw.id } });
+      const g = await gravarSinais(
+        { prisma, classificador, fonte },
+        {
+          rawItemId: raw.id,
+          externalId: raw.externalId,
+          brutos,
+          ctxClassificacao: { fonte: nomeFonte, tituloArtigo: raw.titulo, labels: raw.labels ?? [] },
+        },
+      );
+      await prisma.psOpsRawItem.update({ where: { id: raw.id }, data: { traducaoPtEm: null } });
+      r.artigos += 1;
+      r.sinaisRemovidos += sinais.length;
+      r.sinaisCriados += g.criados;
+      r.sinaisArquivados += g.arquivados;
+    } catch (e) {
+      console.error(`[psops] reconstrução do artigo ${raw.externalId} falhou:`, e instanceof Error ? e.message : e);
+    }
+  }
+
+  return r;
+}
+
 // ─────────────────────────── Gravação dos sinais ────────────────────────────
 
 async function gravarSinais(
-  ctx: Ctx,
+  ctx: Pick<Ctx, 'prisma' | 'classificador'> & { fonte: { id: string } },
   args: {
     rawItemId: string;
     externalId: string;

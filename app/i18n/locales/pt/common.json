@@ -971,6 +971,7 @@
       "ondeImpacta": "Onde isso impacta?",
       "oQueSeraGerado": "O que vai ser gerado",
       "lerNota": "Ler a nota completa no Help Center do Zendesk",
+      "trechoTraduzido": "Trecho (tradução do Zendesk)",
       "trechoOriginal": "Trecho original",
       "gerar_one": "Gerar {{count}} atividade",
       "gerar_other": "Gerar {{count}} atividades",
@@ -1029,6 +1030,7 @@
       "nenhuma": "Nenhuma coleta ainda",
       "nenhumaAdmin": "Clique em Coletar agora para buscar as novidades no Help Center do Zendesk.",
       "nenhumaUsuario": "Peça ao gestor do Radar para rodar a primeira coleta.",
+      "reconstruida": "Fila refeita com o leitor novo: {{artigos}} artigos, {{fila}} sinais na fila e {{arquivados}} no arquivo.",
       "reclassificada": "Fila reclassificada com as regras novas: {{arquivados}} de {{total}} sinais saíram para o arquivo.",
       "traduzidos": "{{n}} sinais ganharam a tradução do Zendesk."
     },

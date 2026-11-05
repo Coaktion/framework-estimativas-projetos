@@ -7,7 +7,7 @@
  * quebrasse do seu jeito, as âncoras não bateriam.
  */
 import { SECTION_NAMES } from '../config/sources';
-import { parseArtigoEap, parseArtigoUnico, parseReleaseNote, titulo, type SinalBruto } from './parser';
+import { parseArtigoEap, parseArtigoUnico, parseReleaseNote, titulo, RX_MARCADOR, type SinalBruto } from './parser';
 
 export function nomeFonteDoArtigo(secaoId: number | string | null, fonteNome: string): string {
   if (secaoId && SECTION_NAMES[String(secaoId)]) return SECTION_NAMES[String(secaoId)]!;
@@ -40,9 +40,36 @@ export function brutosDoArtigo(
   return { nomeFonte, modo: m, brutos };
 }
 
-/** O título do sinal, montado do mesmo jeito em qualquer idioma. */
+const normalizar = (s: string | null | undefined) => String(s ?? '').trim().toLowerCase();
+
+/** Primeira frase do texto (até o primeiro ". " / "! " / "? "). */
+export function primeiraFrase(texto: string): string {
+  const m = texto.match(/^(.+?[.!?])(\s|$)/);
+  const frase = m ? m[1]! : texto;
+  // frase curtíssima ("New.") não diz nada: fica o texto todo
+  return frase.length >= 25 ? frase.replace(/\.$/, '') : texto;
+}
+
+/**
+ * O título do sinal, montado do mesmo jeito em qualquer idioma:
+ *
+ *   [contexto: ] nome em negrito  — ou —  [contexto: ] primeira frase
+ *
+ * Contexto = o rótulo do grupo ("Rastro for Bling (Support) (paid)") ou o
+ * componente ("Web Crawler"), quando dizem algo além do produto (que já
+ * aparece como etiqueta) e não são só "New"/"Fixed".
+ */
 export function tituloDoBruto(b: SinalBruto): string {
-  return titulo(b.grupoComponente ? `${b.grupoComponente}: ${b.texto}` : b.texto);
+  const corpo = b.destaque || primeiraFrase(b.texto);
+  const candidatos = [b.rotulo, b.grupoComponente];
+  const contexto = candidatos.find(
+    (c) =>
+      c &&
+      !RX_MARCADOR.test(c.trim()) &&
+      normalizar(c) !== normalizar(b.grupoProduto) &&
+      !normalizar(corpo).startsWith(normalizar(c)),
+  );
+  return titulo(contexto ? `${contexto}: ${corpo}` : corpo, 110);
 }
 
 /** Blocos do artigo-vivo (lista de EAPs) no mesmo formato de sinal bruto. */

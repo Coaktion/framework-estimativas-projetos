@@ -10,7 +10,7 @@ import { ExternalLink, Search } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { api } from '@/lib/psops/client/api';
-import { textoDoSinal, type Produto, type RespostaTimeline, type SignalStatus } from '@/lib/psops/client/tipos';
+import { textoDoSinal, urlDaNota, type Produto, type RespostaTimeline, type SignalStatus } from '@/lib/psops/client/tipos';
 import { Badge, CaixaErro, CaixaVazia, Carregando, varianteDoTipo } from './ui';
 
 const OPCOES_SEMANAS = [4, 8, 12];
@@ -161,7 +161,7 @@ export function LinhaDoTempo() {
                         </span>
                       </span>
                       <a
-                        href={sinal.fonteUrl}
+                        href={urlDaNota(sinal.fonteUrl, texto.traduzido)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex shrink-0 items-center gap-1.5 self-start text-label font-bold text-psops-tinta hover:underline"
