@@ -141,7 +141,7 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
 
   // 3. Tradução pt-br do Zendesk para o que já está no banco (inclusive o que
   // acabou de chegar). Falha aqui nunca derruba a coleta.
-  let traducao: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0 };
+  let traducao: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0, parciais: 0 };
   try {
     traducao = await traduzirPendentes(prisma, hc, {
       agora,

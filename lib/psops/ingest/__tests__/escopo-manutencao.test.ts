@@ -12,7 +12,7 @@ import { criarFakePrisma } from '../../services/__tests__/fake-prisma';
 import { coletar } from '../collector';
 import { ClassificadorPorRegras, VERSAO_REGRAS } from '../classify';
 import { MOTIVO_ESCOPO } from '../noise';
-import { reclassificarFila, traduzirPendentes, estruturaBate } from '../manutencao';
+import { reclassificarFila, traduzirPendentes, estruturaBate, ancorasTraduziveis } from '../manutencao';
 import { parseReleaseNote } from '../parser';
 import type { ClienteHc } from '../../zendesk/client';
 import type { HcArticle } from '../../zendesk/types';
@@ -238,11 +238,39 @@ test('tradução: estrutura igual → título e trecho em português, bullet a b
   assert.equal(r2.conferidos, 0);
 });
 
-test('tradução: estrutura diferente → fica em inglês e tenta de novo depois', async () => {
+test('tradução: uma seção diferente → só ela fica em inglês, o resto é traduzido', async () => {
   const f = criarFakePrisma();
   semearRawENSinais(f);
-  // a tradução "perdeu" um bullet: as âncoras deixam de bater
+  // a tradução "perdeu" um bullet na seção Copilot (H2 nº 1); as demais batem
   const corpoTorto = BODY_PT.replace(/<li>PT: Fixed a typo[^<]*<\/li>/, '');
+
+  const r = await traduzirPendentes(asPrisma(f), hcComTraducao(corpoTorto), { agora: AGORA });
+  assert.equal(r.estruturaDiferente, 0);
+  assert.equal(r.parciais, 1);
+  assert.equal(r.artigosTraduzidos, 1);
+  assert.equal(r.sinaisTraduzidos, 3, 'Contact Center e Apps não dependem da seção Copilot');
+  assert.match(String(f.estado.signals.find((s) => s.id === 's-voice')!.trechoPt), /^PT: Voice AI agents/);
+  assert.ok(f.estado.rawItems[0]!.traducaoPtEm instanceof Date, 'artigo encerrado: não é consultado de novo');
+});
+
+test('tradução: seção que não bate não recebe texto de outro item', async () => {
+  const f = criarFakePrisma();
+  semearRawENSinais(f);
+  // tira um bullet da seção Contact Center (H2 nº 2): s-voice (2.1.2) não pode
+  // receber o texto que "subiu" de posição; Apps (H2 nº 4) segue traduzida
+  const corpoTorto = BODY_PT.replace(/<li>PT: With the voice testing widget[^<]*<\/li>/, '');
+
+  const r = await traduzirPendentes(asPrisma(f), hcComTraducao(corpoTorto), { agora: AGORA });
+  assert.equal(r.parciais, 1);
+  assert.equal(f.estado.signals.find((s) => s.id === 's-voice')!.trechoPt, undefined, 'Contact Center fica em inglês');
+  assert.match(String(f.estado.signals.find((s) => s.id === 's-dev')!.trechoPt), /^PT: /);
+});
+
+test('tradução: nenhuma seção bate → fica em inglês e tenta de novo depois', async () => {
+  const f = criarFakePrisma();
+  semearRawENSinais(f);
+  // tradução com estrutura toda diferente: um único bloco
+  const corpoTorto = '<h2>Tudo</h2><h4>Junto</h4><ul><li>PT: um item só</li></ul>';
 
   const r = await traduzirPendentes(asPrisma(f), hcComTraducao(corpoTorto), { agora: AGORA });
   assert.equal(r.estruturaDiferente, 1);
@@ -272,4 +300,17 @@ test('estruturaBate exige mesma quantidade e mesmas âncoras, na mesma ordem', (
   assert.equal(estruturaBate(en, parseReleaseNote(BODY_PT)), true);
   assert.equal(estruturaBate(en, en.slice(1)), false);
   assert.equal(estruturaBate([], []), false, 'vazio não é tradução');
+});
+
+test('ancorasTraduziveis: libera só as seções iguais', () => {
+  const en = parseReleaseNote(RELEASE_NOTE_HTML);
+  const tudo = ancorasTraduziveis(en, parseReleaseNote(BODY_PT));
+  assert.equal(tudo.size, en.length, 'estrutura igual libera tudo');
+
+  const semTypo = parseReleaseNote(BODY_PT.replace(/<li>PT: Fixed a typo[^<]*<\/li>/, ''));
+  const parcial = ancorasTraduziveis(en, semTypo);
+  assert.ok(!Array.from(parcial).some((a) => a.startsWith('1.')), 'seção 1 (Copilot) fica de fora');
+  assert.ok(parcial.has('2.1.2') && parcial.has('4.2.1'), 'as outras seções entram');
+
+  assert.equal(ancorasTraduziveis([], []).size, 0, 'vazio não é tradução');
 });

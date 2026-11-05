@@ -8,8 +8,9 @@
  *   2. traduzir — busca a versão pt-br que o próprio Zendesk publica no Help
  *      Center e preenche título e trecho em português. A tradução costuma sair
  *      dias depois do original, então cada artigo recente é conferido de novo a
- *      cada coleta até ela aparecer. Só aplica quando a estrutura bate bullet a
- *      bullet; na dúvida, o sinal fica em inglês (melhor do que traduzido errado).
+ *      cada coleta até ela aparecer. Aplica seção por seção, só onde a estrutura
+ *      bate bullet a bullet; seção que não bate fica em inglês (melhor do que
+ *      traduzido errado).
  */
 import type { PrismaClient } from '@prisma/client';
 import type { ClienteHc } from '../zendesk/client';
@@ -152,8 +153,10 @@ export interface ResultadoTraducao {
   /** artigos cuja tradução foi aplicada */
   artigosTraduzidos: number;
   sinaisTraduzidos: number;
-  /** tradução existe, mas a estrutura não bate com a original */
+  /** tradução existe, mas NENHUMA seção bate com a original */
   estruturaDiferente: number;
+  /** traduzidos só em parte: alguma seção não bateu e ficou em inglês */
+  parciais: number;
 }
 
 export const TRADUCAO_LOCALE = 'pt-br';
@@ -162,9 +165,44 @@ export const TRADUCAO_JANELA_DIAS = 30;
 /** Teto de consultas por coleta — cada uma é uma chamada ao Zendesk. */
 export const TRADUCAO_MAX_POR_COLETA = 12;
 
-/** Mesma quebra, mesma ordem, mesmas âncoras. Senão, não aplica. */
+/** Mesma quebra, mesma ordem, mesmas âncoras — o artigo inteiro. */
 export function estruturaBate(en: SinalBruto[], pt: SinalBruto[]): boolean {
   return en.length > 0 && en.length === pt.length && en.every((b, i) => b.ancora === pt[i]!.ancora);
+}
+
+/** Seção de um bruto: o primeiro número da âncora (o H2 numa release note). */
+const secaoDa = (ancora: string) => ancora.split('.')[0]!;
+
+/**
+ * Âncoras que podem receber a tradução: as das seções em que a versão pt-br
+ * tem exatamente os mesmos itens, na mesma ordem, que a original.
+ *
+ * Comparar seção por seção (e não o artigo inteiro) é o que faz a tradução
+ * pegar: a versão pt-br costuma ter uma diferença pequena num ponto só — por
+ * exemplo, dois itens a mais na introdução ("Produtos sem atualizações esta
+ * semana") — e, no tudo-ou-nada, isso jogava fora o artigo inteiro. Seção que
+ * não bate fica em inglês: nunca há risco de pôr o texto de um item em outro.
+ */
+export function ancorasTraduziveis(en: SinalBruto[], pt: SinalBruto[]): Set<string> {
+  const agrupar = (lista: SinalBruto[]) => {
+    const m = new Map<string, string[]>();
+    lista.forEach((b) => {
+      const s = secaoDa(b.ancora);
+      if (!m.has(s)) m.set(s, []);
+      m.get(s)!.push(b.ancora);
+    });
+    return m;
+  };
+  const enPorSecao = agrupar(en);
+  const ptPorSecao = agrupar(pt);
+  const ok = new Set<string>();
+  enPorSecao.forEach((ancorasEn, secao) => {
+    const ancorasPt = ptPorSecao.get(secao);
+    if (!ancorasPt || ancorasPt.length !== ancorasEn.length) return;
+    if (!ancorasEn.every((a, i) => a === ancorasPt[i])) return;
+    ancorasEn.forEach((a) => ok.add(a));
+  });
+  return ok;
 }
 
 export async function traduzirPendentes(
@@ -172,7 +210,7 @@ export async function traduzirPendentes(
   hc: ClienteHc,
   opts: { agora: () => Date; ate?: number },
 ): Promise<ResultadoTraducao> {
-  const r: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0 };
+  const r: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0, parciais: 0 };
   if (!hc.pegarTraducao) return r;
 
   const desde = new Date(opts.agora().getTime() - TRADUCAO_JANELA_DIAS * 86_400_000);
@@ -209,15 +247,24 @@ export async function traduzirPendentes(
       en.modo,
     );
 
-    if (!estruturaBate(en.brutos, pt.brutos)) {
+    const traduziveis = ancorasTraduziveis(en.brutos, pt.brutos);
+    if (traduziveis.size === 0) {
       r.estruturaDiferente += 1;
       console.warn(
         `[psops] tradução de ${raw.externalId} com estrutura diferente (${en.brutos.length} × ${pt.brutos.length} itens) — mantido em inglês`,
       );
       continue;
     }
+    if (!estruturaBate(en.brutos, pt.brutos)) {
+      // Aplica o que bate e encerra o artigo: as seções que não bateram ficam
+      // em inglês (em geral a introdução, que nem vira sinal acionável).
+      r.parciais += 1;
+      console.warn(
+        `[psops] tradução de ${raw.externalId} aplicada em parte (${traduziveis.size} de ${en.brutos.length} itens) — o resto fica em inglês`,
+      );
+    }
 
-    const ptPorAncora = new Map(pt.brutos.map((b) => [b.ancora, b]));
+    const ptPorAncora = new Map(pt.brutos.filter((b) => traduziveis.has(b.ancora)).map((b) => [b.ancora, b]));
     const sinais = (await prisma.psOpsSignal.findMany({
       where: { rawItemId: raw.id },
       select: { id: true, ancora: true },
