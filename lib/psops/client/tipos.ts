@@ -157,6 +157,15 @@ export function textoDoSinal(
  * aplicada, abre a versão pt-br do mesmo artigo (/hc/pt-br/articles/:id).
  * O slug em inglês sai — o Help Center redireciona para o slug do idioma.
  */
+/**
+ * "Release notes through 2026-10-23" → "23/10". Os sinais de uma mesma nota
+ * de versão carregam o mesmo título de artigo; a data é o que os distingue.
+ */
+export function dataDaNota(fonteTitulo: string | null | undefined): string | null {
+  const m = String(fonteTitulo ?? '').match(/(\d{4})-(\d{2})-(\d{2})/);
+  return m && /release notes|notas de vers/i.test(String(fonteTitulo)) ? `${m[3]}/${m[2]}` : null;
+}
+
 export function urlDaNota(url: string, traduzido: boolean): string {
   if (!traduzido) return url;
   return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, '/hc/pt-br/articles/$2');

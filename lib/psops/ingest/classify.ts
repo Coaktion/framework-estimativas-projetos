@@ -19,6 +19,7 @@ import {
   SignalTipo,
   PRODUTO_PARA_MODULO,
   calcularScore,
+  relevanciaNegocio,
   sugestoesPara,
   type Impacto,
 } from '../config/taxonomy';
@@ -83,6 +84,8 @@ const TEXTO_PARA_PRODUTO: Array<[RegExp, Produto]> = [
   [/\bwhatsapp|messaging|sunshine conversations\b/i, Produto.MESSAGING],
   [/\bapi token|oauth|endpoint|webhook|mcp|sdk|ios version|android version|rest api|graphql\b/i, Produto.DEVELOPER_API],
   [/\bworkforce|shift|forecast\b/i, Produto.WFM],
+  // fluxos de ação: automação do Support, que configuramos nas implantações
+  [/\baction (flows?|builder)\b/i, Produto.SUPPORT],
   [/\bquality assurance|spotlight\b/i, Produto.QA],
   [/\bmarketplace|integration\b/i, Produto.MARKETPLACE],
   [/\bpermission|role|team member|sso|authentication|department space\b/i, Produto.ADMIN_SEGURANCA],
@@ -204,7 +207,7 @@ function detectarTipo(texto: string, componente: string | null): SignalTipo {
  * escopo, suba o número: na coleta seguinte, os sinais ainda na fila (NOVO)
  * com versão antiga são reclassificados a partir da camada crua.
  */
-export const VERSAO_REGRAS = 'regras@3';
+export const VERSAO_REGRAS = 'regras@4';
 
 export class ClassificadorPorRegras implements Classificador {
   readonly nome = VERSAO_REGRAS;
@@ -229,6 +232,7 @@ export class ClassificadorPorRegras implements Classificador {
       requerDev,
       afetaPreco,
       temDataLimite: dataLimite !== null,
+      relevancia: relevanciaNegocio(`${texto} ${sinal.rotulo ?? ''} ${sinal.grupoComponente ?? ''}`),
     });
 
     const { sugeridos, avaliar } = sugestoesPara(tipo, { requerConfiguracao, requerDev });

@@ -91,6 +91,8 @@ export interface ContextoEscopo {
   tituloArtigo: string;
   grupoProduto: string | null;
   grupoComponente: string | null;
+  /** rótulo do grupo no formato novo — no Marketplace, o nome do app */
+  rotulo?: string | null;
   produto: Produto;
   tipo: SignalTipo;
 }
@@ -99,7 +101,20 @@ export const MOTIVO_ESCOPO = {
   dev: 'fora do escopo: Developer / API',
   incidente: 'fora do escopo: incidente ou manutenção do serviço',
   correcao: 'fora do escopo: correção (Fixed)',
+  parceiro: 'fora do escopo: app ou tema de parceiro no Marketplace',
 } as const;
+
+/** Seções das release notes que listam apps do Marketplace. */
+const RX_SECAO_MARKETPLACE = /(marketplace|apps and integrations|apps e integra|aplicativos)/i;
+
+/**
+ * Apps e integrações que estão no NOSSO catálogo — Framework de estimativas
+ * (Marketplace, Canais, Integrações Nativas, CallWe) e Calculadora AE. Novidade
+ * de qualquer outro app de parceiro (o Marketplace lista dezenas por semana,
+ * quase todos de nicho) vai para o arquivo. Atualize junto com o catálogo.
+ */
+export const APPS_DO_CATALOGO =
+  /\b(pipedrive|air ?call|woo ?commerce|dial ?pad|sweethawk|conditional fields|condicionais|salesforce|slack|microsoft teams|whats ?app|instagram|facebook|messenger|google business|apple messages|callwe|droz|vtex|stripe)\b/i;
 
 export function avaliarEscopo(c: ContextoEscopo): ResultadoRuido {
   const cabecalhos = `${c.fonte ?? ''} ${c.tituloArtigo} ${c.grupoProduto ?? ''} ${c.grupoComponente ?? ''}`;
@@ -111,6 +126,13 @@ export function avaliarEscopo(c: ContextoEscopo): ResultadoRuido {
   }
   if (c.tipo === 'FIX_MINOR') {
     return { arquivar: true, motivo: MOTIVO_ESCOPO.correcao };
+  }
+  // App/tema de parceiro: está numa seção de Marketplace e é um app (o rótulo
+  // é o nome dele, ou, no formato antigo, o próprio sinal é do Marketplace).
+  // Anúncio da própria Zendesk sobre o Marketplace não tem rótulo e fica.
+  if (RX_SECAO_MARKETPLACE.test(c.grupoProduto ?? '') && (c.rotulo || c.produto === 'MARKETPLACE')) {
+    const nome = c.rotulo || c.texto;
+    if (!APPS_DO_CATALOGO.test(nome)) return { arquivar: true, motivo: MOTIVO_ESCOPO.parceiro };
   }
   return { arquivar: false, motivo: null };
 }

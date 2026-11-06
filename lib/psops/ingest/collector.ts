@@ -477,6 +477,7 @@ async function gravarSinais(
           tituloArtigo: args.ctxClassificacao.tituloArtigo,
           grupoProduto: bruto.grupoProduto,
           grupoComponente: bruto.grupoComponente,
+          rotulo: bruto.rotulo,
           produto: c.produto,
           tipo: c.tipo,
         }),

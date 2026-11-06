@@ -113,6 +113,7 @@ export async function reclassificarFila(
           tituloArtigo: ctx.tituloArtigo,
           grupoProduto: b.grupoProduto,
           grupoComponente: b.grupoComponente,
+          rotulo: b.rotulo,
           produto: c.produto,
           tipo: c.tipo,
         }),

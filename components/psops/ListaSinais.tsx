@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { Badge, varianteDoTipo } from './ui';
-import { textoDoSinal, type Impacto, type Sinal } from '@/lib/psops/client/tipos';
+import { dataDaNota, textoDoSinal, type Impacto, type Sinal } from '@/lib/psops/client/tipos';
 
 /**
  * A fila. Densa de propósito: o triador precisa varrer 40 itens sem rolar mais
@@ -25,6 +25,14 @@ export function ListaSinais({
   const { language } = useLanguage();
   const refLista = useRef<HTMLUListElement>(null);
   const refSelecionado = useRef<HTMLLIElement>(null);
+
+  // Itens da mesma nota de versão: a etiqueta repete o artigo e diz quantos
+  // itens dele estão na fila, para não parecerem novidades soltas.
+  const itensPorArtigo = useMemo(() => {
+    const m: Record<string, number> = {};
+    sinais.forEach((s) => { m[s.fonteUrl] = (m[s.fonteUrl] ?? 0) + 1; });
+    return m;
+  }, [sinais]);
 
   // Navegação por teclado precisa manter o item escolhido visível — rolando
   // só a lista. scrollIntoView rolaria a página inteira junto.
@@ -88,6 +96,14 @@ export function ListaSinais({
                   <Badge variante="produto">{t(`psops.produto.${s.produto}`)}</Badge>
                   <Badge variante={varianteDoTipo(s.tipo)}>{t(`psops.tipo.${s.tipo}`)}</Badge>
                   {impactos.length ? <Badge variante="discreto">{impactos.join(' · ')}</Badge> : null}
+                  {dataDaNota(s.fonteTitulo) ? (
+                    <Badge variante="discreto" titulo={s.fonteTitulo}>
+                      {t('psops.triagem.notaDeVersao', { data: dataDaNota(s.fonteTitulo) })}
+                      {(itensPorArtigo[s.fonteUrl] ?? 0) > 1
+                        ? ` · ${t('psops.triagem.itensDaNota', { count: itensPorArtigo[s.fonteUrl] })}`
+                        : ''}
+                    </Badge>
+                  ) : null}
                 </span>
               </span>
             </button>

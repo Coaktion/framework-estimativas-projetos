@@ -98,6 +98,44 @@ test('classificação: item sob <p><strong>Fixed</strong> é correção e vai pa
   assert.deepEqual(d, { arquivar: true, motivo: MOTIVO_ESCOPO.correcao });
 });
 
+// ───────────────────── Relevância para o nosso negócio ──────────────────────
+
+const escopoDe = async (b: ReturnType<typeof parseReleaseNote>[number]) => {
+  const c = await new ClassificadorPorRegras().classificar(b, { fonte: 'Release notes', tituloArtigo: 'Release notes', labels: [] });
+  return {
+    c,
+    d: avaliarEscopo({
+      texto: b.texto, fonte: 'Release notes', tituloArtigo: 'Release notes',
+      grupoProduto: b.grupoProduto, grupoComponente: b.grupoComponente, rotulo: b.rotulo,
+      produto: c.produto, tipo: c.tipo,
+    }),
+  };
+};
+
+test('app de parceiro no Marketplace vai para o arquivo; app do nosso catálogo fica', async () => {
+  const s = parseReleaseNote(NOVO_FORMATO);
+  const rastro = s.find((x) => x.texto.startsWith('Rastro'))!;
+  assert.deepEqual((await escopoDe(rastro)).d, { arquivar: true, motivo: MOTIVO_ESCOPO.parceiro });
+
+  // mesmo formato, mas um app que está no Framework (Marketplace › Pipedrive)
+  const comPipedrive = parseReleaseNote(
+    NOVO_FORMATO.replace('<strong>Rastro for Bling</strong>', '<strong>Pipedrive for Zendesk</strong>'),
+  ).find((x) => x.rotulo?.startsWith('Pipedrive'))!;
+  assert.equal((await escopoDe(comPipedrive)).d.arquivar, false, 'app do catálogo continua na fila');
+});
+
+test('nota: produto que implantamos falando do que configuramos vem antes do genérico', async () => {
+  const s = parseReleaseNote(NOVO_FORMATO);
+  const insights = (await escopoDe(s.find((x) => x.texto.startsWith('Article and procedure'))!)).c;
+  const generico = await new ClassificadorPorRegras().classificar(
+    { ...s[0]!, grupoProduto: 'Billing', grupoComponente: null, rotulo: null, destaque: null, marcador: 'New',
+      texto: 'You can now download a PDF copy of your monthly invoice from the billing page.' },
+    { fonte: 'Release notes', tituloArtigo: 'Release notes', labels: [] },
+  );
+  assert.equal(insights.produto, 'AI_AGENTS');
+  assert.ok(insights.score > generico.score, `${insights.score} deveria passar ${generico.score}`);
+});
+
 // ─────────────────────────────── Reconstrução ───────────────────────────────
 
 function semear(f: ReturnType<typeof criarFakePrisma>) {

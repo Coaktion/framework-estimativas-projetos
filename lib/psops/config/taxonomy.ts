@@ -154,22 +154,56 @@ const PESO_TIPO: Record<SignalTipo, number> = {
   FIX_MINOR: 4,
 };
 
-/** Produtos centrais do portfólio pesam mais na ordenação da fila. */
+/**
+ * Peso de cada produto no NOSSO trabalho — o que vendemos e implantamos:
+ * Support e canais estão em todo projeto; AI Agents (inclusive migração de
+ * Droz) e Copilot são as frentes que mais crescem; Knowledge entra em quase
+ * toda implantação; Voice/CallWe, WFM e QA (WEM), Analytics e ADPP são módulos
+ * do Framework, menos frequentes. Developer/API sai pelo filtro de escopo.
+ */
 const PESO_PRODUTO: Partial<Record<Produto, number>> = {
-  CONTACT_CENTER: 16,
-  AI_AGENTS: 16,
-  COPILOT: 14,
-  SUPPORT: 12,
-  KNOWLEDGE: 12,
-  DEVELOPER_API: 12,
-  MESSAGING: 10,
+  AI_AGENTS: 20,
+  COPILOT: 18,
+  SUPPORT: 16,
+  MESSAGING: 16,
+  KNOWLEDGE: 14,
+  CONTACT_CENTER: 12,
+  WFM: 10,
+  QA: 10,
   ANALYTICS: 8,
-  ADMIN_SEGURANCA: 6,
-  WFM: 6,
-  QA: 6,
-  MARKETPLACE: 2,
+  ADMIN_SEGURANCA: 8,
+  DEVELOPER_API: 0,
+  MARKETPLACE: 0,
   OUTRO: 0,
 };
+
+/**
+ * Áreas que aparecem nos nossos escopos e no catálogo do Framework (Support,
+ * Canais, Integrações nativas, AI Agents Advanced, Copilot, Knowledge, Voice,
+ * WFM, QA, Analytics, ADPP). Sinal que fala de uma delas mexe com o que
+ * configuramos, estimamos ou demonstramos — sobe na fila. Texto em inglês: é o
+ * original da release note.
+ */
+const AREAS_DO_NEGOCIO: ReadonlyArray<RegExp> = [
+  // configuração de Support que cotamos item a item
+  /\b(triggers?|automations?|macros?|views?|sla|slas|ticket (fields?|forms?)|custom (statuses|status|objects?|fields?)|business (rules|hours)|schedules?|holidays?)\b/i,
+  /\b(omnichannel routing|routing|skills|queues?|side conversations?|light agents?|roles?|permissions?|multibrand|brands?|sandbox|action flows?)\b/i,
+  // canais e integrações do catálogo
+  /\b(messaging|whats ?app|instagram|facebook|messenger|web widget|email channel|sms|slack|microsoft teams|salesforce|apple messages|google business)\b/i,
+  // IA: AI Agents e Copilot
+  /\b(ai agents?|procedures?|dialogues?|intents?|generative replies|auto ?assist|intelligent triage|sentiment|suggested (replies|macros)|summar(y|ies|ize)|copilot)\b/i,
+  // Knowledge
+  /\b(help center|knowledge (base|sources?|graph|connectors?)|articles?|generative search|content blocks?)\b/i,
+  // Voice / Contact Center, WEM e Analytics
+  /\b(voice|calls?|ivr|dialer|talk|contact center|forecast(ing)?|adherence|staffing|autoqa|scorecards?|calibrations?|explore|dashboards?|reports?)\b/i,
+  // privacidade e segurança (ADPP)
+  /\b(data masking|redaction|redact|pii|advanced data privacy|adpp|encryption|retention)\b/i,
+];
+
+/** Quantas áreas do nosso negócio o texto toca (0 = assunto que nunca vendemos). */
+export function relevanciaNegocio(texto: string): number {
+  return AREAS_DO_NEGOCIO.filter((rx) => rx.test(texto)).length;
+}
 
 export interface ScoreInput {
   tipo: SignalTipo;
@@ -178,12 +212,18 @@ export interface ScoreInput {
   requerDev: boolean;
   afetaPreco: boolean;
   temDataLimite: boolean;
+  /** áreas do nosso negócio citadas (relevanciaNegocio) */
+  relevancia?: number;
 }
 
 /**
  * 0–100. Serve só para ordenar a fila de leitura — nunca para decidir.
  * Determinístico de propósito: o mesmo sinal recebe sempre o mesmo score,
  * o que torna a fila estável entre execuções e o resultado testável.
+ *
+ * Relevância para o negócio pesa tanto quanto o tipo: uma novidade de produto
+ * que implantamos, falando de algo que configuramos, vem antes de qualquer
+ * coisa genérica. Sem nenhuma área nossa, o sinal perde pontos.
  */
 export function calcularScore(i: ScoreInput): number {
   let s = PESO_TIPO[i.tipo] + (PESO_PRODUTO[i.produto] ?? 0);
@@ -191,6 +231,8 @@ export function calcularScore(i: ScoreInput): number {
   if (i.requerDev) s += 8;
   if (i.afetaPreco) s += 10;
   if (i.temDataLimite) s += 12;
+  const relevancia = i.relevancia ?? 0;
+  s += relevancia === 0 ? -12 : relevancia === 1 ? 8 : 14;
   return Math.max(0, Math.min(100, s));
 }
 

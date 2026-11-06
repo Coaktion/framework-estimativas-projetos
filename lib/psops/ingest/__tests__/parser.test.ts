@@ -101,10 +101,11 @@ test('deprecation com data limite: tipo, data e os quatro impactos', async () =>
     Impacto.ESTIM,
     Impacto.ESCOPO,
   ]);
-  assert.ok(c.score >= 80, `score alto esperado, recebi ${c.score}`);
+  // A nota não é alta: é Developer/API, assunto que não vendemos (e que o filtro
+  // de escopo manda para o arquivo). Tipo, prazo e impactos continuam certos.
 });
 
-test('a deprecation com prazo lidera a fila da release note', async () => {
+test('lidera a fila o que pesa no nosso negócio: preço do WhatsApp, não API', async () => {
   const sinais = parseReleaseNote(RELEASE_NOTE_HTML);
   const classificados = await Promise.all(
     sinais
@@ -112,7 +113,9 @@ test('a deprecation com prazo lidera a fila da release note', async () => {
       .map(async (s) => ({ s, c: await clf.classificar(s, ctxRelease) })),
   );
   classificados.sort((a, b) => b.c.score - a.c.score);
-  assert.match(classificados[0]!.s.texto, /removal of API tokens/);
+  assert.match(classificados[0]!.s.texto, /WhatsApp Business messaging pricing/);
+  const api = classificados.find((x) => /removal of API tokens/.test(x.s.texto))!;
+  assert.ok(api.c.score < classificados[0]!.c.score);
 });
 
 test('produto de sinal sob container ("Apps and integrations") usa H4 e texto', async () => {
