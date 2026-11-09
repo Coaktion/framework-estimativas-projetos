@@ -683,7 +683,7 @@
     "categoryNotFound": "Categoria não encontrada.",
     "createUserFailed": "Erro ao criar usuário",
     "emailRequired": "E-mail obrigatório",
-    "emailDomain": "Use um e-mail @aktienow.com: o login é feito com a conta Google da empresa.",
+    "emailDomain": "Use um e-mail {{domains}}: o login é feito com a conta Google da empresa.",
     "emailTaken": "Já existe usuário com este e-mail",
     "generic": "Erro inesperado. Tente novamente.",
     "invalidSegment": "Segmento inválido",
@@ -749,13 +749,13 @@
   "login": {
     "dataProtection": "Proteção de Dados Coaktion",
     "signInWithGoogle": "Entrar com Google",
-    "ssoDomain": "Use sua conta Google @aktienow.com.",
+    "ssoDomain": "Use sua conta Google corporativa ({{domains}}).",
     "ssoNotRegistered": "Sua conta Google não está cadastrada no Tool Center. Peça acesso a um admin.",
     "ssoGenericError": "Não foi possível entrar com o Google. Tente de novo.",
     "restrictedAccess": "Acesso restrito ao time Aktie Now",
     "signIn": "Entrar no Sistema",
     "ssoNotConfigured": "O login com Google não está configurado neste ambiente. Avise um admin.",
-    "ssoHint": "Use sua conta Google @aktienow.com. O acesso é liberado por um admin."
+    "ssoHint": "Use sua conta Google corporativa ({{domains}}). O acesso é liberado por um admin."
   },
   "meta": {
     "description": "Central de ferramentas do time de pré-vendas",
@@ -856,7 +856,7 @@
   },
   "profile": {
     "googleOnlyTitle": "Login com Google",
-    "googleOnlyHint": "Você entra com sua conta Google @aktienow.com. Não há senha no Tool Center.",
+    "googleOnlyHint": "Você entra com sua conta Google corporativa ({{domains}}). Não há senha no Tool Center.",
     "titleAccent": "Profile"
 ,
     "apiKeys": "Chaves de API (MCP)",

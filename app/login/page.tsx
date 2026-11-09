@@ -5,9 +5,10 @@ import { getProviders, signIn } from "next-auth/react";
 import { Shield, Loader2, AlertCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "@/components/LanguageToggle";
+import { ssoDomainsLabel } from "@/lib/sso-domains";
 
 /**
- * Login só com Google (SSO @aktienow.com). As regras ficam em lib/auth.ts;
+ * Login só com Google (domínios em lib/sso-domains.ts). As regras ficam em lib/auth.ts;
  * recusas voltam para /login?error=<código>.
  */
 export default function LoginPage() {
@@ -28,7 +29,7 @@ export default function LoginPage() {
   }, []);
 
   function ssoErrorMessage(code: string) {
-    if (code === 'SsoDomain') return t('login.ssoDomain');
+    if (code === 'SsoDomain') return t('login.ssoDomain', { domains: ssoDomainsLabel() });
     if (code === 'SsoNotRegistered' || code === 'AccessDenied') return t('login.ssoNotRegistered');
     return t('login.ssoGenericError');
   }
@@ -74,7 +75,7 @@ export default function LoginPage() {
           </button>
         )}
 
-        <p className="text-caption text-slate-500 text-center">{t('login.ssoHint')}</p>
+        <p className="text-caption text-slate-500 text-center">{t('login.ssoHint', { domains: ssoDomainsLabel() })}</p>
 
         <div className="flex items-center justify-center gap-2 text-slate-500">
           <Shield className="w-3 h-3" />

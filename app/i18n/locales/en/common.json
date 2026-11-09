@@ -683,7 +683,7 @@
     "categoryNotFound": "Category not found.",
     "createUserFailed": "Failed to create the user",
     "emailRequired": "Email is required",
-    "emailDomain": "Use an @aktienow.com email: sign-in uses the company Google account.",
+    "emailDomain": "Use a {{domains}} email: sign-in uses the company Google account.",
     "emailTaken": "A user with this email already exists",
     "generic": "Unexpected error. Please try again.",
     "invalidSegment": "Invalid segment",
@@ -749,13 +749,13 @@
   "login": {
     "dataProtection": "Coaktion Data Protection",
     "signInWithGoogle": "Sign in with Google",
-    "ssoDomain": "Use your @aktienow.com Google account.",
+    "ssoDomain": "Use your company Google account ({{domains}}).",
     "ssoNotRegistered": "Your Google account isn't registered in Tool Center. Ask an admin for access.",
     "ssoGenericError": "Couldn't sign in with Google. Please try again.",
     "restrictedAccess": "Restricted to the Aktie Now team",
     "signIn": "Sign In",
     "ssoNotConfigured": "Google sign-in isn't configured in this environment. Contact an admin.",
-    "ssoHint": "Use your @aktienow.com Google account. Access is granted by an admin."
+    "ssoHint": "Use your company Google account ({{domains}}). Access is granted by an admin."
   },
   "meta": {
     "description": "Tools center for the pre-sales team",
@@ -856,7 +856,7 @@
   },
   "profile": {
     "googleOnlyTitle": "Google sign-in",
-    "googleOnlyHint": "You sign in with your @aktienow.com Google account. Tool Center has no passwords.",
+    "googleOnlyHint": "You sign in with your company Google account ({{domains}}). Tool Center has no passwords.",
     "titleAccent": "Profile"
 ,
     "apiKeys": "API keys (MCP)",

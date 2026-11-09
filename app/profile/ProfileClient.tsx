@@ -2,6 +2,7 @@
 
 import { Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { ssoDomainsLabel } from "@/lib/sso-domains";
 
 type Props = {
   name: string;
@@ -47,7 +48,7 @@ export default function ProfileClient({ name, email, role, children }: Props) {
           <Shield className="w-5 h-5 text-brand-primary" />
           <h2 className="text-title font-medium text-brand-dark">{t('profile.googleOnlyTitle')}</h2>
         </div>
-        <p className="text-body text-[color:var(--text-muted)]">{t('profile.googleOnlyHint')}</p>
+        <p className="text-body text-[color:var(--text-muted)]">{t('profile.googleOnlyHint', { domains: ssoDomainsLabel() })}</p>
       </div>
 
       {children}

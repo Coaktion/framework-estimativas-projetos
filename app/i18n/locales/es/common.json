@@ -683,7 +683,7 @@
     "categoryNotFound": "Categoría no encontrada.",
     "createUserFailed": "Error al crear el usuario",
     "emailRequired": "El correo electrónico es obligatorio",
-    "emailDomain": "Usa un correo @aktienow.com: el inicio de sesión usa la cuenta de Google de la empresa.",
+    "emailDomain": "Usa un correo {{domains}}: el inicio de sesión usa la cuenta de Google de la empresa.",
     "emailTaken": "Ya existe un usuario con este correo electrónico",
     "generic": "Error inesperado. Inténtalo de nuevo.",
     "invalidSegment": "Segmento no válido",
@@ -749,13 +749,13 @@
   "login": {
     "dataProtection": "Protección de datos Coaktion",
     "signInWithGoogle": "Iniciar sesión con Google",
-    "ssoDomain": "Usa tu cuenta de Google @aktienow.com.",
+    "ssoDomain": "Usa tu cuenta de Google corporativa ({{domains}}).",
     "ssoNotRegistered": "Tu cuenta de Google no está registrada en Tool Center. Pide acceso a un admin.",
     "ssoGenericError": "No se pudo iniciar sesión con Google. Inténtalo de nuevo.",
     "restrictedAccess": "Acceso restringido al equipo de Aktie Now",
     "signIn": "Iniciar sesión",
     "ssoNotConfigured": "El inicio de sesión con Google no está configurado en este entorno. Avisa a un admin.",
-    "ssoHint": "Usa tu cuenta de Google @aktienow.com. El acceso lo concede un admin."
+    "ssoHint": "Usa tu cuenta de Google corporativa ({{domains}}). El acceso lo concede un admin."
   },
   "meta": {
     "description": "Centro de herramientas del equipo de preventa",
@@ -856,7 +856,7 @@
   },
   "profile": {
     "googleOnlyTitle": "Inicio de sesión con Google",
-    "googleOnlyHint": "Entras con tu cuenta de Google @aktienow.com. Tool Center no usa contraseñas.",
+    "googleOnlyHint": "Entras con tu cuenta de Google corporativa ({{domains}}). Tool Center no usa contraseñas.",
     "titleAccent": "Perfil"
 ,
     "apiKeys": "Claves de API (MCP)",

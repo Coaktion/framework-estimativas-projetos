@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { isAllowedEmail, ssoDomainsLabel } from '../lib/sso-domains'
 
 const prisma = new PrismaClient()
 
@@ -7,12 +8,12 @@ async function main() {
 
   // Usuário admin inicial — só é criado se a base ainda não tem NENHUM admin.
   // O login é só com Google: o e-mail (SEED_ADMIN_EMAIL) precisa ser uma conta
-  // do Workspace @aktienow.com. Usuários existentes nunca são alterados.
+  // de um domínio liberado (lib/sso-domains.ts). Usuários existentes nunca são alterados.
   const adminCount = await prisma.user.count({ where: { isAdmin: true } })
   if (adminCount === 0) {
     const email = (process.env.SEED_ADMIN_EMAIL || '').trim().toLowerCase()
-    if (!email.endsWith('@aktienow.com')) {
-      throw new Error('Defina SEED_ADMIN_EMAIL com o e-mail @aktienow.com do primeiro admin (login com Google).')
+    if (!isAllowedEmail(email)) {
+      throw new Error(`Defina SEED_ADMIN_EMAIL com o e-mail (${ssoDomainsLabel()}) do primeiro admin (login com Google).`)
     }
     await prisma.user.upsert({
       where: { email },

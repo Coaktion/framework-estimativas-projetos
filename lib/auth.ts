@@ -3,17 +3,18 @@ import GoogleProvider from "next-auth/providers/google";
 import prisma from "./prisma";
 import { normalizeSegment, syncIsAdmin } from "@/lib/segments";
 import { resolveNextAuthUrl } from "@/lib/auth-url";
+import { SSO_DOMAINS, isAllowedEmail } from "@/lib/sso-domains";
 
 // NEXTAUTH_URL certo para este deploy (branch deploys do Netlify): ver lib/auth-url.ts.
 resolveNextAuthUrl();
 
 /**
- * Login SÓ com Google (SSO): só contas do Google Workspace deste domínio
- * entram, e o e-mail precisa já existir na tabela de usuários (quem cria
+ * Login SÓ com Google (SSO): só contas do Google Workspace dos domínios de
+ * lib/sso-domains.ts entram, e o e-mail precisa já existir na tabela de usuários (quem cria
  * usuário é o admin). O Google só autentica; segmento e permissões continuam
  * vindo do banco. Não existe mais login por senha.
  */
-export const SSO_DOMAIN = 'aktienow.com';
+export { SSO_DOMAINS } from "@/lib/sso-domains";
 
 /**
  * O botão do Google só aparece quando o OAuth do login está configurado.
@@ -35,9 +36,10 @@ export const authOptions: NextAuthOptions = {
             clientSecret: ssoClientSecret,
             authorization: {
               params: {
-                // `hd` só filtra a tela de contas do Google; a checagem de
-                // verdade é no callback `signIn` abaixo.
-                hd: SSO_DOMAIN,
+                // `hd` só filtra a tela de contas do Google (a checagem de
+                // verdade é no callback `signIn`). O Google aceita um domínio
+                // só; com vários, '*' mostra apenas contas de Workspace.
+                hd: (SSO_DOMAINS as readonly string[]).length === 1 ? SSO_DOMAINS[0] : '*',
                 prompt: 'select_account',
               },
             },
@@ -57,10 +59,14 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider !== 'google') return false; // só existe login com Google
 
       const email = String(profile?.email || '').trim().toLowerCase();
+      // `hd` é o domínio da ORGANIZAÇÃO do Workspace (o principal): um e-mail
+      // @coaktion.com que seja domínio secundário do Workspace da aktienow vem
+      // com hd = aktienow.com; se for outra organização, hd = coaktion.com.
+      // Por isso os dois são conferidos contra a lista, separadamente.
       const domainOk =
         profile?.email_verified === true &&
-        profile?.hd === SSO_DOMAIN &&
-        email.endsWith(`@${SSO_DOMAIN}`);
+        (SSO_DOMAINS as readonly string[]).includes(String(profile?.hd || '').toLowerCase()) &&
+        isAllowedEmail(email);
       if (!domainOk) return '/login?error=SsoDomain';
 
       const dbUser = await prisma.user.findUnique({ where: { email }, select: { id: true } });

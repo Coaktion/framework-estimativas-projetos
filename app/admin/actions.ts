@@ -3,7 +3,8 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
-import { authOptions, SSO_DOMAIN } from "@/lib/auth";
+import { authOptions } from "@/lib/auth";
+import { isAllowedEmail, ssoDomainsLabel } from "@/lib/sso-domains";
 import { getServerT, getServerLanguage } from "@/app/i18n/server";
 import { normalizeSegment, syncIsAdmin, canManageSegments, isSegment } from "@/lib/segments";
 import { ZENDESK_PLANS } from "@/lib/zendesk-plans";
@@ -133,7 +134,7 @@ export async function createUserAction(data: {
   const email = String(data.email || '').trim().toLowerCase();
   if (!email) return { success: false, error: getServerT()('errors.emailRequired') };
   // O login é só pelo Google do Workspace: outro domínio nunca conseguiria entrar.
-  if (!email.endsWith(`@${SSO_DOMAIN}`)) return { success: false, error: getServerT()('errors.emailDomain') };
+  if (!isAllowedEmail(email)) return { success: false, error: getServerT()('errors.emailDomain', { domains: ssoDomainsLabel() }) };
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { success: false, error: getServerT()('errors.emailTaken') };

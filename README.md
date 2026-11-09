@@ -26,7 +26,7 @@ Módulos:
 | ORM | Prisma 5 |
 | Banco (produção) | PostgreSQL via Neon |
 | Banco (local) | Na máquina do dev ou outra conta no Neon |
-| Autenticação | NextAuth.js v4 — só Google (SSO @aktienow.com), sessão JWT |
+| Autenticação | NextAuth.js v4 — só Google (SSO @aktienow.com / @coaktion.com), sessão JWT |
 | Deploy | Netlify (com `@netlify/plugin-nextjs`) |
 | i18n | i18next |
 
@@ -81,8 +81,8 @@ Cada usuário tem **um segmento** (coluna `User.role`). A matriz completa fica e
 
 ### Login
 
-- **Google (SSO)** — só contas `@aktienow.com` do Google Workspace, e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_SSO_CLIENT_ID` / `GOOGLE_SSO_CLIENT_SECRET`, um cliente OAuth próprio do login (ver `.env.example`).
-- Não existe login por senha. Para dar acesso, o admin cria o usuário (e-mail `@aktienow.com`) no painel Admin.
+- **Google (SSO)** — só contas de Google Workspace dos domínios em `lib/sso-domains.ts` (`@aktienow.com` e `@coaktion.com`), e o e-mail precisa estar cadastrado (o admin cria o usuário). O Google só autentica: o segmento continua vindo do banco. Configuração em `GOOGLE_SSO_CLIENT_ID` / `GOOGLE_SSO_CLIENT_SECRET`, um cliente OAuth próprio do login (ver `.env.example`).
+- Não existe login por senha. Para dar acesso, o admin cria o usuário (e-mail de um domínio liberado) no painel Admin.
 
 Projetos privados só são vistos pelo dono e por admins. Em projetos públicos, qualquer usuário de Escopo pode abrir e salvar versões, mas só o dono ou um admin renomeia ou exclui.
 
@@ -119,7 +119,7 @@ npx prisma migrate deploy
 npx prisma db seed
 ```
 
-O seed só cria o admin se a base ainda não tiver nenhum, e nunca altera usuários existentes. Defina `SEED_ADMIN_EMAIL` com o e-mail `@aktienow.com` de quem será o admin (ele entra com a conta Google). As demais variáveis (Agendamento, ZD Auto Config, Pre-Sales Ops, Zoho, Pastas) estão documentadas no `.env.example`.
+O seed só cria o admin se a base ainda não tiver nenhum, e nunca altera usuários existentes. Defina `SEED_ADMIN_EMAIL` com o e-mail (domínio liberado) de quem será o admin (ele entra com a conta Google). As demais variáveis (Agendamento, ZD Auto Config, Pre-Sales Ops, Zoho, Pastas) estão documentadas no `.env.example`.
 
 ### 4. Rodar
 
