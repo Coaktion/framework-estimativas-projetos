@@ -607,10 +607,32 @@ model PsOpsArtifact {
 
   atividades PsOpsActivity[]
   aplicacoes PsOpsArtifactSignal[]
+  atualizacoes PsOpsArtifactUpdate[]
 
   @@index([tipo])
   @@index([donoId])
   @@map("psops_artifacts")
+}
+
+/// Histórico de atualizações de um artefato — o "commit": quem atualizou,
+/// quando e o que mudou (descrição obrigatória). Vem do Mapa de Artefatos ou
+/// da conclusão de uma atividade (activityId/signalId dizem de onde veio).
+/// A última atualização do artefato é a data do commit mais recente, também
+/// gravada em PsOpsArtifact.revisaoDeclaradaEm.
+model PsOpsArtifactUpdate {
+  id         String        @id @default(cuid())
+  artifactId String
+  artifact   PsOpsArtifact @relation(fields: [artifactId], references: [id], onDelete: Cascade)
+  /// id do User do portal
+  autorId    String
+  descricao  String        @db.Text
+  criadoEm   DateTime      @default(now())
+  /// atividade e feature de origem, quando o commit veio da conclusão
+  activityId String?
+  signalId   String?
+
+  @@index([artifactId, criadoEm])
+  @@map("psops_artifact_updates")
 }
 
 /// A tabela pequena que entrega o valor grande: por que este artefato está do

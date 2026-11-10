@@ -15,9 +15,11 @@ import { api } from '@/lib/psops/client/api';
 import {
   ABAS_MODULO,
   IMPACTOS_ORDEM,
+  TIPO_ARTEFATO_DO_IMPACTO,
   abaDoProduto,
   textoDoSinal,
   urlDaNota,
+  type Artefato,
   type Atividade,
   type AtividadeStatus,
   type Impacto,
@@ -386,11 +388,39 @@ function DetalheAtividade({
     );
   };
 
+  // Demo, Estimativa e Escopo: quais artefatos foram atualizados e o que mudou
+  // (vira um commit em cada um). O sugerido na triagem já vem marcado.
+  const tipoArtefato = TIPO_ARTEFATO_DO_IMPACTO[a.tipo];
+  const artefatoSugerido = a.artifact?.id ?? null;
+  const [opcoesArt, setOpcoesArt] = useState<Artefato[] | null>(null);
+  const [marcados, setMarcados] = useState<string[]>(a.artifact ? [a.artifact.id] : []);
+  const [descricao, setDescricao] = useState('');
+  useEffect(() => {
+    if (!tipoArtefato || concluida) return;
+    let vivo = true;
+    api
+      .get<{ itens: Artefato[] }>('/api/pre-sales-ops/artifacts')
+      .then((r) => {
+        if (!vivo) return;
+        const doTipo = r.itens.filter((x) => x.tipo === tipoArtefato);
+        setOpcoesArt(doTipo);
+        // Demo atualiza os 3 ambientes padrão quase sempre: já vêm marcados
+        if (a.tipo === 'DEMO' && !artefatoSugerido) setMarcados(doTipo.map((x) => x.id));
+      })
+      .catch(() => vivo && setOpcoesArt([]));
+    return () => {
+      vivo = false;
+    };
+    // pelo id: recarregar a atividade (a cada item do DoD) não desfaz as marcações
+  }, [tipoArtefato, concluida, a.tipo, a.id, artefatoSugerido]);
+  const faltaCommit = Boolean(tipoArtefato) && (marcados.length === 0 || descricao.trim().length < 5);
+
   const podeConcluir =
     !concluida &&
     a.progresso.total > 0 &&
     a.pendencias.faltamCheck === 0 &&
-    a.pendencias.faltamEvidencia === 0;
+    a.pendencias.faltamEvidencia === 0 &&
+    !faltaCommit;
 
   return (
     <Portal>
@@ -441,7 +471,9 @@ function DetalheAtividade({
             <div>
               <div className={`${rotulo} mb-1.5`}>{t('psops.backlog.artefato')}</div>
               <div className="text-[12.5px] font-bold text-psops-texto">
-                {a.artifact?.nome ?? t('psops.backlog.fichaDaFeature')}
+                {a.tipo === 'ESTUDO'
+                  ? t('psops.backlog.fichaDaFeature')
+                  : (a.artifact?.nome ?? t(`psops.backlog.grupoArtefatos.${a.tipo}`))}
               </div>
             </div>
             <div>
@@ -523,6 +555,44 @@ function DetalheAtividade({
             <FichaEstudoForm fichaId={a.studyNote.id} somenteLeitura={concluida} avisar={avisar} />
           ) : null}
 
+          {tipoArtefato && !concluida ? (
+            <div className="mb-2 rounded-2xl border border-psops-linha bg-psops-surf2 p-4">
+              <div className={`${rotulo} mb-2`}>{t('psops.backlog.quaisArtefatos')}</div>
+              {!opcoesArt ? (
+                <p className="text-[12px] text-psops-muted">{t('psops.carregando')}</p>
+              ) : (
+                <div className="mb-3 grid gap-1.5 sm:grid-cols-2">
+                  {opcoesArt.map((o) => (
+                    <label key={o.id} className="flex cursor-pointer items-start gap-2 text-[12px] text-psops-texto">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--psops-acento))]"
+                        checked={marcados.includes(o.id)}
+                        disabled={ocupado}
+                        onChange={(e) =>
+                          setMarcados((m) => (e.target.checked ? [...m, o.id] : m.filter((x) => x !== o.id)))
+                        }
+                      />
+                      <span>{o.nome}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <label htmlFor="psops-commit" className={`${rotulo} mb-1.5 block`}>
+                {t('psops.backlog.oQueMudou')}
+              </label>
+              <textarea
+                id="psops-commit"
+                rows={3}
+                value={descricao}
+                disabled={ocupado}
+                onChange={(e) => setDescricao(e.target.value)}
+                placeholder={t('psops.backlog.oQueMudouPlaceholder')}
+                className="w-full rounded-xl border border-psops-linha bg-psops-surf1 px-3 py-2 text-[12.5px] text-psops-texto outline-none focus:border-psops-tinta"
+              />
+            </div>
+          ) : null}
+
           <div className="mt-6 flex flex-wrap items-center gap-2.5 border-t border-psops-linha pt-5">
             {concluida ? (
               <span className="text-[12px] text-psops-muted">
@@ -539,7 +609,11 @@ function DetalheAtividade({
                   disabled={!podeConcluir || ocupado}
                   onClick={() =>
                     void executar(
-                      () => api.post(`/api/pre-sales-ops/activities/${a.id}/complete`),
+                      () =>
+                        api.post(
+                          `/api/pre-sales-ops/activities/${a.id}/complete`,
+                          tipoArtefato ? { artefatoIds: marcados, descricao: descricao.trim() } : undefined,
+                        ),
                       a.tipo === 'ESTUDO'
                         ? t('psops.backlog.concluidaFicha')
                         : t('psops.backlog.concluida'),
@@ -551,10 +625,12 @@ function DetalheAtividade({
                 </button>
                 {!podeConcluir ? (
                   <span className="text-label text-psops-muted">
-                    {t('psops.backlog.faltam', {
-                      itens: a.pendencias.faltamCheck,
-                      evidencias: a.pendencias.faltamEvidencia,
-                    })}
+                    {a.pendencias.faltamCheck || a.pendencias.faltamEvidencia
+                      ? t('psops.backlog.faltam', {
+                          itens: a.pendencias.faltamCheck,
+                          evidencias: a.pendencias.faltamEvidencia,
+                        })
+                      : t('psops.backlog.faltaCommit')}
                   </span>
                 ) : null}
               </>

@@ -23,9 +23,8 @@
     "displayNameEn": "Nombre para mostrar (EN)",
     "displayNameField": "Nombre para mostrar",
     "displayNamePt": "Nombre para mostrar (PT-BR)",
-    "emailRequired": "El correo electrónico es obligatorio",
-    "emailPlaceholder": "p. ej., nombre@aktienow.com",
     "emailRequired": "Correo electrónico *",
+    "emailPlaceholder": "p. ej., nombre@aktienow.com",
     "excludeFromPct": "Excluir del % de:",
     "excludedItems": "Ítems excluidos",
     "exportData": "Exportar datos",
@@ -769,7 +768,7 @@
     "feedbackTitle": "Enviar una sugerencia o reportar un error",
     "history": "Calculadora",
     "language": "Idioma",
-    "more": "M\u00e1s",
+    "more": "Más",
     "lightMode": "Modo claro",
     "normalMode": "Modo cómodo",
     "projects": "Estimaciones",
@@ -857,8 +856,7 @@
   "profile": {
     "googleOnlyTitle": "Inicio de sesión con Google",
     "googleOnlyHint": "Entras con tu cuenta de Google corporativa ({{domains}}). Tool Center no usa contraseñas.",
-    "titleAccent": "Perfil"
-,
+    "titleAccent": "Perfil",
     "apiKeys": "Claves de API (MCP)",
     "apiKeysHint": "Permiten que Claude (Claude Code, Cowork) consulte el catálogo, cree proyectos y guarde nuevas versiones de estimación en tu nombre. La clave nunca borra ni modifica versiones existentes.",
     "apiKeyNamePlaceholder": "Nombre de la clave (ej.: Claude Code — portátil)",
@@ -1124,27 +1122,27 @@
       "NAO_VERIFICADO": "No verificado"
     },
     "mapa": {
-      "editoria": "Quién responde por qué",
+      "editoria": "Artefactos del equipo",
       "titulo": "Mapa de artefactos",
-      "subtitulo": "Los activos que mantiene el equipo y el dueño de cada uno. Toda actividad generada en el triaje hereda el responsable de aquí. La salud usa la fecha en que la fuente confirmó la actualización, no el clic en concluir.",
+      "subtitulo": "Los ambientes de demo, las estimaciones y los documentos de alcance que mantiene el equipo. Cada uno muestra el responsable, la fecha de la última actualización y el historial. Haz clic en el artefacto para ver la línea de tiempo y registrar una actualización.",
       "statTotal": "Artefactos",
-      "statTotalSub": "plantilla, framework y alcance",
+      "statTotalSub": "demo, estimación y alcance",
       "statSemDono": "Sin dueño",
       "statSemDonoSub": "las actividades nacen sin responsable",
       "statAbertas": "Con actividades abiertas",
       "statAbertasSub": "necesitan actualización",
       "statAtencao": "Necesitan atención",
-      "statAtencaoSub": "atrasados o divergentes",
+      "statAtencaoSub": "actualizados hace mucho tiempo",
       "soAdmin": "Solo el gestor del Radar define el dueño de un artefacto.",
       "grupo": {
-        "DEMO_TEMPLATE": "Plantilla de demo",
-        "FRAMEWORK": "Framework de estimación",
-        "ESCOPO": "Bloques de alcance"
+        "DEMO_TEMPLATE": "Ambientes de demo",
+        "FRAMEWORK": "Estimaciones",
+        "ESCOPO": "Documentos de alcance"
       },
       "grupoDica": {
-        "DEMO_TEMPLATE": "la planilla que usa ZD Auto Config",
-        "FRAMEWORK": "uno por área del catálogo",
-        "ESCOPO": "uno por área del catálogo"
+        "DEMO_TEMPLATE": "estándar Brasil, EE. UU. y SSAC",
+        "FRAMEWORK": "uno por módulo de estimación del Tool Center",
+        "ESCOPO": "cada documento en PT, EN y ES"
       },
       "colNome": "Artefacto",
       "colSaude": "Salud",
@@ -1162,7 +1160,24 @@
       "donoComHeranca": "Dueño definido: {{nome}}. {{n}} actividades que estaban sin responsable pasaron a esta persona.",
       "donoRemovido": "El artefacto quedó sin dueño. Las actividades ya asignadas no cambian.",
       "vazioTitulo": "Todavía no hay artefactos",
-      "vazioTexto": "La base de artefactos se crea en la primera recolección. Vuelve a la Cola de triaje y usa Recolectar ahora."
+      "vazioTexto": "La lista de artefactos se crea sola. Recarga la página; si sigue vacía, usa Recolectar ahora en la Cola de Triaje.",
+      "statNunca": "Sin actualización registrada",
+      "statNuncaSub": "todavía sin ningún registro",
+      "colUltima": "Última actualización",
+      "commits_one": "{{count}} actualización",
+      "commits_other": "{{count}} actualizaciones",
+      "haDias_one": "hace {{count}} día",
+      "haDias_other": "hace {{count}} días",
+      "nuncaAtualizado": "sin actualización registrada",
+      "registrarTitulo": "Registrar actualización",
+      "registrarPlaceholder": "¿Qué cambió? Ej.: incluí el flujo de resúmenes personalizados en el ambiente.",
+      "registrar": "Registrar actualización",
+      "registrando": "Registrando…",
+      "registrado": "Actualización registrada en {{nome}}.",
+      "soDono": "Solo el responsable del artefacto (o el gestor del Radar) registra actualizaciones aquí.",
+      "historico": "Historial de actualizaciones",
+      "historicoVazio": "Todavía no hay actualizaciones registradas.",
+      "origem": "Feature: {{titulo}}"
     },
     "backlog": {
       "editoria": "Ejecución",
@@ -1197,7 +1212,16 @@
       "concluidaEm": "Concluida el {{data}}.",
       "faltam": "Faltan {{itens}} ítems y {{evidencias}} evidencias.",
       "vazioTitulo": "Todavía no hay actividades",
-      "vazioTexto": "Las actividades aparecen aquí cuando se tría una señal en la Cola de triaje."
+      "vazioTexto": "Las actividades aparecen aquí cuando se tría una señal en la Cola de triaje.",
+      "grupoArtefatos": {
+        "DEMO": "Ambientes de demo (Brasil, EE. UU., SSAC)",
+        "ESTIM": "Estimación",
+        "ESCOPO": "Documentos de alcance"
+      },
+      "quaisArtefatos": "¿Qué artefactos actualizaste?",
+      "oQueMudou": "Qué cambió",
+      "oQueMudouPlaceholder": "Describe la actualización. Va al historial de cada artefacto marcado.",
+      "faltaCommit": "Marca los artefactos actualizados y describe qué cambió."
     },
     "ficha": {
       "titulo": "Ficha de la funcionalidad",

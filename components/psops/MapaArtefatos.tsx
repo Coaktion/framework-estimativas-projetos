@@ -1,29 +1,35 @@
 'use client';
 
 /**
- * Mapa de Artefatos — os ativos que o time mantém (template de demo, framework
- * de estimativa por frente, blocos de escopo por frente) e quem responde por
- * cada um. O dono daqui é de onde toda atividade gerada herda o responsável.
+ * Mapa de Artefatos — o que o time mantém, com dono, data da última
+ * atualização e o histórico de atualizações ("commits") de cada um:
  *
- * O semáforo usa a data VERIFICADA (a fonte confirmou), nunca o clique.
+ *   Demo       → os 3 ambientes de demo padrão (Brasil, EUA, SSAC)
+ *   Estimativa → um por módulo de estimativa do Tool Center
+ *   Escopo     → os documentos de escopo, cada um em PT, EN e ES
+ *
+ * Clicar no artefato abre a linha do tempo e, para o dono (ou o gestor), o
+ * campo de registrar atualização.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '@/lib/psops/client/api';
 import {
   ARTEFATO_TIPOS_ORDEM,
+  urlDaNota,
   type Artefato,
   type EstadoSaude,
+  type HistoricoArtefato,
   type Pessoa,
   type RespostaPessoas,
 } from '@/lib/psops/client/tipos';
-import { Avatar, Badge, CaixaErro, CaixaVazia, Carregando, Painel, StatTile, rotulo } from './ui';
+import { Avatar, Badge, CaixaErro, CaixaVazia, Carregando, Painel, StatTile, btnPrimario, rotulo } from './ui';
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 
-export function MapaArtefatos({ gestor }: { gestor: boolean }) {
+export function MapaArtefatos({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | null }) {
   return (
     <ProvedorDeAvisos>
-      <Conteudo gestor={gestor} />
+      <Conteudo gestor={gestor} usuarioId={usuarioId} />
     </ProvedorDeAvisos>
   );
 }
@@ -36,13 +42,20 @@ const VARIANTE_SAUDE: Record<EstadoSaude, 'ga' | 'alerta' | 'deprecation' | 'dis
   NAO_VERIFICADO: 'discreto',
 };
 
-function Conteudo({ gestor }: { gestor: boolean }) {
+/** "Custom SE Pacote de Horas · PT" → documento "Custom SE Pacote de Horas", idioma "PT". */
+function partesEscopo(nome: string): { doc: string; idioma: string } {
+  const i = nome.lastIndexOf(' · ');
+  return i < 0 ? { doc: nome, idioma: '' } : { doc: nome.slice(0, i), idioma: nome.slice(i + 3) };
+}
+
+function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | null }) {
   const { t } = useTranslation();
   const avisar = useAvisos();
   const [itens, setItens] = useState<Artefato[] | null>(null);
   const [pessoas, setPessoas] = useState<Pessoa[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState<string | null>(null);
+  const [aberto, setAberto] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -92,9 +105,9 @@ function Conteudo({ gestor }: { gestor: boolean }) {
     const l = itens ?? [];
     return {
       total: l.length,
-      semDono: l.filter((a) => !a.donoId).length,
+      nunca: l.filter((a) => !a.ultimaAtualizacao).length,
       comAbertas: l.filter((a) => a.pendentes > 0).length,
-      atencao: l.filter((a) => ['ATENCAO', 'CRITICO', 'DIVERGENTE'].includes(a.saude.estado)).length,
+      atencao: l.filter((a) => ['ATENCAO', 'CRITICO'].includes(a.saude.estado)).length,
     };
   }, [itens]);
 
@@ -113,22 +126,16 @@ function Conteudo({ gestor }: { gestor: boolean }) {
     return <CaixaVazia titulo={t('psops.mapa.vazioTitulo')} texto={t('psops.mapa.vazioTexto')} />;
   }
 
+  const colunas = 'md:grid-cols-[1.8fr_1.1fr_.6fr_1.4fr]';
+
   return (
     <>
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <StatTile rotulo={t('psops.mapa.statTotal')} valor={resumo.total} sub={t('psops.mapa.statTotalSub')} />
-        <StatTile
-          rotulo={t('psops.mapa.statSemDono')}
-          valor={resumo.semDono}
-          sub={t('psops.mapa.statSemDonoSub')}
-        />
+        <StatTile rotulo={t('psops.mapa.statNunca')} valor={resumo.nunca} sub={t('psops.mapa.statNuncaSub')} />
         <StatTile rotulo={t('psops.mapa.statAbertas')} valor={resumo.comAbertas} sub={t('psops.mapa.statAbertasSub')} />
         <StatTile rotulo={t('psops.mapa.statAtencao')} valor={resumo.atencao} sub={t('psops.mapa.statAtencaoSub')} />
       </div>
-
-      {!gestor && resumo.semDono > 0 ? (
-        <p className="mb-4 text-[12px] text-psops-muted">{t('psops.mapa.soAdmin')}</p>
-      ) : null}
 
       <div className="space-y-5">
         {ARTEFATO_TIPOS_ORDEM.map((tipo) => {
@@ -136,67 +143,210 @@ function Conteudo({ gestor }: { gestor: boolean }) {
           if (doTipo.length === 0) return null;
           return (
             <Painel key={tipo} titulo={t(`psops.mapa.grupo.${tipo}`)} dica={t(`psops.mapa.grupoDica.${tipo}`)}>
-              <div className="hidden grid-cols-[1.7fr_1fr_.5fr_.6fr_1.5fr] gap-4 border-b border-psops-linha px-6 py-2.5 md:grid">
-                {['colNome', 'colSaude', 'colVersao', 'colAbertas', 'colDono'].map((c) => (
+              <div className={`hidden gap-4 border-b border-psops-linha px-6 py-2.5 md:grid ${colunas}`}>
+                {['colNome', 'colUltima', 'colAbertas', 'colDono'].map((c) => (
                   <span key={c} className={rotulo}>
                     {t(`psops.mapa.${c}`)}
                   </span>
                 ))}
               </div>
               <ul>
-                {doTipo.map((a) => (
-                  <li
-                    key={a.id}
-                    className="grid grid-cols-2 items-center gap-x-4 gap-y-2 border-b border-psops-linha px-6 py-3.5 last:border-b-0 md:grid-cols-[1.7fr_1fr_.5fr_.6fr_1.5fr]"
-                  >
-                    <div className="col-span-2 md:col-span-1">
-                      <div className="text-[13px] font-bold text-psops-texto">{a.nome}</div>
-                      <div className="text-[10.5px] text-psops-muted">
-                        {t(`psops.mapa.fonte.${a.fonteVerificacao}`)}
-                      </div>
-                    </div>
-                    <div title={a.saude.detalhe}>
-                      <Badge variante={VARIANTE_SAUDE[a.saude.estado]}>{t(`psops.saude.${a.saude.estado}`)}</Badge>
-                    </div>
-                    <div className="text-[12px] text-psops-texto">
-                      <span className="md:hidden">{t('psops.mapa.colVersao')}: </span>v{a.versao}
-                    </div>
-                    <div className={`text-[12px] ${a.pendentes > 0 ? 'font-bold text-psops-tinta' : 'text-psops-muted'}`}>
-                      <span className="md:hidden">{t('psops.mapa.colAbertas')}: </span>
-                      {a.pendentes}
-                    </div>
-                    <div className="col-span-2 md:col-span-1">
-                      {gestor ? (
-                        <select
-                          aria-label={t('psops.mapa.colDono')}
-                          value={a.donoId ?? ''}
-                          disabled={salvando === a.id}
-                          onChange={(e) => void definirDono(a, e.target.value || null)}
-                          className={`w-full rounded-xl border bg-psops-surf2 px-3 py-2 text-[12px] font-bold outline-none focus:border-psops-tinta disabled:opacity-50 ${
-                            a.donoId ? 'border-psops-linha text-psops-texto' : 'border-dashed border-psops-forte text-psops-muted'
-                          }`}
-                        >
-                          <option value="">{t('psops.mapa.semDono')}</option>
-                          {pessoas.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.nome}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="flex items-center gap-2 text-[12px] text-psops-texto">
-                          <Avatar iniciais={a.donoIniciais ?? '?'} indefinido={!a.donoId} />
-                          {a.donoNome ?? <span className="text-psops-muted">{t('psops.mapa.semDono')}</span>}
-                        </span>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                {doTipo.map((a, i) => {
+                  const doc = tipo === 'ESCOPO' ? partesEscopo(a.nome).doc : null;
+                  const docAnterior = tipo === 'ESCOPO' && i > 0 ? partesEscopo(doTipo[i - 1]!.nome).doc : null;
+                  const podeRegistrar = !a.donoId || a.donoId === usuarioId || gestor;
+                  return (
+                    <Fragment key={a.id}>
+                      {doc && doc !== docAnterior ? (
+                        <li className="border-b border-psops-linha bg-psops-surf2 px-6 py-2 text-[11px] font-bold uppercase tracking-wide text-psops-muted">
+                          {doc}
+                        </li>
+                      ) : null}
+                      <li className="border-b border-psops-linha last:border-b-0">
+                        <div className={`grid grid-cols-2 items-center gap-x-4 gap-y-2 px-6 py-3.5 ${colunas}`}>
+                          <button
+                            type="button"
+                            onClick={() => setAberto(aberto === a.id ? null : a.id)}
+                            aria-expanded={aberto === a.id}
+                            className="col-span-2 text-left md:col-span-1"
+                          >
+                            <div className="text-[13px] font-bold text-psops-texto hover:text-psops-tinta">
+                              <span className="mr-1.5 inline-block w-3 text-psops-muted">{aberto === a.id ? '▾' : '▸'}</span>
+                              {doc ? partesEscopo(a.nome).idioma : a.nome}
+                            </div>
+                            <div className="pl-[18px] text-[10.5px] text-psops-muted">
+                              {t('psops.mapa.commits', { count: a.atualizacoesTotal })} · v{a.versao}
+                            </div>
+                          </button>
+                          <div title={a.saude.detalhe}>
+                            {a.ultimaAtualizacao ? (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-[12px] text-psops-texto">
+                                  {new Date(a.ultimaAtualizacao).toLocaleDateString()}
+                                </span>
+                                <Badge variante={VARIANTE_SAUDE[a.saude.estado]}>
+                                  {t('psops.mapa.haDias', { count: a.saude.idadeDias ?? 0 })}
+                                </Badge>
+                              </div>
+                            ) : (
+                              <Badge variante="discreto">{t('psops.mapa.nuncaAtualizado')}</Badge>
+                            )}
+                          </div>
+                          <div className={`text-[12px] ${a.pendentes > 0 ? 'font-bold text-psops-tinta' : 'text-psops-muted'}`}>
+                            <span className="md:hidden">{t('psops.mapa.colAbertas')}: </span>
+                            {a.pendentes}
+                          </div>
+                          <div className="col-span-2 md:col-span-1">
+                            {gestor ? (
+                              <select
+                                aria-label={t('psops.mapa.colDono')}
+                                value={a.donoId ?? ''}
+                                disabled={salvando === a.id}
+                                onChange={(e) => void definirDono(a, e.target.value || null)}
+                                className={`w-full rounded-xl border bg-psops-surf2 px-3 py-2 text-[12px] font-bold outline-none focus:border-psops-tinta disabled:opacity-50 ${
+                                  a.donoId ? 'border-psops-linha text-psops-texto' : 'border-dashed border-psops-forte text-psops-muted'
+                                }`}
+                              >
+                                <option value="">{t('psops.mapa.semDono')}</option>
+                                {pessoas.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.nome}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="flex items-center gap-2 text-[12px] text-psops-texto">
+                                <Avatar iniciais={a.donoIniciais ?? '?'} indefinido={!a.donoId} />
+                                {a.donoNome ?? <span className="text-psops-muted">{t('psops.mapa.semDono')}</span>}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {aberto === a.id ? (
+                          <LinhaDoTempoArtefato
+                            artefato={a}
+                            podeRegistrar={podeRegistrar}
+                            onRegistrado={() => void carregar()}
+                          />
+                        ) : null}
+                      </li>
+                    </Fragment>
+                  );
+                })}
               </ul>
             </Painel>
           );
         })}
       </div>
     </>
+  );
+}
+
+function LinhaDoTempoArtefato({
+  artefato,
+  podeRegistrar,
+  onRegistrado,
+}: {
+  artefato: Artefato;
+  podeRegistrar: boolean;
+  onRegistrado: () => void;
+}) {
+  const { t } = useTranslation();
+  const avisar = useAvisos();
+  const [hist, setHist] = useState<HistoricoArtefato | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [descricao, setDescricao] = useState('');
+  const [enviando, setEnviando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    try {
+      setHist(await api.get<HistoricoArtefato>(`/api/pre-sales-ops/artifacts/${artefato.id}`));
+    } catch (e) {
+      setErro((e as Error).message);
+    }
+  }, [artefato.id]);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+
+  const registrar = async () => {
+    setEnviando(true);
+    try {
+      await api.post(`/api/pre-sales-ops/artifacts/${artefato.id}/updates`, { descricao: descricao.trim() });
+      setDescricao('');
+      avisar(t('psops.mapa.registrado', { nome: artefato.nome }));
+      await carregar();
+      onRegistrado();
+    } catch (e) {
+      avisar((e as Error).message, 'erro');
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-psops-linha bg-psops-surf2 px-6 py-4">
+      {podeRegistrar ? (
+        <div className="mb-4">
+          <label className={`${rotulo} mb-1.5 block`} htmlFor={`desc-${artefato.id}`}>
+            {t('psops.mapa.registrarTitulo')}
+          </label>
+          <textarea
+            id={`desc-${artefato.id}`}
+            value={descricao}
+            onChange={(e) => setDescricao(e.target.value)}
+            rows={2}
+            placeholder={t('psops.mapa.registrarPlaceholder')}
+            className="w-full rounded-xl border border-psops-linha bg-psops-surf1 px-3 py-2 text-[12.5px] text-psops-texto outline-none focus:border-psops-tinta"
+          />
+          <div className="mt-2 flex justify-end">
+            <button
+              type="button"
+              className={btnPrimario}
+              disabled={enviando || descricao.trim().length < 5}
+              onClick={() => void registrar()}
+            >
+              {enviando ? t('psops.mapa.registrando') : t('psops.mapa.registrar')}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="mb-3 text-[11.5px] text-psops-muted">{t('psops.mapa.soDono')}</p>
+      )}
+
+      <div className={`${rotulo} mb-2`}>{t('psops.mapa.historico')}</div>
+      {erro ? (
+        <p className="text-[12px] text-psops-muted">{erro}</p>
+      ) : !hist ? (
+        <p className="text-[12px] text-psops-muted">{t('psops.carregando')}</p>
+      ) : hist.atualizacoes.length === 0 ? (
+        <p className="text-[12px] text-psops-muted">{t('psops.mapa.historicoVazio')}</p>
+      ) : (
+        <ol className="relative ml-2 border-l border-psops-linha">
+          {hist.atualizacoes.map((u) => (
+            <li key={u.id} className="mb-3 ml-4 last:mb-0">
+              <span className="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full bg-psops-tinta" />
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-psops-muted">
+                <Avatar iniciais={u.autorIniciais} />
+                <span className="font-bold text-psops-texto">{u.autorNome ?? '—'}</span>
+                <span>{new Date(u.criadoEm).toLocaleString()}</span>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-psops-texto">{u.descricao}</p>
+              {u.sinal ? (
+                <a
+                  href={urlDaNota(u.sinal.fonteUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-1 inline-block text-[11px] text-psops-tinta hover:underline"
+                >
+                  {t('psops.mapa.origem', { titulo: u.sinal.titulo })}
+                </a>
+              ) : null}
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   );
 }

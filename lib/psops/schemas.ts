@@ -95,6 +95,17 @@ export const bodyArtefato = z
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Nada para atualizar.' });
 
+/** Commit num artefato, pelo Mapa. */
+export const bodyAtualizacaoArtefato = z.object({
+  descricao: z.string().trim().min(5, 'Descreva o que mudou (pelo menos 5 caracteres).').max(2000),
+});
+
+/** Conclusão de atividade: quais artefatos foram atualizados e o que mudou. */
+export const bodyConclusao = z.object({
+  artefatoIds: z.array(z.string().min(1)).max(40).optional(),
+  descricao: z.string().trim().max(2000).nullable().optional(),
+});
+
 // ─────────────────────────────── Ficha de estudo ────────────────────────────
 
 export const bodyFicha = z.object({

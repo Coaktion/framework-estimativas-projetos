@@ -3,9 +3,10 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import { chaveArtefato, IMPACTOS_ORDEM, MODULO_LABEL, type Impacto, type Modulo } from '../config/taxonomy';
+import { IMPACTOS_ORDEM, type Impacto } from '../config/taxonomy';
 import { NaoEncontrado } from '../lib/http';
 import { resolverResponsaveis } from '../config/responsaveis';
+import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
 
 export interface FiltroSinais {
   status?: Array<'NOVO' | 'TRIADO' | 'DESCARTADO' | 'AUTO_ARQUIVADO' | 'NAO_CLASSIFICADO'>;
@@ -132,13 +133,13 @@ export async function detalharSinal(prisma: PrismaClient, id: string) {
   // Prévia dos QUATRO destinos, não só dos sugeridos: a tela filtra pelo que
   // a pessoa marcou. Se aqui viessem só os sugeridos, marcar um destino fora
   // da sugestão geraria a atividade sem mostrar antes quem responde por ela.
-  return { ...mapear(s as never), previa: await previaImpactos(prisma, s.modulo as Modulo, IMPACTOS_ORDEM) };
+  return { ...mapear(s as never), previa: await previaImpactos(prisma, String(s.produto), IMPACTOS_ORDEM) };
 }
 
 /** Para cada impacto, qual artefato será tocado e quem responde por ele. */
 export async function previaImpactos(
   prisma: PrismaClient,
-  modulo: Modulo,
+  produto: string,
   impactos: Impacto[],
 ) {
   const saida: Array<{
@@ -153,34 +154,36 @@ export async function previaImpactos(
   const config = await resolverResponsaveis(prisma);
 
   for (const impacto of impactos) {
-    const chave = chaveArtefato(impacto, modulo);
     const configurados = config[impacto] ?? [];
-    if (!chave) {
+    if (impacto === 'ESTUDO') {
       saida.push({
         impacto,
         artefatoChave: null,
-        artefatoNome: `Ficha da feature (nova)`,
+        artefatoNome: 'Ficha da feature (nova)',
         responsavelId: configurados[0] ?? null,
         responsaveisIds: configurados,
         artefatoExiste: false,
       });
       continue;
     }
-    const art = await prisma.psOpsArtifact.findUnique({
-      where: { chave },
-      select: { nome: true, donoId: true },
-    });
+    // Mesmo critério de triar(): Estimativa sugere o módulo do produto; Demo e
+    // Escopo apontam para o grupo, e os artefatos se escolhem na conclusão.
+    let art: { chave: string; nome: string; donoId: string | null } | null = null;
+    if (impacto === 'ESTIM') {
+      const estimativas = await prisma.psOpsArtifact.findMany({
+        where: { chave: { startsWith: 'ESTIM:' } },
+        select: { chave: true, nome: true, donoId: true },
+      });
+      art = estimativaSugerida(produto, estimativas);
+    }
+    const dono = configurados[0] ?? art?.donoId ?? null;
     saida.push({
       impacto,
-      artefatoChave: chave,
-      artefatoNome:
-        art?.nome ??
-        (chave === 'DEMO_TEMPLATE'
-          ? 'Template de demo · zd_auto_template'
-          : `${chave.startsWith('FRAMEWORK') ? 'Framework' : 'Bloco escopo'} · ${MODULO_LABEL[modulo]}`),
-      responsavelId: configurados[0] ?? art?.donoId ?? null,
-      responsaveisIds: configurados.length ? [configurados[0]!] : art?.donoId ? [art.donoId] : [],
-      artefatoExiste: Boolean(art),
+      artefatoChave: art?.chave ?? null,
+      artefatoNome: art?.nome ?? NOME_GRUPO[impacto] ?? 'Estimativa',
+      responsavelId: dono,
+      responsaveisIds: dono ? [dono] : [],
+      artefatoExiste: true,
     });
   }
   return saida;

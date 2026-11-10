@@ -3,11 +3,12 @@
  *
  * O que estes testes protegem:
  *   · ESTUDO cria ficha e não toca artefato
- *   · o responsável é HERDADO do dono do artefato, não sorteado
- *   · artefato inexistente é criado sem dono (e isso é visível)
+ *   · Estimativa já aponta para o módulo do produto; Demo e Escopo apontam
+ *     para o grupo, e os artefatos se escolhem na conclusão
  *   · o DoD é um gate real, inclusive nas evidências obrigatórias
- *   · concluir grava a aplicação e incrementa a versão
- *   · declarada ≠ verificada: só artefato do portal ganha a data verificada
+ *   · concluir Demo/Estimativa/Escopo exige artefato(s) e descrição, e grava
+ *     um commit em cada artefato marcado (versão +1, última atualização)
+ *   · o responsável vem da configuração do time; sem ela, do dono do artefato
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +16,8 @@ import assert from 'node:assert/strict';
 import { criarFakePrisma, semearArtefato, semearSinal } from './fake-prisma';
 import { triar, descartar } from '../triage';
 import { concluir, marcarDod, atribuir, incrementarVersao } from '../activities';
-import { calcularSaude } from '../artifacts';
+import { calcularSaude, historicoArtefato, registrarAtualizacao, saudePorAtualizacao } from '../artifacts';
+import { garantirArtefatos } from '../seed';
 import { Impacto } from '../../config/taxonomy';
 
 process.env.DATABASE_URL ??= 'postgresql://teste';
@@ -23,14 +25,31 @@ process.env.DATABASE_URL ??= 'postgresql://teste';
 type Fake = ReturnType<typeof criarFakePrisma>;
 const asPrisma = (f: Fake) => f as unknown as Parameters<typeof triar>[0];
 
+/** A estimativa do módulo de voz, como o seed cria a partir do Framework. */
+function semearEstimativaVoz(f: Fake, over: Record<string, unknown> = {}) {
+  return semearArtefato(f, {
+    chave: 'ESTIM:Canais - Voz',
+    tipo: 'FRAMEWORK',
+    nome: 'Estimativa · Canais - Voz',
+    ...over,
+  });
+}
+
+function semearDemos(f: Fake) {
+  return ['BR', 'US', 'SSAC'].map((p) =>
+    semearArtefato(f, { chave: `DEMO:${p}`, tipo: 'DEMO_TEMPLATE', modulo: null, nome: `Ambiente de demo padrão ${p}`, versao: '1' }),
+  );
+}
+
+const sinalVoz = (f: Fake, over: Record<string, unknown> = {}) =>
+  semearSinal(f, { produto: 'CONTACT_CENTER', ...over });
+
 // ──────────────────────────────── Triagem ───────────────────────────────────
 
 test('a ordem canônica coloca ESTUDO primeiro, qualquer que seja a entrada', async () => {
   const f = criarFakePrisma();
-  const s = semearSinal(f);
-  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u-renato' });
-  semearArtefato(f, { chave: 'ESCOPO:VOICE', tipo: 'ESCOPO', nome: 'Bloco escopo · Voice', donoId: 'u-renato' });
-  semearArtefato(f, { chave: 'DEMO_TEMPLATE', tipo: 'DEMO_TEMPLATE', modulo: null, nome: 'Template de demo', donoId: 'u-carla' });
+  const s = sinalVoz(f);
+  semearEstimativaVoz(f, { donoId: 'u-renato' });
 
   const r = await triar(asPrisma(f), {
     signalId: s.id as string,
@@ -58,49 +77,45 @@ test('ESTUDO cria a ficha da feature e não aponta para artefato', async () => {
   assert.equal(f.estado.studyNotes[0]!.activityId, r.atividades[0]!.id);
 });
 
-test('o responsável é herdado do dono do artefato', async () => {
+test('Estimativa aponta para o módulo do produto; Demo e Escopo para o grupo', async () => {
   const f = criarFakePrisma();
-  const s = semearSinal(f);
-  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u-renato' });
-  semearArtefato(f, {
-    chave: 'DEMO_TEMPLATE', tipo: 'DEMO_TEMPLATE', modulo: null,
-    nome: 'Template de demo', donoId: 'u-carla',
-  });
+  const s = sinalVoz(f);
+  const est = semearEstimativaVoz(f);
+  semearArtefato(f, { chave: 'ESTIM:Zendesk Support', nome: 'Estimativa · Zendesk Support' });
+  semearDemos(f);
 
   const r = await triar(asPrisma(f), {
     signalId: s.id as string,
-    impactos: [Impacto.DEMO, Impacto.ESTIM],
-    usuarioId: 'u-quem-triou',
-  });
-
-  const demo = r.atividades.find((a) => a.tipo === 'DEMO')!;
-  const est = r.atividades.find((a) => a.tipo === 'ESTIM')!;
-  assert.equal(demo.responsavelId, 'u-carla');
-  assert.equal(est.responsavelId, 'u-renato');
-  assert.notEqual(demo.responsavelId, 'u-quem-triou', 'não é quem triou');
-});
-
-test('artefato que não existe é criado SEM dono, e o card fica órfão', async () => {
-  const f = criarFakePrisma();
-  const s = semearSinal(f, { modulo: 'ANALYTICS', titulo: 'Agentic analytics (EAP)' });
-
-  const r = await triar(asPrisma(f), {
-    signalId: s.id as string,
-    impactos: [Impacto.ESCOPO],
+    impactos: [Impacto.DEMO, Impacto.ESTIM, Impacto.ESCOPO],
     usuarioId: 'u-renato',
   });
 
-  assert.deepEqual(r.artefatosCriados, ['Bloco escopo · Analytics']);
-  assert.equal(r.atividades[0]!.responsavelId, null, 'sem dono → sem responsável');
-  const art = f.estado.artifacts.find((a) => a.chave === 'ESCOPO:ANALYTICS')!;
-  assert.equal(art.donoId, null);
-  assert.equal(art.fonteVerificacao, 'NENHUMA', 'nasce sem fonte de verificação');
+  const ativ = (tipo: string) => f.estado.activities.find((a) => a.tipo === tipo)!;
+  assert.equal(ativ('ESTIM').artifactId, est.id, 'voz → estimativa de Canais - Voz');
+  assert.equal(ativ('DEMO').artifactId, null, 'os ambientes se escolhem na conclusão');
+  assert.equal(ativ('ESCOPO').artifactId, null);
+  assert.equal(r.atividades.find((a) => a.tipo === 'DEMO')!.artefato, 'Ambientes de demo (Brasil, EUA, SSAC)');
+  assert.deepEqual(r.artefatosCriados, [], 'a triagem não cria artefato');
+});
+
+test('sem configuração do time, o responsável é o dono do artefato', async () => {
+  const f = criarFakePrisma();
+  const s = sinalVoz(f);
+  semearEstimativaVoz(f, { donoId: 'u-arthur' });
+
+  const r = await triar(asPrisma(f), {
+    signalId: s.id as string,
+    impactos: [Impacto.ESTIM, Impacto.DEMO],
+    usuarioId: 'u-quem-triou',
+  });
+  assert.equal(r.atividades.find((a) => a.tipo === 'ESTIM')!.responsavelId, 'u-arthur');
+  assert.equal(r.atividades.find((a) => a.tipo === 'DEMO')!.responsavelId, null, 'ninguém configurado → sem responsável');
 });
 
 test('triar o mesmo sinal duas vezes é erro, não duplicação', async () => {
   const f = criarFakePrisma();
-  const s = semearSinal(f);
-  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u-renato' });
+  const s = sinalVoz(f);
+  semearEstimativaVoz(f, { donoId: 'u-renato' });
 
   await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESTIM], usuarioId: 'u1' });
   await assert.rejects(
@@ -133,35 +148,52 @@ test('descarte registra o motivo, que é o que calibra o filtro de ruído', asyn
 
 test('o sinal triado sai da fila', async () => {
   const f = criarFakePrisma();
-  const s = semearSinal(f);
-  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u1' });
+  const s = sinalVoz(f);
+  semearEstimativaVoz(f, { donoId: 'u1' });
   await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESTIM], usuarioId: 'u1' });
   assert.equal(f.estado.signals[0]!.status, 'TRIADO');
 });
 
-// ─────────────────────── DoD, conclusão e artefato ──────────────────────────
+// ─────────────────────── DoD, conclusão e commits ───────────────────────────
 
-async function cenarioConclusao(over?: { fonteVerificacao?: string }) {
+async function cenarioConclusao() {
   const f = criarFakePrisma();
-  const s = semearSinal(f);
-  semearArtefato(f, {
-    chave: 'FRAMEWORK:VOICE',
-    donoId: 'u-renato',
-    versao: '2026.Q2',
-    fonteVerificacao: over?.fonteVerificacao ?? 'NENHUMA',
-  });
+  const s = sinalVoz(f);
+  const art = semearEstimativaVoz(f, { donoId: 'u-arthur', versao: '2026.Q2' });
   const r = await triar(asPrisma(f), {
     signalId: s.id as string,
     impactos: [Impacto.ESTIM],
     usuarioId: 'u-renato',
   });
-  return { f, activityId: r.atividades[0]!.id, signalId: s.id as string };
+  return { f, activityId: r.atividades[0]!.id, signalId: s.id as string, art };
+}
+
+async function marcarTudo(f: Fake, activityId: string) {
+  const dod = f.estado.activities.find((a) => a.id === activityId)!.dod as Array<{
+    exigeEvidencia?: boolean;
+  }>;
+  for (let i = 0; i < dod.length; i++) {
+    await marcarDod(asPrisma(f), {
+      activityId, indice: i, feito: true,
+      ...(dod[i]!.exigeEvidencia ? { evidencia: 'https://evidencia/exemplo' } : {}),
+    });
+  }
+}
+
+async function concluirTudo(
+  f: Fake,
+  activityId: string,
+  usuarioId = 'u-arthur',
+  extra: { artefatoIds?: string[]; descricao?: string | null } = { descricao: 'Itens de voz com IA incluídos no módulo' },
+) {
+  await marcarTudo(f, activityId);
+  return concluir(asPrisma(f), { activityId, usuarioId, ...extra });
 }
 
 test('não conclui com o DoD incompleto', async () => {
   const { f, activityId } = await cenarioConclusao();
   await assert.rejects(
-    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-renato' }),
+    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'qualquer coisa' }),
     /Definition of Done incompleto/,
   );
 });
@@ -170,19 +202,16 @@ test('item que exige evidência não fecha só com o check', async () => {
   const { f, activityId } = await cenarioConclusao();
   const dod = f.estado.activities[0]!.dod as Array<{ t: string; d: boolean; exigeEvidencia?: boolean }>;
 
-  // marca tudo, mas sem anexar evidência onde é exigida
   for (let i = 0; i < dod.length; i++) {
     await marcarDod(asPrisma(f), { activityId, indice: i, feito: true });
   }
-  const exigentes = dod.filter((i) => i.exigeEvidencia).length;
-  assert.ok(exigentes > 0, 'o template EST tem item com evidência obrigatória');
+  assert.ok(dod.some((i) => i.exigeEvidencia), 'o template EST tem item com evidência obrigatória');
 
   await assert.rejects(
-    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-renato' }),
+    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'Itens de voz' }),
     /sem evidência anexada/,
   );
 
-  // anexa e agora fecha
   for (let i = 0; i < dod.length; i++) {
     if (dod[i]!.exigeEvidencia) {
       await marcarDod(asPrisma(f), {
@@ -191,8 +220,8 @@ test('item que exige evidência não fecha só com o check', async () => {
       });
     }
   }
-  const r = await concluir(asPrisma(f), { activityId, usuarioId: 'u-renato' });
-  assert.equal(r.artefato?.versao, '2026.Q3');
+  const r = await concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'Itens de voz' });
+  assert.equal(r.artefatos[0]?.versao, '2026.Q3');
 });
 
 test('marcar o primeiro item move TODO para DOING sozinho', async () => {
@@ -213,66 +242,79 @@ test('desmarcar item limpa a evidência (evita evidência órfã)', async () => 
   assert.equal(dod[5]!.evidencia, null);
 });
 
-async function concluirTudo(f: Fake, activityId: string, usuarioId = 'u-renato') {
-  const dod = f.estado.activities.find((a) => a.id === activityId)!.dod as Array<{
-    exigeEvidencia?: boolean;
-  }>;
-  for (let i = 0; i < dod.length; i++) {
-    await marcarDod(asPrisma(f), {
-      activityId, indice: i, feito: true,
-      ...(dod[i]!.exigeEvidencia ? { evidencia: 'https://evidencia/exemplo' } : {}),
-    });
-  }
-  return concluir(asPrisma(f), { activityId, usuarioId });
-}
-
-test('concluir grava a aplicação: artefato ← sinal ← atividade', async () => {
-  const { f, activityId, signalId } = await cenarioConclusao();
+test('concluir grava um commit no artefato: descrição, autor, atividade e feature', async () => {
+  const { f, activityId, signalId, art } = await cenarioConclusao();
   await concluirTudo(f, activityId);
 
-  assert.equal(f.estado.artifactSignals.length, 1);
-  const ap = f.estado.artifactSignals[0]!;
-  assert.equal(ap.signalId, signalId);
-  assert.equal(ap.activityId, activityId);
-  assert.equal(ap.versaoResultante, '2026.Q3');
+  assert.equal(f.estado.artifactUpdates.length, 1);
+  const c = f.estado.artifactUpdates[0]!;
+  assert.equal(c.artifactId, art.id);
+  assert.equal(c.autorId, 'u-arthur');
+  assert.equal(c.descricao, 'Itens de voz com IA incluídos no módulo');
+  assert.equal(c.activityId, activityId);
+  assert.equal(c.signalId, signalId);
+  assert.equal(art.versao, '2026.Q3', 'versão sobe');
+  assert.ok(art.revisaoDeclaradaEm instanceof Date, 'última atualização = agora');
+  assert.equal(f.estado.artifactSignals.length, 0, 'a aplicação antiga não é mais gravada');
 });
 
-test('artefato NÃO do portal: avança só a data declarada', async () => {
-  const { f, activityId } = await cenarioConclusao({ fonteVerificacao: 'GDRIVE' });
-  await concluirTudo(f, activityId);
-
-  const art = f.estado.artifacts[0]!;
-  assert.ok(art.revisaoDeclaradaEm, 'declarada preenchida');
-  assert.equal(art.revisaoVerificadaEm, null, 'verificada permanece vazia — é do reconciliador');
-});
-
-test('artefato do portal: a escrita é a prova, verificada avança junto', async () => {
-  const { f, activityId } = await cenarioConclusao({ fonteVerificacao: 'PORTAL' });
-  await concluirTudo(f, activityId);
-
-  const art = f.estado.artifacts[0]!;
-  assert.ok(art.revisaoDeclaradaEm);
-  assert.ok(art.revisaoVerificadaEm, 'verificada preenchida por construção');
-  assert.equal(art.divergente, false);
-});
-
-test('quem conclui assume o artefato órfão', async () => {
+test('Demo: um commit em cada ambiente marcado', async () => {
   const f = criarFakePrisma();
-  const s = semearSinal(f, { modulo: 'ANALYTICS' });
-  const r = await triar(asPrisma(f), {
-    signalId: s.id as string,
-    impactos: [Impacto.ESCOPO],
-    usuarioId: 'u-lucas',
+  const s = sinalVoz(f);
+  const [br, us, ssac] = semearDemos(f);
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.DEMO], usuarioId: 'u-renato' });
+
+  const res = await concluirTudo(f, r.atividades[0]!.id, 'u-renato', {
+    artefatoIds: [br!.id as string, ssac!.id as string],
+    descricao: 'Fluxo de voz com IA nos ambientes BR e SSAC',
   });
-  await concluirTudo(f, r.atividades[0]!.id, 'u-lucas');
-  assert.equal(f.estado.artifacts[0]!.donoId, 'u-lucas');
+  assert.equal(res.artefatos.length, 2);
+  assert.deepEqual(f.estado.artifactUpdates.map((u) => u.artifactId).sort(), [br!.id, ssac!.id].sort());
+  assert.equal(us!.versao, '1', 'o ambiente não marcado fica como está');
+  assert.equal(br!.versao, '2');
+});
+
+test('Demo sem artefato marcado não conclui', async () => {
+  const f = criarFakePrisma();
+  const s = sinalVoz(f);
+  semearDemos(f);
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.DEMO], usuarioId: 'u-renato' });
+  await assert.rejects(
+    () => concluirTudo(f, r.atividades[0]!.id, 'u-renato', { descricao: 'Ambientes atualizados' }),
+    /Marque qual artefato/,
+  );
+  assert.equal(f.estado.activities[0]!.status !== 'DONE', true);
+});
+
+test('sem descrição do que mudou não conclui', async () => {
+  const { f, activityId } = await cenarioConclusao();
+  await assert.rejects(() => concluirTudo(f, activityId, 'u-arthur', { descricao: '  ' }), /Descreva o que mudou/);
+  assert.equal(f.estado.artifactUpdates.length, 0);
+});
+
+test('artefato de outro destino é recusado na conclusão', async () => {
+  const { f, activityId } = await cenarioConclusao();
+  const [br] = semearDemos(f);
+  await assert.rejects(
+    () => concluirTudo(f, activityId, 'u-arthur', { artefatoIds: [br!.id as string], descricao: 'Atualizei a demo' }),
+    /não são deste destino/,
+  );
+});
+
+test('quem conclui assume o artefato sem dono', async () => {
+  const f = criarFakePrisma();
+  const s = sinalVoz(f);
+  const doc = semearArtefato(f, { chave: 'ESCOPO:PH_SE:PT', tipo: 'ESCOPO', modulo: null, nome: 'Custom SE Pacote de Horas · PT' });
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESCOPO], usuarioId: 'u-lucas' });
+  await concluirTudo(f, r.atividades[0]!.id, 'u-lucas', { artefatoIds: [doc.id as string], descricao: 'Cláusula de voz com IA' });
+  assert.equal(doc.donoId, 'u-lucas');
 });
 
 test('concluir duas vezes é erro', async () => {
   const { f, activityId } = await cenarioConclusao();
   await concluirTudo(f, activityId);
   await assert.rejects(
-    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-renato' }),
+    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'de novo' }),
     /já concluída/i,
   );
 });
@@ -286,7 +328,7 @@ test('atividade concluída não muda de responsável', async () => {
   );
 });
 
-test('concluir ESTUDO publica a ficha', async () => {
+test('concluir ESTUDO publica a ficha e não pede artefato', async () => {
   const f = criarFakePrisma();
   const s = semearSinal(f);
   const r = await triar(asPrisma(f), {
@@ -294,12 +336,76 @@ test('concluir ESTUDO publica a ficha', async () => {
     impactos: [Impacto.ESTUDO],
     usuarioId: 'u-bruno',
   });
-  const res = await concluirTudo(f, r.atividades[0]!.id, 'u-bruno');
+  const res = await concluirTudo(f, r.atividades[0]!.id, 'u-bruno', {});
 
   assert.equal(res.fichaPublicada, true);
-  assert.equal(res.artefato, null);
+  assert.deepEqual(res.artefatos, []);
   assert.ok(f.estado.studyNotes[0]!.publicadoEm, 'ficha ganhou data de publicação');
   assert.equal(f.estado.studyNotes[0]!.autorId, 'u-bruno');
+});
+
+// ───────────────────── Registrar atualização pelo Mapa ──────────────────────
+
+test('registrar atualização pelo Mapa: commit, versão e última atualização', async () => {
+  const f = criarFakePrisma();
+  const art = semearEstimativaVoz(f, { donoId: 'u-arthur', versao: '3' });
+  const agora = new Date('2026-11-10T12:00:00Z');
+
+  await registrarAtualizacao(asPrisma(f), { artifactId: art.id as string, autorId: 'u-arthur', descricao: 'Revisão geral de horas', agora });
+  await registrarAtualizacao(asPrisma(f), { artifactId: art.id as string, autorId: 'u-arthur', descricao: 'Item novo de URA', agora });
+
+  assert.equal(art.versao, '5');
+  assert.equal(+(art.revisaoDeclaradaEm as Date), +agora);
+  const h = await historicoArtefato(asPrisma(f), art.id as string);
+  assert.deepEqual(h.atualizacoes.map((u) => u.descricao).sort(), ['Item novo de URA', 'Revisão geral de horas']);
+  assert.equal(h.atualizacoes[0]!.sinal, null, 'commit avulso não tem feature');
+});
+
+test('descrição curta demais é recusada', async () => {
+  const f = criarFakePrisma();
+  const art = semearEstimativaVoz(f);
+  await assert.rejects(
+    () => registrarAtualizacao(asPrisma(f), { artifactId: art.id as string, autorId: 'u1', descricao: 'ok' }),
+    /pelo menos 5/,
+  );
+  assert.equal(f.estado.artifactUpdates.length, 0);
+});
+
+// ─────────────────────── Seed da lista de artefatos ─────────────────────────
+
+test('seed: 3 demos, uma estimativa por módulo do Framework e 15 documentos de escopo', async () => {
+  const f = criarFakePrisma();
+  semearTime(f);
+  f.estado.categories.push(
+    { name: 'Zendesk Support', displayName: 'Zendesk Support', isActive: true, parentName: null },
+    { name: 'Canais - Voz', displayName: null, isActive: true, parentName: null },
+    { name: 'Sub item', isActive: true, parentName: 'Zendesk Support' },
+    { name: 'Antigo', isActive: false, parentName: null },
+  );
+  // formato antigo: o usado fica, o nunca usado sai
+  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', nome: 'Framework · Voice' });
+
+  const n = await garantirArtefatos(asPrisma(f) as never);
+  assert.equal(n, 3 + 2 + 15);
+  const chaves = f.estado.artifacts.map((a) => a.chave as string);
+  assert.ok(chaves.includes('DEMO:SSAC'));
+  assert.ok(chaves.includes('ESTIM:Canais - Voz'));
+  assert.ok(chaves.includes('ESCOPO:TM:ES'));
+  assert.ok(!chaves.includes('ESTIM:Sub item'), 'só categorias raiz');
+  assert.ok(!chaves.includes('ESTIM:Antigo'), 'só categorias ativas');
+  assert.ok(!chaves.includes('FRAMEWORK:VOICE'), 'antigo sem uso sai');
+
+  const dono = (chave: string) => f.estado.artifacts.find((a) => a.chave === chave)!.donoId;
+  assert.equal(dono('DEMO:BR'), '6', 'Demo → Renato');
+  assert.equal(dono('ESTIM:Zendesk Support'), '5', 'Estimativa → Arthur');
+  assert.equal(dono('ESCOPO:PH_SE:EN'), '7', 'Escopo → Elisa');
+  assert.equal(f.estado.artifacts.find((a) => a.chave === 'ESTIM:Canais - Voz')!.nome, 'Estimativa · Canais - Voz');
+
+  // idempotente e não sobrescreve o dono escolhido no Mapa
+  f.estado.artifacts.find((a) => a.chave === 'DEMO:BR')!.donoId = '60';
+  await garantirArtefatos(asPrisma(f) as never);
+  assert.equal(f.estado.artifacts.length, 20);
+  assert.equal(dono('DEMO:BR'), '60');
 });
 
 // ─────────────────────────── Versão e semáforo ──────────────────────────────
@@ -311,12 +417,20 @@ test('incremento de versão cobre os formatos que usamos', () => {
   assert.equal(incrementarVersao('v'), 'v.1');
 });
 
-test('semáforo usa a data VERIFICADA, não a declarada', () => {
+test('saúde pela última atualização: nunca, recente e antiga', () => {
+  const hoje = new Date('2026-11-10T00:00:00Z');
+  assert.equal(saudePorAtualizacao(null, 0, hoje).estado, 'NAO_VERIFICADO');
+  const recente = saudePorAtualizacao(new Date('2026-11-08T00:00:00Z'), 0, hoje);
+  assert.equal(recente.estado, 'SAUDAVEL');
+  assert.equal(recente.idadeDias, 2);
+  assert.equal(saudePorAtualizacao(new Date('2026-01-01T00:00:00Z'), 0, hoje).estado, 'CRITICO');
+});
+
+test('semáforo antigo usa a data VERIFICADA, não a declarada', () => {
   const hoje = new Date('2026-08-12T00:00:00Z');
   const ontem = new Date('2026-08-11T00:00:00Z');
   const antigo = new Date('2026-01-01T00:00:00Z');
 
-  // Declarada ontem, verificada em janeiro: NÃO pode aparecer saudável.
   const s = calcularSaude(
     {
       revisaoDeclaradaEm: ontem,
@@ -330,49 +444,6 @@ test('semáforo usa a data VERIFICADA, não a declarada', () => {
   assert.equal(s.estado, 'CRITICO');
   assert.equal(s.idadeDias, 223);
   assert.equal(s.idadeDeclaradaDias, 1);
-});
-
-test('sem fonte de verificação o estado é NAO_VERIFICADO, não saudável', () => {
-  const s = calcularSaude(
-    {
-      revisaoDeclaradaEm: new Date('2026-08-11T00:00:00Z'),
-      revisaoVerificadaEm: null,
-      fonteVerificacao: 'NENHUMA',
-      divergente: false,
-      pendentes: 0,
-    },
-    new Date('2026-08-12T00:00:00Z'),
-  );
-  assert.equal(s.estado, 'NAO_VERIFICADO');
-  assert.match(s.detalhe, /declarada, não confirmada/);
-});
-
-test('divergente vence qualquer idade', () => {
-  const s = calcularSaude(
-    {
-      revisaoDeclaradaEm: new Date('2026-08-11T00:00:00Z'),
-      revisaoVerificadaEm: new Date('2026-08-11T00:00:00Z'),
-      fonteVerificacao: 'GDRIVE',
-      divergente: true,
-      pendentes: 0,
-    },
-    new Date('2026-08-12T00:00:00Z'),
-  );
-  assert.equal(s.estado, 'DIVERGENTE');
-});
-
-test('muitos sinais pendentes derrubam para crítico mesmo com idade boa', () => {
-  const s = calcularSaude(
-    {
-      revisaoDeclaradaEm: new Date('2026-08-11T00:00:00Z'),
-      revisaoVerificadaEm: new Date('2026-08-11T00:00:00Z'),
-      fonteVerificacao: 'PORTAL',
-      divergente: false,
-      pendentes: 9,
-    },
-    new Date('2026-08-12T00:00:00Z'),
-  );
-  assert.equal(s.estado, 'CRITICO');
 });
 
 // ─────────────────────── Responsáveis por destino ───────────────────────────
@@ -391,9 +462,9 @@ function semearTime(f: Fake) {
 test('cada destino vai para o dono configurado: Demo Renato, Estimativa Arthur, Escopo Elisa', async () => {
   const f = criarFakePrisma();
   semearTime(f);
-  const s = semearSinal(f);
+  const s = sinalVoz(f);
   // dono do artefato é outra pessoa: a configuração do time vale mais
-  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u-outro' });
+  semearEstimativaVoz(f, { donoId: 'u-outro' });
 
   const r = await triar(asPrisma(f), {
     signalId: s.id as string,
@@ -418,7 +489,7 @@ test('Estudo gera uma atividade para cada SE e UMA ficha compartilhada', async (
   assert.equal(f.estado.studyNotes[0]!.signalId, s.id);
 
   // concluir o estudo de qualquer um publica a ficha da feature
-  const res = await concluirTudo(f, estudos[3]!.id, '7');
+  const res = await concluirTudo(f, estudos[3]!.id, '7', {});
   assert.equal(res.fichaPublicada, true);
   assert.ok(f.estado.studyNotes[0]!.publicadoEm instanceof Date);
   // os outros estudos continuam abertos: cada SE conclui o seu

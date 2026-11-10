@@ -23,9 +23,8 @@
     "displayNameEn": "Display Name (EN)",
     "displayNameField": "Display name",
     "displayNamePt": "Display Name (PT-BR)",
-    "emailRequired": "Email is required",
-    "emailPlaceholder": "e.g. name@aktienow.com",
     "emailRequired": "Email *",
+    "emailPlaceholder": "e.g. name@aktienow.com",
     "excludeFromPct": "Exclude from % of:",
     "excludedItems": "Excluded Items",
     "exportData": "Export Data",
@@ -857,8 +856,7 @@
   "profile": {
     "googleOnlyTitle": "Google sign-in",
     "googleOnlyHint": "You sign in with your company Google account ({{domains}}). Tool Center has no passwords.",
-    "titleAccent": "Profile"
-,
+    "titleAccent": "Profile",
     "apiKeys": "API keys (MCP)",
     "apiKeysHint": "Let Claude (Claude Code, Cowork) read the catalog, create projects and save new estimate versions on your behalf. A key never deletes or changes existing versions.",
     "apiKeyNamePlaceholder": "Key name (e.g. Claude Code — laptop)",
@@ -1124,27 +1122,27 @@
       "NAO_VERIFICADO": "Not verified"
     },
     "mapa": {
-      "editoria": "Who owns what",
+      "editoria": "Team artifacts",
       "titulo": "Artifact Map",
-      "subtitulo": "The assets the team maintains and who owns each one. Every activity created in triage inherits its owner from here. Health uses the date the source confirmed the update, not the click on complete.",
+      "subtitulo": "The demo environments, estimates and scope documents the team maintains. Each one shows its owner, last update date and update history. Click an artifact to see its timeline and log an update.",
       "statTotal": "Artifacts",
-      "statTotalSub": "template, framework and scope",
+      "statTotalSub": "demo, estimate and scope",
       "statSemDono": "No owner",
       "statSemDonoSub": "activities are created unassigned",
       "statAbertas": "With open activities",
       "statAbertasSub": "need an update",
       "statAtencao": "Need attention",
-      "statAtencaoSub": "overdue or mismatched",
+      "statAtencaoSub": "not updated for a long time",
       "soAdmin": "Only the Radar manager sets an artifact's owner.",
       "grupo": {
-        "DEMO_TEMPLATE": "Demo template",
-        "FRAMEWORK": "Estimation framework",
-        "ESCOPO": "Scope blocks"
+        "DEMO_TEMPLATE": "Demo environments",
+        "FRAMEWORK": "Estimates",
+        "ESCOPO": "Scope documents"
       },
       "grupoDica": {
-        "DEMO_TEMPLATE": "the spreadsheet ZD Auto Config uses",
-        "FRAMEWORK": "one per catalog area",
-        "ESCOPO": "one per catalog area"
+        "DEMO_TEMPLATE": "Brazil, US and SSAC standard",
+        "FRAMEWORK": "one per Tool Center estimation module",
+        "ESCOPO": "each document in PT, EN and ES"
       },
       "colNome": "Artifact",
       "colSaude": "Health",
@@ -1162,7 +1160,24 @@
       "donoComHeranca": "Owner set: {{nome}}. {{n}} unassigned activities moved to this person.",
       "donoRemovido": "Artifact has no owner now. Activities already assigned don't change.",
       "vazioTitulo": "No artifacts yet",
-      "vazioTexto": "The artifact base is created on the first collection. Go back to the Triage Queue and use Collect now."
+      "vazioTexto": "The artifact list is created automatically. Reload the page; if it is still empty, use Collect now in the Triage Queue.",
+      "statNunca": "No update logged",
+      "statNuncaSub": "no record yet",
+      "colUltima": "Last update",
+      "commits_one": "{{count}} update",
+      "commits_other": "{{count}} updates",
+      "haDias_one": "{{count}} day ago",
+      "haDias_other": "{{count}} days ago",
+      "nuncaAtualizado": "no update logged",
+      "registrarTitulo": "Log an update",
+      "registrarPlaceholder": "What changed? E.g.: added the custom summaries flow to the environment.",
+      "registrar": "Log update",
+      "registrando": "Logging…",
+      "registrado": "Update logged on {{nome}}.",
+      "soDono": "Only the artifact owner (or the Radar manager) can log updates here.",
+      "historico": "Update history",
+      "historicoVazio": "No updates logged yet.",
+      "origem": "Feature: {{titulo}}"
     },
     "backlog": {
       "editoria": "Execution",
@@ -1197,7 +1212,16 @@
       "concluidaEm": "Completed on {{data}}.",
       "faltam": "{{itens}} items and {{evidencias}} pieces of evidence left.",
       "vazioTitulo": "No activities yet",
-      "vazioTexto": "Activities show up here when a signal is triaged in the Triage Queue."
+      "vazioTexto": "Activities show up here when a signal is triaged in the Triage Queue.",
+      "grupoArtefatos": {
+        "DEMO": "Demo environments (Brazil, US, SSAC)",
+        "ESTIM": "Estimate",
+        "ESCOPO": "Scope documents"
+      },
+      "quaisArtefatos": "Which artifacts did you update?",
+      "oQueMudou": "What changed",
+      "oQueMudouPlaceholder": "Describe the update. It goes to the history of each checked artifact.",
+      "faltaCommit": "Check the updated artifacts and describe what changed."
     },
     "ficha": {
       "titulo": "Feature fact sheet",

@@ -22,7 +22,7 @@ export default async function Pagina() {
           {t('psops.mapa.subtitulo')}
         </p>
       </div>
-      <MapaArtefatos gestor={Boolean(usuario?.gestor)} />
+      <MapaArtefatos gestor={Boolean(usuario?.gestor)} usuarioId={usuario?.id ?? null} />
     </>
   );
 }

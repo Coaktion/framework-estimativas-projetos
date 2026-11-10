@@ -8,21 +8,17 @@
  * Regras que este arquivo garante:
  *   · ESTUDO não toca artefato — gera uma atividade para cada SE e UMA ficha
  *     da feature (PsOpsStudyNote), compartilhada por eles
- *   · DEMO / ESTIM / ESCOPO tocam o artefato correspondente, criando-o se
- *     ainda não existir (sem dono, e isso fica visível no mapa)
+ *   · DEMO / ESCOPO apontam para o grupo de artefatos (3 ambientes, os
+ *     documentos de escopo); quais foram atualizados se escolhe ao concluir.
+ *     ESTIM já aponta para a estimativa do módulo do produto (sugestão)
  *   · o responsável vem da configuração do time; sem ninguém configurado,
  *     do dono do artefato — nunca de sorteio nem de quem triou
  *   · triar duas vezes o mesmo sinal é erro de negócio, não duplicação
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import {
-  Impacto,
-  IMPACTOS_ORDEM,
-  MODULO_LABEL,
-  chaveArtefato,
-  type Modulo,
-} from '../config/taxonomy';
+import { Impacto, IMPACTOS_ORDEM, type Modulo } from '../config/taxonomy';
+import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
 import { DOD_TEMPLATES, criterioSugerido, tituloAtividade } from '../config/dod';
 import { resolverResponsaveis, type ResponsaveisResolvidos } from '../config/responsaveis';
 import { semanaIso } from '../ingest/collector';
@@ -49,17 +45,6 @@ export interface TriarResultado {
   artefatosCriados: string[];
 }
 
-/** Nome legível do artefato a partir da chave. */
-function nomeArtefato(chave: string, modulo: Modulo): string {
-  if (chave === 'DEMO_TEMPLATE') return 'Template de demo · zd_auto_template';
-  const [tipo] = chave.split(':');
-  return `${tipo === 'FRAMEWORK' ? 'Framework' : 'Bloco escopo'} · ${MODULO_LABEL[modulo]}`;
-}
-
-function tipoArtefatoDaChave(chave: string): 'DEMO_TEMPLATE' | 'FRAMEWORK' | 'ESCOPO' {
-  if (chave === 'DEMO_TEMPLATE') return 'DEMO_TEMPLATE';
-  return chave.startsWith('FRAMEWORK') ? 'FRAMEWORK' : 'ESCOPO';
-}
 
 export async function triar(prisma: PrismaClient, input: TriarInput): Promise<TriarResultado> {
   const sinal = await prisma.psOpsSignal.findUnique({
@@ -101,30 +86,27 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
     const atividades: TriarResultado['atividades'] = [];
 
     for (const impacto of impactos) {
-      const chave = chaveArtefato(impacto, modulo);
-
       let artifactId: string | null = null;
       let responsavelId: string | null = null;
       let nomeArt: string | null = null;
 
-      if (chave) {
-        let art = await tx.psOpsArtifact.findUnique({ where: { chave } });
-        if (!art) {
-          // Artefato ainda não existe no mapa. Criar sem dono é deliberado: o
-          // card cai no filtro "sem responsável" e alguém precisa assumir.
-          art = await tx.psOpsArtifact.create({
-            data: {
-              chave,
-              tipo: tipoArtefatoDaChave(chave),
-              modulo: chave === 'DEMO_TEMPLATE' ? null : modulo,
-              nome: nomeArtefato(chave, modulo),
-            },
-          });
-          artefatosCriados.push(art.nome);
+      // Quais artefatos foram atualizados quem conclui é que diz (pode ser
+      // mais de um: os 3 ambientes de demo, vários documentos de escopo). Na
+      // Estimativa já sugerimos o módulo do produto; Demo e Escopo ficam para
+      // a escolha na conclusão.
+      if (impacto === Impacto.ESTIM) {
+        const estimativas = await tx.psOpsArtifact.findMany({
+          where: { chave: { startsWith: 'ESTIM:' } },
+          select: { id: true, chave: true, nome: true, donoId: true },
+        });
+        const art = estimativaSugerida(sinal.produto, estimativas);
+        if (art) {
+          artifactId = art.id;
+          responsavelId = art.donoId;
+          nomeArt = art.nome;
         }
-        artifactId = art.id;
-        responsavelId = art.donoId;
-        nomeArt = art.nome;
+      } else if (impacto !== Impacto.ESTUDO) {
+        nomeArt = NOME_GRUPO[impacto] ?? null;
       }
 
       // Quem responde vem da configuração do time (config/responsaveis.ts):

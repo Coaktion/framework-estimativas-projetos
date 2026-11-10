@@ -23,9 +23,8 @@
     "displayNameEn": "Nome de Exibição (EN)",
     "displayNameField": "Nome de exibição",
     "displayNamePt": "Nome de Exibição (PT-BR)",
-    "emailRequired": "E-mail é obrigatório",
-    "emailPlaceholder": "ex.: nome@aktienow.com",
     "emailRequired": "E-mail *",
+    "emailPlaceholder": "ex.: nome@aktienow.com",
     "excludeFromPct": "Excluir do % de:",
     "excludedItems": "Itens Excluídos",
     "exportData": "Exportar Dados",
@@ -857,8 +856,7 @@
   "profile": {
     "googleOnlyTitle": "Login com Google",
     "googleOnlyHint": "Você entra com sua conta Google corporativa ({{domains}}). Não há senha no Tool Center.",
-    "titleAccent": "Profile"
-,
+    "titleAccent": "Profile",
     "apiKeys": "Chaves de API (MCP)",
     "apiKeysHint": "Permitem que o Claude (Claude Code, Cowork) consulte o catálogo, crie projetos e salve versões novas de estimativa em seu nome. A chave não apaga nem altera versões existentes.",
     "apiKeyNamePlaceholder": "Nome da chave (ex.: Claude Code — notebook)",
@@ -1124,27 +1122,27 @@
       "NAO_VERIFICADO": "Não verificado"
     },
     "mapa": {
-      "editoria": "Quem responde pelo quê",
+      "editoria": "Artefatos do time",
       "titulo": "Mapa de Artefatos",
-      "subtitulo": "Os ativos que o time mantém e o dono de cada um. Toda atividade gerada na triagem herda o responsável daqui. A saúde usa a data em que a fonte confirmou a atualização, não o clique de concluir.",
+      "subtitulo": "Os ambientes de demo, as estimativas e os documentos de escopo que o time mantém. Cada um mostra o dono, a data da última atualização e o histórico de atualizações. Clique no artefato para ver a linha do tempo e registrar uma atualização.",
       "statTotal": "Artefatos",
-      "statTotalSub": "template, framework e escopo",
+      "statTotalSub": "demo, estimativa e escopo",
       "statSemDono": "Sem dono",
       "statSemDonoSub": "atividades nascem sem responsável",
       "statAbertas": "Com atividades abertas",
       "statAbertasSub": "precisam de atualização",
       "statAtencao": "Precisam de atenção",
-      "statAtencaoSub": "atrasados ou divergentes",
+      "statAtencaoSub": "atualizados há muito tempo",
       "soAdmin": "Só o gestor do Radar define o dono de um artefato.",
       "grupo": {
-        "DEMO_TEMPLATE": "Template de demo",
-        "FRAMEWORK": "Framework de estimativa",
-        "ESCOPO": "Blocos de escopo"
+        "DEMO_TEMPLATE": "Ambientes de demo",
+        "FRAMEWORK": "Estimativas",
+        "ESCOPO": "Documentos de escopo"
       },
       "grupoDica": {
-        "DEMO_TEMPLATE": "a planilha que o ZD Auto Config usa",
-        "FRAMEWORK": "um por frente do catálogo",
-        "ESCOPO": "um por frente do catálogo"
+        "DEMO_TEMPLATE": "padrão Brasil, EUA e SSAC",
+        "FRAMEWORK": "um por módulo de estimativa do Tool Center",
+        "ESCOPO": "cada documento em PT, EN e ES"
       },
       "colNome": "Artefato",
       "colSaude": "Saúde",
@@ -1162,7 +1160,24 @@
       "donoComHeranca": "Dono definido: {{nome}}. {{n}} atividades que estavam sem responsável passaram para essa pessoa.",
       "donoRemovido": "Artefato ficou sem dono. As atividades já atribuídas não mudam.",
       "vazioTitulo": "Nenhum artefato ainda",
-      "vazioTexto": "A base de artefatos é criada na primeira coleta. Volte à Fila de Triagem e use Coletar agora."
+      "vazioTexto": "A lista de artefatos é criada sozinha. Recarregue a página; se continuar vazia, use Coletar agora na Fila de Triagem.",
+      "statNunca": "Sem atualização registrada",
+      "statNuncaSub": "ainda sem nenhum registro",
+      "colUltima": "Última atualização",
+      "commits_one": "{{count}} atualização",
+      "commits_other": "{{count}} atualizações",
+      "haDias_one": "há {{count}} dia",
+      "haDias_other": "há {{count}} dias",
+      "nuncaAtualizado": "sem atualização registrada",
+      "registrarTitulo": "Registrar atualização",
+      "registrarPlaceholder": "O que mudou? Ex.: incluí o fluxo de resumos personalizados no ambiente.",
+      "registrar": "Registrar atualização",
+      "registrando": "Registrando…",
+      "registrado": "Atualização registrada em {{nome}}.",
+      "soDono": "Só o dono do artefato (ou o gestor do Radar) registra atualização aqui.",
+      "historico": "Histórico de atualizações",
+      "historicoVazio": "Nenhuma atualização registrada ainda.",
+      "origem": "Feature: {{titulo}}"
     },
     "backlog": {
       "editoria": "Execução",
@@ -1197,7 +1212,16 @@
       "concluidaEm": "Concluída em {{data}}.",
       "faltam": "Faltam {{itens}} itens e {{evidencias}} evidências.",
       "vazioTitulo": "Nenhuma atividade ainda",
-      "vazioTexto": "As atividades aparecem aqui quando um sinal é triado na Fila de Triagem."
+      "vazioTexto": "As atividades aparecem aqui quando um sinal é triado na Fila de Triagem.",
+      "grupoArtefatos": {
+        "DEMO": "Ambientes de demo (Brasil, EUA, SSAC)",
+        "ESTIM": "Estimativa",
+        "ESCOPO": "Documentos de escopo"
+      },
+      "quaisArtefatos": "Quais artefatos você atualizou?",
+      "oQueMudou": "O que mudou",
+      "oQueMudouPlaceholder": "Descreva a atualização. Vai para o histórico de cada artefato marcado.",
+      "faltaCommit": "Marque os artefatos atualizados e descreva o que mudou."
     },
     "ficha": {
       "titulo": "Ficha da feature",

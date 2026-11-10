@@ -3,17 +3,17 @@
  *
  * A conclusão é o ponto onde o mecanismo fecha o ciclo:
  *   1. valida o DoD (inclusive as evidências obrigatórias)
- *   2. grava a APLICAÇÃO em PsOpsArtifactSignal — a rastreabilidade reversa
- *   3. incrementa a versão do artefato e marca revisaoDeclaradaEm
- *
- * Note o nome do campo: DECLARADA. Concluir uma atividade é uma declaração,
- * não uma prova. A data que o semáforo de saúde usa é revisaoVerificadaEm,
- * preenchida pelo reconciliador. Ver services/reconcile.ts.
+ *   2. registra um commit (PsOpsArtifactUpdate) em cada artefato atualizado,
+ *      com a descrição de quem concluiu, ligado à atividade e à feature
+ *   3. a versão do artefato sobe e a última atualização vira agora
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { dodCompleto, dodPendencias, type DodItem } from '../config/dod';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
+import { TIPO_POR_IMPACTO } from '../config/artefatos';
+import type { Impacto } from '../config/taxonomy';
+import { incrementarVersao, registrarAtualizacao } from './artifacts';
 
 function lerDod(json: Prisma.JsonValue): DodItem[] {
   if (!Array.isArray(json)) return [];
@@ -136,23 +136,34 @@ export async function marcarDod(
 
 export interface ResultadoConclusao {
   activityId: string;
-  artefato: { id: string; nome: string; versao: string } | null;
+  /** os artefatos que receberam um commit nesta conclusão */
+  artefatos: Array<{ id: string; nome: string; versao: string }>;
   fichaPublicada: boolean;
 }
 
 /**
  * Conclui a atividade. Só passa com o DoD completo — inclusive as evidências
  * dos itens que exigem anexo.
+ *
+ * Demo, Estimativa e Escopo dizem QUAIS artefatos foram atualizados (pode ser
+ * mais de um: os 3 ambientes de demo, o documento em PT, EN e ES) e O QUE
+ * mudou. Vira um commit em cada artefato, ligado à atividade e à feature.
  */
 export async function concluir(
   prisma: PrismaClient,
-  args: { activityId: string; usuarioId: string; agora?: Date },
+  args: {
+    activityId: string;
+    usuarioId: string;
+    artefatoIds?: string[];
+    descricao?: string | null;
+    agora?: Date;
+  },
 ): Promise<ResultadoConclusao> {
   const agora = args.agora ?? new Date();
 
   const a = await prisma.psOpsActivity.findUnique({
     where: { id: args.activityId },
-    include: { initiative: { select: { signalId: true } }, artifact: true },
+    include: { initiative: { select: { signalId: true } } },
   });
   if (!a) throw new NaoEncontrado('Atividade');
   if (a.status === 'DONE') throw new RegraDeNegocio('Atividade já concluída.');
@@ -164,6 +175,22 @@ export async function concluir(
       `Definition of Done incompleto: ${p.faltamCheck} item(ns) sem marcar, ` +
         `${p.faltamEvidencia} sem evidência anexada.`,
     );
+  }
+
+  // Quais artefatos: os marcados; sem marcação, o sugerido na triagem.
+  const tipoArt = TIPO_POR_IMPACTO[a.tipo as Impacto];
+  let alvos: Array<{ id: string; tipo: string }> = [];
+  if (tipoArt) {
+    const ids = Array.from(new Set(args.artefatoIds?.length ? args.artefatoIds : a.artifactId ? [a.artifactId] : []));
+    if (!ids.length) throw new RegraDeNegocio('Marque qual artefato você atualizou.');
+    alvos = await prisma.psOpsArtifact.findMany({ where: { id: { in: ids } }, select: { id: true, tipo: true } });
+    if (alvos.length !== ids.length) throw new NaoEncontrado('Artefato');
+    if (alvos.some((x) => x.tipo !== tipoArt)) {
+      throw new RegraDeNegocio('Os artefatos marcados não são deste destino.');
+    }
+    if (String(args.descricao ?? '').trim().length < 5) {
+      throw new RegraDeNegocio('Descreva o que mudou no artefato (pelo menos 5 caracteres).');
+    }
   }
 
   return prisma.$transaction(async (tx) => {
@@ -189,65 +216,21 @@ export async function concluir(
       }
     }
 
-    if (!a.artifact) return { activityId: a.id, artefato: null, fichaPublicada };
-
-    const novaVersao = incrementarVersao(a.artifact.versao);
-
-    // A aplicação é o registro auditável: este sinal alterou este artefato
-    // através desta atividade, nesta versão.
-    await tx.psOpsArtifactSignal.upsert({
-      where: {
-        artifactId_signalId_activityId: {
-          artifactId: a.artifact.id,
-          signalId: a.initiative.signalId,
-          activityId: a.id,
-        },
-      },
-      create: {
-        artifactId: a.artifact.id,
-        signalId: a.initiative.signalId,
+    const artefatos: ResultadoConclusao['artefatos'] = [];
+    for (const alvo of alvos) {
+      const { artefato } = await registrarAtualizacao(tx, {
+        artifactId: alvo.id,
+        autorId: args.usuarioId,
+        descricao: String(args.descricao),
         activityId: a.id,
-        aplicadoEm: agora,
-        versaoResultante: novaVersao,
-      },
-      update: { versaoResultante: novaVersao },
-    });
+        signalId: a.initiative.signalId,
+        agora,
+      });
+      artefatos.push({ id: artefato.id, nome: artefato.nome, versao: artefato.versao });
+    }
 
-    const pendentes = await tx.psOpsActivity.count({
-      where: { artifactId: a.artifact.id, status: { in: ['TODO', 'DOING'] } },
-    });
-
-    // Artefato que mora no portal tem a verificação por construção: o write É
-    // a prova. Para os outros, só a data declarada avança aqui — a verificada
-    // fica para o reconciliador.
-    const moraNoPortal = a.artifact.fonteVerificacao === 'PORTAL';
-
-    const artefato = await tx.psOpsArtifact.update({
-      where: { id: a.artifact.id },
-      data: {
-        versao: novaVersao,
-        revisaoDeclaradaEm: agora,
-        ...(moraNoPortal
-          ? { revisaoVerificadaEm: agora, conferidoEm: agora, divergente: false }
-          : {}),
-        // quem fez o trabalho assume o artefato órfão
-        ...(a.artifact.donoId ? {} : { donoId: a.responsavelId ?? args.usuarioId }),
-      },
-    });
-
-    void pendentes;
-
-    return {
-      activityId: a.id,
-      artefato: { id: artefato.id, nome: artefato.nome, versao: artefato.versao },
-      fichaPublicada,
-    };
+    return { activityId: a.id, artefatos, fichaPublicada };
   });
 }
 
-/** "11" → "12"; "2026.Q2" → "2026.Q3"; "1" → "2". */
-export function incrementarVersao(v: string): string {
-  const m = v.match(/^(.*?)(\d+)$/);
-  if (!m?.[2]) return `${v}.1`;
-  return `${m[1]}${Number(m[2]) + 1}`;
-}
+export { incrementarVersao };

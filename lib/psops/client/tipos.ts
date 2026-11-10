@@ -287,10 +287,39 @@ export interface Artefato {
   fonteVerificacao: 'PORTAL' | 'GDRIVE' | 'ZENDESK_ADMIN' | 'NENHUMA';
   pendentes: number;
   aplicacoesTotal: number;
+  /** data do commit mais recente */
+  ultimaAtualizacao: string | null;
+  atualizacoesTotal: number;
   saude: { estado: EstadoSaude; detalhe: string; idadeDias: number | null };
 }
 
+/** Um commit no artefato. */
+export interface AtualizacaoArtefato {
+  id: string;
+  criadoEm: string;
+  autorId: string;
+  autorNome: string | null;
+  autorIniciais: string;
+  descricao: string;
+  activityId: string | null;
+  sinal: { id: string; titulo: string; fonteUrl: string } | null;
+}
+
+export interface HistoricoArtefato {
+  artefato: { id: string; nome: string; donoId: string | null; versao: string };
+  donoNome: string | null;
+  atualizacoes: AtualizacaoArtefato[];
+}
+
 export const ARTEFATO_TIPOS_ORDEM: ArtefatoTipo[] = ['DEMO_TEMPLATE', 'FRAMEWORK', 'ESCOPO'];
+
+/** Que tipo de artefato cada destino atualiza (Estudo não atualiza artefato). */
+export const TIPO_ARTEFATO_DO_IMPACTO: Record<Impacto, ArtefatoTipo | null> = {
+  ESTUDO: null,
+  DEMO: 'DEMO_TEMPLATE',
+  ESTIM: 'FRAMEWORK',
+  ESCOPO: 'ESCOPO',
+};
 
 // ───────────────────────────── Linha do tempo ───────────────────────────────
 
