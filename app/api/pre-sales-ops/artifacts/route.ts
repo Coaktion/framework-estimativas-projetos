@@ -19,12 +19,15 @@ export async function GET() {
       await garantirArtefatos(prisma);
     }
     const itens = await listarArtefatos(prisma);
-    const pessoas = await pessoasPorId(prisma, itens.map((a) => a.donoId));
+    const pessoas = await pessoasPorId(prisma, [...itens.map((a) => a.donoId), ...itens.map((a) => a.ultimoCommit?.autorId)]);
     return ok({
       itens: itens.map((a) => ({
         ...a,
         donoNome: a.donoId ? (pessoas[a.donoId]?.nome ?? null) : null,
         donoIniciais: a.donoId ? (pessoas[a.donoId]?.iniciais ?? '?') : null,
+        ultimoCommit: a.ultimoCommit
+          ? { ...a.ultimoCommit, autorNome: pessoas[a.ultimoCommit.autorId]?.nome ?? null }
+          : null,
       })),
     });
   });

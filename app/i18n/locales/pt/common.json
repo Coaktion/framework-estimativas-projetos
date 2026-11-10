@@ -740,7 +740,8 @@
     "tplHoursAe": "Pacote de Horas AE",
     "tplTimeMaterials": "Time & Materials",
     "unavailable": "Indisponível",
-    "zdAutoConfigSubtitle": "Demos"
+    "zdAutoConfigSubtitle": "Demos",
+    "estudosSubtitle": "Time de pré-vendas"
   },
   "loader": {
     "brand": "Aktie Now Tool Center"
@@ -782,7 +783,9 @@
     "booking": "Agendamento",
     "bookingTitle": "Agendamento de reuniões no Google Agenda dos Solution Engineers",
     "folders": "Criador de Pastas",
-    "foldersTitle": "Cria no Google Drive a estrutura padrão de pastas do cliente"
+    "foldersTitle": "Cria no Google Drive a estrutura padrão de pastas do cliente",
+    "estudos": "Estudos",
+    "estudosTitle": "Acompanhamento de estudo do time: registro semanal, matriz de conhecimento, resumo e relatório"
   },
   "plans": {
     "categoryGateHint": "Abaixo do plano mínimo a categoria inteira desaparece do framework, mesmo que algum item dentro dela não tenha restrição própria. Vazio = sem restrição.",
@@ -1177,7 +1180,9 @@
       "soDono": "Só o dono do artefato (ou o gestor do Radar) registra atualização aqui.",
       "historico": "Histórico de atualizações",
       "historicoVazio": "Nenhuma atualização registrada ainda.",
-      "origem": "Feature: {{titulo}}"
+      "origem": "Feature: {{titulo}}",
+      "secaoUltima": "Última: {{quando}} · {{nome}} · {{autor}}",
+      "secaoSemAtualizacao": "Nenhuma atualização registrada"
     },
     "backlog": {
       "editoria": "Execução",
@@ -2014,6 +2019,108 @@
       "invalid_region": "Escolha a região.",
       "timeout": "O Google Drive demorou para responder. Tente de novo: o que já foi criado não é duplicado.",
       "script_error": "Não foi possível criar as pastas."
+    }
+  },
+  "estudos": {
+    "tituloA": "Estudos",
+    "tituloB": "do time",
+    "subtitulo": "Registro semanal, matriz de conhecimento, resumo e relatório do time de pré-vendas.",
+    "abas": "Abas de Estudos",
+    "aba": {
+      "semanal": "Acompanhamento semanal",
+      "matriz": "Matriz de conhecimento",
+      "resumo": "Resumo",
+      "relatorio": "Relatório"
+    },
+    "todos": "Todos",
+    "nivel": {
+      "0": "Nenhum",
+      "1": "Básico",
+      "2": "Intermediário",
+      "3": "Avançado",
+      "4": "Especialista"
+    },
+    "nivelDesc": {
+      "0": "Sem contato com o tema.",
+      "1": "Entende o conceito; sabe o que é e para que serve.",
+      "2": "Configura/explica com algum apoio ou consulta.",
+      "3": "Autônomo: configura e desenha solução sozinho.",
+      "4": "Referência no time; ensina e resolve casos complexos."
+    },
+    "prioridade": {
+      "Alta": "Alta",
+      "Média": "Média",
+      "Baixa": "Baixa"
+    },
+    "semanal": {
+      "novoTitulo": "Registrar estudo",
+      "editarTitulo": "Editar registro",
+      "novoDesc": "Toda semana, cada pessoa registra o que estudou. A data já vem na segunda-feira desta semana.",
+      "data": "Data (segunda)",
+      "pessoa": "Pessoa",
+      "categoria": "Categoria",
+      "atividade": "Treinamento / Atividade",
+      "atividadeDica": "ex.: AI Bootcamp, leitura sobre Custom Agents…",
+      "tipo": "Tipo",
+      "observacoes": "Observações",
+      "acoes": "Ações",
+      "registrar": "Registrar",
+      "salvar": "Salvar alterações",
+      "cancelar": "Cancelar",
+      "editar": "Editar",
+      "apagar": "Apagar",
+      "confirmarApagar": "Apagar este registro? Não dá para desfazer.",
+      "listaTitulo": "Registros",
+      "listaDesc": "{{n}} registros no total, do mais recente ao mais antigo.",
+      "vazio": "Nenhum registro com este filtro."
+    },
+    "matriz": {
+      "titulo": "Matriz de conhecimento",
+      "desc": "Cada pessoa marca o seu nível (0–4) em cada tópico. Nível-alvo e prioridade são do time. Salva sozinho a cada mudança.",
+      "buscar": "Buscar tópico",
+      "todasCategorias": "Todas as categorias",
+      "topico": "Competência / Tópico",
+      "alvo": "Nível-alvo",
+      "prioridade": "Prioridade"
+    },
+    "resumo": {
+      "titulo": "Domínio médio por categoria",
+      "desc": "Média do nível (0–4) de cada pessoa por categoria, calculada da matriz. O gap é o nível-alvo médio menos a média da categoria.",
+      "mediaCategoria": "Média da categoria",
+      "alvoMedio": "Alvo médio",
+      "gap": "Gap (alvo − média)",
+      "geral": "MÉDIA GERAL (todos os itens da matriz)"
+    },
+    "relatorio": {
+      "desc": "Contagem dos registros do Acompanhamento semanal. Cada registro conta como um treinamento; a semana é a segunda-feira da data.",
+      "primeiraSemana": "Primeira semana com registro",
+      "semanaAtual": "Semana atual",
+      "semanas": "Semanas no período",
+      "total": "Treinamentos registrados",
+      "porPessoa": "Por pessoa",
+      "porTipo": "Por tipo de atividade",
+      "porCategoria": "Por categoria",
+      "porSemana": "Por semana",
+      "time": "Time",
+      "dominio": "Domínio médio do time (0–4)",
+      "semana": "Semana (segunda)",
+      "alertaDias": "Em vermelho: mais de 14 dias sem registrar.",
+      "col": {
+        "pessoa": "Pessoa",
+        "treinamentos": "Treinamentos",
+        "semanasCom": "Semanas com registro",
+        "pctSemanas": "% das semanas com registro",
+        "mediaSemana": "Média por semana",
+        "ultimos30": "Últimos 30 dias",
+        "ultimo": "Último registro",
+        "diasSem": "Dias sem registrar"
+      }
+    },
+    "erros": {
+      "forbidden": "Sem permissão para esta ação.",
+      "invalid": "Confira os campos: algum valor não é válido.",
+      "not_found": "Esse item não existe mais. Recarregue a página.",
+      "server_error": "Não deu para salvar. Tente de novo."
     }
   }
 }

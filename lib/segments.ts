@@ -258,3 +258,18 @@ export function canAccessFolders(
   if (!user) return false;
   return Boolean(user.isAdmin) || FOLDERS_SEGMENTS.includes(normalizeSegment(user.role));
 }
+
+/**
+ * Quem enxerga Estudos (acompanhamento semanal, matriz de conhecimento,
+ * resumo e relatório do time de pré-vendas): só Solution Consultants, além
+ * do ADMIN, como as demais ferramentas do time.
+ */
+const ESTUDOS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem enxerga Estudos. */
+export function canAccessEstudos(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || ESTUDOS_SEGMENTS.includes(normalizeSegment(user.role));
+}

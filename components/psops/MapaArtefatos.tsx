@@ -154,7 +154,7 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
                 <span className="w-3 text-psops-muted">{gruposAbertos.includes(tipo) ? '▾' : '▸'}</span>
                 <span className="text-title font-bold text-psops-texto">{t(`psops.mapa.grupo.${tipo}`)}</span>
                 <span className="text-label font-bold text-psops-muted">{doTipo.length}</span>
-                <span className="ml-auto text-[10.5px] text-psops-muted">{t(`psops.mapa.grupoDica.${tipo}`)}</span>
+                <UltimaDaSecao itens={doTipo} />
               </button>
               {gruposAbertos.includes(tipo) ? (
               <div className="border-t border-psops-linha">
@@ -252,6 +252,30 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
         })}
       </div>
     </>
+  );
+}
+
+/** Cabeçalho da seção: a atualização mais recente entre os artefatos dela. */
+function UltimaDaSecao({ itens }: { itens: Artefato[] }) {
+  const { t } = useTranslation();
+  const ultimo = itens
+    .filter((a) => a.ultimaAtualizacao)
+    .sort((x, y) => +new Date(y.ultimaAtualizacao!) - +new Date(x.ultimaAtualizacao!))[0];
+  if (!ultimo) {
+    return <span className="ml-auto text-[11px] text-psops-muted">{t('psops.mapa.secaoSemAtualizacao')}</span>;
+  }
+  return (
+    <span
+      className="ml-auto min-w-0 max-w-full truncate text-[11px] text-psops-muted"
+      title={ultimo.ultimoCommit?.descricao ?? ''}
+    >
+      {t('psops.mapa.secaoUltima', {
+        quando: new Date(ultimo.ultimaAtualizacao!).toLocaleDateString(),
+        nome: ultimo.nome,
+        autor: ultimo.ultimoCommit?.autorNome ?? '—',
+      })}
+      {ultimo.ultimoCommit ? <span className="text-psops-texto"> · {ultimo.ultimoCommit.descricao}</span> : null}
+    </span>
   );
 }
 

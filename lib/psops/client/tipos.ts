@@ -290,6 +290,7 @@ export interface Artefato {
   /** data do commit mais recente */
   ultimaAtualizacao: string | null;
   atualizacoesTotal: number;
+  ultimoCommit: { autorId: string; autorNome: string | null; descricao: string; criadoEm: string } | null;
   saude: { estado: EstadoSaude; detalhe: string; idadeDias: number | null };
 }
 

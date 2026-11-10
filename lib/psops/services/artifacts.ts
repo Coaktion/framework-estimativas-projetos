@@ -112,6 +112,8 @@ export async function listarArtefatos(prisma: PrismaClient, agora = new Date()) 
     orderBy: [{ tipo: 'asc' }, { nome: 'asc' }],
     include: {
       _count: { select: { aplicacoes: true, atualizacoes: true } },
+      // o commit mais recente: o Mapa mostra no cabeçalho de cada seção
+      atualizacoes: { orderBy: { criadoEm: 'desc' }, take: 1, select: { autorId: true, descricao: true, criadoEm: true } },
       atividades: {
         where: { status: { in: ['TODO', 'DOING'] } },
         select: { id: true },
@@ -139,6 +141,7 @@ export async function listarArtefatos(prisma: PrismaClient, agora = new Date()) 
       pendentes,
       aplicacoesTotal: a._count.aplicacoes,
       atualizacoesTotal: a._count.atualizacoes,
+      ultimoCommit: a.atualizacoes?.[0] ?? null,
       saude: saudePorAtualizacao(a.revisaoDeclaradaEm, pendentes, agora),
     };
   });

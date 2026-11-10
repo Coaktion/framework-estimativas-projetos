@@ -14,7 +14,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:studio": "prisma studio",
-    "psops:test": "tsx --test lib/psops/ingest/__tests__/*.test.ts lib/psops/services/__tests__/*.test.ts",
+    "psops:test": "tsx --test lib/psops/ingest/__tests__/*.test.ts lib/psops/services/__tests__/*.test.ts lib/estudos/__tests__/*.test.ts",
     "psops:seed": "tsx scripts/psops-seed.ts",
     "psops:collect": "tsx scripts/psops-collect.ts",
     "psops:reconcile": "tsx scripts/psops-reconcile.ts",

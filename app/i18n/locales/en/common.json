@@ -740,7 +740,8 @@
     "tplHoursAe": "Hours Package AE",
     "tplTimeMaterials": "Time & Materials",
     "unavailable": "Unavailable",
-    "zdAutoConfigSubtitle": "Demos"
+    "zdAutoConfigSubtitle": "Demos",
+    "estudosSubtitle": "Pre-sales team"
   },
   "loader": {
     "brand": "Aktie Now Tool Center"
@@ -782,7 +783,9 @@
     "booking": "Booking",
     "bookingTitle": "Meeting booking on the Solution Engineers' Google Calendar",
     "folders": "Folder Creator",
-    "foldersTitle": "Creates the client's standard folder structure in Google Drive"
+    "foldersTitle": "Creates the client's standard folder structure in Google Drive",
+    "estudos": "Studies",
+    "estudosTitle": "Team study tracking: weekly log, knowledge matrix, summary and report"
   },
   "plans": {
     "categoryGateHint": "Below the minimum plan the whole category disappears from the framework, even if some item inside it has no restriction of its own. Empty = no restriction.",
@@ -1177,7 +1180,9 @@
       "soDono": "Only the artifact owner (or the Radar manager) can log updates here.",
       "historico": "Update history",
       "historicoVazio": "No updates logged yet.",
-      "origem": "Feature: {{titulo}}"
+      "origem": "Feature: {{titulo}}",
+      "secaoUltima": "Latest: {{quando}} · {{nome}} · {{autor}}",
+      "secaoSemAtualizacao": "No update logged"
     },
     "backlog": {
       "editoria": "Execution",
@@ -2014,6 +2019,108 @@
       "invalid_region": "Choose the region.",
       "timeout": "Google Drive took too long to respond. Try again: what was already created is not duplicated.",
       "script_error": "Could not create the folders."
+    }
+  },
+  "estudos": {
+    "tituloA": "Team",
+    "tituloB": "studies",
+    "subtitulo": "Weekly log, knowledge matrix, summary and report of the pre-sales team.",
+    "abas": "Studies tabs",
+    "aba": {
+      "semanal": "Weekly log",
+      "matriz": "Knowledge matrix",
+      "resumo": "Summary",
+      "relatorio": "Report"
+    },
+    "todos": "All",
+    "nivel": {
+      "0": "None",
+      "1": "Basic",
+      "2": "Intermediate",
+      "3": "Advanced",
+      "4": "Expert"
+    },
+    "nivelDesc": {
+      "0": "No contact with the topic.",
+      "1": "Understands the concept; knows what it is for.",
+      "2": "Configures/explains with some help or lookup.",
+      "3": "Autonomous: configures and designs solutions alone.",
+      "4": "Team reference; teaches and solves complex cases."
+    },
+    "prioridade": {
+      "Alta": "High",
+      "Média": "Medium",
+      "Baixa": "Low"
+    },
+    "semanal": {
+      "novoTitulo": "Log a study",
+      "editarTitulo": "Edit entry",
+      "novoDesc": "Every week, each person logs what they studied. The date defaults to this week's Monday.",
+      "data": "Date (Monday)",
+      "pessoa": "Person",
+      "categoria": "Category",
+      "atividade": "Training / Activity",
+      "atividadeDica": "e.g.: AI Bootcamp, reading about Custom Agents…",
+      "tipo": "Type",
+      "observacoes": "Notes",
+      "acoes": "Actions",
+      "registrar": "Log",
+      "salvar": "Save changes",
+      "cancelar": "Cancel",
+      "editar": "Edit",
+      "apagar": "Delete",
+      "confirmarApagar": "Delete this entry? This cannot be undone.",
+      "listaTitulo": "Entries",
+      "listaDesc": "{{n}} entries in total, newest first.",
+      "vazio": "No entries with this filter."
+    },
+    "matriz": {
+      "titulo": "Knowledge matrix",
+      "desc": "Each person sets their level (0–4) on each topic. Target level and priority belong to the team. Saves on every change.",
+      "buscar": "Search topic",
+      "todasCategorias": "All categories",
+      "topico": "Competency / Topic",
+      "alvo": "Target level",
+      "prioridade": "Priority"
+    },
+    "resumo": {
+      "titulo": "Average proficiency by category",
+      "desc": "Average level (0–4) of each person per category, computed from the matrix. The gap is the average target minus the category average.",
+      "mediaCategoria": "Category average",
+      "alvoMedio": "Average target",
+      "gap": "Gap (target − average)",
+      "geral": "OVERALL AVERAGE (all matrix items)"
+    },
+    "relatorio": {
+      "desc": "Count of Weekly log entries. Each entry counts as one training; the week is the Monday of the date.",
+      "primeiraSemana": "First week with entries",
+      "semanaAtual": "Current week",
+      "semanas": "Weeks in period",
+      "total": "Trainings logged",
+      "porPessoa": "By person",
+      "porTipo": "By activity type",
+      "porCategoria": "By category",
+      "porSemana": "By week",
+      "time": "Team",
+      "dominio": "Team average proficiency (0–4)",
+      "semana": "Week (Monday)",
+      "alertaDias": "In red: more than 14 days without logging.",
+      "col": {
+        "pessoa": "Person",
+        "treinamentos": "Trainings",
+        "semanasCom": "Weeks with entries",
+        "pctSemanas": "% of weeks with entries",
+        "mediaSemana": "Average per week",
+        "ultimos30": "Last 30 days",
+        "ultimo": "Last entry",
+        "diasSem": "Days without logging"
+      }
+    },
+    "erros": {
+      "forbidden": "You are not allowed to do this.",
+      "invalid": "Check the fields: some value is not valid.",
+      "not_found": "This item no longer exists. Reload the page.",
+      "server_error": "Could not save. Try again."
     }
   }
 }

@@ -761,3 +761,56 @@ model ApiKey {
   @@index([userId])
   @@map("api_keys")
 }
+
+// ───────────────────────────── Estudos do time (SCs) ─────────────────────────
+// A planilha "Acompanhamento de Estudo do Time" trazida para o portal: matriz de
+// conhecimento (nível 0–4 por pessoa e tópico) e o registro semanal de estudos.
+// Pessoas são User.id (sem FK, como no Radar, para não mexer no modelo User).
+
+model EstudoTopico {
+  id         String        @id @default(cuid())
+  categoria  String
+  topico     String
+  descricao  String?       @db.Text
+  /// nível que o time deve atingir (0–4); vazio = sem meta
+  nivelAlvo  Int?
+  /// Alta, Média ou Baixa
+  prioridade String?
+  ordem      Int           @default(0)
+  criadoEm   DateTime      @default(now())
+  niveis     EstudoNivel[]
+
+  @@unique([categoria, topico])
+  @@map("estudo_topicos")
+}
+
+model EstudoNivel {
+  id            String       @id @default(cuid())
+  topicoId      String
+  topico        EstudoTopico @relation(fields: [topicoId], references: [id], onDelete: Cascade)
+  userId        Int
+  /// 0 Nenhum · 1 Básico · 2 Intermediário · 3 Avançado · 4 Especialista
+  nivel         Int
+  atualizadoEm  DateTime     @updatedAt
+  atualizadoPor Int?
+
+  @@unique([topicoId, userId])
+  @@index([userId])
+  @@map("estudo_niveis")
+}
+
+model EstudoRegistro {
+  id          String   @id @default(cuid())
+  userId      Int
+  data        DateTime @db.Date
+  categoria   String?
+  atividade   String   @db.Text
+  tipo        String?
+  observacoes String?  @db.Text
+  criadoEm    DateTime @default(now())
+  criadoPor   Int?
+
+  @@index([data])
+  @@index([userId])
+  @@map("estudo_registros")
+}
