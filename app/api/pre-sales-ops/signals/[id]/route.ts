@@ -12,13 +12,16 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     await exigirUsuario();
     const d = await detalharSinal(prisma, params.id);
     // quem responde por cada artefato, com nome — a tela não conhece o User
-    const pessoas = await pessoasPorId(prisma, d.previa.map((p) => p.responsavelId));
+    const pessoas = await pessoasPorId(prisma, d.previa.flatMap((p) => [p.responsavelId, ...p.responsaveisIds]));
     return ok({
       ...d,
       previa: d.previa.map((p) => ({
         ...p,
         responsavelNome: p.responsavelId ? (pessoas[p.responsavelId]?.nome ?? null) : null,
         responsavelIniciais: p.responsavelId ? (pessoas[p.responsavelId]?.iniciais ?? '?') : null,
+        responsaveis: p.responsaveisIds
+          .filter((id) => pessoas[id])
+          .map((id) => ({ id, nome: pessoas[id]!.nome, iniciais: pessoas[id]!.iniciais })),
       })),
     });
   });

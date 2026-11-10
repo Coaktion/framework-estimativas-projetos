@@ -66,6 +66,8 @@ export interface PreviaImpacto {
   responsavelNome: string | null;
   responsavelIniciais: string | null;
   artefatoExiste: boolean;
+  /** todos que vão receber a atividade (Estudo: os SEs; os outros: um só) */
+  responsaveis?: Array<{ id: string; nome: string; iniciais: string }>;
 }
 
 export interface SinalDetalhe extends Sinal {

@@ -58,11 +58,12 @@ export async function listarAtividades(prisma: PrismaClient, f: FiltroAtividades
               tipo: true,
               produto: true,
               rawItem: { select: { htmlUrl: true, titulo: true } },
+              // a ficha é da FEATURE: os estudos de todos os SEs abrem a mesma
+              studyNote: { select: { id: true, publicadoEm: true } },
             },
           },
         },
       },
-      studyNote: { select: { id: true, publicadoEm: true } },
     },
   });
 
@@ -70,6 +71,7 @@ export async function listarAtividades(prisma: PrismaClient, f: FiltroAtividades
     const dod = lerDod(a.dod);
     return {
       ...a,
+      studyNote: a.tipo === 'ESTUDO' ? (a.initiative.signal.studyNote ?? null) : null,
       dod,
       progresso: { feitos: dod.filter((i) => i.d).length, total: dod.length },
       pendencias: dodPendencias(dod),
@@ -172,7 +174,8 @@ export async function concluir(
 
     let fichaPublicada = false;
     if (a.tipo === 'ESTUDO') {
-      const ficha = await tx.psOpsStudyNote.findUnique({ where: { activityId: a.id } });
+      // ficha compartilhada pelos estudos da feature: busca pelo sinal
+      const ficha = await tx.psOpsStudyNote.findUnique({ where: { signalId: a.initiative.signalId } });
       if (ficha) {
         await tx.psOpsStudyNote.update({
           where: { id: ficha.id },

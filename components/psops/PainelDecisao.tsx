@@ -166,7 +166,11 @@ export function PainelDecisao({
           ) : (
             <>
               <p className="mb-2.5 text-caption font-medium text-psops-tinta">
-                {t('psops.triagem.atividades', { count: impactos.length })} ·{' '}
+                {t('psops.triagem.atividades', {
+                  // Estudo gera uma atividade por SE: conta quem vai receber
+                  count: alvos.reduce((s, p) => s + Math.max(1, (p.responsaveis ?? []).length), 0) || impactos.length,
+                })}{' '}
+                ·{' '}
                 {t('psops.triagem.responsavelHerdado')}
               </p>
               <ul className="flex flex-col gap-2">
@@ -183,8 +187,20 @@ export function PainelDecisao({
                         </span>
                       ) : null}
                     </span>
-                    <span className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-label text-psops-muted">
-                      {p.artefatoChave ? (
+                    <span
+                      className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-label text-psops-muted"
+                      title={(p.responsaveis ?? []).map((r) => r.nome).join(', ') || undefined}
+                    >
+                      {(p.responsaveis ?? []).length > 1 ? (
+                        <>
+                          <span className="flex -space-x-1.5">
+                            {(p.responsaveis ?? []).map((r) => (
+                              <Avatar key={r.id} iniciais={r.iniciais} />
+                            ))}
+                          </span>
+                          {t('psops.triagem.pessoas', { count: (p.responsaveis ?? []).length })}
+                        </>
+                      ) : (
                         <>
                           <Avatar
                             iniciais={p.responsavelIniciais ?? '?'}
@@ -192,8 +208,6 @@ export function PainelDecisao({
                           />
                           {p.responsavelNome ?? t('psops.triagem.semResponsavel')}
                         </>
-                      ) : (
-                        <span className="opacity-70">{t('psops.triagem.fichaNova')}</span>
                       )}
                     </span>
                   </li>

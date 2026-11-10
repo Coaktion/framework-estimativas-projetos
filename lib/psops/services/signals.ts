@@ -5,6 +5,7 @@
 import type { PrismaClient, Prisma } from '@prisma/client';
 import { chaveArtefato, IMPACTOS_ORDEM, MODULO_LABEL, type Impacto, type Modulo } from '../config/taxonomy';
 import { NaoEncontrado } from '../lib/http';
+import { resolverResponsaveis } from '../config/responsaveis';
 
 export interface FiltroSinais {
   status?: Array<'NOVO' | 'TRIADO' | 'DESCARTADO' | 'AUTO_ARQUIVADO' | 'NAO_CLASSIFICADO'>;
@@ -145,17 +146,22 @@ export async function previaImpactos(
     artefatoChave: string | null;
     artefatoNome: string;
     responsavelId: string | null;
+    /** todos que recebem a atividade — o mesmo critério de triar() */
+    responsaveisIds: string[];
     artefatoExiste: boolean;
   }> = [];
+  const config = await resolverResponsaveis(prisma);
 
   for (const impacto of impactos) {
     const chave = chaveArtefato(impacto, modulo);
+    const configurados = config[impacto] ?? [];
     if (!chave) {
       saida.push({
         impacto,
         artefatoChave: null,
         artefatoNome: `Ficha da feature (nova)`,
-        responsavelId: null,
+        responsavelId: configurados[0] ?? null,
+        responsaveisIds: configurados,
         artefatoExiste: false,
       });
       continue;
@@ -172,7 +178,8 @@ export async function previaImpactos(
         (chave === 'DEMO_TEMPLATE'
           ? 'Template de demo · zd_auto_template'
           : `${chave.startsWith('FRAMEWORK') ? 'Framework' : 'Bloco escopo'} · ${MODULO_LABEL[modulo]}`),
-      responsavelId: art?.donoId ?? null,
+      responsavelId: configurados[0] ?? art?.donoId ?? null,
+      responsaveisIds: configurados.length ? [configurados[0]!] : art?.donoId ? [art.donoId] : [],
       artefatoExiste: Boolean(art),
     });
   }

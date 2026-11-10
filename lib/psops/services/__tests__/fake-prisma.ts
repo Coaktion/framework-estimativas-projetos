@@ -26,6 +26,8 @@ export interface Estado {
   artifacts: Row[];
   studyNotes: Row[];
   artifactSignals: Row[];
+  /** cadastro de usuários do portal (config/responsaveis.ts resolve e-mail → id) */
+  users: Row[];
 }
 
 /**
@@ -61,6 +63,7 @@ const DEFAULTS: Record<keyof Estado, Row> = {
     publicadoEm: null, autorId: null, activityId: null,
   },
   artifactSignals: { versaoResultante: null },
+  users: {},
 };
 
 const casa = (row: Row, where: Row): boolean =>
@@ -91,6 +94,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     artifacts: [],
     studyNotes: [],
     artifactSignals: [],
+    users: [],
     ...inicial,
   };
 
@@ -206,6 +210,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     psOpsArtifact: tabela('artifacts', 'art'),
     psOpsStudyNote: tabela('studyNotes', 'stn'),
     psOpsArtifactSignal: tabela('artifactSignals', 'aps'),
+    user: tabela('users', 'usr'),
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       // sem rollback: os testes verificam o caminho felizes e as validações,
       // que acontecem antes da transação

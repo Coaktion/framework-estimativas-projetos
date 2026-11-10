@@ -3,13 +3,15 @@
  *
  * O triador não escreve tarefa: ele marca ONDE impacta. Este serviço traduz
  * essa decisão em uma Iniciativa e N Atividades, cada uma com Definition of
- * Done do template e responsável herdado do dono do artefato.
+ * Done do template e o responsável do destino (config/responsaveis.ts).
  *
  * Regras que este arquivo garante:
- *   · ESTUDO não toca artefato — cria a ficha da feature (PsOpsStudyNote)
+ *   · ESTUDO não toca artefato — gera uma atividade para cada SE e UMA ficha
+ *     da feature (PsOpsStudyNote), compartilhada por eles
  *   · DEMO / ESTIM / ESCOPO tocam o artefato correspondente, criando-o se
  *     ainda não existir (sem dono, e isso fica visível no mapa)
- *   · o responsável vem do dono do artefato, não de sorteio
+ *   · o responsável vem da configuração do time; sem ninguém configurado,
+ *     do dono do artefato — nunca de sorteio nem de quem triou
  *   · triar duas vezes o mesmo sinal é erro de negócio, não duplicação
  */
 
@@ -22,6 +24,7 @@ import {
   type Modulo,
 } from '../config/taxonomy';
 import { DOD_TEMPLATES, criterioSugerido, tituloAtividade } from '../config/dod';
+import { resolverResponsaveis, type ResponsaveisResolvidos } from '../config/responsaveis';
 import { semanaIso } from '../ingest/collector';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
 
@@ -30,6 +33,8 @@ export interface TriarInput {
   impactos: Impacto[];
   usuarioId: string;
   nota?: string | null;
+  /** quem responde por destino; sem isto, vem de config/responsaveis.ts */
+  responsaveis?: ResponsaveisResolvidos;
 }
 
 export interface TriarResultado {
@@ -73,6 +78,7 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
   const impactos = IMPACTOS_ORDEM.filter((i) => input.impactos.includes(i));
   const modulo = sinal.modulo as Modulo;
   const artefatosCriados: string[] = [];
+  const responsaveis = input.responsaveis ?? (await resolverResponsaveis(prisma));
 
   const resultado = await prisma.$transaction(async (tx) => {
     const initiative = await tx.psOpsInitiative.create({
@@ -121,42 +127,56 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
         nomeArt = art.nome;
       }
 
-      const atividade = await tx.psOpsActivity.create({
-        data: {
-          initiativeId: initiative.id,
-          tipo: impacto,
-          titulo: tituloAtividade(impacto, sinal.titulo),
-          artifactId,
-          responsavelId,
-          dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
-          criterioVerificavel: criterioSugerido(
-            impacto,
-            modulo,
-            sinal.tipo,
-            sinal.titulo,
-          ) as unknown as Prisma.InputJsonValue,
-        },
-      });
+      // Quem responde vem da configuração do time (config/responsaveis.ts):
+      // Estudo é de todos os SEs — uma atividade para cada um —, os outros
+      // destinos têm um dono só. Sem ninguém configurado, fica o dono do
+      // artefato (ou ninguém, e o card cai em "Sem responsável").
+      const configurados = responsaveis[impacto] ?? [];
+      const pessoas: Array<string | null> =
+        impacto === Impacto.ESTUDO
+          ? (configurados.length ? configurados : [responsavelId])
+          : [configurados[0] ?? responsavelId];
 
-      // ESTUDO gera a ficha da feature, já vinculada ao sinal e à atividade.
+      let primeiraId: string | null = null;
+      for (const pessoa of pessoas) {
+        const atividade = await tx.psOpsActivity.create({
+          data: {
+            initiativeId: initiative.id,
+            tipo: impacto,
+            titulo: tituloAtividade(impacto, sinal.titulo),
+            artifactId,
+            responsavelId: pessoa,
+            dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
+            criterioVerificavel: criterioSugerido(
+              impacto,
+              modulo,
+              sinal.tipo,
+              sinal.titulo,
+            ) as unknown as Prisma.InputJsonValue,
+          },
+        });
+        primeiraId ??= atividade.id;
+        atividades.push({
+          id: atividade.id,
+          tipo: impacto,
+          titulo: atividade.titulo,
+          artefato: nomeArt,
+          responsavelId: pessoa,
+        });
+      }
+
+      // ESTUDO gera UMA ficha da feature, compartilhada pelos SEs: todos os
+      // estudos dessa feature leem e preenchem a mesma (busca pelo sinal).
       if (impacto === Impacto.ESTUDO) {
         await tx.psOpsStudyNote.create({
           data: {
             signalId: sinal.id,
-            activityId: atividade.id,
+            activityId: primeiraId,
             autorId: null,
             linksConsultados: [],
           },
         });
       }
-
-      atividades.push({
-        id: atividade.id,
-        tipo: impacto,
-        titulo: atividade.titulo,
-        artefato: nomeArt,
-        responsavelId,
-      });
     }
 
     await tx.psOpsSignal.update({

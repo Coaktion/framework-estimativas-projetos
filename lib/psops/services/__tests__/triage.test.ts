@@ -374,3 +374,62 @@ test('muitos sinais pendentes derrubam para crítico mesmo com idade boa', () =>
   );
   assert.equal(s.estado, 'CRITICO');
 });
+
+// ─────────────────────── Responsáveis por destino ───────────────────────────
+
+/** O time real, como está no cadastro de usuários do portal. */
+function semearTime(f: Fake) {
+  f.estado.users.push(
+    { id: 6, email: 'rzanetti@aktienow.com', name: 'Renato Zanetti' },
+    { id: 5, email: 'aoliveira@aktienow.com', name: 'Arthur Oliveira' },
+    { id: 1, email: 'msouza@aktienow.com', name: 'Matheus Souza' },
+    { id: 7, email: 'esimicevic@aktienow.com', name: 'Elisa Simicevic' },
+    { id: 60, email: 'fcastro@aktienow.com', name: 'Francisco Alexander' },
+  );
+}
+
+test('cada destino vai para o dono configurado: Demo Renato, Estimativa Arthur, Escopo Elisa', async () => {
+  const f = criarFakePrisma();
+  semearTime(f);
+  const s = semearSinal(f);
+  // dono do artefato é outra pessoa: a configuração do time vale mais
+  semearArtefato(f, { chave: 'FRAMEWORK:VOICE', donoId: 'u-outro' });
+
+  const r = await triar(asPrisma(f), {
+    signalId: s.id as string,
+    impactos: [Impacto.DEMO, Impacto.ESTIM, Impacto.ESCOPO],
+    usuarioId: '6',
+  });
+  const de = (tipo: string) => r.atividades.filter((a) => a.tipo === tipo).map((a) => a.responsavelId);
+  assert.deepEqual(de('DEMO'), ['6']);
+  assert.deepEqual(de('ESTIM'), ['5']);
+  assert.deepEqual(de('ESCOPO'), ['7']);
+});
+
+test('Estudo gera uma atividade para cada SE e UMA ficha compartilhada', async () => {
+  const f = criarFakePrisma();
+  semearTime(f);
+  const s = semearSinal(f);
+
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESTUDO], usuarioId: '6' });
+  const estudos = r.atividades.filter((a) => a.tipo === 'ESTUDO');
+  assert.deepEqual(estudos.map((a) => a.responsavelId).sort(), ['1', '5', '6', '60', '7']);
+  assert.equal(f.estado.studyNotes.length, 1, 'uma ficha só para a feature');
+  assert.equal(f.estado.studyNotes[0]!.signalId, s.id);
+
+  // concluir o estudo de qualquer um publica a ficha da feature
+  const res = await concluirTudo(f, estudos[3]!.id, '7');
+  assert.equal(res.fichaPublicada, true);
+  assert.ok(f.estado.studyNotes[0]!.publicadoEm instanceof Date);
+  // os outros estudos continuam abertos: cada SE conclui o seu
+  assert.equal(f.estado.activities.filter((a) => a.tipo === 'ESTUDO' && a.status !== 'DONE').length, 4);
+});
+
+test('pessoa da configuração que não está no cadastro é ignorada, sem quebrar a triagem', async () => {
+  const f = criarFakePrisma();
+  f.estado.users.push({ id: 6, email: 'rzanetti@aktienow.com', name: 'Renato Zanetti' });
+  const s = semearSinal(f);
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESTUDO, Impacto.ESCOPO], usuarioId: '6' });
+  assert.deepEqual(r.atividades.filter((a) => a.tipo === 'ESTUDO').map((a) => a.responsavelId), ['6']);
+  assert.deepEqual(r.atividades.filter((a) => a.tipo === 'ESCOPO').map((a) => a.responsavelId), [null], 'Elisa não está no cadastro → sem responsável');
+});

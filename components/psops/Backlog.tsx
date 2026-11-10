@@ -13,7 +13,9 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { api } from '@/lib/psops/client/api';
 import {
+  ABAS_MODULO,
   IMPACTOS_ORDEM,
+  abaDoProduto,
   textoDoSinal,
   urlDaNota,
   type Atividade,
@@ -59,6 +61,8 @@ function Conteudo() {
   const [erro, setErro] = useState<string | null>(null);
   const [filtroResp, setFiltroResp] = useState<FiltroResp>('todos');
   const [tipos, setTipos] = useState<Impacto[]>([]);
+  /** aba de módulo do Zendesk (as mesmas da Triagem); 'TODOS' = sem filtro */
+  const [modulo, setModulo] = useState<string>('TODOS');
   const [abertaId, setAbertaId] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -101,15 +105,22 @@ function Conteudo() {
     () =>
       itens.filter((a) => {
         if (tipos.length && !tipos.includes(a.tipo)) return false;
+        if (modulo !== 'TODOS' && abaDoProduto(a.initiative.signal.produto) !== modulo) return false;
         if (filtroResp === 'todos') return true;
         if (filtroResp === 'sem') return !a.responsavelId;
         if (filtroResp === 'meus') return a.responsavelId === euId;
         return a.responsavelId === filtroResp;
       }),
-    [itens, tipos, filtroResp, euId],
+    [itens, tipos, filtroResp, euId, modulo],
   );
 
   const aberta = itens.find((a) => a.id === abertaId) ?? null;
+  // módulos com atividade aberta, para os chips do filtro
+  const abertasPorModulo = abertas.reduce<Record<string, number>>((m, a) => {
+    const aba = abaDoProduto(a.initiative.signal.produto);
+    m[aba] = (m[aba] ?? 0) + 1;
+    return m;
+  }, {});
 
   if (erro) {
     return (
@@ -196,6 +207,24 @@ function Conteudo() {
           );
         })}
       </div>
+
+      {/* ── filtro por módulo (as mesmas abas da Triagem) ── */}
+      {Object.keys(abertasPorModulo).length > 1 ? (
+        <div
+          className="-mt-3 mb-6 flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label={t('psops.backlog.filtroModulo')}
+        >
+          <button type="button" className={chip(modulo === 'TODOS')} onClick={() => setModulo('TODOS')}>
+            {t('psops.backlog.todosModulos')} {n(abertas.length)}
+          </button>
+          {ABAS_MODULO.filter((a) => abertasPorModulo[a.id]).map((a) => (
+            <button key={a.id} type="button" className={chip(modulo === a.id)} onClick={() => setModulo(a.id)}>
+              {a.id === 'OUTROS' ? t('psops.triagem.abaOutros') : t(`psops.produto.${a.id}`)} {n(abertasPorModulo[a.id]!)}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {itens.length === 0 ? (
         <CaixaVazia titulo={t('psops.backlog.vazioTitulo')} texto={t('psops.backlog.vazioTexto')} />
