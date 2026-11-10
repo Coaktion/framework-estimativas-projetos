@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 
 import { criarFakePrisma, semearArtefato, semearSinal } from './fake-prisma';
 import { triar, descartar } from '../triage';
-import { concluir, marcarDod, atribuir, incrementarVersao } from '../activities';
+import { concluir, marcarDod, atribuir, incrementarVersao, moverAtividade } from '../activities';
 import { calcularSaude, historicoArtefato, registrarAtualizacao, saudePorAtualizacao } from '../artifacts';
 import { garantirArtefatos } from '../seed';
 import { Impacto } from '../../config/taxonomy';
@@ -190,38 +190,12 @@ async function concluirTudo(
   return concluir(asPrisma(f), { activityId, usuarioId, ...extra });
 }
 
-test('não conclui com o DoD incompleto', async () => {
-  const { f, activityId } = await cenarioConclusao();
-  await assert.rejects(
-    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'qualquer coisa' }),
-    /Definition of Done incompleto/,
-  );
-});
-
-test('item que exige evidência não fecha só com o check', async () => {
-  const { f, activityId } = await cenarioConclusao();
-  const dod = f.estado.activities[0]!.dod as Array<{ t: string; d: boolean; exigeEvidencia?: boolean }>;
-
-  for (let i = 0; i < dod.length; i++) {
-    await marcarDod(asPrisma(f), { activityId, indice: i, feito: true });
-  }
-  assert.ok(dod.some((i) => i.exigeEvidencia), 'o template EST tem item com evidência obrigatória');
-
-  await assert.rejects(
-    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'Itens de voz' }),
-    /sem evidência anexada/,
-  );
-
-  for (let i = 0; i < dod.length; i++) {
-    if (dod[i]!.exigeEvidencia) {
-      await marcarDod(asPrisma(f), {
-        activityId, indice: i, feito: true,
-        evidencia: 'https://portal.aktienow.com/framework/voice/changelog#v2026Q3',
-      });
-    }
-  }
-  const r = await concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: 'Itens de voz' });
-  assert.equal(r.artefatos[0]?.versao, '2026.Q3');
+test('conclui sem checklist: disse que está feito, está feito', async () => {
+  const { f, activityId, art } = await cenarioConclusao();
+  const r = await concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur' });
+  assert.equal(f.estado.activities[0]!.status, 'DONE');
+  assert.deepEqual(r.artefatos, [], 'sem descrição não há commit');
+  assert.equal(art.versao, '2026.Q2', 'artefato intocado');
 });
 
 test('marcar o primeiro item move TODO para DOING sozinho', async () => {
@@ -286,9 +260,14 @@ test('Demo sem artefato marcado não conclui', async () => {
   assert.equal(f.estado.activities[0]!.status !== 'DONE', true);
 });
 
-test('sem descrição do que mudou não conclui', async () => {
-  const { f, activityId } = await cenarioConclusao();
-  await assert.rejects(() => concluirTudo(f, activityId, 'u-arthur', { descricao: '  ' }), /Descreva o que mudou/);
+test('artefato marcado sem descrição não conclui; descrição vazia conclui sem commit', async () => {
+  const { f, activityId, art } = await cenarioConclusao();
+  await assert.rejects(
+    () => concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', artefatoIds: [art.id as string], descricao: 'ok' }),
+    /Descreva o que mudou/,
+  );
+  await concluir(asPrisma(f), { activityId, usuarioId: 'u-arthur', descricao: '   ' });
+  assert.equal(f.estado.activities[0]!.status, 'DONE');
   assert.equal(f.estado.artifactUpdates.length, 0);
 });
 
@@ -342,6 +321,30 @@ test('concluir ESTUDO publica a ficha e não pede artefato', async () => {
   assert.deepEqual(res.artefatos, []);
   assert.ok(f.estado.studyNotes[0]!.publicadoEm, 'ficha ganhou data de publicação');
   assert.equal(f.estado.studyNotes[0]!.autorId, 'u-bruno');
+});
+
+// ─────────────────────────── Mover o card no quadro ─────────────────────────
+
+test('arrastar: A fazer → Em andamento → Concluídas → reabrir', async () => {
+  const { f, activityId } = await cenarioConclusao();
+  const at = () => f.estado.activities[0]!;
+  await moverAtividade(asPrisma(f), { activityId, status: 'DOING', usuarioId: 'u-arthur' });
+  assert.equal(at().status, 'DOING');
+  await moverAtividade(asPrisma(f), { activityId, status: 'DONE', usuarioId: 'u-arthur' });
+  assert.equal(at().status, 'DONE');
+  assert.equal(at().concluidoPor, 'u-arthur');
+  await moverAtividade(asPrisma(f), { activityId, status: 'TODO', usuarioId: 'u-arthur' });
+  assert.equal(at().status, 'TODO');
+  assert.equal(at().concluidoEm, null, 'reabrir apaga a data de conclusão');
+});
+
+test('arquivar tira do quadro e desarquivar devolve para A fazer', async () => {
+  const { f, activityId } = await cenarioConclusao();
+  await moverAtividade(asPrisma(f), { activityId, status: 'CANCELADA', usuarioId: 'u-renato' });
+  assert.equal(f.estado.activities[0]!.status, 'CANCELADA');
+  assert.equal(f.estado.activities[0]!.concluidoEm, null, 'arquivar não conclui');
+  await moverAtividade(asPrisma(f), { activityId, status: 'TODO', usuarioId: 'u-renato' });
+  assert.equal(f.estado.activities[0]!.status, 'TODO');
 });
 
 // ───────────────────── Registrar atualização pelo Mapa ──────────────────────

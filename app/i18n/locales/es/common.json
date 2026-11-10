@@ -1182,7 +1182,7 @@
     "backlog": {
       "editoria": "Ejecución",
       "titulo": "Backlog",
-      "subtitulo": "Las actividades que generó el triaje. La tarjeta avanza sola: marcar el primer ítem del Definition of Done la mueve a En curso, y solo se concluye con el DoD completo.",
+      "subtitulo": "Las actividades que generó el triaje. Arrastra la tarjeta entre columnas para actualizarla; archiva lo que no necesita nada.",
       "filtroModulo": "Filtrar por módulo",
       "todosModulos": "Todos los módulos",
       "filtroResp": "Filtrar por responsable",
@@ -1194,7 +1194,7 @@
         "TODO": "Por hacer",
         "DOING": "En curso",
         "DONE": "Concluidas",
-        "CANCELADA": "Cancelada"
+        "CANCELADA": "Archivadas"
       },
       "colunaVazia": "No hay nada aquí con estos filtros.",
       "maisConcluidas": "y {{n}} concluidas antes.",
@@ -1218,10 +1218,21 @@
         "ESTIM": "Estimación",
         "ESCOPO": "Documentos de alcance"
       },
-      "quaisArtefatos": "¿Qué artefactos actualizaste?",
+      "quaisArtefatos": "Registrar en el historial de los artefactos (opcional): ¿cuáles actualizaste?",
       "oQueMudou": "Qué cambió",
       "oQueMudouPlaceholder": "Describe la actualización. Va al historial de cada artefacto marcado.",
-      "faltaCommit": "Marca los artefactos actualizados y describe qué cambió."
+      "faltaCommit": "Para registrarlo en el historial, marca el artefacto y escribe al menos 5 caracteres (o borra la descripción).",
+      "dicaArrastar": "Arrastra las tarjetas entre columnas para cambiar el estado.",
+      "verArquivadas": "Archivadas",
+      "arquivadasVazia": "Nada archivado con estos filtros.",
+      "arquivar": "Archivar",
+      "arquivarDica": "Para ítems que no necesitan nada. Se puede desarchivar después.",
+      "arquivadaOk": "Actividad archivada.",
+      "arquivadaAviso": "Actividad archivada.",
+      "desarquivar": "Desarchivar",
+      "desarquivada": "Actividad de vuelta a Por hacer.",
+      "reabrir": "Reabrir",
+      "reaberta": "Actividad reabierta."
     },
     "ficha": {
       "titulo": "Ficha de la funcionalidad",

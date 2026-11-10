@@ -72,6 +72,8 @@ export const queryAtividades = z.object({
 export const bodyAtividade = z
   .object({
     responsavelId: z.string().min(1).nullable().optional(),
+    /** mover o card: arrastar entre colunas, arquivar (CANCELADA), desarquivar */
+    status: statusAtividade.optional(),
     dod: z
       .object({
         indice: z.number().int().min(0),
@@ -80,8 +82,8 @@ export const bodyAtividade = z
       })
       .optional(),
   })
-  .refine((v) => v.responsavelId !== undefined || v.dod !== undefined, {
-    message: 'Informe responsavelId ou dod.',
+  .refine((v) => v.responsavelId !== undefined || v.dod !== undefined || v.status !== undefined, {
+    message: 'Informe responsavelId, status ou dod.',
   });
 
 // ───────────────────────────────── Artefatos ────────────────────────────────

@@ -1182,7 +1182,7 @@
     "backlog": {
       "editoria": "Execution",
       "titulo": "Backlog",
-      "subtitulo": "The activities triage created. Cards move on their own: checking the first Definition of Done item moves it to In progress, and it only completes with the full DoD.",
+      "subtitulo": "The activities triage created. Drag a card between columns to update it; archive what needs nothing.",
       "filtroModulo": "Filter by module",
       "todosModulos": "All modules",
       "filtroResp": "Filter by owner",
@@ -1194,7 +1194,7 @@
         "TODO": "To do",
         "DOING": "In progress",
         "DONE": "Done",
-        "CANCELADA": "Cancelled"
+        "CANCELADA": "Archived"
       },
       "colunaVazia": "Nothing here with these filters.",
       "maisConcluidas": "and {{n}} more done earlier.",
@@ -1218,10 +1218,21 @@
         "ESTIM": "Estimate",
         "ESCOPO": "Scope documents"
       },
-      "quaisArtefatos": "Which artifacts did you update?",
+      "quaisArtefatos": "Log in the artifacts history (optional): which did you update?",
       "oQueMudou": "What changed",
       "oQueMudouPlaceholder": "Describe the update. It goes to the history of each checked artifact.",
-      "faltaCommit": "Check the updated artifacts and describe what changed."
+      "faltaCommit": "To log it in the history, check the artifact and write at least 5 characters (or clear the description).",
+      "dicaArrastar": "Drag cards between columns to change their status.",
+      "verArquivadas": "Archived",
+      "arquivadasVazia": "Nothing archived with these filters.",
+      "arquivar": "Archive",
+      "arquivarDica": "For items that need nothing. You can unarchive later.",
+      "arquivadaOk": "Activity archived.",
+      "arquivadaAviso": "Activity archived.",
+      "desarquivar": "Unarchive",
+      "desarquivada": "Activity back to To do.",
+      "reabrir": "Reopen",
+      "reaberta": "Activity reopened."
     },
     "ficha": {
       "titulo": "Feature fact sheet",

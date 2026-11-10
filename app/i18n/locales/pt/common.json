@@ -1182,7 +1182,7 @@
     "backlog": {
       "editoria": "Execução",
       "titulo": "Backlog",
-      "subtitulo": "As atividades que a triagem gerou. O card anda sozinho: marcar o primeiro item do Definition of Done move para Em andamento, e só conclui com o DoD completo.",
+      "subtitulo": "As atividades que a triagem gerou. Arraste o card entre as colunas para atualizar; o que não precisa de nada, arquive.",
       "filtroModulo": "Filtrar por módulo",
       "todosModulos": "Todos os módulos",
       "filtroResp": "Filtrar por responsável",
@@ -1194,7 +1194,7 @@
         "TODO": "A fazer",
         "DOING": "Em andamento",
         "DONE": "Concluídas",
-        "CANCELADA": "Cancelada"
+        "CANCELADA": "Arquivadas"
       },
       "colunaVazia": "Nada aqui com estes filtros.",
       "maisConcluidas": "e mais {{n}} concluídas antes.",
@@ -1218,10 +1218,21 @@
         "ESTIM": "Estimativa",
         "ESCOPO": "Documentos de escopo"
       },
-      "quaisArtefatos": "Quais artefatos você atualizou?",
+      "quaisArtefatos": "Registrar no histórico dos artefatos (opcional): quais você atualizou?",
       "oQueMudou": "O que mudou",
       "oQueMudouPlaceholder": "Descreva a atualização. Vai para o histórico de cada artefato marcado.",
-      "faltaCommit": "Marque os artefatos atualizados e descreva o que mudou."
+      "faltaCommit": "Para registrar no histórico, marque o artefato e descreva com pelo menos 5 caracteres (ou apague a descrição).",
+      "dicaArrastar": "Arraste os cards entre as colunas para mudar o status.",
+      "verArquivadas": "Arquivadas",
+      "arquivadasVazia": "Nada arquivado com estes filtros.",
+      "arquivar": "Arquivar",
+      "arquivarDica": "Para itens que não precisam de nada. Dá para desarquivar depois.",
+      "arquivadaOk": "Atividade arquivada.",
+      "arquivadaAviso": "Atividade arquivada.",
+      "desarquivar": "Desarquivar",
+      "desarquivada": "Atividade de volta para A fazer.",
+      "reabrir": "Reabrir",
+      "reaberta": "Atividade reaberta."
     },
     "ficha": {
       "titulo": "Ficha da feature",

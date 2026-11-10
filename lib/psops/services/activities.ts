@@ -9,7 +9,7 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import { dodCompleto, dodPendencias, type DodItem } from '../config/dod';
+import { dodPendencias, type DodItem } from '../config/dod';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
 import { TIPO_POR_IMPACTO } from '../config/artefatos';
 import type { Impacto } from '../config/taxonomy';
@@ -142,12 +142,12 @@ export interface ResultadoConclusao {
 }
 
 /**
- * Conclui a atividade. Só passa com o DoD completo — inclusive as evidências
- * dos itens que exigem anexo.
+ * Conclui a atividade. Disse que está feito, está feito: não há checklist.
  *
- * Demo, Estimativa e Escopo dizem QUAIS artefatos foram atualizados (pode ser
- * mais de um: os 3 ambientes de demo, o documento em PT, EN e ES) e O QUE
- * mudou. Vira um commit em cada artefato, ligado à atividade e à feature.
+ * Demo, Estimativa e Escopo PODEM dizer quais artefatos foram atualizados
+ * (os 3 ambientes de demo, o documento em PT, EN e ES) e o que mudou — aí
+ * vira um commit em cada artefato, ligado à atividade e à feature. Sem
+ * descrição, conclui sem commit (ex.: arrastar o card para Concluídas).
  */
 export async function concluir(
   prisma: PrismaClient,
@@ -168,19 +168,12 @@ export async function concluir(
   if (!a) throw new NaoEncontrado('Atividade');
   if (a.status === 'DONE') throw new RegraDeNegocio('Atividade já concluída.');
 
-  const dod = lerDod(a.dod);
-  if (!dodCompleto(dod)) {
-    const p = dodPendencias(dod);
-    throw new RegraDeNegocio(
-      `Definition of Done incompleto: ${p.faltamCheck} item(ns) sem marcar, ` +
-        `${p.faltamEvidencia} sem evidência anexada.`,
-    );
-  }
-
-  // Quais artefatos: os marcados; sem marcação, o sugerido na triagem.
+  // Commit opcional: só quando há descrição. Artefatos: os marcados; sem
+  // marcação, o sugerido na triagem.
   const tipoArt = TIPO_POR_IMPACTO[a.tipo as Impacto];
+  const descricao = String(args.descricao ?? '').trim();
   let alvos: Array<{ id: string; tipo: string }> = [];
-  if (tipoArt) {
+  if (tipoArt && (descricao || args.artefatoIds?.length)) {
     const ids = Array.from(new Set(args.artefatoIds?.length ? args.artefatoIds : a.artifactId ? [a.artifactId] : []));
     if (!ids.length) throw new RegraDeNegocio('Marque qual artefato você atualizou.');
     alvos = await prisma.psOpsArtifact.findMany({ where: { id: { in: ids } }, select: { id: true, tipo: true } });
@@ -188,7 +181,7 @@ export async function concluir(
     if (alvos.some((x) => x.tipo !== tipoArt)) {
       throw new RegraDeNegocio('Os artefatos marcados não são deste destino.');
     }
-    if (String(args.descricao ?? '').trim().length < 5) {
+    if (descricao.length < 5) {
       throw new RegraDeNegocio('Descreva o que mudou no artefato (pelo menos 5 caracteres).');
     }
   }
@@ -221,7 +214,7 @@ export async function concluir(
       const { artefato } = await registrarAtualizacao(tx, {
         artifactId: alvo.id,
         autorId: args.usuarioId,
-        descricao: String(args.descricao),
+        descricao,
         activityId: a.id,
         signalId: a.initiative.signalId,
         agora,
@@ -234,3 +227,32 @@ export async function concluir(
 }
 
 export { incrementarVersao };
+
+/**
+ * Mover o card no quadro (arrastar entre colunas, arquivar, desarquivar):
+ *   · Concluídas → conclui (sem commit; o commit se registra pelo detalhe)
+ *   · A fazer / Em andamento → muda o status; se estava concluída ou
+ *     arquivada, reabre. Commits já registrados ficam no histórico.
+ *   · CANCELADA = arquivada: item que se percebeu que não precisa fazer nada
+ */
+export async function moverAtividade(
+  prisma: PrismaClient,
+  args: { activityId: string; status: 'TODO' | 'DOING' | 'DONE' | 'CANCELADA'; usuarioId: string; agora?: Date },
+) {
+  const a = await prisma.psOpsActivity.findUnique({ where: { id: args.activityId } });
+  if (!a) throw new NaoEncontrado('Atividade');
+  if (a.status === args.status) return a;
+  if (args.status === 'DONE') {
+    await concluir(prisma, { activityId: a.id, usuarioId: args.usuarioId, agora: args.agora });
+    return prisma.psOpsActivity.findUnique({ where: { id: a.id } });
+  }
+  return prisma.psOpsActivity.update({
+    where: { id: a.id },
+    data: {
+      status: args.status,
+      // sair de Concluídas apaga a data de conclusão; arquivar não conclui
+      concluidoEm: null,
+      concluidoPor: null,
+    },
+  });
+}
