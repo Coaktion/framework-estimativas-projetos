@@ -14,7 +14,9 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { api, ErroRequisicao } from '@/lib/psops/client/api';
 import {
+  ABAS_MODULO,
   IMPACTOS_ORDEM,
+  abaDoProduto,
   type ErroApi,
   type Impacto,
   type RespostaFila,
@@ -59,11 +61,28 @@ function Conteudo({ gestor }: { gestor: boolean }) {
   const [ocupado, setOcupado] = useState(false);
   const [mostrarDescarte, setMostrarDescarte] = useState(false);
 
-  const sinais = fila?.itens ?? [];
+  // Abas por módulo: a fila inteira continua carregada (e ordenada por
+  // relevância); a aba só filtra o que se vê, e o teclado anda nela.
+  const [aba, setAba] = useState<string>('TODOS');
+  const todosSinais = useMemo(() => fila?.itens ?? [], [fila]);
+  const porAba = useMemo(() => {
+    const m: Record<string, number> = {};
+    todosSinais.forEach((s) => { const a = abaDoProduto(s.produto); m[a] = (m[a] ?? 0) + 1; });
+    return m;
+  }, [todosSinais]);
+  const sinais = useMemo(
+    () => (aba === 'TODOS' ? todosSinais : todosSinais.filter((s) => abaDoProduto(s.produto) === aba)),
+    [todosSinais, aba],
+  );
   const selecionado = useMemo(
     () => sinais.find((s) => s.id === selecionadoId) ?? null,
     [sinais, selecionadoId],
   );
+  // Trocou de aba (ou a aba esvaziou): seleciona o primeiro visível.
+  useEffect(() => {
+    if (aba !== 'TODOS' && !porAba[aba]) setAba('TODOS');
+    else if (!selecionado && sinais[0]) setSelecionadoId(sinais[0].id);
+  }, [aba, porAba, selecionado, sinais]);
 
   // ── carga da fila ─────────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
@@ -372,12 +391,45 @@ function Conteudo({ gestor }: { gestor: boolean }) {
           ) : sinais.length === 0 ? (
             <CaixaVazia titulo={t('psops.triagem.filaZerada')} texto={t('psops.triagem.filaZeradaTexto')} />
           ) : (
-            <ListaSinais
-              sinais={sinais}
-              selecionadoId={selecionadoId}
-              impactosPorSinal={impactosPorSinal}
-              onSelecionar={setSelecionadoId}
-            />
+            <>
+              <div
+                role="tablist"
+                aria-label={t('psops.triagem.abasModulo')}
+                className="flex flex-wrap gap-1.5 border-b border-psops-linha px-5 py-3"
+              >
+                {[{ id: 'TODOS' }, ...ABAS_MODULO].filter((a) => a.id === 'TODOS' || porAba[a.id]).map((a) => {
+                  const ativo = aba === a.id;
+                  const total = a.id === 'TODOS' ? todosSinais.length : porAba[a.id];
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={ativo}
+                      onClick={() => setAba(a.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-caption font-medium transition ${
+                        ativo
+                          ? 'border-psops-acento bg-psops-acento/10 text-psops-tinta'
+                          : 'border-psops-linha bg-psops-surf1 text-psops-muted hover:text-psops-texto'
+                      }`}
+                    >
+                      {a.id === 'TODOS'
+                        ? t('psops.triagem.abaTodos')
+                        : a.id === 'OUTROS'
+                          ? t('psops.triagem.abaOutros')
+                          : t(`psops.produto.${a.id}`)}
+                      <span className="opacity-70">{total}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <ListaSinais
+                sinais={sinais}
+                selecionadoId={selecionadoId}
+                impactosPorSinal={impactosPorSinal}
+                onSelecionar={setSelecionadoId}
+              />
+            </>
           )}
         </Painel>
 

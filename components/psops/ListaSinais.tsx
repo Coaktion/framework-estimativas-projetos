@@ -77,7 +77,7 @@ export function ListaSinais({
 
               <span className="w-10 shrink-0 pt-0.5 text-center">
                 <span
-                  className={`block leading-none text-title font-bold${
+                  className={`block leading-none text-title font-bold ${
                     s.score >= 80 ? 'text-psops-tinta' : 'text-psops-muted'
                   }`}
                 >

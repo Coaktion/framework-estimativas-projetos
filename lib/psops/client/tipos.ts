@@ -153,10 +153,28 @@ export function textoDoSinal(
 }
 
 /**
- * Link da nota no idioma do que está na tela: com a tradução do Zendesk
- * aplicada, abre a versão pt-br do mesmo artigo (/hc/pt-br/articles/:id).
- * O slug em inglês sai — o Help Center redireciona para o slug do idioma.
+ * Abas por módulo do Zendesk, na ordem do nosso negócio (AI Agents e Copilot
+ * primeiro). "Outros" junta o que não é módulo nosso (Marketplace, sem
+ * produto). A aba só aparece quando tem sinal.
  */
+export const ABAS_MODULO: ReadonlyArray<{ id: string; produtos: Produto[] }> = [
+  { id: 'AI_AGENTS', produtos: ['AI_AGENTS'] },
+  { id: 'COPILOT', produtos: ['COPILOT'] },
+  { id: 'SUPPORT', produtos: ['SUPPORT'] },
+  { id: 'MESSAGING', produtos: ['MESSAGING'] },
+  { id: 'KNOWLEDGE', produtos: ['KNOWLEDGE'] },
+  { id: 'CONTACT_CENTER', produtos: ['CONTACT_CENTER'] },
+  { id: 'WFM', produtos: ['WFM'] },
+  { id: 'QA', produtos: ['QA'] },
+  { id: 'ANALYTICS', produtos: ['ANALYTICS'] },
+  { id: 'ADMIN_SEGURANCA', produtos: ['ADMIN_SEGURANCA'] },
+  { id: 'OUTROS', produtos: ['MARKETPLACE', 'OUTRO', 'DEVELOPER_API'] },
+];
+
+export function abaDoProduto(produto: Produto): string {
+  return ABAS_MODULO.find((a) => a.produtos.includes(produto))?.id ?? 'OUTROS';
+}
+
 /**
  * "Release notes through 2026-10-23" → "23/10". Os sinais de uma mesma nota
  * de versão carregam o mesmo título de artigo; a data é o que os distingue.
@@ -166,8 +184,12 @@ export function dataDaNota(fonteTitulo: string | null | undefined): string | nul
   return m && /release notes|notas de vers/i.test(String(fonteTitulo)) ? `${m[3]}/${m[2]}` : null;
 }
 
-export function urlDaNota(url: string, traduzido: boolean): string {
-  if (!traduzido) return url;
+/**
+ * Link da nota SEMPRE em português: a versão pt-br do mesmo artigo
+ * (/hc/pt-br/articles/:id). O slug em inglês sai — o Help Center redireciona
+ * para o slug do idioma; sem tradução publicada, ele mostra o original.
+ */
+export function urlDaNota(url: string): string {
   return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, '/hc/pt-br/articles/$2');
 }
 

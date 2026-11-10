@@ -207,7 +207,7 @@ function detectarTipo(texto: string, componente: string | null): SignalTipo {
  * escopo, suba o número: na coleta seguinte, os sinais ainda na fila (NOVO)
  * com versão antiga são reclassificados a partir da camada crua.
  */
-export const VERSAO_REGRAS = 'regras@4';
+export const VERSAO_REGRAS = 'regras@5';
 
 export class ClassificadorPorRegras implements Classificador {
   readonly nome = VERSAO_REGRAS;

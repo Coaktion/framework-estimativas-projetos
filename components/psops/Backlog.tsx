@@ -15,6 +15,7 @@ import { api } from '@/lib/psops/client/api';
 import {
   IMPACTOS_ORDEM,
   textoDoSinal,
+  urlDaNota,
   type Atividade,
   type AtividadeStatus,
   type Impacto,
@@ -398,7 +399,7 @@ function DetalheAtividade({
           </h2>
           <p className="mb-2 text-[12.5px] leading-relaxed text-psops-muted">{texto.trecho}</p>
           <a
-            href={a.fonteUrl}
+            href={urlDaNota(a.fonteUrl)}
             target="_blank"
             rel="noopener noreferrer"
             className="mb-5 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"

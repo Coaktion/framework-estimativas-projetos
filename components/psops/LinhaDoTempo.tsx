@@ -161,7 +161,7 @@ export function LinhaDoTempo() {
                         </span>
                       </span>
                       <a
-                        href={urlDaNota(sinal.fonteUrl, texto.traduzido)}
+                        href={urlDaNota(sinal.fonteUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex shrink-0 items-center gap-1.5 self-start text-label font-bold text-psops-tinta hover:underline"
