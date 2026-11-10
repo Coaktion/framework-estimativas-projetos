@@ -1198,7 +1198,7 @@
       },
       "colunaVazia": "Nada aqui com estes filtros.",
       "maisConcluidas": "e mais {{n}} concluídas antes.",
-      "fichaDaFeature": "Ficha da feature",
+      "fichaDaFeature": "Estudo da feature",
       "fechar": "Fechar",
       "artefato": "Artefato",
       "responsavel": "Responsável",
@@ -1255,7 +1255,9 @@
       "salvar": "Salvar ficha",
       "salvando": "Salvando…",
       "salva": "Ficha salva.",
-      "linkInvalido": "Link inválido: {{link}}. Use endereços começando com http."
+      "linkInvalido": "Link inválido: {{link}}. Use endereços começando com http.",
+      "observacoes": "Observações",
+      "observacoesDica": "O que vale o time saber sobre esta feature. Os SEs que estudam a mesma feature veem e editam o mesmo texto."
     },
     "linha": {
       "editoria": "Histórico",

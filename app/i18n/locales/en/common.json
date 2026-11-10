@@ -1198,7 +1198,7 @@
       },
       "colunaVazia": "Nothing here with these filters.",
       "maisConcluidas": "and {{n}} more done earlier.",
-      "fichaDaFeature": "Feature fact sheet",
+      "fichaDaFeature": "Feature study",
       "fechar": "Close",
       "artefato": "Artifact",
       "responsavel": "Owner",
@@ -1255,7 +1255,9 @@
       "salvar": "Save fact sheet",
       "salvando": "Saving…",
       "salva": "Fact sheet saved.",
-      "linkInvalido": "Invalid link: {{link}}. Use addresses starting with http."
+      "linkInvalido": "Invalid link: {{link}}. Use addresses starting with http.",
+      "observacoes": "Notes",
+      "observacoesDica": "What the team should know about this feature. Every SE studying the same feature sees and edits the same text."
     },
     "linha": {
       "editoria": "History",

@@ -270,7 +270,7 @@ function Conteudo() {
             <Archive size={13} aria-hidden /> {t('psops.backlog.verArquivadas')} {n(arquivadas.length)}
           </button>
         </div>
-        <div className={`grid items-start gap-4 ${verArquivadas ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+        <div className={`grid items-stretch gap-4 ${verArquivadas ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
           {[...COLUNAS, ...(verArquivadas ? (['CANCELADA'] as AtividadeStatus[]) : [])].map((col) => {
             const daColuna =
               col === 'CANCELADA'
@@ -549,7 +549,7 @@ function DetalheAtividade({
           </div>
 
           {a.tipo === 'ESTUDO' && a.studyNote ? (
-            <FichaEstudoForm fichaId={a.studyNote.id} somenteLeitura={concluida || arquivada} avisar={avisar} />
+            <FichaEstudoForm fichaId={a.studyNote.id} somenteLeitura={arquivada} avisar={avisar} />
           ) : null}
 
           {tipoArtefato && !concluida && !arquivada ? (

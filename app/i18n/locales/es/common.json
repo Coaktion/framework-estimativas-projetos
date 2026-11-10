@@ -1198,7 +1198,7 @@
       },
       "colunaVazia": "No hay nada aquí con estos filtros.",
       "maisConcluidas": "y {{n}} concluidas antes.",
-      "fichaDaFeature": "Ficha de la funcionalidad",
+      "fichaDaFeature": "Estudio de la feature",
       "fechar": "Cerrar",
       "artefato": "Artefacto",
       "responsavel": "Responsable",
@@ -1255,7 +1255,9 @@
       "salvar": "Guardar ficha",
       "salvando": "Guardando…",
       "salva": "Ficha guardada.",
-      "linkInvalido": "Enlace no válido: {{link}}. Usa direcciones que empiecen con http."
+      "linkInvalido": "Enlace no válido: {{link}}. Usa direcciones que empiecen con http.",
+      "observacoes": "Observaciones",
+      "observacoesDica": "Lo que el equipo debe saber de esta feature. Los SEs que estudian la misma feature ven y editan el mismo texto."
     },
     "linha": {
       "editoria": "Historial",

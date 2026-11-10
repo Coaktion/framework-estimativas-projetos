@@ -23,7 +23,7 @@ import {
   type Pessoa,
   type RespostaPessoas,
 } from '@/lib/psops/client/tipos';
-import { Avatar, Badge, CaixaErro, CaixaVazia, Carregando, Painel, StatTile, btnPrimario, rotulo } from './ui';
+import { Avatar, Badge, CaixaErro, CaixaVazia, Carregando, StatTile, btnPrimario, rotulo } from './ui';
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 
 export function MapaArtefatos({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | null }) {
@@ -56,6 +56,8 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
   const [erro, setErro] = useState<string | null>(null);
   const [salvando, setSalvando] = useState<string | null>(null);
   const [aberto, setAberto] = useState<string | null>(null);
+  /** os 3 grupos começam fechados: clica e abre */
+  const [gruposAbertos, setGruposAbertos] = useState<string[]>([]);
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -106,7 +108,6 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
     return {
       total: l.length,
       nunca: l.filter((a) => !a.ultimaAtualizacao).length,
-      comAbertas: l.filter((a) => a.pendentes > 0).length,
       atencao: l.filter((a) => ['ATENCAO', 'CRITICO'].includes(a.saude.estado)).length,
     };
   }, [itens]);
@@ -126,14 +127,13 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
     return <CaixaVazia titulo={t('psops.mapa.vazioTitulo')} texto={t('psops.mapa.vazioTexto')} />;
   }
 
-  const colunas = 'md:grid-cols-[1.8fr_1.1fr_.6fr_1.4fr]';
+  const colunas = 'md:grid-cols-[1.8fr_1.2fr_1.4fr]';
 
   return (
     <>
-      <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mb-6 grid grid-cols-3 gap-3">
         <StatTile rotulo={t('psops.mapa.statTotal')} valor={resumo.total} sub={t('psops.mapa.statTotalSub')} />
         <StatTile rotulo={t('psops.mapa.statNunca')} valor={resumo.nunca} sub={t('psops.mapa.statNuncaSub')} />
-        <StatTile rotulo={t('psops.mapa.statAbertas')} valor={resumo.comAbertas} sub={t('psops.mapa.statAbertasSub')} />
         <StatTile rotulo={t('psops.mapa.statAtencao')} valor={resumo.atencao} sub={t('psops.mapa.statAtencaoSub')} />
       </div>
 
@@ -142,9 +142,24 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
           const doTipo = itens.filter((a) => a.tipo === tipo);
           if (doTipo.length === 0) return null;
           return (
-            <Painel key={tipo} titulo={t(`psops.mapa.grupo.${tipo}`)} dica={t(`psops.mapa.grupoDica.${tipo}`)}>
+            <section key={tipo} className="overflow-hidden rounded-3xl border border-psops-linha bg-psops-surf1">
+              <button
+                type="button"
+                aria-expanded={gruposAbertos.includes(tipo)}
+                onClick={() =>
+                  setGruposAbertos((g) => (g.includes(tipo) ? g.filter((x) => x !== tipo) : [...g, tipo]))
+                }
+                className="flex w-full flex-wrap items-center gap-3 px-6 py-4 text-left hover:bg-psops-surf2"
+              >
+                <span className="w-3 text-psops-muted">{gruposAbertos.includes(tipo) ? '▾' : '▸'}</span>
+                <span className="text-title font-bold text-psops-texto">{t(`psops.mapa.grupo.${tipo}`)}</span>
+                <span className="text-label font-bold text-psops-muted">{doTipo.length}</span>
+                <span className="ml-auto text-[10.5px] text-psops-muted">{t(`psops.mapa.grupoDica.${tipo}`)}</span>
+              </button>
+              {gruposAbertos.includes(tipo) ? (
+              <div className="border-t border-psops-linha">
               <div className={`hidden gap-4 border-b border-psops-linha px-6 py-2.5 md:grid ${colunas}`}>
-                {['colNome', 'colUltima', 'colAbertas', 'colDono'].map((c) => (
+                {['colNome', 'colUltima', 'colDono'].map((c) => (
                   <span key={c} className={rotulo}>
                     {t(`psops.mapa.${c}`)}
                   </span>
@@ -192,10 +207,6 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
                               <Badge variante="discreto">{t('psops.mapa.nuncaAtualizado')}</Badge>
                             )}
                           </div>
-                          <div className={`text-[12px] ${a.pendentes > 0 ? 'font-bold text-psops-tinta' : 'text-psops-muted'}`}>
-                            <span className="md:hidden">{t('psops.mapa.colAbertas')}: </span>
-                            {a.pendentes}
-                          </div>
                           <div className="col-span-2 md:col-span-1">
                             {gestor ? (
                               <select
@@ -234,7 +245,9 @@ function Conteudo({ gestor, usuarioId }: { gestor: boolean; usuarioId: string | 
                   );
                 })}
               </ul>
-            </Painel>
+              </div>
+              ) : null}
+            </section>
           );
         })}
       </div>
