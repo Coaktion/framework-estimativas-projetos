@@ -306,7 +306,11 @@ function AbaMatriz({ dados, setDados, categorias, falhou }: {
   const visiveis = dados.topicos.filter(
     (x) => (cat === 'todas' || x.categoria === cat) && (!q || `${x.topico} ${x.descricao ?? ''}`.toLowerCase().includes(q)),
   );
-  const celula = 'h-9 w-full min-w-[56px] rounded-md border-0 text-center text-label font-semibold text-[#1A1A1A] cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-brand-primary';
+  // a cor vai por variável CSS (--cor/--cor-texto) e a classe estudos-celula a aplica:
+  // o tema escuro força fundo nos selects com !important, e isso apagava as cores
+  const celula = 'estudos-celula h-9 w-full min-w-[56px] rounded-md border-0 text-center text-label font-semibold cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-brand-primary';
+  const corCelula = (fundo?: string, texto = '#1A1A1A') =>
+    (fundo ? { '--cor': fundo, '--cor-texto': texto } : {}) as React.CSSProperties;
 
   return (
     <div className="space-y-5">
@@ -363,7 +367,7 @@ function AbaMatriz({ dados, setDados, categorias, falhou }: {
                           <select
                             aria-label={`${x.topico} · ${p.nome}`}
                             className={celula}
-                            style={{ background: v === undefined ? 'transparent' : COR_NIVEL[v] }}
+                            style={corCelula(v === undefined ? undefined : COR_NIVEL[v])}
                             value={v === undefined ? '' : String(v)}
                             onChange={(e) => void mudarNivel(x.id, p.id, e.target.value === '' ? null : Number(e.target.value))}
                           >
@@ -379,7 +383,7 @@ function AbaMatriz({ dados, setDados, categorias, falhou }: {
                       <select
                         aria-label={`${x.topico} · ${t('estudos.matriz.alvo')}`}
                         className={celula}
-                        style={{ background: x.nivelAlvo === null ? 'transparent' : COR_NIVEL[x.nivelAlvo] }}
+                        style={corCelula(x.nivelAlvo === null ? undefined : COR_NIVEL[x.nivelAlvo])}
                         value={x.nivelAlvo === null ? '' : String(x.nivelAlvo)}
                         onChange={(e) => void mudarMeta(x.id, { nivelAlvo: e.target.value === '' ? null : Number(e.target.value) })}
                       >
@@ -394,8 +398,8 @@ function AbaMatriz({ dados, setDados, categorias, falhou }: {
                         aria-label={`${x.topico} · ${t('estudos.matriz.prioridade')}`}
                         className={`${celula} min-w-[84px]`}
                         style={x.prioridade && COR_PRIORIDADE[x.prioridade]
-                          ? { background: COR_PRIORIDADE[x.prioridade]!.fundo, color: COR_PRIORIDADE[x.prioridade]!.texto }
-                          : { background: 'transparent' }}
+                          ? corCelula(COR_PRIORIDADE[x.prioridade]!.fundo, COR_PRIORIDADE[x.prioridade]!.texto)
+                          : undefined}
                         value={x.prioridade ?? ''}
                         onChange={(e) => void mudarMeta(x.id, { prioridade: e.target.value || null })}
                       >

@@ -263,7 +263,24 @@ body {
     backdrop-filter: blur(16px);
   }
 
+  /* Estudos: células coloridas da matriz (cor por variável, vale nos dois temas) */
+  select.estudos-celula {
+    background-color: var(--cor, transparent);
+    color: var(--cor-texto, inherit);
+  }
+
   .dark {
+    select.estudos-celula {
+      background-color: var(--cor, transparent) !important;
+      border-color: transparent !important;
+      color: var(--cor-texto, var(--text-main)) !important;
+
+      option {
+        background-color: var(--bg-input);
+        color: var(--text-main);
+      }
+    }
+
     .shadow-xl, .shadow-2xl, .shadow-sm, .shadow-lg {
       box-shadow: var(--shadow-sm) !important;
       border: 1px solid var(--border-main);
