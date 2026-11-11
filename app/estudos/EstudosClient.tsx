@@ -76,10 +76,17 @@ type SetDados = React.Dispatch<React.SetStateAction<DadosEstudos>>;
 const nomeDe = (pessoas: PessoaEstudo[], id: number) => pessoas.find((p) => p.id === id)?.nome ?? `#${id}`;
 const primeiroNome = (n: string) => n.split(/\s+/)[0] ?? n;
 
-function Tabela({ children, minW = 640 }: { children: ReactNode; minW?: number }) {
+/**
+ * compacta: cabe na largura da página sem barra de rolagem — cabeçalhos
+ * quebram linha, células mais estreitas e a primeira coluna leva o resto.
+ */
+const COMPACTA =
+  '[&_th]:whitespace-normal [&_th]:normal-case [&_th]:tracking-normal [&_th]:leading-tight [&_th]:px-2 [&_td]:px-2 [&_th:first-child]:pl-3 [&_td:first-child]:pl-3';
+
+function Tabela({ children, minW = 640, compacta = false }: { children: ReactNode; minW?: number; compacta?: boolean }) {
   return (
     <div className={`${CARD} overflow-x-auto`}>
-      <table className="w-full border-collapse" style={{ minWidth: minW }}>
+      <table className={`w-full border-collapse ${compacta ? COMPACTA : ''}`} style={compacta ? undefined : { minWidth: minW }}>
         {children}
       </table>
     </div>
@@ -436,7 +443,7 @@ function AbaResumo({ dados }: { dados: DadosEstudos }) {
       <Section title={t('estudos.resumo.titulo')} description={t('estudos.resumo.desc')}>
         <Legenda />
       </Section>
-      <Tabela minW={640 + dados.pessoas.length * 80}>
+      <Tabela compacta>
         <thead>
           <tr>
             <th className={TH}>{t('estudos.semanal.categoria')}</th>
@@ -489,7 +496,7 @@ function AbaRelatorio({ dados, categorias, hoje }: { dados: DadosEstudos; catego
       </div>
 
       <Section title={t('estudos.relatorio.porPessoa')}>
-        <Tabela minW={820}>
+        <Tabela compacta>
           <thead>
             <tr>
               {['pessoa', 'treinamentos', 'semanasCom', 'pctSemanas', 'mediaSemana', 'ultimos30', 'ultimo', 'diasSem'].map((c) => (
@@ -518,7 +525,7 @@ function AbaRelatorio({ dados, categorias, hoje }: { dados: DadosEstudos; catego
       </Section>
 
       <Section title={t('estudos.relatorio.porTipo')}>
-        <Tabela minW={360 + rel.tipos.length * 110}>
+        <Tabela compacta>
           <thead>
             <tr>
               <th className={TH}>{t('estudos.relatorio.col.pessoa')}</th>
@@ -537,7 +544,7 @@ function AbaRelatorio({ dados, categorias, hoje }: { dados: DadosEstudos; catego
       </Section>
 
       <Section title={t('estudos.relatorio.porCategoria')}>
-        <Tabela minW={640 + dados.pessoas.length * 80}>
+        <Tabela compacta>
           <thead>
             <tr>
               <th className={TH}>{t('estudos.semanal.categoria')}</th>
@@ -563,7 +570,7 @@ function AbaRelatorio({ dados, categorias, hoje }: { dados: DadosEstudos; catego
       </Section>
 
       <Section title={t('estudos.relatorio.porSemana')}>
-        <Tabela minW={420 + dados.pessoas.length * 80}>
+        <Tabela compacta>
           <thead>
             <tr>
               <th className={TH}>{t('estudos.relatorio.semana')}</th>
