@@ -24,6 +24,8 @@ type Notificacao = {
 };
 
 const MINUTO = 60_000;
+/** de quanto em quanto tempo confere sozinho */
+const INTERVALO = 30_000;
 
 function haQuanto(iso: string, t: (k: string, o?: Record<string, unknown>) => string) {
   const min = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / MINUTO));
@@ -60,12 +62,15 @@ export default function NotificationBell() {
   useEffect(() => {
     if (!pode) return;
     void carregar();
-    const intervalo = window.setInterval(() => void carregar(), MINUTO);
+    const intervalo = window.setInterval(() => void carregar(), INTERVALO);
     const aoFocar = () => void carregar();
     window.addEventListener('focus', aoFocar);
+    // o Radar avisa depois de triar ou reatribuir (lib/psops/client/api.ts)
+    window.addEventListener('notificacoes:atualizar', aoFocar);
     return () => {
       window.clearInterval(intervalo);
       window.removeEventListener('focus', aoFocar);
+      window.removeEventListener('notificacoes:atualizar', aoFocar);
     };
   }, [pode, carregar]);
 
