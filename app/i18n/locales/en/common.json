@@ -132,7 +132,12 @@
     "importTranslationsDone": "Translations imported: {{updated}} records updated, {{missing}} not found.",
     "importTranslationsFailed": "Couldn't import the translations.",
     "aeOverrideHint": "Manual override in the AE Calculator: this item's hours aren't being used for {{items}}.",
-    "tabZoho": "Zoho CRM"
+    "tabZoho": "Zoho CRM",
+    "ultimoAcesso": "Last access: {{date}}",
+    "semAcesso": "No access recorded",
+    "ultimoLogin": "Last Google sign-in: {{date}}",
+    "logins_one": "{{count}} sign-in",
+    "logins_other": "{{count}} sign-ins"
   },
   "ae": {
     "actionFlow": "Action Flow",

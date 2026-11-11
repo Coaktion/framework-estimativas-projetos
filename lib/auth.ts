@@ -25,6 +25,9 @@ const ssoClientId = process.env.GOOGLE_SSO_CLIENT_ID?.trim() || '';
 const ssoClientSecret = process.env.GOOGLE_SSO_CLIENT_SECRET?.trim() || '';
 export const googleSsoEnabled = Boolean(ssoClientId && ssoClientSecret);
 
+/** De quanto em quanto tempo, no máximo, o último acesso de uma pessoa é regravado. */
+const ACESSO_INTERVALO_MS = 10 * 60 * 1000;
+
 export const authOptions: NextAuthOptions = {
   // Sem adapter: as sessões são JWT e os usuários já existem no banco. Um
   // adapter faria o NextAuth tentar CRIAR usuário/conta no primeiro login OAuth.
@@ -89,6 +92,15 @@ export const authOptions: NextAuthOptions = {
           // gravado no banco para não rebaixar administradores existentes.
           session.user.isAdmin = dbUser.isAdmin || syncIsAdmin(segment);
           session.user.name = dbUser.name;
+
+          // Último acesso: quem está usando o portal. A sessão é lida a cada
+          // página, então grava no máximo a cada 10 min por pessoa (na Netlify, um write solto pode ser cortado).
+          const agora = Date.now();
+          if (!dbUser.ultimoAcessoEm || agora - dbUser.ultimoAcessoEm.getTime() > ACESSO_INTERVALO_MS) {
+            await prisma.user
+              .update({ where: { id: dbUser.id }, data: { ultimoAcessoEm: new Date(agora) } })
+              .catch(() => {});
+          }
         }
       }
       return session;
@@ -104,6 +116,13 @@ export const authOptions: NextAuthOptions = {
         token.name = dbUser.name;
         token.role = normalizeSegment(dbUser.role);
         token.isAdmin = dbUser.isAdmin || syncIsAdmin(normalizeSegment(dbUser.role));
+        // Login registrado: data e contagem (aparecem na lista de usuários do Admin).
+        await prisma.user
+          .update({
+            where: { id: dbUser.id },
+            data: { ultimoLoginEm: new Date(), ultimoAcessoEm: new Date(), totalLogins: { increment: 1 } },
+          })
+          .catch(() => {});
         // Foto do Google no perfil, enquanto o usuário não tiver uma.
         if (!dbUser.picture && profile?.picture) {
           await prisma.user.update({ where: { id: dbUser.id }, data: { picture: String(profile.picture) } }).catch(() => {});
