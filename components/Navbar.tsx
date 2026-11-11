@@ -42,7 +42,7 @@ function useFitLinks(count: number, deps: unknown[]) {
       const items = Array.from(measure.children) as HTMLElement[];
       if (!available || items.length !== count + 1) return;
       const gap = parseFloat(getComputedStyle(measure).columnGap) || 0;
-      const widths = items.slice(0, count).map((i) => i.offsetWidth);
+      const widths = items.slice(0, count).map((i) => i.offsetWidth + (parseFloat(getComputedStyle(i).marginLeft) || 0));
       const moreWidth = items[count].offsetWidth;
       const total = widths.reduce((a, w) => a + w, 0) + gap * Math.max(0, count - 1);
 
@@ -81,15 +81,20 @@ export default function Navbar() {
   const isAdmin = Boolean(user?.isAdmin);
 
   const links = user ? [
-    { show: canAccessScopes(user), href: '/sc', match: '/sc', label: t('nav.projects') },
-    { show: canAccessAE(user), href: '/ae/history', match: '/ae', label: t('nav.history') },
-    { show: canAccessZdAutoConfig(user), href: '/zd-auto-config', match: '/zd-auto-config', label: t('nav.zdAutoConfig'), title: t('nav.zdAutoConfigTitle') },
-    { show: canAccessPreSalesOps(user), href: '/pre-sales-ops', match: '/pre-sales-ops', label: t('nav.preSalesOps'), title: t('nav.preSalesOpsTitle') },
-    { show: canAccessBooking(user), href: '/booking', match: '/booking', label: t('nav.booking'), title: t('nav.bookingTitle') },
-    { show: canAccessFolders(user), href: '/folders', match: '/folders', label: t('nav.folders'), title: t('nav.foldersTitle') },
-    { show: canAccessEstudos(user), href: '/estudos', match: '/estudos', label: t('nav.estudos'), title: t('nav.estudosTitle') },
-    { show: isAdmin, href: '/admin', match: '/admin', label: t('nav.admin') },
+    // grupo 1: o dia a dia comercial · grupo 2: as ferramentas do time de pré-vendas
+    { show: canAccessScopes(user), href: '/sc', match: '/sc', label: t('nav.projects'), grupo: 1 },
+    { show: canAccessAE(user), href: '/ae/history', match: '/ae', label: t('nav.history'), grupo: 1 },
+    { show: canAccessBooking(user), href: '/booking', match: '/booking', label: t('nav.booking'), title: t('nav.bookingTitle'), grupo: 1 },
+    { show: canAccessFolders(user), href: '/folders', match: '/folders', label: t('nav.folders'), title: t('nav.foldersTitle'), grupo: 1 },
+    { show: canAccessPreSalesOps(user), href: '/pre-sales-ops', match: '/pre-sales-ops', label: t('nav.preSalesOps'), title: t('nav.preSalesOpsTitle'), grupo: 2 },
+    { show: canAccessEstudos(user), href: '/estudos', match: '/estudos', label: t('nav.estudos'), title: t('nav.estudosTitle'), grupo: 2 },
+    { show: canAccessZdAutoConfig(user), href: '/zd-auto-config', match: '/zd-auto-config', label: t('nav.zdAutoConfig'), title: t('nav.zdAutoConfigTitle'), grupo: 2 },
+    { show: isAdmin, href: '/admin', match: '/admin', label: t('nav.admin'), grupo: 2 },
   ].filter((l) => l.show) : [];
+  /** O primeiro link de um grupo novo leva o separador antes dele. */
+  const abreGrupo = (i: number) => i > 0 && links[i]!.grupo !== links[i - 1]!.grupo;
+  const SEPARADOR =
+    'ml-[0.9em] relative before:content-[""] before:absolute before:left-[-0.6em] before:top-1/4 before:h-1/2 before:w-px before:bg-slate-300';
 
   const { boxRef, measureRef, scale, visible } = useFitLinks(links.length, [i18n.language, user?.role, isAdmin]);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -128,8 +133,8 @@ export default function Navbar() {
           className="absolute left-0 top-0 w-0 h-0 overflow-hidden invisible pointer-events-none flex items-center gap-[0.27em] [&>*]:shrink-0"
           style={{ fontSize: 'var(--fs-body)' }}
         >
-          {links.map((l) => (
-            <span key={l.href} className={linkClass(false)}>{l.label}</span>
+          {links.map((l, i) => (
+            <span key={l.href} className={`${linkClass(false)} ${abreGrupo(i) ? SEPARADOR : ''}`}>{l.label}</span>
           ))}
           <span className={`${linkClass(false)} inline-flex items-center gap-[0.3em]`}>
             {t('nav.more')}
@@ -138,7 +143,7 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-[0.27em]" style={{ fontSize: `calc(var(--fs-body) * ${scale})` }}>
-          {shown.map((l) => {
+          {shown.map((l, i) => {
             const active = pathname.startsWith(l.match);
             return (
               <Link
@@ -146,7 +151,7 @@ export default function Navbar() {
                 href={l.href}
                 title={l.title}
                 aria-current={active ? 'page' : undefined}
-                className={linkClass(active)}
+                className={`${linkClass(active)} ${abreGrupo(i) ? SEPARADOR : ''}`}
               >
                 {l.label}
               </Link>
@@ -170,8 +175,9 @@ export default function Navbar() {
                   role="menu"
                   className="absolute left-0 mt-2 min-w-[200px] bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-[60] text-body"
                 >
-                  {overflow.map((l) => {
+                  {overflow.map((l, j) => {
                     const active = pathname.startsWith(l.match);
+                    const sep = j > 0 && abreGrupo(visible + j);
                     return (
                       <Link
                         key={l.href}
@@ -179,7 +185,7 @@ export default function Navbar() {
                         title={l.title}
                         role="menuitem"
                         aria-current={active ? 'page' : undefined}
-                        className={`block px-3 py-2 rounded-xl font-medium whitespace-nowrap transition-colors ${
+                        className={`block px-3 py-2 rounded-xl font-medium whitespace-nowrap transition-colors ${sep ? 'mt-2 relative before:content-[""] before:absolute before:-top-1 before:left-3 before:right-3 before:h-px before:bg-slate-200 ' : ''}${
                           active ? 'text-brand-dark bg-slate-100' : 'text-slate-500 hover:text-brand-dark hover:bg-slate-100'
                         }`}
                       >
