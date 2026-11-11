@@ -14,6 +14,7 @@ import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
 import { TIPO_POR_IMPACTO } from '../config/artefatos';
 import type { Impacto } from '../config/taxonomy';
 import { incrementarVersao, registrarAtualizacao } from './artifacts';
+import { notificarAtividadesNovas } from '../../notificacoes';
 
 function lerDod(json: Prisma.JsonValue): DodItem[] {
   if (!Array.isArray(json)) return [];
@@ -102,10 +103,21 @@ export async function atribuir(
   if (!a) throw new NaoEncontrado('Atividade');
   if (a.status === 'DONE') throw new RegraDeNegocio('Atividade concluída não muda de responsável.');
 
-  return prisma.psOpsActivity.update({
+  const anterior = a.responsavelId;
+  const atualizada = await prisma.psOpsActivity.update({
     where: { id: args.activityId },
     data: { responsavelId: args.responsavelId },
   });
+  // passou para outra pessoa: ela recebe no sininho
+  if (args.responsavelId && args.responsavelId !== anterior) {
+    const ini = await prisma.psOpsInitiative.findUnique({
+      where: { id: a.initiativeId },
+      select: { signal: { select: { titulo: true, tituloPt: true } } },
+    });
+    const feature = ini?.signal ? ini.signal.tituloPt || ini.signal.titulo : a.titulo;
+    await notificarAtividadesNovas(prisma, [{ id: a.id, tipo: a.tipo, responsavelId: args.responsavelId }], feature);
+  }
+  return atualizada;
 }
 
 export async function marcarDod(

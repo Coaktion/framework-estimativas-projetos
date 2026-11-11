@@ -30,6 +30,8 @@ export interface Estado {
   artifactUpdates: Row[];
   /** categorias do Framework (os módulos de estimativa são as raiz ativas) */
   categories: Row[];
+  /** sininho */
+  notificacoes: Row[];
   /** cadastro de usuários do portal (config/responsaveis.ts resolve e-mail → id) */
   users: Row[];
 }
@@ -69,6 +71,7 @@ const DEFAULTS: Record<keyof Estado, Row> = {
   artifactSignals: { versaoResultante: null },
   artifactUpdates: { activityId: null, signalId: null },
   categories: { isActive: true, parentName: null, displayName: null },
+  notificacoes: { corpo: null, link: null, lidaEm: null },
   users: {},
 };
 
@@ -105,6 +108,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     artifactSignals: [],
     artifactUpdates: [],
     categories: [],
+    notificacoes: [],
     users: [],
     ...inicial,
   };
@@ -123,6 +127,10 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     },
     async count({ where }: { where?: Row } = {}) {
       return (where ? st[nome].filter((r) => casaComRelacao(r, achatarWhere(where))) : st[nome]).length;
+    },
+    async createMany({ data }: { data: Row[] }) {
+      for (const d of data) st[nome].push({ id: id(prefixo), ...DEFAULTS[nome], ...d });
+      return { count: data.length };
     },
     async create({ data }: { data: Row }) {
       const row = { id: id(prefixo), ...DEFAULTS[nome], ...data };
@@ -223,6 +231,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     psOpsArtifactSignal: tabela('artifactSignals', 'aps'),
     psOpsArtifactUpdate: tabela('artifactUpdates', 'upd'),
     category: tabela('categories', 'cat'),
+    notificacao: tabela('notificacoes', 'ntf'),
     user: tabela('users', 'usr'),
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       // sem rollback: os testes verificam o caminho felizes e as validações,

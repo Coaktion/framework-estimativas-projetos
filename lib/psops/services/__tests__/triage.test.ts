@@ -507,3 +507,45 @@ test('pessoa da configuração que não está no cadastro é ignorada, sem quebr
   assert.deepEqual(r.atividades.filter((a) => a.tipo === 'ESTUDO').map((a) => a.responsavelId), ['6']);
   assert.deepEqual(r.atividades.filter((a) => a.tipo === 'ESCOPO').map((a) => a.responsavelId), [null], 'Elisa não está no cadastro → sem responsável');
 });
+
+// ──────────────────────────────── Sininho ───────────────────────────────────
+
+test('triagem notifica cada responsável, uma notificação por atividade nova', async () => {
+  const f = criarFakePrisma();
+  semearTime(f);
+  const s = sinalVoz(f, { titulo: 'Voice AI agents', tituloPt: 'Agentes de IA para voz' });
+  const r = await triar(asPrisma(f), {
+    signalId: s.id as string,
+    impactos: [Impacto.ESTUDO, Impacto.DEMO],
+    usuarioId: '6',
+  });
+  assert.equal(f.estado.notificacoes.length, 6, '5 estudos + 1 demo');
+  assert.deepEqual(f.estado.notificacoes.map((n) => n.userId).sort((a, b) => Number(a) - Number(b)), [1, 5, 6, 6, 7, 60]);
+  const demo = r.atividades.find((a) => a.tipo === 'DEMO')!;
+  const n = f.estado.notificacoes.find((x) => x.link === `/pre-sales-ops/backlog?atividade=${demo.id}`)!;
+  assert.equal(n.titulo, 'Nova atividade de Demo');
+  assert.equal(n.corpo, 'Agentes de IA para voz', 'título traduzido da feature');
+  assert.equal(n.lidaEm, null);
+});
+
+test('responsável que não é usuário do portal não gera notificação', async () => {
+  const f = criarFakePrisma();
+  const s = sinalVoz(f);
+  semearEstimativaVoz(f, { donoId: 'u-arthur' });
+  await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESTIM], usuarioId: 'u1' });
+  assert.equal(f.estado.notificacoes.length, 0);
+});
+
+test('reatribuir avisa a pessoa nova; manter a mesma não avisa de novo', async () => {
+  const f = criarFakePrisma();
+  semearTime(f);
+  const s = sinalVoz(f);
+  const r = await triar(asPrisma(f), { signalId: s.id as string, impactos: [Impacto.ESCOPO], usuarioId: '6' });
+  const id = r.atividades[0]!.id;
+  const antes = f.estado.notificacoes.length;
+  await atribuir(asPrisma(f), { activityId: id, responsavelId: '60' });
+  assert.equal(f.estado.notificacoes.length, antes + 1);
+  assert.equal(f.estado.notificacoes.at(-1)!.userId, 60);
+  await atribuir(asPrisma(f), { activityId: id, responsavelId: '60' });
+  assert.equal(f.estado.notificacoes.length, antes + 1, 'mesma pessoa: sem notificação repetida');
+});

@@ -2122,5 +2122,20 @@
       "not_found": "Este ítem ya no existe. Recarga la página.",
       "server_error": "No se pudo guardar. Inténtalo de nuevo."
     }
+  },
+  "notificacoes": {
+    "titulo": "Notificaciones",
+    "botao": "Notificaciones",
+    "botaoComNaoLidas_one": "Notificaciones: {{count}} sin leer",
+    "botaoComNaoLidas_other": "Notificaciones: {{count}} sin leer",
+    "marcarTodas": "Marcar todas como leídas",
+    "vazio": "No hay notificaciones.",
+    "agora": "ahora",
+    "minutos_one": "hace {{count}} minuto",
+    "minutos_other": "hace {{count}} minutos",
+    "horas_one": "hace {{count}} hora",
+    "horas_other": "hace {{count}} horas",
+    "dias_one": "hace {{count}} día",
+    "dias_other": "hace {{count}} días"
   }
 }

@@ -90,6 +90,14 @@ function Conteudo() {
     void carregar();
   }, [carregar]);
 
+  // Link do sininho (?atividade=<id>): abre a atividade direto e limpa a URL
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('atividade');
+    if (!id) return;
+    setAbertaId(id);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
   // Soltar o card numa coluna muda o status na hora (otimista); se o servidor
   // recusar, a lista recarrega e o card volta.
   const moverCard = useCallback(

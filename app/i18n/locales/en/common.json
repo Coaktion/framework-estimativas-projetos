@@ -2122,5 +2122,20 @@
       "not_found": "This item no longer exists. Reload the page.",
       "server_error": "Could not save. Try again."
     }
+  },
+  "notificacoes": {
+    "titulo": "Notifications",
+    "botao": "Notifications",
+    "botaoComNaoLidas_one": "Notifications: {{count}} unread",
+    "botaoComNaoLidas_other": "Notifications: {{count}} unread",
+    "marcarTodas": "Mark all as read",
+    "vazio": "No notifications here.",
+    "agora": "just now",
+    "minutos_one": "{{count}} minute ago",
+    "minutos_other": "{{count}} minutes ago",
+    "horas_one": "{{count}} hour ago",
+    "horas_other": "{{count}} hours ago",
+    "dias_one": "{{count}} day ago",
+    "dias_other": "{{count}} days ago"
   }
 }

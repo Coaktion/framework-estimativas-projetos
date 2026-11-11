@@ -23,6 +23,7 @@ import { DOD_TEMPLATES, criterioSugerido, tituloAtividade } from '../config/dod'
 import { resolverResponsaveis, type ResponsaveisResolvidos } from '../config/responsaveis';
 import { semanaIso } from '../ingest/collector';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
+import { notificarAtividadesNovas } from '../../notificacoes';
 
 export interface TriarInput {
   signalId: string;
@@ -165,6 +166,9 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
       where: { id: sinal.id },
       data: { status: 'TRIADO' },
     });
+
+    // o sininho de cada responsável: uma notificação por atividade nova
+    await notificarAtividadesNovas(tx, atividades, sinal.tituloPt || sinal.titulo);
 
     return { initiativeId: initiative.id, atividades };
   });

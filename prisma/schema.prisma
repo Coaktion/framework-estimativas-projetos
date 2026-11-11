@@ -814,3 +814,24 @@ model EstudoRegistro {
   @@index([userId])
   @@map("estudo_registros")
 }
+
+// ──────────────────────────────── Notificações ───────────────────────────────
+// O sininho do cabeçalho. Hoje: atividade nova do Backlog para o responsável.
+// userId é o User.id (sem FK, como no Radar).
+
+model Notificacao {
+  id       String    @id @default(cuid())
+  userId   Int
+  /// ex.: ATIVIDADE_NOVA
+  tipo     String
+  titulo   String
+  corpo    String?   @db.Text
+  /// para onde o clique leva
+  link     String?
+  lidaEm   DateTime?
+  criadoEm DateTime  @default(now())
+
+  @@index([userId, lidaEm])
+  @@index([userId, criadoEm])
+  @@map("notificacoes")
+}

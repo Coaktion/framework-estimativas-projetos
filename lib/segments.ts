@@ -273,3 +273,17 @@ export function canAccessEstudos(
   if (!user) return false;
   return Boolean(user.isAdmin) || ESTUDOS_SEGMENTS.includes(normalizeSegment(user.role));
 }
+
+/**
+ * Quem vê o sininho de notificações do cabeçalho: por enquanto só SCs (e
+ * ADMIN), porque a única notificação é a de atividade nova do Backlog do Radar.
+ */
+const NOTIFICACOES_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem vê o sininho. */
+export function canAccessNotificacoes(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || NOTIFICACOES_SEGMENTS.includes(normalizeSegment(user.role));
+}

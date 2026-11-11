@@ -2122,5 +2122,20 @@
       "not_found": "Esse item não existe mais. Recarregue a página.",
       "server_error": "Não deu para salvar. Tente de novo."
     }
+  },
+  "notificacoes": {
+    "titulo": "Notificações",
+    "botao": "Notificações",
+    "botaoComNaoLidas_one": "Notificações: {{count}} sem ler",
+    "botaoComNaoLidas_other": "Notificações: {{count}} sem ler",
+    "marcarTodas": "Marcar todas como lidas",
+    "vazio": "Nenhuma notificação por aqui.",
+    "agora": "agora",
+    "minutos_one": "há {{count}} minuto",
+    "minutos_other": "há {{count}} minutos",
+    "horas_one": "há {{count}} hora",
+    "horas_other": "há {{count}} horas",
+    "dias_one": "há {{count}} dia",
+    "dias_other": "há {{count}} dias"
   }
 }

@@ -6,6 +6,7 @@ import Image from "next/image";
 import Providers from "@/components/Providers";
 import UserMenu from "@/components/UserMenu";
 import Navbar from "@/components/Navbar";
+import NotificationBell from "@/components/NotificationBell";
 import FeedbackButton from "@/components/FeedbackButton";
 import { getUserPreferencesAction } from "@/lib/preferences";
 import { getServerLanguage, getServerT } from "@/app/i18n/server";
@@ -61,6 +62,7 @@ export default async function RootLayout({
 
             <div className="flex items-center gap-2 ml-auto md:ml-0 shrink-0">
                <FeedbackButton />
+               <NotificationBell />
                <UserMenu />
             </div>
           </nav>
