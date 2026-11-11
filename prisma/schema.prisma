@@ -18,6 +18,12 @@ model User {
   role          String            @default("IMPL") // Segmento: ADMIN, SC, AE, PM, IMPL
   isAdmin       Boolean           @default(false)
   createdAt     DateTime          @default(now())
+  /// último login pelo Google
+  ultimoLoginEm  DateTime?
+  /// última vez que usou o portal (atualizado no máximo a cada 10 min)
+  ultimoAcessoEm DateTime?
+  /// quantos logins pelo Google desde que passou a ser registrado
+  totalLogins    Int               @default(0)
   projects      Project[]
   projectVers   ProjectVersion[]
   frameworkVers FrameworkVersion[]

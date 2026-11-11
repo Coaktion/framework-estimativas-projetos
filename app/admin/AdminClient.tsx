@@ -1770,6 +1770,18 @@ export default function AdminClient({ packages, categories, skills, variables, v
                             <Calendar className="w-3 h-3 mr-1.5" />
                             {t('admin.memberSince', { date: new Date(user.createdAt).toLocaleDateString(dateLocale) })}
                           </div>
+                          {/* quem está usando o portal: último acesso e logins pelo Google */}
+                          <div
+                            className={`mt-1.5 text-caption font-medium ${user.ultimoAcessoEm ? 'text-brand-dark' : 'text-slate-400'}`}
+                            title={user.ultimoLoginEm ? t('admin.ultimoLogin', { date: new Date(user.ultimoLoginEm).toLocaleString(dateLocale) }) : undefined}
+                          >
+                            {user.ultimoAcessoEm
+                              ? t('admin.ultimoAcesso', { date: new Date(user.ultimoAcessoEm).toLocaleString(dateLocale, { dateStyle: 'short', timeStyle: 'short' }) })
+                              : t('admin.semAcesso')}
+                          </div>
+                          {user.totalLogins > 0 && (
+                            <div className="text-caption text-slate-400">{t('admin.logins', { count: user.totalLogins })}</div>
+                          )}
                         </div>
                       </td>
                       <td className="px-12 py-8 text-right">
