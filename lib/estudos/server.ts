@@ -27,6 +27,12 @@ export async function requireEstudosUser(): Promise<EstudosUser> {
 
 type Db = Pick<PrismaClient, 'user' | 'estudoTopico' | 'estudoNivel' | 'estudoRegistro' | '$transaction'>;
 
+/**
+ * Quem não aparece em Estudos, mesmo sendo SC: a conta genérica de admin e
+ * quem não faz parte do time de estudos.
+ */
+export const OCULTOS_EM_ESTUDOS = ['admin@aktienow.com', 'tmunari@aktienow.com'];
+
 /** Ordem da planilha primeiro (Renato, Matheus, Arthur, Elisa), depois por nome. */
 const ORDEM_PLANILHA = Object.values(PESSOA_POR_NOME);
 
@@ -103,6 +109,7 @@ export async function carregarEstudos(db: Db): Promise<DadosEstudos> {
   // Pessoas: todo SC, mais quem já tem nível ou registro (ex.: alguém que mudou de segmento)
   const comDados = new Set<number>([...niveis.map((n) => n.userId), ...registros.map((r) => r.userId)]);
   const pessoas = scs
+    .filter((u) => !OCULTOS_EM_ESTUDOS.includes(u.email.toLowerCase()))
     .filter((u) => normalizeSegment(u.role) === 'SC' || comDados.has(u.id))
     .map((u) => ({ id: u.id, nome: u.name || u.email.split('@')[0]!, email: u.email.toLowerCase() }))
     .sort((a, b) => {
