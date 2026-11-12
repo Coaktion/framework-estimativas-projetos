@@ -12,6 +12,13 @@ import { normalizePhase } from "@/lib/framework-calc";
 import { getActiveAeConfig } from "@/lib/ae-config-server";
 import { aeBindingUsage } from "@/lib/ae-config";
 import { aeNumberLabel } from "@/lib/ae-number-labels";
+import { recordAdminChange, type AdminArea } from "@/lib/admin-audit";
+
+/** Registra a alteração para a aba "Alterações do Admin" do changelog. */
+async function audit(area: AdminArea, action: string, summary: string, details?: unknown) {
+  const session: any = await getServerSession(authOptions);
+  await recordAdminChange({ userId: Number(session?.user?.id) || null, area, action, summary, details });
+}
 
 export async function createFrameworkSnapshotAction(versionName: string, type: string = "SC_AE") {
   const session = await getServerSession(authOptions);
@@ -38,6 +45,7 @@ export async function createFrameworkSnapshotAction(versionName: string, type: s
     }
   });
 
+  await audit('snapshots', 'create', `Snapshot "${versionName}" criado`);
   revalidatePath("/admin");
   return snapshot;
 }
@@ -102,6 +110,7 @@ export async function restoreFrameworkSnapshotAction(snapshotId: number) {
     });
   }
 
+  await audit('snapshots', 'restore', `Snapshot "${snapshot.versionName}" restaurado`);
   revalidatePath("/admin");
 }
 
@@ -112,13 +121,14 @@ export async function deleteUserAction(userId: number) {
   if (Number(userId) === Number((session.user as any).id)) {
     throw new Error('Você não pode excluir o próprio usuário.');
   }
-  const target = await prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true } });
+  const target = await prisma.user.findUnique({ where: { id: userId }, select: { isAdmin: true, email: true } });
   if (target?.isAdmin) {
     const admins = await prisma.user.count({ where: { isAdmin: true } });
     if (admins <= 1) throw new Error('Não é possível excluir o último admin.');
   }
 
   await prisma.user.delete({ where: { id: userId } });
+  await audit('users', 'delete', `Usuário excluído: ${target?.email || userId}`);
   revalidatePath("/admin");
 }
 
@@ -151,6 +161,7 @@ export async function createUserAction(data: {
         isAdmin: syncIsAdmin(segment),
       },
     });
+    await audit('users', 'create', `Usuário criado: ${email} (${segment})`);
     revalidatePath("/admin");
     return { success: true };
   } catch (err: any) {
@@ -187,10 +198,11 @@ export async function updateUserSegmentAction(userId: number, segment: string) {
     }
   }
 
-  await prisma.user.update({
+  const changedUser = await prisma.user.update({
     where: { id: userId },
     data: { role: next, isAdmin: nextIsAdmin },
   });
+  await audit('users', 'update', `Segmento de ${changedUser.email}: ${next}`);
   revalidatePath("/admin");
   return { success: true };
 }
@@ -226,11 +238,12 @@ export async function updatePackageAction(id: number, data: any) {
       updateData.skill = { connectOrCreate: { where: { name: skillName }, create: { name: skillName } } };
     }
 
-    await prisma.package.update({
+    const updatedPkg = await prisma.package.update({
       where: { id },
       data: updateData,
     });
 
+    await audit('library', 'update', `Item "${updatedPkg.name}" alterado (${Object.keys(data || {}).join(', ')})`, { id });
     revalidatePath("/admin");
     return { success: true };
   } catch (error: any) {
@@ -280,6 +293,7 @@ export async function addCategoryAction(
     }
   });
 
+  await audit('categories', 'create', `Categoria "${name}" criada (ou reativada)`);
   revalidatePath("/admin");
   revalidatePath("/sc");
 }
@@ -302,7 +316,7 @@ export async function updateCategoryAction(id: number, data: any) {
     ? normalizePhase(data.implementationPhase)
     : undefined;
 
-  await prisma.category.update({
+  const updatedCategory = await prisma.category.update({
     where: { id },
     data: {
       displayName,
@@ -316,6 +330,7 @@ export async function updateCategoryAction(id: number, data: any) {
     }
   });
 
+  await audit('categories', 'update', `Categoria "${updatedCategory.name}" alterada (${Object.keys(data || {}).join(', ')})`, { id });
   revalidatePath("/admin");
   revalidatePath("/sc");
 }
@@ -343,6 +358,7 @@ export async function setCategoryOrderAction(categoryIds: number[]) {
     )
   );
 
+  await audit('categories', 'reorder', 'Ordem das categorias alterada');
   revalidatePath("/admin");
 }
 
@@ -355,6 +371,7 @@ export async function bulkMovePackagesAction(packageIds: number[], targetCategor
     data: { categoryName: targetCategoryName }
   });
 
+  await audit('library', 'move', `${packageIds.length} itens movidos para "${targetCategoryName}"`, { packageIds });
   revalidatePath("/admin");
 }
 
@@ -376,6 +393,7 @@ export async function mergeCategoryAction(sourceCategoryId: number, targetCatego
     })
   ]);
 
+  await audit('categories', 'merge', `Categoria "${source.name}" mesclada em "${targetCategoryName}"`);
   revalidatePath("/admin");
 }
 
@@ -404,6 +422,7 @@ export async function deleteCategoryAction(id: number) {
     data: { isActive: false }
   });
 
+  await audit('categories', 'delete', `Categoria "${category.name}" desativada`);
   revalidatePath("/admin");
   revalidatePath("/sc");
   return { success: true };
@@ -414,7 +433,7 @@ export async function updateSkillAction(id: number, nameEn?: string, nameEs?: st
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
-  await prisma.skill.update({
+  const updatedSkill = await prisma.skill.update({
     where: { id },
     data: {
       nameEn: nameEn !== undefined ? String(nameEn || "").trim() : undefined,
@@ -422,6 +441,7 @@ export async function updateSkillAction(id: number, nameEn?: string, nameEs?: st
     },
   });
 
+  await audit('skills', 'update', `Skill "${updatedSkill.name}": nomes de exibição alterados`);
   revalidatePath("/admin");
 }
 
@@ -437,6 +457,7 @@ export async function addSkillAction(name: string, nameEnInput?: string) {
     create: { name, nameEn }
   });
 
+  await audit('skills', 'create', `Skill "${name}" criada (ou reativada)`);
   revalidatePath("/admin");
 }
 
@@ -444,11 +465,12 @@ export async function deleteSkillAction(id: number) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
-  await prisma.skill.update({
+  const removedSkill = await prisma.skill.update({
     where: { id },
     data: { isActive: false }
   });
 
+  await audit('skills', 'delete', `Skill "${removedSkill.name}" desativada`);
   revalidatePath("/admin");
 }
 
@@ -502,6 +524,7 @@ export async function addPackageAction(formData: FormData) {
     create: { name, ...common }
   });
 
+  await audit('library', 'create', `Item "${name}" criado (ou reativado) com ${hours}h`);
   revalidatePath("/admin");
 }
 
@@ -518,10 +541,11 @@ export async function deletePackageAction(id: number): Promise<{ success: boolea
     return { success: false, error: t('errors.packageBoundToAe', { items }) };
   }
 
-  await prisma.package.update({
+  const removedPkg = await prisma.package.update({
     where: { id },
     data: { isActive: false }
   });
+  await audit('library', 'delete', `Item "${removedPkg.name}" desativado`, { id });
   revalidatePath("/admin");
   return { success: true };
 }
@@ -586,6 +610,7 @@ export async function importTranslationsAction(
     }
   }
 
+  if (updated) await audit('library', 'translations', `Traduções importadas: ${updated} registros`);
   revalidatePath('/admin');
   revalidatePath('/sc');
   return { success: true, updated, notFound };

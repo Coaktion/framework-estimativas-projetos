@@ -12,10 +12,8 @@ import {
   packageName, packageTooltip, categoryName as categoryNameOf,
   packageHaystack, categoryHaystack, matchesQuery,
 } from '@/lib/localized-names';
-import {
-  buildScopePrompt, detectSuppressionFlags, fold,
-  type ScopeExportInput, type ScopeExportItem, type ScopeExportIntegration,
-} from '@/lib/scope-export';
+import { buildScopePrompt } from '@/lib/scope-export';
+import { buildFrameworkScopeInput } from '@/lib/scope-framework';
 import { zohoSectionFor } from '@/lib/zoho-section';
 import {
   computeFrameworkTotals, lineEligibility, normalizePhase, roundHalfUp,
@@ -42,6 +40,11 @@ import { useRouter } from 'next/navigation';
 import { saveProjectVersionAction, cloneProjectVersionAction } from './actions';
 import { nextVersionNumber, versionNameFor } from '@/lib/version-utils';
 import { renameProjectAction } from '../../actions';
+import { deleteProjectVersionAction, updateVersionDescriptionAction } from './actions';
+import { useSession } from 'next-auth/react';
+import {
+  appliedCount, reconcileShortcuts, shortcutFlagKey, shortcutName, turnOffShortcut, type EditorShortcut,
+} from '@/lib/editor-shortcuts';
 import { updateUserPreferenceAction, savePresetAction, deletePresetAction } from '@/lib/preferences';
 
 /**
@@ -309,7 +312,7 @@ function normalizeLayoutConfig(
   return { categoryOrder, subcategoryOrder, itemOrder };
 }
 
-export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, subcategoriesByCategory, orphanPackages, currentVersion, allVersions, variables, preferences, initialView }: any) {
+export default function ProjectEditorClient({ project, categories, categoryLabels, categoryRecords, packagesByCategory, subcategoriesByCategory, orphanPackages, currentVersion, allVersions, variables, preferences, initialView, shortcuts }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
 
@@ -319,9 +322,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     ultra: Boolean(initialView?.ultra),
     twoColumns: Boolean(initialView?.twoColumns),
     moduleChips: Boolean(initialView?.moduleChips),
+    hideEmpty: Boolean(initialView?.hideEmpty),
   }));
   const ultraCompact = editorView.ultra;
   const twoColumns = editorView.ultra && editorView.twoColumns;
+  // Linhas vazias = quantidade 0 ou em branco (um ajuste manual com horas conta
+  // como preenchido, para nunca esconder horas que estão no total).
+  const hideEmptyLines = editorView.hideEmpty;
+  const isLineFilled = (id: number | string) =>
+    (parseFloat(formData?.[`item_${id}_qty`] || 0) || 0) > 0 || formData?.[`item_override_check_${id}`] === 'on';
   const updateEditorView = (patch: Partial<EditorView>) => {
     const next = { ...editorView, ...patch };
     setEditorView(next);
@@ -530,10 +539,40 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   // opção mais longa e empurrava os botões do cabeçalho para fora da tela.
   // A descrição inteira continua no title do seletor e no card da versão.
   const VERSION_LABEL_MAX = 70;
+
+  // Identificação (descrição) da versão aberta: editável a qualquer momento,
+  // sem criar versão nova — ver updateVersionDescriptionAction.
+  const [versionDescription, setVersionDescription] = useState<string>(currentVersion?.description || '');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const [descriptionDraft, setDescriptionDraft] = useState('');
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
+  const descriptionOf = (v: any) => (currentVersion && v?.id === currentVersion.id ? versionDescription : v?.description) || '';
+
+  const commitVersionDescription = async () => {
+    const next = descriptionDraft.trim();
+    if (!currentVersion) return;
+    if (!next) { alert(t('editor.versionDescriptionRequired')); return; }
+    setIsEditingDescription(false);
+    if (next === versionDescription) return;
+    const previous = versionDescription;
+    setVersionDescription(next);
+    setIsSavingDescription(true);
+    try {
+      const result = await updateVersionDescriptionAction(project.id, currentVersion.id, next);
+      setVersionDescription(result.description);
+    } catch (e) {
+      console.error(e);
+      setVersionDescription(previous);
+      alert(t('editor.versionDescriptionError'));
+    } finally {
+      setIsSavingDescription(false);
+    }
+  };
+
   const versionFullLabel = (v: any) =>
-    v.description ? `${v.versionName} — ${v.description}` : v.versionName;
+    descriptionOf(v) ? `${v.versionName} — ${descriptionOf(v)}` : v.versionName;
   const versionOptionLabel = (v: any) => {
-    const desc = String(v.description || '').trim();
+    const desc = String(descriptionOf(v)).trim();
     if (!desc) return v.versionName;
     return `${v.versionName} — ${desc.length > VERSION_LABEL_MAX ? `${desc.slice(0, VERSION_LABEL_MAX - 1).trimEnd()}…` : desc}`;
   };
@@ -840,77 +879,55 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   const setCategoryChecked = (category: string, checked: boolean) => {
     setFormData((prev: any) => {
-      let next = { ...prev, [`check_area_${category}`]: checked ? 'on' : 'off' };
-      // Atalhos de Treinamento/Workshop ligados acompanham a seleção de módulos:
-      // módulo novo ganha os itens dele; módulo removido perde.
-      if (phaseOf(category) === 'SETUP') {
-        (['training', 'workshop'] as ShortcutKind[]).forEach((kind) => {
-          if (prev[SHORTCUT_FLAG[kind]] === 'on') next = applyShortcut(next, kind, checked, [category]);
-        });
-      }
-      return next;
+      // Atalhos ligados acompanham a seleção de módulos pelo efeito de
+      // reconciliação (ver lib/editor-shortcuts.ts).
+      return { ...prev, [`check_area_${category}`]: checked ? 'on' : 'off' };
     });
   };
 
   /* ------------------------------------------------------------------------ */
-  /*             ATALHOS: TREINAMENTO / WORKSHOP / GO-LIVE                     */
+  /*      ATALHOS (Admin › Biblioteca › Atalhos) — ver lib/editor-shortcuts.ts  */
   /* ------------------------------------------------------------------------ */
-  // Só preenchem quantidades (que continuam editáveis como qualquer outra). Os
-  // itens de cada atalho vêm do painel Admin: em categorias de fase Workshop e
-  // Treinamento, o módulo a que o item pertence; em Go-Live, a quantidade que o
-  // atalho preenche.
-  type ShortcutKind = 'training' | 'workshop' | 'golive';
-  const SHORTCUT_FLAG: Record<ShortcutKind, string> = {
-    training: '__shortcut_training',
-    workshop: '__shortcut_workshop',
-    golive: '__shortcut_golive',
-  };
-  const SHORTCUT_PHASE: Record<ShortcutKind, string> = { training: 'TRAINING', workshop: 'WORKSHOP', golive: 'GOLIVE' };
-
-  /** Módulos (categorias de fase Setup) selecionados no projeto. */
-  const selectedSetupModules = (data: any): string[] =>
-    categories.filter((cat: string) => data?.[`check_area_${cat}`] === 'on' && isCategoryOnPlan(cat) && phaseOf(cat) === 'SETUP');
-
-  /** Itens que um atalho preenche para os módulos informados, com a quantidade de cada um. */
-  const shortcutTargets = (kind: ShortcutKind, modules: string[]) =>
-    allPackages
-      .filter((pkg: any) => phaseOf(packageRootCategoryById[String(pkg.id)]) === SHORTCUT_PHASE[kind])
-      .filter((pkg: any) => (kind === 'golive'
-        ? Number(pkg.goLiveShortcutQty) > 0
-        : modules.includes(String(pkg.moduleLink || ''))))
-      // Item oculto ou fora do plano não conta hora — o atalho não mexe nele.
-      .filter((pkg: any) => !hiddenSet.has(Number(pkg.id)) && isAvailable(pkg))
-      .map((pkg: any) => ({
-        id: Number(pkg.id),
-        qty: kind === 'golive' ? Math.max(1, Math.round(Number(pkg.goLiveShortcutQty))) : 1,
-        root: packageRootCategoryById[String(pkg.id)],
-      }));
-
-  /** Preenche (on) ou desfaz (off) um atalho. Devolve o formData novo. */
-  const applyShortcut = (data: any, kind: ShortcutKind, on: boolean, modules: string[]) => {
-    const next = { ...data };
-    shortcutTargets(kind, modules).forEach(({ id, qty, root }) => {
-      const key = `item_${id}_qty`;
-      const current = parseFloat(next[key] || 0) || 0;
-      if (on) {
-        if (current < qty) next[key] = String(qty);
-        if (root) next[`check_area_${root}`] = 'on';
-      } else if (current === qty) {
-        // Só desfaz o que o atalho preencheu: quantidade ajustada à mão fica.
-        delete next[key];
-      }
+  // Cada atalho ligado preenche os itens das regras que valem agora e desfaz
+  // (se intocado) o que deixou de valer. Só preenchem quantidades, que
+  // continuam editáveis como qualquer outra.
+  const activeShortcuts: EditorShortcut[] = useMemo(
+    () => ((shortcuts || []) as EditorShortcut[]).filter((sc) => sc.isActive),
+    [shortcuts],
+  );
+  const shortcutCatalog = useMemo(
+    () => ({ categories, categoryRecords: categoryRecords || {}, packagesByCategory: packagesByCategory || {} }),
+    [categories, categoryRecords, packagesByCategory],
+  );
+  /** Avalia os atalhos com plano, SKU e tipo de projeto atuais (que ficam em estados próprios). */
+  const reconcileWithMeta = (data: any) => {
+    const meta = { __skuType: skuType, __planTier: planTier, __deploymentType: deploymentType };
+    const result = reconcileShortcuts({ ...data, ...meta }, activeShortcuts, shortcutCatalog, { hiddenIds: hiddenItems.map(Number) });
+    (Object.keys(meta) as Array<keyof typeof meta>).forEach((key) => {
+      if (key in data) result[key] = data[key];
+      else delete result[key];
     });
-    return next;
+    return result;
   };
-
-  const toggleShortcut = (kind: ShortcutKind, on: boolean) => {
-    setFormData((prev: any) => {
-      const next = applyShortcut(prev, kind, on, selectedSetupModules(prev));
-      if (on) next[SHORTCUT_FLAG[kind]] = 'on';
-      else delete next[SHORTCUT_FLAG[kind]];
-      return next;
-    });
+  const toggleShortcut = (sc: EditorShortcut, on: boolean) => {
+    setFormData((prev: any) => (on
+      ? reconcileWithMeta({ ...prev, [shortcutFlagKey(sc.key)]: 'on' })
+      : turnOffShortcut(prev, sc)));
   };
+  // Reação a qualquer mudança da estimativa (módulos, itens, plano, tipo de
+  // projeto). A primeira renderização não reconcilia: abrir uma versão não
+  // pode marcá-la como alterada.
+  const shortcutBaselineRef = useRef<string | null>(null);
+  useEffect(() => {
+    const signature = JSON.stringify([formData, skuType, planTier, deploymentType, hiddenItems]);
+    if (shortcutBaselineRef.current === null) { shortcutBaselineRef.current = signature; return; }
+    if (shortcutBaselineRef.current === signature) return;
+    shortcutBaselineRef.current = signature;
+    if (!activeShortcuts.some((sc) => formData?.[shortcutFlagKey(sc.key)] === 'on')) return;
+    const next = reconcileWithMeta(formData);
+    if (JSON.stringify(next) !== JSON.stringify(formData)) setFormData(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData, skuType, planTier, deploymentType, hiddenItems, activeShortcuts]);
 
   const reorderSubcategory = async (category: string, subcategory: string, direction: 'up' | 'down') => {
     // Os itens da raiz ficam sempre no topo; só as subcategorias do Admin trocam de lugar.
@@ -1458,153 +1475,55 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
   /* ------------------------------------------------------------------------ */
 
   /**
-   * Itens que efetivamente entraram no escopo, com categoria e subcategoria.
-   * Sai das MESMAS linhas do resumo (`totals.lines`): itens visíveis com
-   * quantidade, override manual, pacotes personalizados de módulos ativos e
-   * apps de Marketplace só com o módulo ativo. Rótulos sempre em português,
-   * porque o template da skill só existe em pt-BR.
+   * Entrada do prompt: montada por lib/scope-framework.ts a partir das MESMAS
+   * linhas do resumo (`totals`), no idioma da interface. Canais, integrações,
+   * módulos e flags saem dessas linhas — uma seção não contradiz outra.
    */
-  const scopeItems = useMemo(() => {
-    const out: ScopeExportItem[] = totals.lines.map((line) => {
-      const pkg = line.kind === 'package' ? packageById[String(line.packageId)] : null;
-      const custom = line.kind === 'custom' ? customPackages[line.customIndex ?? -1] : null;
-      const app = line.kind === 'marketplace' ? marketplaceApps[Number(line.key.split(':')[1])] : null;
-      return {
-        category: catLabelPt(line.category),
-        subcategory: subLabelPt(line.subcategory),
-        label:
-          line.kind === 'marketplace' ? (line.label || 'App de Marketplace (sem nome)')
-            : line.kind === 'custom' ? (line.label || 'Item personalizado (sem nome)')
-              : line.label,
-        quantity: line.quantity,
-        hours: line.hours,
-        unitHours: line.unitHours,
-        skill: line.skill || null,
-        manualHours: line.kind === 'package'
-          ? formData[`item_override_check_${line.packageId}`] === 'on'
-          : Boolean(custom?.overrideCheck),
-        includes: pkg ? pkg.scopeIncluded : custom ? custom.scopeIn : null,
-        excludes: pkg ? pkg.scopeExcluded : custom ? custom.scopeOut : null,
-        link: app ? app.link : null,
-      };
-    });
-
-    return out.sort(
-      (a, b) =>
-        a.category.localeCompare(b.category) ||
-        a.subcategory.localeCompare(b.subcategory) ||
-        a.label.localeCompare(b.label),
-    );
-  }, [totals.lines, catLabelPt, subLabelPt, packageById, customPackages, marketplaceApps, formData]);
-
   const scopePromptInput = useMemo(() => {
-    // Módulos: derivados das CATEGORIAS que têm hora lançada. Um mapa fixo de
-    // módulos daria errado assim que a biblioteca mudasse.
-    const modules = Array.from(new Set(scopeItems.map((i) => i.category))).sort();
-
-    // Canais: itens das categorias de canal, com a quantidade lançada.
-    const channels = scopeItems
-      .filter((i) => fold(i.category).includes('canais') || fold(i.category).includes('channel'))
-      .map((i) => ({ label: i.label, quantity: i.quantity }));
-
-    // Integrações e apps, por tipo de origem.
-    const integrations: ScopeExportIntegration[] = scopeItems
-      .filter((i) => {
-        const cat = fold(i.category);
-        return cat.includes('integracoes nativas') || cat.includes('native integration')
-          || cat.includes('marketplace') || cat.includes('aplicativos aktienow')
-          || cat.includes('aktienow apps');
-      })
-      .map((i) => ({ kind: i.category, label: i.label, quantity: i.quantity }));
-
-    const devHours = Number(totals.skillTotals?.[SKILL_DEV] || 0);
-    const designHours = Number(totals.skillTotals?.[SKILL_DESIGN] || 0);
-
-    const flags = detectSuppressionFlags(scopeItems, {
-      // Estas duas não vêm de palavra-chave: vêm das horas por skill, que é o
-      // sinal correto para decidir se a seção 5.3 (Premissas de
-      // Desenvolvimento) permanece no documento.
-      desenvolvimento: devHours > 0,
-      design: designHours > 0,
-    });
-
-    // Percentuais REALMENTE aplicados (com projeto SD o Discovery vale 0).
-    const manual = (hours: number) => `ajuste manual: ${String(hours).replace('.', ',')}h`;
-    const percentLines = [
-      {
-        label: 'Discovery',
-        value: totals.discoveryMode === 'sd' ? 0 : percents.discovery,
-        note: totals.discoveryMode === 'sd'
-          ? 'projeto com SD — sem discovery percentual'
-          : overrides.discovery !== null
-            ? manual(totals.discVal)
-            : totals.discoveryMode === 'dev' ? 'conduzido pelo Solution Design' : undefined,
-      },
-      {
-        label: 'Validação',
-        value: percents.validation,
-        note: overrides.validation !== null ? manual(totals.validVal) : undefined,
-      },
-      {
-        label: 'GP',
-        value: percents.gp,
-        note: overrides.gp !== null ? manual(totals.gpVal) : undefined,
-      },
-      { label: 'DRN', value: totals.drnPct },
-    ];
-
-    const input: ScopeExportInput = {
-      origin: 'framework',
-      template: 'pacote-de-horas',
-      clientName: projectName,
-      projectName,
-      versionName: versionName || 'V1',
-      versionDescription: currentVersion?.description || null,
-      generatedAt: new Date(),
-      technicalScopeLink: techLink,
-      zohoLink,
-      preSalesName: project?.owner?.name || null,
-      totalHours: totals.grandTotal,
-      skillHours: totals.skillTotals,
-      percents: percents,
-      percentLines,
-      calculatedHours: [
-        {
-          label: 'Discovery',
-          hours: totals.discVal,
-          note: totals.discoveryMode === 'sd'
-            ? 'projeto com SD — as horas de SD são o discovery'
-            : totals.discoveryMode === 'dev' ? 'em Solution Design' : undefined,
-        },
-        { label: 'Validação', hours: totals.validVal },
-        { label: 'DRN - Desenvolvimento', hours: totals.drnVal },
-        { label: 'GP', hours: totals.gpVal },
-      ],
-      planTierLabel: PLAN_LABEL[planTier],
-      skuLabel: skuType === 'ES' ? t('plans.employeeService') : t('plans.customerService'),
-      deploymentType,
-      // O prompt sai no idioma da interface — ver lib/scope-export.ts.
+    const defOf = (key: string) => (variables || []).find((v: any) => v.key === key) || null;
+    return buildFrameworkScopeInput({
       locale: language,
-      modules,
-      channels,
-      integrations,
-      flags,
-      categories: categoryBreakdown.rows.map((row) => ({
-        label: catLabelPt(row.cat),
-        hours: row.total,
-        subcategories: row.subs.map((s) => ({
-          label: subLabelPt(s.sub) || 'Itens da categoria',
-          hours: s.hours,
-        })),
+      catalog: { categories, categoryRecords, packagesByCategory },
+      data: formData,
+      totals,
+      percents,
+      overrides,
+      gpDefault: getVariableNumber(variables, ['GP_STANDARD', 'GP_PERCENTAGE'], 25),
+      variableDefs: {
+        discovery: defOf(VARIABLE_KEYS.discovery),
+        validation: defOf(VARIABLE_KEYS.validation),
+        gp: defOf(VARIABLE_KEYS.gp),
+      },
+      customPackages,
+      marketplaceApps,
+      hiddenIds: hiddenItems.map(Number),
+      planTier,
+      sku: skuType,
+      deploymentType,
+      project: { id: Number(project?.id), name: projectName, ownerName: project?.owner?.name || null },
+      version: currentVersion
+        ? {
+            id: Number(currentVersion.id),
+            name: versionName || currentVersion.versionName || 'V1',
+            description: versionDescription || null,
+            createdAt: currentVersion.createdAt || null,
+            technicalScopeLink: techLink,
+            zohoLink,
+          }
+        : null,
+      versions: (allVersions || []).map((v: any) => ({
+        id: Number(v.id),
+        name: String(v.versionName || ''),
+        description: v.id === currentVersion?.id ? versionDescription : v.description,
+        totalHours: Number(v.totalHours) || 0,
+        createdAt: v.createdAt || null,
       })),
-      items: scopeItems,
-    };
-    return input;
+      baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+    });
   }, [
-    scopeItems, project, projectName, versionName, techLink, zohoLink,
-    totals, percents, overrides, planTier, skuType,
-    deploymentType, language, currentVersion,
-    categoryBreakdown.rows, catLabelPt, subLabelPt, t,
+    language, categories, categoryRecords, packagesByCategory, formData, totals, percents, overrides,
+    variables, customPackages, marketplaceApps, hiddenItems, planTier, skuType, deploymentType,
+    project, projectName, currentVersion, versionName, versionDescription, techLink, zohoLink, allVersions,
   ]);
 
   const scopePrompt = useMemo(() => buildScopePrompt(scopePromptInput), [scopePromptInput]);
@@ -1624,7 +1543,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
       return;
     }
     setScopePromptLoading(true);
-    const zohoSection = await zohoSectionFor(zohoLink);
+    const zohoSection = await zohoSectionFor(zohoLink, language);
     setScopePromptLoading(false);
     const text = buildScopePrompt({ ...scopePromptInput, zohoSection });
     try {
@@ -1697,7 +1616,7 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
 
   const exportDocument = useMemo<ExportDocument>(() => {
     const versionLabel = versionName
-      ? `${versionName}${currentVersion?.description ? ` — ${currentVersion.description}` : ''}`
+      ? `${versionName}${versionDescription ? ` — ${versionDescription}` : ''}`
       : t('editor.versionNotSaved', { name: nextVersionLabel });
     const meta = [
       { label: t('export.version'), value: isDirty ? `${versionLabel} (${t('export.unsavedChanges')})` : versionLabel },
@@ -1944,6 +1863,33 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return { v: 1, savedAt: new Date().toISOString(), drnPct: effectiveDrnPct, items };
   };
 
+  // Excluir a versão aberta (só na tela): dono do projeto, quem criou a versão ou admin.
+  const { data: session } = useSession();
+  const sessionUser = (session?.user || {}) as any;
+  const canDeleteVersion = Boolean(currentVersion) && !currentVersion?.deletedAt && (
+    Boolean(sessionUser.isAdmin)
+    || Number(project?.ownerId) === Number(sessionUser.id)
+    || Number(currentVersion?.createdBy) === Number(sessionUser.id)
+  );
+  const handleDeleteVersion = () => {
+    if (!currentVersion) return;
+    if (!confirm(t('editor.deleteVersionConfirm', { name: versionName }))) return;
+    startTransition(async () => {
+      try {
+        const result = await deleteProjectVersionAction(project.id, currentVersion.id);
+        if (!result.ok) {
+          alert(t('editor.deleteVersionLast'));
+          return;
+        }
+        savedStateRef.current = serializedState; // a guarda não pergunta de novo
+        router.push(`/sc/project/${project.id}`);
+      } catch (e) {
+        console.error(e);
+        alert(t('editor.deleteVersionError'));
+      }
+    });
+  };
+
   const handleClone = async () => {
     if (!currentVersion) {
       alert(t('editor.selectVersionToClone'));
@@ -2187,6 +2133,18 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                   </select>
                   <ChevronDown className="w-3 h-3 absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 </div>
+                {canDeleteVersion && (
+                  <button
+                    type="button"
+                    onClick={handleDeleteVersion}
+                    disabled={isPending}
+                    title={t('editor.deleteVersion')}
+                    aria-label={t('editor.deleteVersion')}
+                    className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors disabled:opacity-50 shrink-0"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2537,20 +2495,66 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
           {/* Os links do escopo e do Zoho ficam na barra fixa do rodapé, junto do Salvar. */}
           <div className="max-w-md space-y-2">
             <label className="block text-caption font-medium text-slate-400 ml-1">{t('editor.versionIdentification')}</label>
-            {/* Somente leitura: a numeração das versões é automática. */}
+            {/* O número da versão é automático; a descrição pode ser editada (clique no lápis). */}
             <div className="w-full bg-slate-50 dark:bg-[color:var(--bg-input)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-xl px-5 py-3 text-label">
-              <span className="font-bold text-brand-dark dark:text-[color:var(--text-main)]">
-                {versionName || t('editor.versionNotSaved', { name: nextVersionLabel })}
-              </span>
-              {currentVersion?.description && (
-                <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5">
-                  {currentVersion.description}
+              <div className="flex items-start justify-between gap-3">
+                <span className="font-bold text-brand-dark dark:text-[color:var(--text-main)]">
+                  {versionName || t('editor.versionNotSaved', { name: nextVersionLabel })}
                 </span>
-              )}
+                {currentVersion && !isEditingDescription && (
+                  <button
+                    type="button"
+                    onClick={() => { setDescriptionDraft(versionDescription); setIsEditingDescription(true); }}
+                    disabled={isSavingDescription}
+                    title={t('editor.editVersionDescription')}
+                    aria-label={t('editor.editVersionDescription')}
+                    className="shrink-0 p-1 rounded-md text-slate-400 hover:text-brand-primary hover:bg-slate-100 dark:hover:bg-[color:var(--bg-hover)] transition-colors disabled:opacity-50"
+                  >
+                    {isSavingDescription ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Pencil className="w-3.5 h-3.5" />}
+                  </button>
+                )}
+              </div>
+              {isEditingDescription ? (
+                <div className="mt-2 space-y-2">
+                  <textarea
+                    autoFocus
+                    rows={3}
+                    value={descriptionDraft}
+                    maxLength={2000}
+                    onChange={(e) => setDescriptionDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsEditingDescription(false);
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commitVersionDescription();
+                    }}
+                    className="w-full bg-white dark:bg-[color:var(--bg-input)] border border-slate-300 dark:border-[color:var(--border-main)] rounded-lg px-3 py-2 text-label text-brand-dark dark:text-[color:var(--text-main)] outline-none focus:border-brand-primary"
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setIsEditingDescription(false)} className="h-8 px-3 rounded-full border border-slate-300 dark:border-[color:var(--border-main)] text-caption font-medium text-slate-600 dark:text-[color:var(--text-muted)]">
+                      {t('common.cancel')}
+                    </button>
+                    <button type="button" onClick={commitVersionDescription} disabled={!descriptionDraft.trim()} className="h-8 px-3 rounded-full brand-bg-primary text-caption font-medium disabled:opacity-50">
+                      {t('common.save')}
+                    </button>
+                  </div>
+                </div>
+              ) : versionDescription ? (
+                <span className="block text-caption text-slate-500 dark:text-[color:var(--text-muted)] mt-0.5 whitespace-pre-line">
+                  {versionDescription}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
+
+      {(project?.deletedAt || currentVersion?.deletedAt) && (
+        <div role="status" className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-3xl p-5 flex items-start gap-3">
+          <Trash2 className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <p className="text-label text-red-800 dark:text-red-200">
+            {project?.deletedAt ? t('editor.deletedProjectBanner') : t('editor.deletedVersionBanner')}
+          </p>
+        </div>
+      )}
 
       {/* Avisos da versão aberta. */}
       {hasPriceChanges && (
@@ -2904,12 +2908,13 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
             <div className="flex flex-col gap-2 sm:pt-1">
               <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)]">{t('editor.shortcutsLabel')}</span>
               <div className="flex flex-wrap gap-2">
-                {(['training', 'workshop', 'golive'] as ShortcutKind[]).map((kind) => {
-                  const on = formData[SHORTCUT_FLAG[kind]] === 'on';
+                {activeShortcuts.map((sc) => {
+                  const on = formData[shortcutFlagKey(sc.key)] === 'on';
+                  const filled = on ? appliedCount(formData, sc) : 0;
                   return (
                     <label
-                      key={kind}
-                      title={t(`editor.shortcutHint_${kind}`)}
+                      key={sc.key}
+                      title={sc.description || undefined}
                       className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer text-caption font-medium transition-colors ${
                         on
                           ? 'border-brand-primary bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)]'
@@ -2919,27 +2924,15 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <input
                         type="checkbox"
                         checked={on}
-                        onChange={(e) => toggleShortcut(kind, e.target.checked)}
+                        onChange={(e) => toggleShortcut(sc, e.target.checked)}
                         className="accent-[color:var(--primary)]"
                       />
-                      {t(`editor.shortcut_${kind}`)}
+                      {shortcutName(sc, language)}
+                      {on && <span className="tabular-nums text-slate-500" title={t('editor.shortcutFilledHint', { count: filled })}>({filled})</span>}
                     </label>
                   );
                 })}
               </div>
-              {(['training', 'workshop'] as ShortcutKind[]).map((kind) => {
-                if (formData[SHORTCUT_FLAG[kind]] !== 'on') return null;
-                const missing = selectedSetupModules(formData).filter((m) => shortcutTargets(kind, [m]).length === 0);
-                if (!missing.length) return null;
-                return (
-                  <p key={kind} className="text-caption text-amber-700 dark:text-amber-300 max-w-xs">
-                    {t('editor.shortcutMissing', { kind: t(`editor.shortcut_${kind}`), modules: missing.map((m) => catLabelOf(m)).join(', ') })}
-                  </p>
-                );
-              })}
-              {formData[SHORTCUT_FLAG.golive] === 'on' && shortcutTargets('golive', []).length === 0 && (
-                <p className="text-caption text-amber-700 dark:text-amber-300 max-w-xs">{t('editor.shortcutMissingGoLive')}</p>
-              )}
             </div>
 
             <button
@@ -3181,7 +3174,9 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                       <tbody className="divide-y divide-slate-50 dark:divide-[color:var(--border-main)]">
                         {(layoutConfig.subcategoryOrder[cat] || []).map((subcategory) => {
                           // Só itens que aparecem (plano, ocultos, dependência) — os mesmos que contam hora.
-                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory).filter((p: any) => isPackageVisible(p));
+                          const orderedPackages = getOrderedPackagesForSubcategory(cat, subcategory)
+                            .filter((p: any) => isPackageVisible(p))
+                            .filter((p: any) => !hideEmptyLines || isLineFilled(p.id));
                           if (orderedPackages.length === 0) return null;
                           const isRootGroup = subcategory === ROOT_SUBCATEGORY;
                           const adminSubcategories = (layoutConfig.subcategoryOrder[cat] || []).filter((s) => s !== ROOT_SUBCATEGORY);
@@ -3403,6 +3398,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                           );
                         })}
                         
+                        {hideEmptyLines
+                          && !(layoutConfig.subcategoryOrder[cat] || []).some((sub) => getOrderedPackagesForSubcategory(cat, sub).some((p: any) => isPackageVisible(p) && isLineFilled(p.id)))
+                          && !customPackages.some((cp) => cp.category === cat) && (
+                          <tr>
+                            <td colSpan={ultraCompact ? 5 : 6} className="py-4 text-center text-label text-slate-500">
+                              {t('editor.noFilledLines')}{' '}
+                              <button type="button" onClick={() => updateEditorView({ hideEmpty: false })} className="font-medium text-brand-primary hover:underline">
+                                {t('editor.showEmptyLines')}
+                              </button>
+                            </td>
+                          </tr>
+                        )}
+
                         {/* Custom Packages Rows */}
                         {customPackages.filter(cp => cp.category === cat).map(pkg => {
                           const qty = parseFloat(pkg.qty || 0);
@@ -4078,6 +4086,17 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
                 </button>
               )}
             </div>
+            {/* Linhas vazias (quantidade 0 ou em branco): esconder / mostrar. */}
+            <button
+              type="button"
+              onClick={() => updateEditorView({ hideEmpty: !editorView.hideEmpty })}
+              aria-pressed={editorView.hideEmpty}
+              title={editorView.hideEmpty ? t('editor.showEmptyLinesHint') : t('editor.hideEmptyLinesHint')}
+              className={`h-10 px-3 rounded-full border inline-flex items-center gap-1.5 text-label font-medium transition-colors shrink-0 ${editorView.hideEmpty ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-300 bg-white text-slate-500 hover:text-brand-dark'}`}
+            >
+              {editorView.hideEmpty ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+              <span className="hidden 2xl:inline">{editorView.hideEmpty ? t('editor.showEmptyLines') : t('editor.hideEmptyLines')}</span>
+            </button>
             {/* Navegação rápida: ir ao topo / ao fim da página sem rolar tudo. */}
             <div className="inline-flex items-center rounded-full border border-slate-300 bg-white overflow-hidden shrink-0" role="group" aria-label={t('editor.pageNavigation')}>
               <button

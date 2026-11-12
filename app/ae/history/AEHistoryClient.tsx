@@ -8,8 +8,9 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from "next/link";
 import {
   Zap, Clock, Search, CheckCircle2, AlertTriangle, Shield, Filter, Lock, Globe,
-  List, LayoutGrid, ChevronRight, Plus,
+  List, LayoutGrid, ChevronRight, Plus, Trash2,
 } from "lucide-react";
+import { deleteAEEstimatesAction } from '../actions';
 
 // Estilos compartilhados com a lista de Projetos (/sc), para as duas telas
 // terem o mesmo comportamento visual.
@@ -41,6 +42,7 @@ type HistoryVersion = {
   hours: number;
   createdAt: Date;
   needsSC: boolean;
+  createdBy?: number;
 };
 
 type HistoryGroup = {
@@ -92,6 +94,17 @@ export default function AEHistoryClient(
   }, [router, searchParams]);
 
   const showOwnerChip = sessionIsAdmin && projectScope === 'all';
+  const viewerId = Number((session?.user as any)?.id);
+
+  /** Exclui (só na tela) todas as versões visíveis de um cliente. */
+  const deleteGroup = async (g: HistoryGroup) => {
+    if (!confirm(t('aeHistory.deleteConfirm', { name: g.clientName, count: (g.versions || []).length }))) return;
+    const res = await deleteAEEstimatesAction((g.versions || []).map((v: any) => Number(v.id))).catch(() => null);
+    if (!res || !res.ok) { alert(t('aeView.deleteError')); return; }
+    router.refresh();
+  };
+  const canDeleteGroup = (g: HistoryGroup) =>
+    sessionIsAdmin || (g.versions || []).every((v: any) => Number(v.createdBy) === viewerId);
   const [searchQuery, setSearchQuery] = useState('');
   const { dateLocale, language } = useLanguage();
 
@@ -267,7 +280,18 @@ export default function AEHistoryClient(
                         {new Date(g.latestCreatedAt).toLocaleDateString(dateLocale)}
                       </td>
                       <td className="px-4 py-3.5">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end items-center gap-1">
+                          {canDeleteGroup(g) && (
+                            <button
+                              type="button"
+                              onClick={() => void deleteGroup(g)}
+                              title={t('aeHistory.delete')}
+                              aria-label={t('aeHistory.delete')}
+                              className="p-2 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                           <Link href={`/ae/${g.latestId}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg font-medium text-brand-dark hover:bg-slate-100 whitespace-nowrap">
                             {t('aeHistory.open', 'Abrir')}
                             <ChevronRight className="w-4 h-4" />

@@ -4,12 +4,15 @@ import { getActiveAeConfig } from "@/lib/ae-config-server";
 import { resolveAEConfig } from "@/lib/ae-config";
 import { cookies } from "next/headers";
 import { AE_VIEW_COOKIE } from "@/lib/editor-view";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Depende da URL (?cloneFrom=, ?client=) e da configuração ativa no banco:
 // nunca deve ser pré-renderizada no build.
 export const dynamic = 'force-dynamic';
 
 export default async function AEPage({ searchParams }: { searchParams: { client?: string; cloneFrom?: string } }) {
+  const session = await getServerSession(authOptions);
   const categoriesData = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
@@ -34,7 +37,9 @@ export default async function AEPage({ searchParams }: { searchParams: { client?
   if (searchParams.cloneFrom) {
     const cloneId = parseInt(searchParams.cloneFrom);
     if (!Number.isNaN(cloneId) && cloneId > 0) {
-      const source = await prisma.aEEstimate.findUnique({ where: { id: cloneId } });
+      const found = await prisma.aEEstimate.findUnique({ where: { id: cloneId } });
+      // Estimativa excluída (só na tela) não serve de base, salvo para admin.
+      const source = found && (!(found as any).deletedAt || Boolean((session?.user as any)?.isAdmin)) ? found : null;
       if (source) {
         try {
           initialData = JSON.parse(source.data);

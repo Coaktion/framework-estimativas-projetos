@@ -1,0 +1,266 @@
+Gere o Escopo Técnico deste projeto usando a skill scope-creator.
+
+REGRA DE PRECEDÊNCIA: os dados do bloco abaixo são a fonte de verdade e prevalecem sobre qualquer documento anexado. Use anexos apenas para enriquecer contexto (dores, objetivos, cenário atual). Nada que apareça só no anexo entra no escopo.
+
+REGRA DE REDAÇÃO: quantidades e horas servem para dimensionar o esforço e o preço. O documento descreve O QUE será feito, não quantas vezes — "3 e-mails + 1 Facebook + 3 linhas" vira "configurar os canais de e-mail, Facebook e telefonia no Zendesk". Cite um número só quando ele for relevante para o cliente entender o escopo (ex.: número de marcas ou de idiomas, integrações nomeadas, limites combinados).
+
+===== Aktie Now Tool Center · ESCOPO TÉCNICO · v3 =====
+ORIGEM: framework
+IDIOMA DO BLOCO: pt-BR
+
+[PROJETO]
+# Identificação da versão. "---" = informação que o Tool Center não tem.
+Cliente: Logos
+Projeto: Logos
+Versão da proposta técnica: V1
+Descrição da versão: Suite + Voice + Copilot + AI Agents (sem API). Versão FULL, sem nada faseado para depois.
+Data: 11/11/2026
+Versão criada em: 04/11/2026
+Pre-Sales responsável: Arthur Oliveira
+Link do escopo técnico: https://crm.zoho.com/crm/org882513013/tab/Potentials/6713453000045037013
+Link do negócio: https://crm.zoho.com/crm/org882513013/tab/Potentials/6713453000045037013
+Tipo de projeto: Nova implantação
+ID do projeto: 163
+ID da versão: 212
+Link da versão no Tool Center: https://aktienowtc.netlify.app/sc/project/163?version_id=212
+
+[DADOS INFORMADOS]
+# Dados digitados na tela. Servem para entender e dimensionar; não são texto para o documento.
+Agentes: 20
+Marcas: 3
+Grupos: 4
+Single Sign-On (SSO): sim
+Conversas paralelas via Slack: sim
+Conversas paralelas via Microsoft Teams: não
+
+[DIMENSIONAMENTO]
+# Horas do site, prontas: nunca recalcule, arredonde nem redistribua.
+Total de horas: 189h
+Horas por skill:
+- Implantação: 151,3h
+- Solution Design: 0h
+- Gerente de Projeto: 37,8h
+- Desenvolvimento: 0h
+- Design: 0h
+Horas calculadas:
+- Discovery: 14,3h
+- Validação: 11,5h
+- DRN - Desenvolvimento: 0h
+- GP: 37,8h
+Percentuais aplicados: Discovery 15% · Validação 12% · GP 25% · DRN 15%
+Horas por fase: Workshop 2,5h · Discovery 14,3h · Setup 95,5h · Validação 11,5h · Treinamento 18,5h · Go-Live e Pós Go-Live 9h
+Origem de cada número:
+- Discovery: percentual — 15% sobre 95,5h = 14,3h
+- Validação: percentual — 12% sobre 95,5h = 11,5h
+- GP: percentual — 25% sobre 151,3h = 37,8h (percentual padrão (25%))
+- DRN: percentual — 15% sobre 0h = 0h
+
+[PLATAFORMA]
+# Plano e tipo de instância para a tabela de configuração.
+Plano Zendesk: Suite Enterprise
+Tipo de instância: Customer Service
+
+[MÓDULOS EM ESCOPO]
+# Módulos para a tabela de configuração. Fases de serviço (Workshop, Treinamentos, Go-Live) não são módulos do Zendesk.
+AI Agents, Go-Live, Treinamentos, Workshop, Zendesk Analytics, Zendesk Copilot, Zendesk Knowledge, Zendesk Support, Zendesk Voice
+Módulos Zendesk: Zendesk Support, Zendesk Knowledge, Zendesk Voice, Zendesk Analytics, Zendesk Copilot, AI Agents
+Fases de serviço: Workshop, Treinamentos, Go-Live
+Módulos não selecionados: Zendesk Workforce Management (WFM), Zendesk Quality Assurance (QA), Regras de negócio, Advanced Data Privacy and Protection (ADPP), CallWe, Desenvolvimento, Solution Design
+
+[CANAIS EM ESCOPO]
+# Canais para a tabela de configuração. As quantidades só dimensionam.
+- Email com domínio do cliente: 5
+- Formulários e Catálogos de Serviço: 5
+- Web Widget: 1
+- Linhas / Números (Zendesk Voice): 7
+
+[INTEGRAÇÕES E APPS]
+# Integrações e apps para a tabela de configuração (pelo nome).
+- Integração nativa: Salesforce
+- Integração nativa: Slack
+- Conversas paralelas: Conversas Paralelas via Slack
+- Criador de aplicativos: Criador de aplicativos: com conexão API externa
+- Fluxo de ação: Fluxos de ação: sistemas externos
+
+[FLAGS DE SUPRESSÃO]
+# "nao" significa REMOVER do documento o trecho correspondente. Copie esta seção literalmente.
+whatsapp: nao  # Premissas de ativação do número WhatsApp na Meta / Facebook Business
+sso: sim  # Premissa de SSO (SAML/JWT) e provisionamento
+conteudo-dinamico: sim  # Premissa de tradução do Conteúdo Dinâmico
+central-de-ajuda: sim  # Premissas de mapeamento de host/CNAME e itens de Central de Ajuda
+email: sim  # Premissa de SPF/DKIM/DNS do canal de e-mail
+voz: sim  # Seção de capacidades Zendesk Voice e itens de URA/fila
+knowledge: sim  # Seção Zendesk Knowledge e premissas de conteúdo de artigos
+community: nao  # Seção de capacidades Zendesk Community
+analytics: sim  # Seção de capacidades Zendesk Analytics / Explore
+copilot: sim  # Seção Copilot e premissa de responsabilidade sobre Procedimentos
+ai-agents: sim  # Seção AI Agents
+ai-agents-api: nao  # Bloco longo de premissas de API/endpoints do AI Agents
+wfm: nao  # Seção de capacidades Zendesk WFM
+qa: nao  # Seção de capacidades Zendesk QA
+adpp: nao  # Seção ADPP (Advanced Data Privacy and Protection)
+marketplace-apps: nao  # Premissa de responsabilidade sobre apps de Marketplace (apps de terceiros e apps da Aktie Now)
+action-flow: sim  # Menção a Action Builder / Fluxos de Ação
+integracoes-nativas: sim  # Lista de integrações NATIVAS do Zendesk no escopo (Jira, Salesforce, Slack...); apps de Marketplace ficam em marketplace-apps
+migracao-de-dados: nao  # Bloco de Migração de Dados
+itam: nao  # Bloco de Gestão de Ativos (ITAM) e integrações Intune/Jamf
+objetos-customizados: nao  # Bullet de Objetos Customizados
+sla: sim  # Bullet de políticas de SLA
+side-conversations: sim  # Bullet de Conversas Paralelas
+csat: sim  # Bullet de pesquisa de satisfação
+desenvolvimento: nao  # Premissas de Desenvolvimento (horas de Desenvolvimento > 0)
+design: nao  # Tema da Central de Ajuda sob medida (horas de Design > 0)
+
+[DETALHAMENTO POR CATEGORIA]
+# Horas por categoria: evidência de que um módulo ou seção tem horas.
+Zendesk Support — 47,4h
+  Com Discovery, Validação e GP rateados: 74,5h
+  Itens da categoria: 41,8h
+  Integrações nativas: 4h
+  Canais: 1,7h
+AI Agents — 19,7h
+  Com Discovery, Validação e GP rateados: 31h
+  Itens da categoria: 19,7h
+Treinamentos — 18,5h
+  Com Discovery, Validação e GP rateados: 24,1h
+  Itens da categoria: 18,5h
+Zendesk Analytics — 15,5h
+  Com Discovery, Validação e GP rateados: 24,4h
+  Itens da categoria: 15,5h
+Go-Live — 9h
+  Com Discovery, Validação e GP rateados: 11,7h
+  Itens da categoria: 9h
+Zendesk Copilot — 6,4h
+  Com Discovery, Validação e GP rateados: 10h
+  Itens da categoria: 6,4h
+Zendesk Knowledge — 5h
+  Com Discovery, Validação e GP rateados: 7,9h
+  Itens da categoria: 5h
+Workshop — 2,5h
+  Com Discovery, Validação e GP rateados: 3,3h
+  Itens da categoria: 2,5h
+Zendesk Voice — 1,4h
+  Com Discovery, Validação e GP rateados: 2,3h
+  Itens da categoria: 1,4h
+
+[ITENS SELECIONADOS]
+# Use para decidir quais bullets de capacidade permanecem no documento. "Descrição", "Inclui" e "Não inclui" descrevem a entrega de cada item.
+AI Agents
+- Configurações gerais (AI Agents) — 3 × 0,75h = 2,3h · Implantação
+  Descrição: 1 por bot. Inclui: nome do agente, nome da empresa, business profile, tom de voz, formalidade, conexão com o Zendesk, tipo de indústria, delay de email, idiomas, configuração de avatar.
+- Horários de operação — 3 × 0,17h = 0,5h · Implantação
+  Descrição: Número total, somando todos os bots
+- Instruções — 6 × 0,33h = 2h · Implantação
+  Descrição: Número total, somando todos os bots
+- Modelo de mensagem estruturada - formulário — 2 × 0,5h = 1h · Implantação
+  Descrição: Número total, somando todos os bots
+- Procedimentos / Diálogos intermediários — 3 × 3h = 9h · Implantação
+  Descrição: Número total, somando todos os bots
+- Procedimentos / Diálogos simples — 2 × 1h = 2h · Implantação
+  Descrição: Número total, somando todos os bots
+- Regras de busca — 3 × 0,33h = 1h · Implantação
+  Descrição: Número total, somando todos os bots. Mínimo de 1 por bot.
+- Segmentos — 4 × 0,5h = 2h · Implantação
+  Descrição: Número total, somando todos os bots
+Go-Live
+- Acompanhamento de Go-Live — 1 × 6h = 6h · Implantação
+  Descrição: Em geral, 1 dia
+- Suporte Pós Go-Live — 3h (horas ajustadas manualmente; quantidade 1; padrão 1 × 6h = 6h) · Implantação
+Treinamentos
+- AI Agents básico - admin — 1 × 4h = 4h · Implantação
+- Analytics básico - admin — 1 × 2h = 2h · Implantação
+- Copilot - admin — 1 × 2h = 2h · Implantação
+- Copilot - agente — 1 × 0,5h = 0,5h · Implantação
+- Knowledge - Admin — 1 × 1h = 1h · Implantação
+- Knowledge - agente — 1 × 0,5h = 0,5h · Implantação
+- Support - Admin — 1 × 4h = 4h · Implantação
+- Support - agente — 1 × 2h = 2h · Implantação
+- Voice - Admin — 1 × 1,5h = 1,5h · Implantação
+- Voice - agente — 1 × 1h = 1h · Implantação
+Workshop
+- Workshop - Suite — 1 × 1h = 1h · Implantação
+  Descrição: Usar se houver configuração de Support, Knowledge e/ou Analytics no projeto
+- Workshop - Voice — 1 × 0,5h = 0,5h · Implantação
+- Workshop AI Agents — 1 × 0,5h = 0,5h · Implantação
+- Workshop Copilot — 1 × 0,5h = 0,5h · Implantação
+Zendesk Analytics
+- Configurações gerais (Analytics) — 1 × 3,5h = 3,5h · Implantação
+  Descrição: Inclui a ativação do Analytics, criação de painéis com relatórios e filtros pré-prontos e programação de compartilhamento de relatórios.
+- Painéis personalizados — 2 × 1h = 2h · Implantação
+- Relatórios personalizados — 10 × 1h = 10h · Implantação
+Zendesk Copilot
+- Configurações gerais (Copilot) — 1 × 0,5h = 0,5h · Implantação
+  Descrição: Inclui: ativação de assistência automática, sugestão de primeira resposta, sugestão de fusão de tickets, mostrar tickets semelhantes, gerar sugestões em chamadas telefônicas, ferramentas de redação, tradução, contexto de ticket, tópicos padrões, detecção de sentimento, detecção de idioma.
+- Procedimentos — 5 × 0,67h = 3,4h · Implantação
+- Tópicos personalizados — 10 × 0,25h = 2,5h · Implantação
+Zendesk Knowledge
+- Central de ajuda básica — 1 × 2h = 2h · Implantação
+- Fontes de conhecimento externas — 3 × 1h = 3h · Implantação
+  Descrição: Inclui Web Crawl e .csv
+Zendesk Support
+- Agentes — 20 × 0,05h = 1h · Implantação
+  Descrição: Inclui agents light
+- Automações complexas — 2 × 0,33h = 0,7h · Implantação
+- Automações simples — 5 × 0,08h = 0,4h · Implantação
+- Campos da organização — 3 × 0,05h = 0,2h · Implantação
+- Campos de ticket — 18 × 0,08h = 1,4h · Implantação
+- Campos de ticket condicionais — 9 × 0,02h = 0,2h · Implantação
+- Campos do usuário — 8 × 0,05h = 0,4h · Implantação
+- Conexões — 1 × 0,5h = 0,5h · Implantação
+- Configurações gerais (Support) — 1 × 1h = 1h · Implantação
+  Descrição: Inclui: Configurações de Segurança (regras de autenticação de equipe e end user, 2fa, validade da sessão, restrição de ip para acesso), Aparência (cor, nome, favicon), Localização (fuso horário, formato de hora, idioma padrão, idiomas adicionais), Eventos de perfil de usuário, Configuração de usuários finais, Customização do Cartão de usuário, Interface do agente, Painel de Contexto, Configuração de conversas paralelas, Solicitações de aprovação (approvals), Configurações de ticket
+- Conteúdo dinâmico — 20 × 0,08h = 1,6h · Implantação
+- Conversas Paralelas via Slack — 1 × 0,5h = 0,5h · Implantação
+- Criador de aplicativos: com conexão API externa — 1 × 10h = 10h · Implantação
+  Descrição: Por app criado
+- Encaminhamento omnichannel — 1 × 1h = 1h · Implantação
+  Descrição: Inclui ativação, regras de encaminhamento, filas, regras de capacidade e status personalizados de agente
+- Fluxos de ação complexos — 1 × 5h = 5h · Implantação
+- Fluxos de ação: sistemas externos — 1 × 1h = 1h · Implantação
+  Descrição: Indique o número de serviços externos (nativos ou personalizados) que serão conectados
+- Funções — 3 × 0,25h = 0,8h · Implantação
+- Gatilhos Complexos — 10 × 0,33h = 3,3h · Implantação
+  Descrição: Considerar qualquer "gatilho de mensagem" e "gatilho de objeto" como complexo
+- Gatilhos Simples — 16 × 0,08h = 1,3h · Implantação
+- Grupos — 4 × 0,05h = 0,2h · Implantação
+- Habilidades — 4 × 0,17h = 0,7h · Implantação
+- Macros — 30 × 0,08h = 2,4h · Implantação
+- Marcas — 3 × 0,25h = 0,8h · Implantação
+  Descrição: Limites: Team e Growth =1 | Professional = 5 | Enterprise = 300
+- Pesquisa de satisfação (CSAT) — 1 × 0,25h = 0,3h · Implantação
+- Políticas de SLA — 3 × 0,17h = 0,5h · Implantação
+- Programação e feriados — 1 × 0,25h = 0,3h · Implantação
+  Descrição: Por programação. Apenas Enterprise pode ter mais de uma programação.
+- Single Sign-On (SSO) — 1 × 2h = 2h · Implantação
+  Descrição: SAML / JWT / OpenID
+- Status de ticket personalizados — 4 × 0,05h = 0,2h · Implantação
+  Descrição: Por status personalizado
+- Template HTML do e-mail — 3 × 1h = 3h · Implantação
+  Descrição: 1 por marca
+- Visualizações — 17 × 0,08h = 1,4h · Implantação
+Zendesk Support / Canais
+- Email com domínio do cliente — 5 × 0,17h = 0,9h · Implantação
+- Formulários e Catálogos de Serviço — 5 × 0,08h = 0,4h · Implantação
+  Descrição: O plano Team só permite 1 formulário
+- Web Widget — 1 × 0,42h = 0,4h · Implantação
+  Descrição: Máximo de 1 por marca
+Zendesk Support / Integrações nativas
+- Salesforce — 1 × 2h = 2h · Implantação
+- Slack — 1 × 2h = 2h · Implantação
+Zendesk Voice
+- Configurações gerais (Voice) — 1 × 0,25h = 0,3h · Implantação
+  Descrição: Inclui: Tamanho da fila, tempo de espera, gravações públicas.
+- Linhas / Números — 7 × 0,17h = 1,2h · Implantação
+
+[OUTRAS VERSÕES DO PROJETO]
+# Outras versões deste projeto: contexto para fases e opcionais, nunca entregas desta versão.
+- V5 — 19h · criada em 04/11/2026 — Adiciona conexões API ao AI Agents (standalone add-on)
+- V4 — 19h · criada em 04/11/2026 — WFM-only (standalone addon)
+- V3 — 31h · criada em 04/11/2026 — QA-Only (standalone addon)
+- V2 — 104h · criada em 04/11/2026 — Suite + Copilot + AI Agents (sem API). Versão LITE, cobrindo apenas o que é essnecial para o go-live do cliente, o restante será para fases posteriores.
+
+[ITENS PREENCHIDOS QUE NÃO CONTAM]
+# Itens com quantidade na tela que NÃO entram nas horas desta versão. Não são escopo; o motivo diz por quê.
+(nenhum)
+
+===== FIM =====

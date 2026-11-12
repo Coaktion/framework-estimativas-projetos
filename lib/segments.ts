@@ -287,3 +287,15 @@ export function canAccessNotificacoes(
   if (!user) return false;
   return Boolean(user.isAdmin) || NOTIFICACOES_SEGMENTS.includes(normalizeSegment(user.role));
 }
+
+/**
+ * Solution Engineers e ADMIN: quem cria uma estimativa do Framework a partir
+ * da Calculadora AE, acompanha os relatos de bugs e sugestões e cuida do
+ * changelog (rascunhos e registro de alterações do painel).
+ */
+const SE_TOOLS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+export function canUseSeTools(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || SE_TOOLS_SEGMENTS.includes(normalizeSegment(user.role));
+}

@@ -43,7 +43,8 @@ export default async function AEViewPage({ params }: { params: { id: string } })
     }
   });
 
-  const canView = Boolean(estimate) && (isAdmin || Number(estimate?.createdBy) === userId);
+  // Estimativa excluída (só na tela) abre apenas para admin, com aviso.
+  const canView = Boolean(estimate) && (isAdmin || (Number(estimate?.createdBy) === userId && !(estimate as any)?.deletedAt));
   if (!canView) return (
     <div className="p-12 text-center">
       <p className="text-slate-400 font-bold ">{t('aeView.notFoundOrNoPermission')}</p>
@@ -66,23 +67,15 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const categories = categoriesData.map(c => c.name);
 
   const filterCreatedBy = isAdmin ? {} : { createdBy: userId };
-  let allVersions: { id: number; version: number; createdAt: Date; needsSC: boolean }[] = [];
+  let allVersions: { id: number; version: number; createdAt: Date; needsSC: boolean; resultHours: number }[] = [];
   try {
-    allVersions = await prisma.aEEstimate.findMany({
-      where: { clientName: estimate.clientName, ...filterCreatedBy },
+    allVersions = (await prisma.aEEstimate.findMany({
+      where: { clientName: estimate.clientName, ...filterCreatedBy, deletedAt: null },
       orderBy: { createdAt: 'asc' },
-      select: { id: true, version: true, createdAt: true, needsSC: true } as any,
-    });
+      select: { id: true, version: true, createdAt: true, needsSC: true, resultHours: true },
+    })) as any;
   } catch (_) {
-    try {
-      allVersions = await prisma.aEEstimate.findMany({
-        where: { clientName: estimate.clientName, ...filterCreatedBy },
-        orderBy: { createdAt: 'asc' },
-        select: { id: true, createdAt: true, needsSC: true },
-      }).then(rows => (rows as any[]).map((r, i) => ({ ...r, version: (r as any).version ?? (i + 1) })));
-    } catch (__) {
-      allVersions = [];
-    }
+    allVersions = [];
   }
 
   // Garante ordenação: version crescente; na ausência de versão, por createdAt.
@@ -151,6 +144,8 @@ export default async function AEViewPage({ params }: { params: { id: string } })
         return found ? found.version : 1;
       })()}
       createdAt={estimate.createdAt}
+      deletedAt={(estimate as any).deletedAt ? new Date((estimate as any).deletedAt).toISOString() : null}
+      createdBy={Number(estimate.createdBy)}
       parentId={(estimate as any).parentId ?? null}
       data={data}
       packages={packages}

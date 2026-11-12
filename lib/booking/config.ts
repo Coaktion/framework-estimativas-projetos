@@ -350,7 +350,8 @@ export function normalizeBookingConfig(raw: any): BookingConfig {
         rules: (Array.isArray(tr.rules) ? tr.rules : [])
           .map((r: any): TransparentRule => {
             const requireFree: RequireFree = r?.requireFree === 'day' || r?.requireFree === 'week' ? r.requireFree : 'none';
-            // Comparação EXATA do título: sensível a maiúsculas e espaços.
+            // A comparação com o título do evento ignora maiúsculas, espaços
+            // repetidos e seletores de variação de emoji (ver eventTitleKey).
             return { title: String(r?.title ?? '').slice(0, 200), requireFree, reschedule: requireFree === 'none' ? false : Boolean(r?.reschedule) };
           })
           .filter((r: TransparentRule) => r.title.trim() !== '')

@@ -6,19 +6,25 @@
  * renderizar a página no modo certo, sem "piscar" ao carregar.
  *  - ultra: linhas mais baixas e menos detalhes por item;
  *  - twoColumns: módulos lado a lado (só vale com o ultra ligado);
- *  - moduleChips: seleção de módulos com todos visíveis (em vez da lista suspensa).
+ *  - moduleChips: seleção de módulos com todos visíveis (em vez da lista suspensa);
+ *  - hideEmpty: esconde as linhas com quantidade 0 ou em branco.
  */
 export const EDITOR_VIEW_COOKIE = 'tc_editor_view';
 
-export type EditorView = { ultra: boolean; twoColumns: boolean; moduleChips: boolean };
+export type EditorView = { ultra: boolean; twoColumns: boolean; moduleChips: boolean; hideEmpty: boolean };
 
 export function parseEditorView(value?: string | null): EditorView {
   const tokens = String(value || '').split(',');
-  return { ultra: tokens.includes('ultra'), twoColumns: tokens.includes('2col'), moduleChips: tokens.includes('chips') };
+  return {
+    ultra: tokens.includes('ultra'),
+    twoColumns: tokens.includes('2col'),
+    moduleChips: tokens.includes('chips'),
+    hideEmpty: tokens.includes('filled'),
+  };
 }
 
 export function serializeEditorView(view: EditorView): string {
-  return [view.ultra && 'ultra', view.twoColumns && '2col', view.moduleChips && 'chips'].filter(Boolean).join(',') || 'normal';
+  return [view.ultra && 'ultra', view.twoColumns && '2col', view.moduleChips && 'chips', view.hideEmpty && 'filled'].filter(Boolean).join(',') || 'normal';
 }
 
 /**

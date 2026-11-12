@@ -37,7 +37,8 @@ export default async function AEHistoryPage({
       : {};
 
   const estimates = await prisma.aEEstimate.findMany({
-    where: createdByFilter,
+    // Excluídas (só na tela) ficam de fora; o admin as vê em Admin › Estimativas excluídas.
+    where: { ...createdByFilter, deletedAt: null },
     orderBy: { createdAt: 'desc' },
     include: {
       creator: {
@@ -110,6 +111,7 @@ export default async function AEHistoryPage({
         version: r.version,
         createdAt: r.createdAt,
         needsSC: Boolean(r.needsSC),
+        createdBy: Number(r.createdBy),
         // Total gravado no momento em que a versão foi calculada. Vem do banco,
         // e não de um recálculo: o histórico deve mostrar o que foi acordado
         // naquela versão, ainda que a tabela de preços tenha mudado depois.

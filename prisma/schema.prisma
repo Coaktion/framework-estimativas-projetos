@@ -60,6 +60,9 @@ model AEEstimate {
   createdAt     DateTime @default(now())
   createdBy     Int
   creator       User     @relation(fields: [createdBy], references: [id])
+  // Exclusão só na tela (ver Project.deletedAt).
+  deletedAt     DateTime?
+  deletedBy     Int?
 }
 
 model Category {
@@ -172,6 +175,10 @@ model Project {
   updatedAt   DateTime         @updatedAt
   versions    ProjectVersion[]
   spreadsheets Spreadsheet[]
+  // Exclusão só na tela: o projeto some das listas, mas continua no banco e
+  // só um admin o vê e restaura (Admin › Estimativas excluídas).
+  deletedAt   DateTime?
+  deletedBy   Int?
 }
 
 model ProjectVersion {
@@ -207,6 +214,9 @@ model ProjectVersion {
   createdAt           DateTime @default(now())
   createdBy           Int?
   creator             User?    @relation(fields: [createdBy], references: [id])
+  // Exclusão só na tela (ver Project.deletedAt).
+  deletedAt           DateTime?
+  deletedBy           Int?
 }
 
 model Spreadsheet {
@@ -840,4 +850,116 @@ model Notificacao {
   @@index([userId, lidaEm])
   @@index([userId, criadoEm])
   @@map("notificacoes")
+}
+
+// ─────────────────────────── Atalhos do editor ───────────────────────────────
+// Botões do editor de estimativas (Treinamento, Workshop, Go-live e os que o
+// admin criar) que preenchem itens conforme regras: item + quantidade +
+// condições (grupos OU, condições E). Ver lib/editor-shortcuts.ts.
+// `key` é a marca gravada nas versões (__shortcut_<key>): nunca muda.
+
+model EditorShortcut {
+  id           Int      @id @default(autoincrement())
+  key          String   @unique
+  name         String
+  nameEn       String   @default("")
+  nameEs       String   @default("")
+  description  String   @default("")
+  isActive     Boolean  @default(true)
+  displayOrder Int      @default(0)
+  /// [{ itemId, quantity, groups: [[condição, ...], ...] }]
+  rules        Json     @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("editor_shortcuts")
+}
+
+// ───────────────────────── Relatos (bugs e sugestões) ─────────────────────────
+// Janela "Sugestões / Bugs" do cabeçalho. Quem vê e trata: SE e admin
+// (/reports). Anexos ficam no próprio banco (até 4 MB cada, 5 por relato).
+
+model FeedbackReport {
+  id          Int                  @id @default(autoincrement())
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  userId      Int?
+  /// ferramenta (lib/tool-features.ts): estimates, aeCalculator, ..., website, demos
+  feature     String
+  /// bug | suggestion
+  kind        String
+  body        String               @db.Text
+  /// new | ongoing | pending | rejected | solved
+  status      String               @default("new")
+  statusBy    Int?
+  statusAt    DateTime?
+  /// página de onde o relato foi enviado
+  pageUrl     String?
+  attachments FeedbackAttachment[]
+
+  @@index([status, createdAt])
+  @@map("feedback_reports")
+}
+
+model FeedbackAttachment {
+  id        String         @id @default(cuid())
+  reportId  Int
+  report    FeedbackReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  fileName  String
+  mimeType  String
+  size      Int
+  data      Bytes
+  createdAt DateTime       @default(now())
+
+  @@index([reportId])
+  @@map("feedback_attachments")
+}
+
+// ─────────────────────────────── Changelog ───────────────────────────────────
+// Publicações do /changelog. Rascunhos podem ser escritos à mão (SE/admin) ou
+// vir do código (lib/changelog-drafts.ts, importados como rascunho — nunca
+// publicados sozinhos). Textos em pt/en/es.
+
+model ChangelogEntry {
+  id          Int       @id @default(autoincrement())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// draft | published | discarded
+  status      String    @default("draft")
+  publishedAt DateTime?
+  publishedBy Int?
+  createdBy   Int?
+  /// manual | code
+  source      String    @default("manual")
+  /// id do rascunho vindo do código: não importa duas vezes
+  sourceKey   String?   @unique
+  /// rótulo opcional da versão (ex.: "V3 · Novembro/2026")
+  release     String    @default("")
+  /// { pt, en, es }
+  title       Json
+  /// { pt, en, es }
+  summary     Json
+  /// [{ kind: new | improved | fixed, feature, text: { pt, en, es } }]
+  items       Json      @default("[]")
+
+  @@index([status, publishedAt])
+  @@map("changelog_entries")
+}
+
+// Alterações feitas no painel Admin (lib/admin-audit.ts). A aba "Alterações do
+// Admin" do changelog lista as pendentes; marcar como publicada manda para o
+// arquivo (e dá para desmarcar).
+model AdminChange {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  userId      Int?
+  area        String
+  action      String
+  summary     String    @db.Text
+  details     Json?
+  publishedAt DateTime?
+  publishedBy Int?
+
+  @@index([publishedAt, createdAt])
+  @@map("admin_changes")
 }

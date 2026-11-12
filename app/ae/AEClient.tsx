@@ -6,7 +6,8 @@ import { packageName } from '@/lib/localized-names';
 import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
 import { zohoSectionFor } from '@/lib/zoho-section';
 import AEResultTable from '@/components/AEResultTable';
-import { aeChannelOptions } from '@/lib/ae-channel-options';
+import { aeChannelLabel, aeChannelOptions } from '@/lib/ae-channel-options';
+import { CHANNEL_KEYS as AE_CHANNEL_KEYS } from '@/lib/ae-engine-keys';
 import { AE_VIEW_COOKIE } from '@/lib/editor-view';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
@@ -95,7 +96,7 @@ function formFromInitial(initialData: any, initialClientName: string) {
 }
 
 export default function AEClient({ packages, variables, initialClientName = '', initialData = null, initialVersion = null, cloneFromId = null, aeConfig = DEFAULT_AE_CONFIG, aeConfigId = null, initialCompact = false }: any) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   const [isPending, setIsPending] = useState(false);
@@ -800,6 +801,8 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       inputs: resultSnapshot.engineInputs,
       clientName: resultSnapshot.clientName,
       versionLabel: saveState.version != null ? `v${saveState.version}` : null,
+      estimateId: saveState.status === 'saved' ? Number(saveState.id) || null : null,
+      baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
       zohoLink,
       preSalesName: (session?.user as any)?.name || null,
       // Texto livre do AE — vira o bloco [CONTEXTO DO CLIENTE] no prompt, que é
@@ -812,11 +815,12 @@ export default function AEClient({ packages, variables, initialClientName = '', 
       otherApp: selectedApps.includes('Outros') ? otherApp : '',
       hasAppCondicionais,
       hasAppTicketManager,
-      // O prompt sai no idioma da interface: quem trabalha em inglês recebe as
-      // instruções em inglês e IDIOMA DE SAÍDA: en-US.
+      // O bloco sai no idioma da interface (pt-BR, en-US ou es-MX).
       locale: language,
-      // Sem rótulos próprios: os canais saem com os nomes canônicos de
-      // lib/ae-scope-prompt.ts, iguais aos da tela de visualização.
+      // Tabela de itens e rótulos de canal no idioma do bloco, iguais aos da
+      // tela de visualização.
+      t: i18n.getFixedT(language) as any,
+      channelLabels: Object.fromEntries(AE_CHANNEL_KEYS.map((key) => [key, aeChannelLabel(key, i18n.getFixedT(language) as any)])),
       skuLabel: skuType === 'employee_service'
         ? t('plans.employeeService')
         : t('plans.customerService'),
@@ -825,7 +829,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   }, [
     resultSnapshot, selectedApps, appQuantities, otherApp, hasAppCondicionais,
     hasAppTicketManager, zohoLink, clientObjectives, successIndicators,
-    deploymentType, skuType, saveState.status, saveState.version, session, language, t,
+    deploymentType, skuType, saveState, session, language, t, i18n,
   ]);
 
   const scopePrompt = useMemo(() => (scopePromptInput ? buildAEScopePrompt(scopePromptInput) : ''), [scopePromptInput]);
@@ -836,7 +840,7 @@ export default function AEClient({ packages, variables, initialClientName = '', 
   const handleCopyScopePrompt = async () => {
     if (!scopePromptInput) return;
     setScopePromptLoading(true);
-    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink);
+    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink, language);
     setScopePromptLoading(false);
     const text = buildAEScopePrompt({ ...scopePromptInput, zohoSection });
     try {

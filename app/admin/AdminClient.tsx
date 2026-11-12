@@ -16,7 +16,7 @@ import { aeNumberLabel } from '@/lib/ae-number-labels';
 import {
   Plus, Download, History, Box, Settings, Users, Trash2,
   Loader2, UserCog, Mail, Calendar, ShieldCheck, ShieldAlert, RefreshCw,
-  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator, Link2
+  ChevronRight, Search, Layout, Activity, Info, Check, X, Edit2, Calculator, Link2, Zap
 } from 'lucide-react';
 import {
   createFrameworkSnapshotAction,
@@ -42,8 +42,10 @@ import { buildTranslationCsv, parseTranslationCsv, type TranslationRow } from '@
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
 import AEConfigAdmin from '@/components/AEConfigAdmin';
 import ZohoAdmin from '@/components/ZohoAdmin';
+import DeletedEstimatesAdmin from '@/components/DeletedEstimatesAdmin';
+import ShortcutsAdmin from '@/components/ShortcutsAdmin';
 
-export default function AdminClient({ packages, categories, skills, variables, versions, users, activeAeConfig, aeConfigHistory, zohoConfig, zohoConfigured }: any) {
+export default function AdminClient({ packages, categories, skills, variables, versions, users, activeAeConfig, aeConfigHistory, zohoConfig, zohoConfigured, editorShortcuts, shortcutCatalog }: any) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
@@ -294,24 +296,6 @@ export default function AdminClient({ packages, categories, skills, variables, v
     });
   };
 
-  /** Fase de Implantação da categoria raiz de uma categoria (subcategorias herdam). */
-  const rootPhaseOf = (categoryName: string): string => {
-    let cat = (categories || []).find((c: any) => c.name === categoryName);
-    const seen = new Set<string>();
-    while (cat?.parentName && !seen.has(cat.name)) {
-      seen.add(cat.name);
-      const parent = (categories || []).find((c: any) => c.name === cat.parentName);
-      if (!parent) break;
-      cat = parent;
-    }
-    return String(cat?.implementationPhase || 'SETUP');
-  };
-
-  /** Módulos que um item de Workshop/Treinamento pode servir: categorias raiz de fase Setup. */
-  const shortcutModuleOptions = (categories || []).filter(
-    (c: any) => !c.parentName && String(c.implementationPhase || 'SETUP') === 'SETUP',
-  );
-
   const selectedCategory = useMemo(() => {
     return (categories || []).find((c: any) => c.id === selectedCategoryId) || null;
   }, [categories, selectedCategoryId]);
@@ -466,6 +450,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
             { id: 'users', label: t('admin.tabUsers'), icon: Users },
             { id: 'aeCalculator', label: t('admin.tabAeCalculator'), icon: Calculator },
             { id: 'zoho', label: t('admin.tabZoho'), icon: Link2 },
+            { id: 'deleted', label: t('admin.tabDeleted'), icon: Trash2 },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -493,6 +478,10 @@ export default function AdminClient({ packages, categories, skills, variables, v
             library={(packages || []).map((p: any) => ({ id: p.id, name: p.name, hours: Number(p.hours) || 0, categoryName: p.categoryName }))}
             focusVersion={linkedTab === 'aeCalculator' ? linkedAeVersion : null}
           />
+        </div>
+
+        <div className={activeTab === 'deleted' ? '' : 'hidden'}>
+          <DeletedEstimatesAdmin active={activeTab === 'deleted'} />
         </div>
 
         <div className={activeTab === 'zoho' ? '' : 'hidden'}>
@@ -546,6 +535,7 @@ export default function AdminClient({ packages, categories, skills, variables, v
                 { id: 'items', label: t('admin.subTabItems'), icon: Box },
                 { id: 'categories', label: t('admin.subTabCategories'), icon: Layout },
                 { id: 'skills', label: t('admin.subTabSkills'), icon: Activity },
+                { id: 'shortcuts', label: t('admin.subTabShortcuts'), icon: Zap },
               ].map((sub) => (
                 <button
                   key={sub.id}
@@ -920,59 +910,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                                     </div>
                                   </div>
 
-                                  {/* Atalhos do framework: o campo depende da fase da categoria do item. */}
-                                  {(() => {
-                                    const phase = rootPhaseOf(editValues.categoryName);
-                                    if (phase === 'WORKSHOP' || phase === 'TRAINING') {
-                                      return (
-                                        <div className="space-y-1 pt-1">
-                                          <label className="block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1">{t('admin.shortcutModule')}</label>
-                                          <select
-                                            value={editValues.moduleLink || ''}
-                                            onChange={(e) => setEditValues({ ...editValues, moduleLink: e.target.value })}
-                                            className="w-full bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium "
-                                          >
-                                            <option value="">{t('admin.shortcutModuleNone')}</option>
-                                            {shortcutModuleOptions.map((c: any) => (
-                                              <option key={c.id} value={c.name}>{categoryLabelOf(c, language)}</option>
-                                            ))}
-                                          </select>
-                                        </div>
-                                      );
-                                    }
-                                    if (phase === 'GOLIVE') {
-                                      return (
-                                        <div className="space-y-1 pt-1">
-                                          <label className="block text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ml-1">{t('admin.shortcutGoLiveQty')}</label>
-                                          <input
-                                            type="number"
-                                            min="0"
-                                            step="1"
-                                            value={editValues.goLiveShortcutQty ?? 0}
-                                            onChange={(e) => setEditValues({ ...editValues, goLiveShortcutQty: Math.max(0, Math.round(Number(e.target.value) || 0)) })}
-                                            className="w-24 bg-white dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] dark:border-[color:var(--border-main)] border border-brand-primary/30 rounded-lg px-2 py-1 text-caption font-medium text-center"
-                                          />
-                                        </div>
-                                      );
-                                    }
-                                    return null;
-                                  })()}
+                                  <p className="text-caption text-slate-400 pt-1">{t('admin.shortcutsMovedHint')}</p>
 
                                 </div>
                               ) : (
                                 <div className="flex flex-col space-y-1">
                                   <span className="text-caption font-medium text-slate-400 dark:text-[color:var(--text-muted)] ">{pkg.categoryName}</span>
                                   <span className="text-caption bg-slate-100 dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] text-slate-500 px-2 py-0.5 rounded-md font-medium w-fit">{pkg.skillName}</span>
-                                  {pkg.moduleLink && ['WORKSHOP', 'TRAINING'].includes(rootPhaseOf(pkg.categoryName)) && (
-                                    <span className="text-caption bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)] px-2 py-0.5 rounded-md font-medium w-fit">
-                                      {t('admin.shortcutModuleBadge', { module: categoryLabelOf(categories.find((c: any) => c.name === pkg.moduleLink) || { name: pkg.moduleLink }, language) })}
-                                    </span>
-                                  )}
-                                  {Number(pkg.goLiveShortcutQty) > 0 && rootPhaseOf(pkg.categoryName) === 'GOLIVE' && (
-                                    <span className="text-caption bg-brand-primary/10 text-brand-dark dark:text-[color:var(--text-main)] px-2 py-0.5 rounded-md font-medium w-fit">
-                                      {t('admin.shortcutGoLiveBadge', { qty: pkg.goLiveShortcutQty })}
-                                    </span>
-                                  )}
                                   {pkg.dependsOnItemId && (
                                     <span className="text-caption bg-amber-50 text-amber-600 px-2 py-0.5 rounded-md font-medium w-fit flex items-center gap-1">
                                       <Settings className="w-3.5 h-3.5" />
@@ -1350,6 +1294,15 @@ export default function AdminClient({ packages, categories, skills, variables, v
                   </div>
                 </div>
               </div>
+            )}
+
+            {activeLibraryTab === 'shortcuts' && (
+              <ShortcutsAdmin
+                initialShortcuts={editorShortcuts || []}
+                items={shortcutCatalog?.items || []}
+                roots={shortcutCatalog?.roots || []}
+                subcategories={shortcutCatalog?.subcategories || []}
+              />
             )}
 
             {activeLibraryTab === 'skills' && (

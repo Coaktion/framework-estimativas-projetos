@@ -423,23 +423,34 @@ export default function AEConfigAdmin({ activeAeConfig, aeConfigHistory, library
   /** Fatores de plano / operação: grade simples, só da Calculadora. */
   const renderFactorGroup = (group: string) => {
     const node = (draft.numbers as any)[group];
+    const factorGrid = (base: string[], values: Record<string, number>) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Object.keys(values).map((key) => {
+          const path = [...base, key];
+          const field = path.join('.');
+          return (
+            <label key={field} className="space-y-1">
+              <span className="block text-caption font-medium text-slate-500 truncate" title={field}>{label(field).split(' · ').pop()}</span>
+              <NumberField value={getNumber(path)} onChange={(n) => setNumber(path, n)} language={language} invalid={Boolean(issuesByField[field])} />
+            </label>
+          );
+        })}
+      </div>
+    );
     return (
       <div className="space-y-4">
+        {group === 'fatores_plano' && <p className="text-caption text-slate-500">{t('aeConfig.planFactorsBySkuHint')}</p>}
         {Object.keys(node).map((sub) => (
           <div key={sub} className="space-y-2">
             <div className="text-caption font-bold text-slate-400">{aeNumberGroupLabel(group, sub, t)}</div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              {Object.keys(node[sub]).map((key) => {
-                const path = [group, sub, key];
-                const field = path.join('.');
-                return (
-                  <label key={field} className="space-y-1">
-                    <span className="block text-caption font-medium text-slate-500 truncate" title={field}>{label(field).split(' · ').pop()}</span>
-                    <NumberField value={getNumber(path)} onChange={(n) => setNumber(path, n)} language={language} invalid={Boolean(issuesByField[field])} />
-                  </label>
-                );
-              })}
-            </div>
+            {group === 'fatores_plano'
+              ? (['CS', 'ES'] as const).map((sku) => (
+                  <div key={sku} className="space-y-1.5 pl-3 border-l-2 border-slate-200 dark:border-[color:var(--border-main)]">
+                    <div className="text-caption font-medium text-slate-500">{sku === 'ES' ? t('plans.employeeService') : t('plans.customerService')}</div>
+                    {factorGrid([group, sub, sku], node[sub][sku] || {})}
+                  </div>
+                ))
+              : factorGrid([group, sub], node[sub])}
           </div>
         ))}
       </div>

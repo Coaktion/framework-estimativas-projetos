@@ -48,7 +48,7 @@ const userId = (ctx: ToolCenterContext) => parseInt(ctx.user.id);
 
 /** Mesma regra de lib/project-access (canReadProject): admin vê tudo; os demais, os seus e os públicos. */
 const visibleProjectsWhere = (ctx: ToolCenterContext) =>
-  ctx.user.isAdmin ? {} : { OR: [{ ownerId: userId(ctx) }, { isPrivate: false }] };
+  ctx.user.isAdmin ? { deletedAt: null } : { deletedAt: null, OR: [{ ownerId: userId(ctx) }, { isPrivate: false }] };
 
 const editorUrl = (ctx: ToolCenterContext, projectId: number, versionId?: number) =>
   `${ctx.origin}/sc/project/${projectId}${versionId ? `?version_id=${versionId}` : ''}`;
@@ -58,7 +58,8 @@ async function findVisibleProject(ctx: ToolCenterContext, projectId: number) {
     where: { id: projectId },
     include: { owner: { select: { name: true, email: true } } },
   });
-  if (!project || !canReadProject(project, ctx.user)) {
+  // Projeto excluído (só na tela) não existe para a integração.
+  if (!project || project.deletedAt || !canReadProject(project, ctx.user)) {
     throw new ToolCenterError(`Projeto ${projectId} não encontrado (ou é privado de outra pessoa).`, 'not_found');
   }
   return project;
@@ -151,8 +152,8 @@ export async function searchProjects(ctx: ToolCenterContext, input: z.infer<type
     },
     include: {
       owner: { select: { name: true, email: true } },
-      versions: { orderBy: { createdAt: 'desc' }, take: 1 },
-      _count: { select: { versions: true } },
+      versions: { where: { deletedAt: null }, orderBy: { createdAt: 'desc' }, take: 1 },
+      _count: { select: { versions: { where: { deletedAt: null } } } },
     },
     orderBy: { updatedAt: 'desc' },
     take: input.limit ?? 20,
@@ -182,7 +183,7 @@ export async function getProject(ctx: ToolCenterContext, input: z.infer<typeof g
   assertCanUse(ctx);
   const project = await findVisibleProject(ctx, input.projectId);
   const versions = await prisma.projectVersion.findMany({
-    where: { projectId: project.id },
+    where: { projectId: project.id, deletedAt: null },
     orderBy: { createdAt: 'desc' },
   });
   return {
@@ -489,7 +490,7 @@ export const getVersionInput = z.object({ versionId: z.number().int() });
 export async function getVersion(ctx: ToolCenterContext, input: z.infer<typeof getVersionInput>) {
   assertCanUse(ctx);
   const version = await prisma.projectVersion.findUnique({ where: { id: input.versionId } });
-  if (!version) throw new ToolCenterError(`Versão ${input.versionId} não encontrada.`, 'not_found');
+  if (!version || version.deletedAt) throw new ToolCenterError(`Versão ${input.versionId} não encontrada.`, 'not_found');
   const project = await findVisibleProject(ctx, version.projectId);
   const catalog = await loadFrameworkCatalog();
   const data = safeJsonParse<Record<string, any>>(version.data, {});

@@ -1,4 +1,5 @@
 import prisma from "@/lib/prisma";
+import { loadEditorShortcuts } from "@/lib/editor-shortcuts-server";
 import ProjectEditorClient from "./ProjectEditorClient";
 import { notFound, redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
@@ -31,12 +32,16 @@ export default async function ProjectEditorPage({
     include: { owner: { select: OWNER_PUBLIC_SELECT } },
   });
 
-  // Projeto privado de outra pessoa: responde como se não existisse.
-  if (!project || !canReadProject(project, session!.user as any)) {
+  // Projeto privado de outra pessoa: responde como se não existisse. Projeto
+  // excluído só abre para admin (vindo de Admin › Estimativas excluídas).
+  const isAdmin = Boolean((session!.user as any).isAdmin);
+  if (!project || !canReadProject(project, session!.user as any) || (project.deletedAt && !isAdmin)) {
     notFound();
   }
 
   const preferences = await getUserPreferencesAction();
+  // Atalhos do editor (Admin › Biblioteca › Atalhos).
+  const shortcuts = await loadEditorShortcuts();
 
   // Árvore de categorias, itens e variáveis: a mesma que a API do Tool Center usa.
   const {
@@ -44,13 +49,16 @@ export default async function ProjectEditorPage({
     packagesByCategory, orphanPackages, variables,
   } = await loadFrameworkCatalog();
 
-  const allVersions = await prisma.projectVersion.findMany({
+  // Versões excluídas (só na tela) saem do seletor; o admin ainda abre uma
+  // pelo link direto (Admin › Estimativas excluídas), com aviso na tela.
+  const versionRows = await prisma.projectVersion.findMany({
     where: { projectId },
     orderBy: { createdAt: 'desc' },
   });
-
-  const currentVersion = versionId
-    ? allVersions.find(v => v.id === versionId)
+  const allVersions = versionRows.filter((v) => !v.deletedAt);
+  const requested = versionId ? versionRows.find(v => v.id === versionId) : null;
+  const currentVersion = requested && (!requested.deletedAt || isAdmin)
+    ? requested
     : allVersions[0];
 
   return (
@@ -68,6 +76,7 @@ export default async function ProjectEditorPage({
       variables={variables}
       preferences={preferences}
       initialView={parseEditorView(cookies().get(EDITOR_VIEW_COOKIE)?.value)}
+      shortcuts={shortcuts}
     />
   );
 }

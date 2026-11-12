@@ -17,6 +17,8 @@ export default async function ProjectDashboard() {
 
   const projects = await prisma.project.findMany({
     where: {
+      // Projetos excluídos (só na tela) não aparecem; o admin os vê em Admin › Estimativas excluídas.
+      deletedAt: null,
       OR: [
         { ownerId: userId },
         { isPrivate: false }
@@ -32,6 +34,7 @@ export default async function ProjectDashboard() {
       // versão (V1, V2...), já que `versionName` é texto livre e pode ser
       // qualquer coisa ("Proposta Final", "Rev. cliente").
       versions: {
+        where: { deletedAt: null },
         orderBy: { createdAt: 'asc' },
       },
     },

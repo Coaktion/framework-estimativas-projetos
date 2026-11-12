@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
 import { DEFAULT_AE_CONFIG, normalizeAEConfig, suggestBindings, syncBoundNumbers, validateAEConfig, type AEConfigIssue } from "@/lib/ae-config";
 import { getAeLibrary } from "@/lib/ae-config-server";
+import { recordAdminChange } from "@/lib/admin-audit";
 
 type SaveResult =
   | { success: true; id: number }
@@ -40,6 +41,13 @@ export async function saveAeConfigAction(raw: any, note?: string, resetToFactory
         note: String(note || '').trim().slice(0, 300) || null,
         createdBy: user.id ? parseInt(user.id) : null,
       },
+    });
+    await recordAdminChange({
+      userId: user.id ? parseInt(user.id) : null,
+      area: 'aeCalculator',
+      action: resetToFactory ? 'reset' : 'save',
+      summary: `Calculadora AE: versão #${row.id} salva${resetToFactory ? ' (padrão de fábrica)' : ''}${row.note ? ` — ${row.note}` : ''}`,
+      details: { id: row.id },
     });
     revalidatePath('/admin');
     revalidatePath('/ae');

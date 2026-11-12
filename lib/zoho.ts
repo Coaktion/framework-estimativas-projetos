@@ -19,7 +19,8 @@ import { createHash } from 'crypto';
 import prisma from '@/lib/prisma';
 import { fernetDecrypt, fernetEncrypt } from '@/lib/zdcfg/fernet';
 import {
-  ZOHO_SETTINGS_KEY, dealIdFromLink, formatZohoRecord, normalizeZohoConfig, type ZohoConfig,
+  ZOHO_SETTINGS_KEY, ZOHO_TEXT, dealIdFromLink, formatZohoNotes, formatZohoRecord, htmlToText, normalizeZohoConfig, zohoLocale,
+  type ZohoConfig, type ZohoLocale, type ZohoNote,
 } from './zoho-config';
 
 const TOKEN_KEY = 'zoho.token';
@@ -143,27 +144,92 @@ const lookupId = (value: unknown): string | null => {
   return id ? String(id) : null;
 };
 
-/**
- * Linhas da seção [ZOHO CRM] para o link de um negócio. Devolve `null` quando
- * a integração não está configurada (a seção some do prompt) e uma linha de
- * aviso quando a consulta falha (o resto do prompt sai normalmente).
- */
-export async function buildZohoSection(link: string | null | undefined, configOverride?: ZohoConfig): Promise<string[] | null> {
-  if (!zohoConfigured()) return null;
-  const dealId = dealIdFromLink(link);
-  if (!dealId) return [`Não foi possível identificar o ID do negócio no link do Zoho (${String(link || '').trim() || 'link vazio'}).`];
-  const config = configOverride ? normalizeZohoConfig(configOverride) : await loadZohoConfig();
+/** Nome dos usuários do Zoho citados nas notas (GET /users/{id}), em memória. */
+const userNames = new Map<string, string | null>();
+
+async function userName(apiVersion: string, id: string): Promise<string | null> {
+  if (userNames.has(id)) return userNames.get(id) ?? null;
+  let name: string | null = null;
   try {
-    const deal = await getRecord(config.apiVersion, 'Deals', dealId);
-    if (!deal) return [`Negócio ${dealId} não encontrado no Zoho CRM (ou sem permissão de leitura).`];
-    const lines: string[] = [`${config.deal.label} (Deals):`, ...formatZohoRecord(config.deal.fields, deal)];
+    const data = await crmGet(apiVersion, `users/${encodeURIComponent(id)}`);
+    const u = data?.users?.[0];
+    name = u ? String(u.full_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || '').trim() || null : null;
+  } catch {
+    name = null; // sem o escopo de usuários: a menção sai do texto
+  }
+  userNames.set(id, name);
+  return name;
+}
+
+/**
+ * Menções do Zoho (`crm[user#<id>#<org>]crm`) viram o nome do usuário; sem
+ * conseguir o nome, a menção é retirada do texto.
+ */
+async function resolveMentions(apiVersion: string, text: string): Promise<string> {
+  const ids = Array.from(new Set(Array.from(text.matchAll(/crm\[user#(\d+)[^\]]*\]crm/g)).map((m) => m[1])));
+  const names: Record<string, string | null> = {};
+  for (const id of ids.slice(0, 20)) names[id] = await userName(apiVersion, id);
+  return text
+    .replace(/crm\[user#(\d+)[^\]]*\]crm/g, (_m, id: string) => (names[id] ? `@${names[id]}` : ''))
+    .replace(/[ \t]{2,}/g, ' ');
+}
+
+/** Notas de um registro (somente leitura), já em texto puro. */
+async function getNotes(apiVersion: string, module: string, id: string): Promise<ZohoNote[]> {
+  const data = await crmGet(apiVersion, `${encodeURIComponent(module)}/${encodeURIComponent(id)}/Notes`, {
+    fields: 'Note_Title,Note_Content,Created_Time,Owner,Created_By',
+    per_page: '200',
+  });
+  const notes: ZohoNote[] = [];
+  for (const n of ((data?.data || []) as any[])) {
+    const created = n?.Created_Time ? new Date(String(n.Created_Time)) : null;
+    const author = String(n?.Created_By?.name || n?.Owner?.name || '').trim();
+    notes.push({
+      createdAt: created && !Number.isNaN(created.getTime()) ? created : null,
+      author,
+      title: (await resolveMentions(apiVersion, htmlToText(n?.Note_Title || ''))).trim(),
+      text: (await resolveMentions(apiVersion, htmlToText(n?.Note_Content || ''))).trim(),
+    });
+  }
+  return notes;
+}
+
+/**
+ * Linhas da seção [ZOHO CRM] para o link de um negócio, no idioma do bloco.
+ * Devolve `null` quando a integração não está configurada (a seção some do
+ * prompt) e uma linha de aviso quando a consulta falha (o resto do prompt sai
+ * normalmente).
+ */
+export async function buildZohoSection(
+  link: string | null | undefined,
+  configOverride?: ZohoConfig,
+  localeInput?: string | null,
+): Promise<string[] | null> {
+  if (!zohoConfigured()) return null;
+  const locale: ZohoLocale = zohoLocale(localeInput);
+  const T = ZOHO_TEXT[locale];
+  const dealId = dealIdFromLink(link);
+  if (!dealId) return [T.noDealId(String(link || '').trim() || T.emptyLink)];
+  const config = configOverride ? normalizeZohoConfig(configOverride) : await loadZohoConfig();
+  const api = config.apiVersion;
+  // Comentário que acompanha as notas: contexto interno, nunca entra no documento.
+  const notesNote: Record<ZohoLocale, string> = {
+    pt: '# Notas internas do Zoho: só para entender melhor o negócio. Nunca são entregas, nunca justificam nada sozinhas e NUNCA aparecem no documento (nem citadas nem parafraseadas). Jamais mencione preços, margens, descontos ou concorrentes.',
+    en: '# Internal Zoho notes: only to understand the deal better. They are never deliverables, never justify anything on their own and NEVER appear in the document (neither quoted nor paraphrased). Never mention prices, margins, discounts or competitors.',
+    es: '# Notas internas de Zoho: solo para entender mejor el negocio. Nunca son entregables, nunca justifican nada por sí solas y NUNCA aparecen en el documento (ni citadas ni parafraseadas). Nunca menciones precios, márgenes, descuentos ni competidores.',
+  };
+  try {
+    const deal = await getRecord(api, 'Deals', dealId);
+    if (!deal) return [T.dealNotFound(dealId)];
+    const lines: string[] = [`${config.deal.label} (Deals):`, ...formatZohoRecord(config.deal.fields, deal, locale)];
+    const noteBlocks: string[] = [];
 
     if (config.contact.enabled && config.contact.fields.length) {
       const contactId = lookupId(deal[config.contact.lookupField]);
-      const contact = contactId ? await getRecord(config.apiVersion, 'Contacts', contactId) : null;
+      const contact = contactId ? await getRecord(api, 'Contacts', contactId) : null;
       lines.push(`${config.contact.label} (Contacts):`);
-      if (contact) lines.push(...formatZohoRecord(config.contact.fields, contact));
-      else lines.push('- Nenhum contato vinculado ao negócio.');
+      if (contact) lines.push(...formatZohoRecord(config.contact.fields, contact, locale));
+      else lines.push(`- ${T.noContact}`);
     }
 
     const custom = config.custom;
@@ -172,24 +238,42 @@ export async function buildZohoSection(link: string | null | undefined, configOv
       let records: Record<string, unknown>[] = [];
       if (custom.linkMode === 'deal_lookup' && custom.linkField) {
         const id = lookupId(deal[custom.linkField]);
-        const record = id ? await getRecord(config.apiVersion, custom.module, id) : null;
+        const record = id ? await getRecord(api, custom.module, id) : null;
         if (record) records = [record];
       } else if (custom.linkField) {
-        const data = await crmGet(config.apiVersion, `${encodeURIComponent(custom.module)}/search`, {
+        const data = await crmGet(api, `${encodeURIComponent(custom.module)}/search`, {
           criteria: `(${custom.linkField}:equals:${dealId})`,
         });
         records = ((data?.data || []) as Record<string, unknown>[]).slice(0, custom.maxRecords);
       }
       lines.push(title);
-      if (!records.length) lines.push('- Nenhum registro vinculado ao negócio.');
+      if (!records.length) lines.push(`- ${T.noRecord}`);
       records.forEach((record, i) => {
-        if (records.length > 1) lines.push(`Registro ${i + 1}:`);
-        lines.push(...formatZohoRecord(custom.fields, record));
+        if (records.length > 1) lines.push(`${T.record} ${i + 1}:`);
+        lines.push(...formatZohoRecord(custom.fields, record, locale));
       });
+      if (custom.includeNotes) {
+        for (let i = 0; i < records.length; i++) {
+          const record = records[i];
+          const id = record?.id ? String(record.id) : null;
+          if (!id) continue;
+          const notes = await getNotes(api, custom.module, id).catch(() => null);
+          if (!notes) continue;
+          const suffix = records.length > 1 ? ` · ${T.record} ${i + 1}` : '';
+          noteBlocks.push(`${T.notes} (${custom.module}${suffix}):`, ...formatZohoNotes(notes, locale));
+        }
+      }
     }
+
+    if (config.deal.includeNotes) {
+      const notes = await getNotes(api, 'Deals', dealId).catch(() => null);
+      if (notes) noteBlocks.push(`${T.notes} (Deals):`, ...formatZohoNotes(notes, locale));
+    }
+
+    if (noteBlocks.length) lines.push(notesNote[locale], ...noteBlocks);
     return lines;
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
-    return [`Não foi possível consultar o Zoho CRM agora (${msg.slice(0, 160)}).`];
+    return [T.failed(msg.slice(0, 160))];
   }
 }

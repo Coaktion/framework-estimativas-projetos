@@ -141,10 +141,24 @@ export const DEFAULT_AE_NUMBERS = {
     go_live: 0.05,
     limite_gerente_projetos: 30,
   },
+  /**
+   * Fatores de plano por SKU: a Zendesk não libera os mesmos recursos nos dois
+   * (ex.: funções personalizadas existem no ES a partir do Professional, mas no
+   * CS só no Enterprise).
+   */
   fatores_plano: {
-    funcoes: { team: 0, growth: 0, professional: 0, enterprise: 1 },
-    campos_ticket: { team: 1, growth: 1.04, professional: 1.08, enterprise: 1.12 },
-    sla: { team: 0, growth: 1, professional: 1, enterprise: 1.5 },
+    funcoes: {
+      CS: { team: 0, growth: 0, professional: 0, enterprise: 1 },
+      ES: { team: 0, growth: 0, professional: 1, enterprise: 1 },
+    },
+    campos_ticket: {
+      CS: { team: 1, growth: 1.04, professional: 1.08, enterprise: 1.12 },
+      ES: { team: 1, growth: 1.04, professional: 1.08, enterprise: 1.12 },
+    },
+    sla: {
+      CS: { team: 0, growth: 1, professional: 1, enterprise: 1.5 },
+      ES: { team: 0, growth: 1, professional: 1, enterprise: 1.5 },
+    },
   },
   fatores_operacao: {
     campos_usuario: { B2C: 0, B2B: 0, B2E: 3 },
@@ -193,7 +207,7 @@ export const QUANTITY_FORMULAS: FormulaSpec[] = [
   { key: 'politicas_sla', label: { pt: 'Políticas de SLA', en: 'SLA policies', es: 'Directivas de SLA' }, default: '(total_qtd_canais * (0,7 + 0,3 * marcas) + grupos + formularios) * fator_plano_sla' },
   { key: 'ivr', label: { pt: 'IVR', en: 'IVR', es: 'IVR' }, default: 'se(plano_team + plano_growth; 0; 6 * canal_voice)' },
   { key: 'saudacoes', label: { pt: 'Saudações', en: 'Greetings', es: 'Saludos' }, default: '4,5 * ivr' },
-  { key: 'intencoes', label: { pt: 'Intenções (Copilot)', en: 'Intents (Copilot)', es: 'Intenciones (Copilot)' }, default: '4 + campos_ticket * 0,2 * (1 + tem_qa * 0,2) * qtd_operacoes' },
+  { key: 'intencoes', label: { pt: 'Tópicos (Copilot)', en: 'Topics (Copilot)', es: 'Temas (Copilot)' }, default: '4 + campos_ticket * 0,2 * (1 + tem_qa * 0,2) * qtd_operacoes' },
   { key: 'entidades', label: { pt: 'Entidades (Copilot)', en: 'Entities (Copilot)', es: 'Entidades (Copilot)' }, default: 'campos_ticket * 0,1' },
   { key: 'procedimentos', label: { pt: 'Procedimentos (Copilot)', en: 'Procedures (Copilot)', es: 'Procedimientos (Copilot)' }, default: '(areas + grupos) * 0,5 * marcas * qtd_operacoes' },
   { key: 'wfm_localizacoes', label: { pt: 'WFM: localizações', en: 'WFM: locations', es: 'WFM: ubicaciones' }, default: 'areas * qtd_operacoes' },
@@ -365,6 +379,14 @@ export function normalizeAEConfig(raw: any): AEConfig {
   // Configurações antigas guardavam itens fixos como { qtd, horas }: a hora
   // continua em Números e a quantidade vira a fórmula do item.
   const savedNumbers = source?.numbers ? JSON.parse(JSON.stringify(source.numbers)) : undefined;
+  // Fatores de plano antigos não separavam CS e ES ({ team, growth... }): os
+  // mesmos valores valem para os dois SKUs até o admin ajustar o ES. Assim uma
+  // configuração salva antes da separação calcula exatamente como antes.
+  Object.entries(savedNumbers?.fatores_plano || {}).forEach(([target, value]: [string, any]) => {
+    if (value && typeof value === 'object' && !('CS' in value) && !('ES' in value)) {
+      savedNumbers.fatores_plano[target] = { CS: { ...value }, ES: { ...value } };
+    }
+  });
   const legacyQty: Record<string, number> = {};
   Object.values(savedNumbers?.itens_fixos || {}).forEach((group: any) => {
     Object.entries(group || {}).forEach(([key, value]: [string, any]) => {
@@ -568,7 +590,8 @@ const UNIT_CANDIDATES: Record<string, string[]> = {
   politicas_sla: ['Políticas de SLA'],
   ivr: ['URA', 'IVR'],
   saudacoes: ['Saudações'],
-  intencoes: ['Intenções (Copilot)', 'Intenções'],
+  // A Zendesk renomeou "Intents" para "Topics"; os nomes antigos ficam para casar bibliotecas não renomeadas.
+  intencoes: ['Tópicos personalizados (Copilot)', 'Tópicos personalizados', 'Tópicos (Copilot)', 'Tópicos', 'Intenções (Copilot)', 'Intenções'],
   entidades: ['Entidades (Copilot)'],
   procedimentos: ['Procedimentos (Copilot)', 'Procedimentos'],
   wfm_localizacoes: ['Localizações'],

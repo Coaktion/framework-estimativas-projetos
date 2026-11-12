@@ -30,7 +30,7 @@ const list = (values: unknown): string[] =>
 export function aeInputDetails(
   data: any,
   t: TFunc,
-  options: { clientName?: string; packageLabel?: (name: string) => string } = {},
+  options: { clientName?: string; zohoLink?: string | null; packageLabel?: (name: string) => string } = {},
 ): AEInputDetail[] {
   const d = data || {};
   const none = t('common.none');
@@ -61,7 +61,7 @@ export function aeInputDetails(
 
   const details: AEInputDetail[] = [
     { key: 'clientName', label: t('ae.clientName'), value: String(options.clientName || d.clientName || '').trim() || none },
-    { key: 'dealLink', label: t('ae.dealLink'), value: String(d.zohoLink || '').trim() || none },
+    { key: 'dealLink', label: t('ae.dealLink'), value: String(options.zohoLink || d.zohoLink || '').trim() || none },
     { key: 'zendeskPlan', label: t('ae.zendeskPlan'), value: PLAN_KEY[plan] ? t(PLAN_KEY[plan]) : (d.zendeskPlan ? String(d.zendeskPlan) : none) },
     { key: 'sku', label: t('ae.sku'), value: normalizeAESku(d.skuType) === 'ES' ? t('plans.employeeService') : t('plans.customerService') },
     { key: 'operationType', label: t('ae.operationType'), value: join(list(d.operationTypes)) },

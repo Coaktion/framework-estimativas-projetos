@@ -147,3 +147,61 @@ export async function cloneProjectVersionAction(projectId: number, sourceVersion
   revalidatePath(`/sc/project/${projectId}`);
   return newVersion;
 }
+
+/**
+ * Edita a descrição ("Identificação da versão") de uma versão já salva, sem
+ * criar versão nova e sem mexer no conteúdo. Quem pode salvar a versão pode
+ * corrigir a descrição dela.
+ */
+export async function updateVersionDescriptionAction(projectId: number, versionId: number, rawDescription: string) {
+  const session = await getServerSession(authOptions);
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
+  }
+  await assertProjectAccess(projectId, session!.user as any);
+
+  const description = String(rawDescription || '').trim().slice(0, 2000);
+  if (!description) throw new Error('Version description is required');
+
+  const target = await prisma.projectVersion.findFirst({
+    where: { id: Number(versionId), projectId: Number(projectId) },
+    select: { id: true },
+  });
+  if (!target) throw new Error('Version not found');
+
+  await prisma.projectVersion.update({ where: { id: target.id }, data: { description } });
+  revalidatePath(`/sc/project/${projectId}`);
+  revalidatePath('/sc');
+  return { description };
+}
+
+/**
+ * Exclui uma versão SÓ NA TELA (continua no banco; um admin restaura em Admin ›
+ * Estimativas excluídas). Pode: o dono do projeto, quem criou a versão ou um
+ * admin. A última versão restante não sai sozinha — aí se exclui o projeto.
+ */
+export async function deleteProjectVersionAction(projectId: number, versionId: number) {
+  const session = await getServerSession(authOptions);
+  if (!canAccessScopes(session?.user as any)) {
+    throw new Error(getServerT()('errors.notAuthorized'));
+  }
+  const user = session!.user as any;
+  const project = await assertProjectAccess(projectId, user);
+  const version = await prisma.projectVersion.findFirst({
+    where: { id: Number(versionId), projectId: Number(projectId), deletedAt: null },
+    select: { id: true, createdBy: true },
+  });
+  if (!version) throw new Error('Version not found');
+  const canDelete = !!user.isAdmin || project.ownerId === Number(user.id) || version.createdBy === Number(user.id);
+  if (!canDelete) throw new Error(getServerT()('errors.notAuthorized'));
+  const remaining = await prisma.projectVersion.count({ where: { projectId: Number(projectId), deletedAt: null } });
+  if (remaining <= 1) return { ok: false as const, reason: 'last_version' as const };
+
+  await prisma.projectVersion.update({
+    where: { id: version.id },
+    data: { deletedAt: new Date(), deletedBy: Number(user.id) || null },
+  });
+  revalidatePath(`/sc/project/${projectId}`);
+  revalidatePath('/sc');
+  return { ok: true as const };
+}

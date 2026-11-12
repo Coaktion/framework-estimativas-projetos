@@ -47,6 +47,8 @@ export interface CalEvent {
   id: string;
   status?: string;
   summary?: string;
+  /** default | public | private | confidential */
+  visibility?: string;
   eventType?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
@@ -272,6 +274,22 @@ class WorkClock {
 /* ------------------------------------------------------------------------ */
 
 type Candidate = { id: string; title: string; s: number; e: number; rule: TransparentRule; moveTo?: Iv };
+/**
+ * Chave de comparação do título de um evento com as regras de "espaço livre":
+ * ignora maiúsculas, espaços nas pontas e repetidos, e os seletores de
+ * variação de emoji (U+FE0E/U+FE0F) — o mesmo emoji (ex.: 🕛 ou ⏰) pode vir
+ * do Google com ou sem eles, conforme o aparelho onde o evento foi criado.
+ * Títulos só com emoji continuam valendo.
+ */
+export function eventTitleKey(title: unknown): string {
+  return String(title ?? '')
+    .normalize('NFC')
+    .replace(/[︎️]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase('pt-BR');
+}
+
 type BusyResult = { busy: Iv[]; allBusy: Iv[]; transparent: Candidate[] };
 
 export type Lang = 'pt' | 'en' | 'es';
@@ -415,12 +433,18 @@ export class BookingEngine {
     const candidates: Candidate[] = [];
     const tr = this.config.settings.transparent;
     const trOn = tr.enabled && tr.rules.length > 0;
+    const ruleKeys = trOn ? tr.rules.map((r) => ({ rule: r, key: eventTitleKey(r.title) })) : [];
     const ruleFor = (ev: CalEvent) => {
       if (!trOn) return null;
-      const summary = ev.summary ?? '';
-      return tr.rules.find((r) => r.title === summary) || null;
+      const key = eventTitleKey(ev.summary ?? '');
+      if (!key) return null;
+      return ruleKeys.find((r) => r.key === key)?.rule || null;
     };
     const hasGuests = (ev: CalEvent) => (ev.attendees || []).some((a) => !a.self && !a.resource);
+    // Eventos privados da PRÓPRIA agenda chegam com o título (a leitura é feita
+    // com o token do dono). Se o Google mandar um sem título (ex.: evento de
+    // outra agenda só com "ocupado"), a regra não tem como casar: fica no log.
+    let privateWithoutTitle = 0;
 
     const events = await this.api.listEvents({ timeMin: new Date(startMs).toISOString(), timeMax: new Date(endMs).toISOString() });
     for (const ev of events) {
@@ -444,6 +468,7 @@ export class BookingEngine {
       }
       if (!(e > s)) continue;
       allIntervals.push([s, e]);
+      if (trOn && ev.visibility === 'private' && !String(ev.summary || '').trim()) privateWithoutTitle += 1;
       const rule = ruleFor(ev);
       if (rule && !allDay && !(tr.onlyNoGuests && hasGuests(ev))) {
         candidates.push({ id: ev.id, title: ev.summary || '', s, e, rule });
@@ -452,6 +477,7 @@ export class BookingEngine {
       intervals.push([s, e]);
     }
 
+    if (privateWithoutTitle) this.log('warn', 'transparent_private_without_title', { count: privateWithoutTitle });
     const allBusy = mergeIntervals(allIntervals);
     // Regras "só se houver espaço vazio no dia/semana" precisam de um destino
     // real, medido contra a agenda COMPLETA (incluindo os próprios eventos).

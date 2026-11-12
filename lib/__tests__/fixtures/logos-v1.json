@@ -1,0 +1,32 @@
+{
+  "project": { "id": 163, "name": "Logos", "ownerName": "Arthur Oliveira" },
+  "version": {
+    "id": 212,
+    "name": "V1",
+    "description": "Suite + Voice + Copilot + AI Agents (sem API). Versão FULL, sem nada faseado para depois.",
+    "createdAt": "2026-11-04T17:42:06.473Z",
+    "technicalScopeLink": "https://crm.zoho.com/crm/org882513013/tab/Potentials/6713453000045037013",
+    "zohoLink": "https://crm.zoho.com/crm/org882513013/tab/Potentials/6713453000045037013"
+  },
+  "versions": [
+    { "id": 216, "name": "V5", "description": "Adiciona conexões API ao AI Agents (standalone add-on)", "totalHours": 19, "createdAt": "2026-11-04T17:58:44.224Z" },
+    { "id": 215, "name": "V4", "description": "WFM-only (standalone addon)", "totalHours": 19, "createdAt": "2026-11-04T17:52:25.391Z" },
+    { "id": 214, "name": "V3", "description": "QA-Only (standalone addon)", "totalHours": 31, "createdAt": "2026-11-04T17:48:05.734Z" },
+    { "id": 213, "name": "V2", "description": "Suite + Copilot + AI Agents (sem API). Versão LITE, cobrindo apenas o que é essnecial para o go-live do cliente, o restante será para fases posteriores.", "totalHours": 104, "createdAt": "2026-11-04T17:43:03.168Z" },
+    { "id": 212, "name": "V1", "description": "Suite + Voice + Copilot + AI Agents (sem API). Versão FULL, sem nada faseado para depois.", "totalHours": 189, "createdAt": "2026-11-04T17:42:06.473Z" }
+  ],
+  "plan": "enterprise",
+  "sku": "CS",
+  "deploymentType": "new",
+  "percents": { "discovery": 15, "validation": 12, "gp": 25 },
+  "modules": ["Zendesk Support", "AI Agents Advanced", "Treinamentos", "Zendesk Analytics", "Go-Live", "Zendesk Copilot", "Zendesk Knowledge", "Workshop", "Canais - Voz"],
+  "quantities": {
+    "17": 20, "122": 2, "66": 5, "21": 3, "117": 18, "28": 9, "20": 8, "136": 1, "1": 1, "57": 20, "110": 1, "75": 1,
+    "112": 5, "121": 1, "134": 1, "135": 1, "27": 5, "18": 3, "62": 10, "61": 16, "19": 4, "67": 4, "56": 30, "16": 3,
+    "70": 1, "68": 3, "69": 1, "76": 1, "14": 1, "78": 1, "118": 4, "26": 3, "116": 17, "32": 1, "89": 1, "167": 3,
+    "49": 1, "50": 7, "92": 1, "94": 2, "93": 10, "95": 1, "98": 5, "96": 10, "105": 3, "170": 3, "171": 6, "172": 2,
+    "163": 3, "106": 2, "166": 3, "165": 4, "228": 1, "229": 1, "231": 1, "230": 1, "187": 1, "182": 1, "184": 1,
+    "197": 1, "179": 1, "194": 1, "178": 1, "193": 1, "181": 1, "196": 1, "223": 1, "224": 1
+  },
+  "manualHours": { "224": 3 }
+}

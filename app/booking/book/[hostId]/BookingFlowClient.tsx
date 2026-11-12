@@ -363,7 +363,8 @@ export default function BookingFlowClient({ host, me, types, unavailable, previe
             <Switch checked={multi} onChange={setMulti} label={t('booking.flow.multiLabel')} tip={t('booking.flow.multiTip')} hint={t('booking.flow.multiHint', { count: type.maxBlocks })} />
           )}
           <div>
-            <Label tip={t('booking.flow.durationTip')}>{t('booking.flow.durationLabel')}</Label>
+            {/* Os limites (mínimo e máximo) continuam valendo nos botões e no campo, mas não são exibidos para quem agenda. */}
+            <Label>{t('booking.flow.durationLabel')}</Label>
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={() => { setDurTouched(true); setDur((d) => Math.max(durations.minDur, d - 15)); }} disabled={dur <= durations.minDur}>−15</Button>
               <input
@@ -377,10 +378,10 @@ export default function BookingFlowClient({ host, me, types, unavailable, previe
                 className="w-24 h-9 text-center bg-white border border-slate-300 rounded-[10px] text-body tabular-nums outline-none focus:border-brand-primary"
               />
               <Button size="sm" onClick={() => { setDurTouched(true); setDur((d) => Math.min(durations.maxDur, d + 15)); }} disabled={dur >= durations.maxDur}>+15</Button>
-              <span className="text-caption text-slate-500">{humanMinutes(dur) && `= ${humanMinutes(dur)} · `}{durations.minDur}–{durations.maxDur} {t('booking.flow.min')}</span>
+              {humanMinutes(dur) && <span className="text-caption text-slate-500">= {humanMinutes(dur)}</span>}
             </div>
           </div>
-          <Switch checked={checkMine} onChange={setCheckMine} label={t('booking.flow.checkMineLabel')} tip={t('booking.flow.checkMineTip')} hint={t('booking.flow.checkMineHint')} />
+          <Switch checked={checkMine} onChange={setCheckMine} label={t('booking.flow.checkMineLabel')} tip={t('booking.flow.checkMineTip')} />
           <div>
             <Label tip={t('booking.flow.weekdaysTip')}>{t('booking.flow.weekdaysLabel')}</Label>
             <div className="flex flex-wrap gap-2">
