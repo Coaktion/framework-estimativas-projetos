@@ -103,6 +103,12 @@ export function ListaSinais({
                         ? ` · ${t('psops.triagem.itensDaNota', { count: itensPorArtigo[s.fonteUrl] })}`
                         : ''}
                     </Badge>
+                  ) : s.publicadoEm ? (
+                    <Badge variante="discreto">
+                      {t('psops.triagem.publicadoEm', {
+                        data: new Date(s.publicadoEm).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }),
+                      })}
+                    </Badge>
                   ) : null}
                 </span>
               </span>

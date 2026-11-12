@@ -275,8 +275,8 @@ export function canAccessEstudos(
 }
 
 /**
- * Quem vê o sininho de notificações do cabeçalho: por enquanto só SCs (e
- * ADMIN), porque a única notificação é a de atividade nova do Backlog do Radar.
+ * Quem vê o sininho de notificações do cabeçalho sempre: SCs (e ADMIN). As
+ * demais pessoas só o veem quando têm notificação (ex.: relato resolvido).
  */
 const NOTIFICACOES_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
 

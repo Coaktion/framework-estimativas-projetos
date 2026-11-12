@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * O sininho do cabeçalho: notificações da pessoa logada (hoje, atividade nova
- * no Backlog do Radar). Só aparece para quem tem acesso (SC e ADMIN).
- * Confere a cada minuto e quando a janela volta ao foco.
+ * O sininho do cabeçalho: notificações da pessoa logada (atividade nova no
+ * Backlog do Radar, relato resolvido). SC e ADMIN veem sempre; as demais
+ * pessoas só quando têm alguma notificação (ex.: um relato delas foi resolvido).
+ * Confere a cada 30s (SC/ADMIN) ou 5 min (demais) e quando a janela volta ao foco.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -26,6 +27,7 @@ type Notificacao = {
 const MINUTO = 60_000;
 /** de quanto em quanto tempo confere sozinho */
 const INTERVALO = 30_000;
+const INTERVALO_DEMAIS = 5 * MINUTO;
 
 function haQuanto(iso: string, t: (k: string, o?: Record<string, unknown>) => string) {
   const min = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / MINUTO));
@@ -39,7 +41,8 @@ function haQuanto(iso: string, t: (k: string, o?: Record<string, unknown>) => st
 export default function NotificationBell() {
   const { data: session } = useSession();
   const user = session?.user as { isAdmin?: boolean; role?: string | null } | undefined;
-  const pode = canAccessNotificacoes(user);
+  const sempre = canAccessNotificacoes(user);
+  const logado = Boolean(session?.user);
   const { t } = useTranslation();
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
@@ -60,9 +63,9 @@ export default function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    if (!pode) return;
+    if (!logado) return;
     void carregar();
-    const intervalo = window.setInterval(() => void carregar(), INTERVALO);
+    const intervalo = window.setInterval(() => void carregar(), sempre ? INTERVALO : INTERVALO_DEMAIS);
     const aoFocar = () => void carregar();
     window.addEventListener('focus', aoFocar);
     // o Radar avisa depois de triar ou reatribuir (lib/psops/client/api.ts)
@@ -72,7 +75,7 @@ export default function NotificationBell() {
       window.removeEventListener('focus', aoFocar);
       window.removeEventListener('notificacoes:atualizar', aoFocar);
     };
-  }, [pode, carregar]);
+  }, [logado, sempre, carregar]);
 
   useEffect(() => {
     if (!aberto) return;
@@ -88,7 +91,7 @@ export default function NotificationBell() {
     };
   }, [aberto]);
 
-  if (!pode) return null;
+  if (!logado || (!sempre && itens.length === 0)) return null;
 
   const marcar = async (ids?: string[]) => {
     const agora = new Date().toISOString();

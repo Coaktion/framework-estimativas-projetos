@@ -36,6 +36,9 @@ export interface Sinal {
   /** tradução pt-br publicada pelo Zendesk; null enquanto não sai */
   tituloPt: string | null;
   trechoPt: string | null;
+  /** tradução em espanhol publicada pelo Zendesk */
+  tituloEs?: string | null;
+  trechoEs?: string | null;
   produto: Produto;
   modulo: Modulo;
   tipo: SignalTipo;
@@ -55,6 +58,8 @@ export interface Sinal {
   fonteTitulo: string;
   fonteNome: string;
   publicadoEm: string;
+  /** EAP ou beta (lista de EAPs do Zendesk ou classificado como EAP/beta) */
+  eap: boolean;
 }
 
 export interface PreviaImpacto {
@@ -144,14 +149,16 @@ export interface ResultadoColeta {
  * Zendesk quando ela existe; senão cai no original e marca como pendente.
  */
 export function textoDoSinal(
-  s: Pick<Sinal, 'titulo' | 'trechoOriginal' | 'tituloPt' | 'trechoPt'>,
+  s: Pick<Sinal, 'titulo' | 'trechoOriginal' | 'tituloPt' | 'trechoPt' | 'tituloEs' | 'trechoEs'>,
   idioma: string,
 ): { titulo: string; trecho: string; traduzido: boolean; pendente: boolean } {
-  const querPt = idioma === 'pt';
-  if (querPt && s.tituloPt) {
+  if (idioma === 'pt' && s.tituloPt) {
     return { titulo: s.tituloPt, trecho: s.trechoPt ?? s.trechoOriginal, traduzido: true, pendente: false };
   }
-  return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: querPt };
+  if (idioma === 'es' && s.tituloEs) {
+    return { titulo: s.tituloEs, trecho: s.trechoEs ?? s.trechoOriginal, traduzido: true, pendente: false };
+  }
+  return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: idioma === 'pt' || idioma === 'es' };
 }
 
 /**
@@ -177,6 +184,23 @@ export function abaDoProduto(produto: Produto): string {
   return ABAS_MODULO.find((a) => a.produtos.includes(produto))?.id ?? 'OUTROS';
 }
 
+/** Aba da fila de triagem: EAPs e betas têm a sua; o resto vai pelo módulo. */
+export const ABA_EAP = 'EAP';
+export function abaDoSinal(s: { produto: Produto; eap?: boolean }): string {
+  return s.eap ? ABA_EAP : abaDoProduto(s.produto);
+}
+
+/** Ordem da fila de triagem. */
+export type OrdemFila = 'relevancia' | 'data';
+export function ordenarFila<T extends { score: number; publicadoEm: string; criadoEm: string }>(
+  itens: T[],
+  ordem: OrdemFila,
+): T[] {
+  if (ordem === 'relevancia') return itens;
+  const t = (x: T) => new Date(x.publicadoEm || x.criadoEm).getTime() || 0;
+  return [...itens].sort((a, b) => t(b) - t(a) || b.score - a.score);
+}
+
 /**
  * "Release notes through 2026-10-23" → "23/10". Os sinais de uma mesma nota
  * de versão carregam o mesmo título de artigo; a data é o que os distingue.
@@ -187,12 +211,14 @@ export function dataDaNota(fonteTitulo: string | null | undefined): string | nul
 }
 
 /**
- * Link da nota SEMPRE em português: a versão pt-br do mesmo artigo
+ * Link da nota no idioma do portal (espanhol em es; nos demais, SEMPRE português): a versão pt-br do mesmo artigo
  * (/hc/pt-br/articles/:id). O slug em inglês sai — o Help Center redireciona
  * para o slug do idioma; sem tradução publicada, ele mostra o original.
  */
-export function urlDaNota(url: string): string {
-  return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, '/hc/pt-br/articles/$2');
+export function urlDaNota(url: string, idioma?: string): string {
+  // portal em espanhol: a nota em espanhol; nos demais idiomas, pt-br
+  const locale = idioma === 'es' ? 'es' : 'pt-br';
+  return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, `/hc/${locale}/articles/$2`);
 }
 
 // ─────────────────────────────── Backlog ────────────────────────────────────
@@ -206,9 +232,12 @@ export interface DodItem {
   evidencia?: string | null;
 }
 
+/** SKILL: atualizar a skill de escopo depois de um commit num documento de estimativa (não vem da triagem). */
+export type TipoAtividade = Impacto | 'SKILL';
+
 export interface Atividade {
   id: string;
-  tipo: Impacto;
+  tipo: TipoAtividade;
   titulo: string;
   status: AtividadeStatus;
   responsavelId: string | null;
@@ -229,8 +258,11 @@ export interface Atividade {
       tituloPt: string | null;
       trechoOriginal: string;
       trechoPt: string | null;
+      tituloEs?: string | null;
+      trechoEs?: string | null;
       tipo: SignalTipo;
       produto: Produto;
+      score: number;
     };
   };
   studyNote: { id: string; publicadoEm: string | null } | null;

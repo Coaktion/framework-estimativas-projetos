@@ -1044,7 +1044,12 @@
       "porRegrasDica": "Classified by deterministic rules. It is a suggestion: the decision is yours.",
       "traducaoPendente": "in English · Zendesk translation pending",
       "traducaoPendenteDica": "Zendesk usually publishes the Portuguese version a few days later. The daily collection checks again until it is out.",
-      "verOriginal": "See original in English"
+      "verOriginal": "See original in English",
+      "abaEap": "EAPs and betas",
+      "ordenarPor": "Sort by",
+      "ordemRelevancia": "Relevance",
+      "ordemData": "Publication date",
+      "publicadoEm": "Published {{data}}"
     },
     "avisos": {
       "geradas_one": "{{count}} activity created, already assigned to the artifact's owner.",
@@ -1107,6 +1112,10 @@
       "ESCOPO": {
         "nome": "Scope",
         "pergunta": "Does this change what we promise?"
+      },
+      "SKILL": {
+        "nome": "Skill",
+        "pergunta": "Does the scope skill need to follow the estimate?"
       }
     },
     "tipo": {
@@ -1256,7 +1265,8 @@
       "grupoArtefatos": {
         "DEMO": "Demo environments (Brazil, US, SSAC)",
         "ESTIM": "Estimate",
-        "ESCOPO": "Scope documents"
+        "ESCOPO": "Scope documents",
+        "SKILL": "Scope skill"
       },
       "quaisArtefatos": "Log in the artifacts history (optional): which did you update?",
       "oQueMudou": "What changed",
@@ -1272,7 +1282,9 @@
       "desarquivar": "Unarchive",
       "desarquivada": "Activity back to To do.",
       "reabrir": "Reopen",
-      "reaberta": "Activity reopened."
+      "reaberta": "Activity reopened.",
+      "scoreDica": "Relevance of the update (0–100), same as in the triage queue",
+      "skillDica": "An estimate document changed: update the scope skill. What changed is in the artifact history, on the Map."
     },
     "ficha": {
       "titulo": "Feature fact sheet",
@@ -1315,6 +1327,20 @@
       "abrirNota": "Open note",
       "vazioTitulo": "Nothing in this period",
       "vazioTexto": "Change the period or the search, or show archived items."
+    },
+    "estudoRegistro": {
+      "titulo": "Log the study in Studies",
+      "explicacao": "It could not be logged automatically in the weekly tracking (missing the matrix category or the person). Complete it and save.",
+      "pessoa": "Person",
+      "data": "Date",
+      "categoria": "Matrix category",
+      "atividade": "Activity",
+      "tipo": "Type",
+      "observacoes": "Notes",
+      "salvar": "Log it",
+      "depois": "Not now",
+      "ok": "Study logged in Studies.",
+      "automatico": "Study logged in Studies ({{categoria}})."
     }
   },
   "aeConfig": {
@@ -2305,7 +2331,8 @@
     "colSubmitter": "Sent by",
     "colDate": "Date",
     "colStatus": "Status",
-    "sentFrom": "Sent from"
+    "sentFrom": "Sent from",
+    "solvedNotePrompt": "What was done? (optional — sent in the notification to the reporter)"
   },
   "changelog": {
     "title": "Changelog",

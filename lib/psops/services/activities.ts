@@ -15,6 +15,7 @@ import { TIPO_POR_IMPACTO } from '../config/artefatos';
 import type { Impacto } from '../config/taxonomy';
 import { incrementarVersao, registrarAtualizacao } from './artifacts';
 import { notificarAtividadesNovas } from '../../notificacoes';
+import { registrarEstudoDoRadar, type ResultadoRegistroEstudo } from '../../estudos/radar';
 
 function lerDod(json: Prisma.JsonValue): DodItem[] {
   if (!Array.isArray(json)) return [];
@@ -56,8 +57,11 @@ export async function listarAtividades(prisma: PrismaClient, f: FiltroAtividades
               tituloPt: true,
               trechoOriginal: true,
               trechoPt: true,
+              tituloEs: true,
+              trechoEs: true,
               tipo: true,
               produto: true,
+              score: true,
               rawItem: { select: { htmlUrl: true, titulo: true } },
               // a ficha é da FEATURE: os estudos de todos os SEs abrem a mesma
               studyNote: { select: { id: true, publicadoEm: true } },
@@ -68,7 +72,39 @@ export async function listarAtividades(prisma: PrismaClient, f: FiltroAtividades
     },
   });
 
-  return atividades.map((a) => {
+  // Tarefa sem novidade de origem (SKILL de um commit feito direto no Mapa):
+  // o card mostra o próprio título no lugar da novidade.
+  const comNovidade = atividades.map((a) =>
+    a.initiative
+      ? a
+      : {
+          ...a,
+          initiative: {
+            id: '',
+            titulo: a.titulo,
+            ciclo: '',
+            signal: {
+              id: '',
+              titulo: a.titulo,
+              tituloPt: a.titulo,
+              tituloEs: a.titulo,
+              trechoOriginal: '',
+              trechoPt: '',
+              trechoEs: '',
+              tipo: 'GA' as const,
+              produto: 'OUTRO' as const,
+              score: 0,
+              rawItem: { htmlUrl: '', titulo: '' },
+              studyNote: null,
+            },
+          },
+        },
+  );
+
+  // dentro de cada coluna, o mais relevante primeiro (score da novidade)
+  comNovidade.sort((x, y) => (y.initiative.signal.score ?? 0) - (x.initiative.signal.score ?? 0));
+
+  return comNovidade.map((a) => {
     const dod = lerDod(a.dod);
     return {
       ...a,
@@ -110,10 +146,12 @@ export async function atribuir(
   });
   // passou para outra pessoa: ela recebe no sininho
   if (args.responsavelId && args.responsavelId !== anterior) {
-    const ini = await prisma.psOpsInitiative.findUnique({
-      where: { id: a.initiativeId },
-      select: { signal: { select: { titulo: true, tituloPt: true } } },
-    });
+    const ini = a.initiativeId
+      ? await prisma.psOpsInitiative.findUnique({
+          where: { id: a.initiativeId },
+          select: { signal: { select: { titulo: true, tituloPt: true } } },
+        })
+      : null;
     const feature = ini?.signal ? ini.signal.tituloPt || ini.signal.titulo : a.titulo;
     await notificarAtividadesNovas(prisma, [{ id: a.id, tipo: a.tipo, responsavelId: args.responsavelId }], feature);
   }
@@ -151,6 +189,11 @@ export interface ResultadoConclusao {
   /** os artefatos que receberam um commit nesta conclusão */
   artefatos: Array<{ id: string; nome: string; versao: string }>;
   fichaPublicada: boolean;
+  /**
+   * Estudo: o registro no Acompanhamento semanal dos Estudos. Quando não deu
+   * para registrar sozinho, traz a sugestão para a tela completar.
+   */
+  estudo?: ResultadoRegistroEstudo | null;
 }
 
 /**
@@ -207,7 +250,9 @@ export async function concluir(
     let fichaPublicada = false;
     if (a.tipo === 'ESTUDO') {
       // ficha compartilhada pelos estudos da feature: busca pelo sinal
-      const ficha = await tx.psOpsStudyNote.findUnique({ where: { signalId: a.initiative.signalId } });
+      const ficha = a.initiative
+        ? await tx.psOpsStudyNote.findUnique({ where: { signalId: a.initiative.signalId } })
+        : null;
       if (ficha) {
         await tx.psOpsStudyNote.update({
           where: { id: ficha.id },
@@ -221,6 +266,27 @@ export async function concluir(
       }
     }
 
+    // Estudo concluído vira registro na área Estudos (matriz de conhecimento)
+    let estudo: ResultadoRegistroEstudo | null = null;
+    if (a.tipo === 'ESTUDO' && a.initiative) {
+      const sinal = (await tx.psOpsSignal.findUnique({
+        where: { id: a.initiative.signalId },
+        select: { produto: true, titulo: true, tituloPt: true },
+      })) as { produto: string; titulo: string; tituloPt: string | null } | null;
+      const ficha = (await tx.psOpsStudyNote.findUnique({
+        where: { signalId: a.initiative.signalId },
+        select: { comoFunciona: true },
+      })) as { comoFunciona: string | null } | null;
+      estudo = await registrarEstudoDoRadar(tx, {
+        activityId: a.id,
+        pessoaId: a.responsavelId ?? args.usuarioId,
+        produto: sinal?.produto ?? 'OUTRO',
+        feature: sinal ? sinal.tituloPt || sinal.titulo : a.titulo,
+        observacoes: ficha?.comoFunciona ?? null,
+        agora,
+      });
+    }
+
     const artefatos: ResultadoConclusao['artefatos'] = [];
     for (const alvo of alvos) {
       const { artefato } = await registrarAtualizacao(tx, {
@@ -228,13 +294,13 @@ export async function concluir(
         autorId: args.usuarioId,
         descricao,
         activityId: a.id,
-        signalId: a.initiative.signalId,
+        signalId: a.initiative?.signalId ?? null,
         agora,
       });
       artefatos.push({ id: artefato.id, nome: artefato.nome, versao: artefato.versao });
     }
 
-    return { activityId: a.id, artefatos, fichaPublicada };
+    return { activityId: a.id, artefatos, fichaPublicada, estudo };
   });
 }
 
@@ -255,8 +321,10 @@ export async function moverAtividade(
   if (!a) throw new NaoEncontrado('Atividade');
   if (a.status === args.status) return a;
   if (args.status === 'DONE') {
-    await concluir(prisma, { activityId: a.id, usuarioId: args.usuarioId, agora: args.agora });
-    return prisma.psOpsActivity.findUnique({ where: { id: a.id } });
+    const conclusao = await concluir(prisma, { activityId: a.id, usuarioId: args.usuarioId, agora: args.agora });
+    const atividade = await prisma.psOpsActivity.findUnique({ where: { id: a.id } });
+    // a tela usa "estudo" para abrir a janela de registro quando preciso
+    return { ...atividade, estudo: conclusao.estudo ?? null };
   }
   return prisma.psOpsActivity.update({
     where: { id: a.id },

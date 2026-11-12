@@ -47,6 +47,7 @@ export interface ResultadoColeta {
   reclassificacao: ResultadoReclassificacao;
   /** títulos e trechos em português vindos da tradução do Zendesk */
   traducao: ResultadoTraducao;
+  traducaoEs: ResultadoTraducao;
 }
 
 export interface DepsColeta {
@@ -148,16 +149,21 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
     }
   }
 
-  // 3. Tradução pt-br do Zendesk para o que já está no banco (inclusive o que
-  // acabou de chegar). Falha aqui nunca derruba a coleta.
-  let traducao: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0, parciais: 0 };
+  // 3. Traduções do Zendesk (pt-br, depois espanhol) para o que já está no
+  // banco (inclusive o que acabou de chegar). Falha aqui nunca derruba a coleta.
+  const vazio = (): ResultadoTraducao => ({ conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0, parciais: 0 });
+  let traducao = vazio();
+  let traducaoEs = vazio();
+  const ate = inicio + (deps.orcamentoMs ?? 40_000);
   try {
-    traducao = await traduzirPendentes(prisma, hc, {
-      agora,
-      ate: inicio + (deps.orcamentoMs ?? 40_000),
-    });
+    traducao = await traduzirPendentes(prisma, hc, { agora, ate, idioma: 'pt' });
   } catch (e) {
-    console.error('[psops] tradução falhou:', e instanceof Error ? e.message : e);
+    console.error('[psops] tradução pt-br falhou:', e instanceof Error ? e.message : e);
+  }
+  try {
+    traducaoEs = await traduzirPendentes(prisma, hc, { agora, ate, idioma: 'es' });
+  } catch (e) {
+    console.error('[psops] tradução es falhou:', e instanceof Error ? e.message : e);
   }
 
   await prisma.psOpsIngestRun.update({
@@ -180,6 +186,7 @@ export async function coletar(deps: DepsColeta): Promise<ResultadoColeta> {
     reconstrucao,
     reclassificacao,
     traducao,
+    traducaoEs,
   };
 }
 
@@ -425,7 +432,7 @@ export async function reconstruirArtigos(
           ctxClassificacao: { fonte: nomeFonte, tituloArtigo: raw.titulo, labels: raw.labels ?? [] },
         },
       );
-      await prisma.psOpsRawItem.update({ where: { id: raw.id }, data: { traducaoPtEm: null } });
+      await prisma.psOpsRawItem.update({ where: { id: raw.id }, data: { traducaoPtEm: null, traducaoEsEm: null } });
       r.artigos += 1;
       r.sinaisRemovidos += sinais.length;
       r.sinaisCriados += g.criados;

@@ -15,6 +15,7 @@ import { api } from '@/lib/psops/client/api';
 import {
   ABAS_MODULO,
   IMPACTOS_ORDEM,
+  type TipoAtividade,
   TIPO_ARTEFATO_DO_IMPACTO,
   abaDoProduto,
   textoDoSinal,
@@ -22,7 +23,6 @@ import {
   type Artefato,
   type Atividade,
   type AtividadeStatus,
-  type Impacto,
   type Pessoa,
   type RespostaBacklog,
   type RespostaPessoas,
@@ -40,6 +40,8 @@ import {
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 import { FichaEstudoForm } from './FichaEstudoForm';
 import { Portal } from './Portal';
+import { ModalRegistroEstudo } from './ModalRegistroEstudo';
+import type { ResultadoRegistroEstudo, SugestaoRegistroEstudo } from '@/lib/estudos/radar';
 
 export function Backlog() {
   return (
@@ -62,10 +64,20 @@ function Conteudo() {
   const [euId, setEuId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [filtroResp, setFiltroResp] = useState<FiltroResp>('todos');
-  const [tipos, setTipos] = useState<Impacto[]>([]);
+  const [tipos, setTipos] = useState<TipoAtividade[]>([]);
   /** aba de módulo do Zendesk (as mesmas da Triagem); 'TODOS' = sem filtro */
   const [modulo, setModulo] = useState<string>('TODOS');
   const [abertaId, setAbertaId] = useState<string | null>(null);
+  // estudo concluído que não entrou sozinho nos Estudos: abre a janela
+  const [registroEstudo, setRegistroEstudo] = useState<SugestaoRegistroEstudo | null>(null);
+  const aposConcluirEstudo = useCallback(
+    (estudo: ResultadoRegistroEstudo | null | undefined) => {
+      if (!estudo) return;
+      if (estudo.registrado) avisar(t('psops.estudoRegistro.automatico', { categoria: estudo.categoria }), 'neutro');
+      else if ('sugestao' in estudo) setRegistroEstudo(estudo.sugestao);
+    },
+    [avisar, t],
+  );
   const [verArquivadas, setVerArquivadas] = useState(false);
   /** card sendo arrastado e a coluna sob o cursor */
   const [arrastando, setArrastando] = useState<string | null>(null);
@@ -106,15 +118,19 @@ function Conteudo() {
       if (!atual || atual.status === status) return;
       setDados((d) => (d ? { ...d, itens: d.itens.map((x) => (x.id === id ? { ...x, status } : x)) } : d));
       try {
-        await api.patch(`/api/pre-sales-ops/activities/${id}`, { status });
+        const r = await api.patch<{ estudo?: ResultadoRegistroEstudo | null }>(
+          `/api/pre-sales-ops/activities/${id}`,
+          { status },
+        );
         if (status === 'CANCELADA') avisar(t('psops.backlog.arquivadaOk'));
+        if (status === 'DONE') aposConcluirEstudo(r?.estudo);
       } catch (e) {
         avisar((e as Error).message, 'erro');
       } finally {
         await carregar();
       }
     },
-    [dados, avisar, carregar, t],
+    [dados, avisar, carregar, t, aposConcluirEstudo],
   );
 
   const itens = useMemo(
@@ -229,7 +245,7 @@ function Conteudo() {
         role="group"
         aria-label={t('psops.backlog.filtroTipo')}
       >
-        {IMPACTOS_ORDEM.map((k) => {
+        {[...IMPACTOS_ORDEM, 'SKILL' as const].map((k) => {
           const ativo = tipos.includes(k);
           return (
             <button
@@ -360,6 +376,15 @@ function Conteudo() {
           onFechar={() => setAbertaId(null)}
           onMudou={carregar}
           avisar={avisar}
+          onEstudoConcluido={aposConcluirEstudo}
+        />
+      ) : null}
+      {registroEstudo ? (
+        <ModalRegistroEstudo
+          sugestao={registroEstudo}
+          pessoas={pessoas}
+          onFechar={() => setRegistroEstudo(null)}
+          avisar={avisar}
         />
       ) : null}
     </>
@@ -377,9 +402,12 @@ function CardAtividade({ a, onAbrir }: { a: Atividade; onAbrir: () => void }) {
       onClick={onAbrir}
       className="block w-full rounded-2xl border border-psops-linha bg-psops-surf1 p-3.5 text-left transition hover:border-psops-tinta"
     >
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
-        <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
+      <div className="mb-2 flex items-start gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
+          <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
+        </div>
+        <Score valor={a.initiative.signal.score} />
       </div>
       <div className="mb-1.5 text-[12.5px] font-bold leading-snug text-psops-texto">
         {texto.titulo}
@@ -405,12 +433,14 @@ function DetalheAtividade({
   onFechar,
   onMudou,
   avisar,
+  onEstudoConcluido,
 }: {
   a: Atividade;
   pessoas: Pessoa[];
   onFechar: () => void;
   onMudou: () => Promise<void>;
   avisar: ReturnType<typeof useAvisos>;
+  onEstudoConcluido: (estudo: ResultadoRegistroEstudo | null | undefined) => void;
 }) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
@@ -446,7 +476,7 @@ function DetalheAtividade({
   // Demo, Estimativa e Escopo: opcionalmente, quais artefatos foram
   // atualizados e o que mudou (vira um commit em cada um). O sugerido na
   // triagem já vem marcado.
-  const tipoArtefato = TIPO_ARTEFATO_DO_IMPACTO[a.tipo];
+  const tipoArtefato = a.tipo === 'SKILL' ? null : TIPO_ARTEFATO_DO_IMPACTO[a.tipo];
   const artefatoSugerido = a.artifact?.id ?? null;
   const [opcoesArt, setOpcoesArt] = useState<Artefato[] | null>(null);
   const [marcados, setMarcados] = useState<string[]>(a.artifact ? [a.artifact.id] : []);
@@ -492,6 +522,7 @@ function DetalheAtividade({
               <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
               <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
               <Badge>{t(`psops.backlog.coluna.${a.status}`)}</Badge>
+              <Score valor={a.initiative.signal.score} />
             </div>
             <button
               type="button"
@@ -509,16 +540,28 @@ function DetalheAtividade({
           >
             {texto.titulo}
           </h2>
-          <p className="mb-2 text-[12.5px] leading-relaxed text-psops-muted">{texto.trecho}</p>
-          <a
-            href={urlDaNota(a.fonteUrl)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mb-5 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"
-          >
-            <ExternalLink size={12} aria-hidden />
-            {t('psops.triagem.lerNota')}
-          </a>
+          {a.tipo === 'SKILL' && a.initiative.id ? (
+            <p className="mb-2 rounded-xl border border-psops-linha bg-psops-surf2 px-3 py-2 text-[12.5px] font-medium text-psops-texto">
+              {a.titulo}
+            </p>
+          ) : null}
+          {a.tipo === 'SKILL' ? (
+            <p className="mb-2 text-[12px] text-psops-muted">{t('psops.backlog.skillDica')}</p>
+          ) : null}
+          {texto.trecho ? <p className="mb-2 text-[12.5px] leading-relaxed text-psops-muted">{texto.trecho}</p> : null}
+          {a.fonteUrl ? (
+            <a
+              href={urlDaNota(a.fonteUrl, language)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-5 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"
+            >
+              <ExternalLink size={12} aria-hidden />
+              {t('psops.triagem.lerNota')}
+            </a>
+          ) : (
+            <div className="mb-5" />
+          )}
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2">
             <div>
@@ -637,10 +680,12 @@ function DetalheAtividade({
                   onClick={() =>
                     void executar(
                       () =>
-                        api.post(
-                          `/api/pre-sales-ops/activities/${a.id}/complete`,
-                          comCommit ? { artefatoIds: marcados, descricao: descricao.trim() } : undefined,
-                        ),
+                        api
+                          .post<{ estudo?: ResultadoRegistroEstudo | null }>(
+                            `/api/pre-sales-ops/activities/${a.id}/complete`,
+                            comCommit ? { artefatoIds: marcados, descricao: descricao.trim() } : undefined,
+                          )
+                          .then((r) => onEstudoConcluido(r?.estudo)),
                       a.tipo === 'ESTUDO'
                         ? t('psops.backlog.concluidaFicha')
                         : t('psops.backlog.concluida'),
@@ -671,5 +716,20 @@ function DetalheAtividade({
         </div>
       </div>
     </Portal>
+  );
+}
+
+/** Score de relevância da novidade (o mesmo da fila de triagem). */
+function Score({ valor }: { valor: number }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      title={t('psops.backlog.scoreDica')}
+      className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-[3px] text-caption font-bold tabular-nums ${
+        valor >= 80 ? 'border-psops-tinta text-psops-tinta' : 'border-psops-linha text-psops-muted'
+      }`}
+    >
+      {t('psops.triagem.score')} {valor}
+    </span>
   );
 }

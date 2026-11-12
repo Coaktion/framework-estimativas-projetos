@@ -1044,7 +1044,12 @@
       "porRegrasDica": "Classificado por regras determinísticas. É uma sugestão: a decisão é sua.",
       "traducaoPendente": "em inglês · tradução do Zendesk pendente",
       "traducaoPendenteDica": "O Zendesk costuma publicar a versão em português alguns dias depois. A coleta diária confere de novo até ela sair.",
-      "verOriginal": "Ver original em inglês"
+      "verOriginal": "Ver original em inglês",
+      "abaEap": "EAPs e betas",
+      "ordenarPor": "Ordenar por",
+      "ordemRelevancia": "Relevância",
+      "ordemData": "Data de publicação",
+      "publicadoEm": "Publicado {{data}}"
     },
     "avisos": {
       "geradas_one": "{{count}} atividade gerada, já atribuída ao dono do artefato.",
@@ -1107,6 +1112,10 @@
       "ESCOPO": {
         "nome": "Escopo",
         "pergunta": "Isso muda o que prometemos?"
+      },
+      "SKILL": {
+        "nome": "Skill",
+        "pergunta": "A skill de escopo precisa acompanhar a estimativa?"
       }
     },
     "tipo": {
@@ -1256,7 +1265,8 @@
       "grupoArtefatos": {
         "DEMO": "Ambientes de demo (Brasil, EUA, SSAC)",
         "ESTIM": "Estimativa",
-        "ESCOPO": "Documentos de escopo"
+        "ESCOPO": "Documentos de escopo",
+        "SKILL": "Skill de escopo"
       },
       "quaisArtefatos": "Registrar no histórico dos artefatos (opcional): quais você atualizou?",
       "oQueMudou": "O que mudou",
@@ -1272,7 +1282,9 @@
       "desarquivar": "Desarquivar",
       "desarquivada": "Atividade de volta para A fazer.",
       "reabrir": "Reabrir",
-      "reaberta": "Atividade reaberta."
+      "reaberta": "Atividade reaberta.",
+      "scoreDica": "Relevância da novidade (0–100), a mesma da fila de triagem",
+      "skillDica": "Um documento de estimativa mudou: atualize a skill de escopo. O que mudou está no histórico do artefato, no Mapa."
     },
     "ficha": {
       "titulo": "Ficha da feature",
@@ -1315,6 +1327,20 @@
       "abrirNota": "Abrir nota",
       "vazioTitulo": "Nada neste período",
       "vazioTexto": "Mude o período, a busca ou mostre os arquivados."
+    },
+    "estudoRegistro": {
+      "titulo": "Registrar o estudo nos Estudos",
+      "explicacao": "Não deu para registrar sozinho no Acompanhamento semanal (falta a categoria da matriz ou a pessoa). Complete e salve.",
+      "pessoa": "Pessoa",
+      "data": "Data",
+      "categoria": "Categoria da matriz",
+      "atividade": "Atividade",
+      "tipo": "Tipo",
+      "observacoes": "Observações",
+      "salvar": "Registrar",
+      "depois": "Agora não",
+      "ok": "Estudo registrado nos Estudos.",
+      "automatico": "Estudo registrado nos Estudos ({{categoria}})."
     }
   },
   "aeConfig": {
@@ -2305,7 +2331,8 @@
     "colSubmitter": "Enviado por",
     "colDate": "Data",
     "colStatus": "Status",
-    "sentFrom": "Enviado de"
+    "sentFrom": "Enviado de",
+    "solvedNotePrompt": "O que foi feito? (opcional — vai na notificação para quem enviou)"
   },
   "changelog": {
     "title": "Changelog",

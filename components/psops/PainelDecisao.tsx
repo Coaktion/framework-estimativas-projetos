@@ -98,7 +98,7 @@ export function PainelDecisao({
       </blockquote>
 
       <a
-        href={urlDaNota(sinal.fonteUrl)}
+        href={urlDaNota(sinal.fonteUrl, language)}
         target="_blank"
         rel="noopener noreferrer"
         className="mb-4 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"

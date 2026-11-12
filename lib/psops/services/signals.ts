@@ -26,6 +26,8 @@ const selecaoLista = {
   trechoOriginal: true,
   tituloPt: true,
   trechoPt: true,
+  tituloEs: true,
+  trechoEs: true,
   produto: true,
   modulo: true,
   tipo: true,
@@ -41,7 +43,14 @@ const selecaoLista = {
   status: true,
   criadoEm: true,
   rawItem: {
-    select: { htmlUrl: true, titulo: true, criadoEm: true, secaoId: true, source: { select: { nome: true } } },
+    select: {
+      htmlUrl: true,
+      titulo: true,
+      criadoEm: true,
+      atualizadoEm: true,
+      secaoId: true,
+      source: { select: { nome: true, isLiveArticle: true } },
+    },
   },
 } satisfies Prisma.PsOpsSignalSelect;
 
@@ -83,16 +92,27 @@ export async function listarSinais(prisma: PrismaClient, f: FiltroSinais) {
 }
 
 function mapear(s: {
-  rawItem: { htmlUrl: string; titulo: string; criadoEm: Date; source: { nome: string } };
+  rawItem: {
+    htmlUrl: string;
+    titulo: string;
+    criadoEm: Date;
+    atualizadoEm?: Date;
+    source: { nome: string; isLiveArticle?: boolean };
+  };
 } & Record<string, unknown>) {
   const { rawItem, ...resto } = s;
+  const vivo = Boolean(rawItem.source.isLiveArticle);
   return {
     ...resto,
     /** link direto para a nota completa no Help Center do Zendesk */
     fonteUrl: rawItem.htmlUrl,
     fonteTitulo: rawItem.titulo,
     fonteNome: rawItem.source.nome,
-    publicadoEm: rawItem.criadoEm,
+    // Artigo-vivo (lista de EAPs) é o mesmo artigo editado: a novidade foi
+    // publicada na edição em que o bloco apareceu, não quando o artigo nasceu.
+    publicadoEm: vivo ? (rawItem.atualizadoEm ?? rawItem.criadoEm) : rawItem.criadoEm,
+    /** EAP ou beta: vem da lista de EAPs ou foi classificado como EAP/beta */
+    eap: vivo || resto.tipo === 'EAP_BETA',
   };
 }
 

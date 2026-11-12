@@ -14,6 +14,7 @@ const NOME_DESTINO: Record<string, string> = {
   DEMO: 'Demo',
   ESTIM: 'Estimativa',
   ESCOPO: 'Escopo',
+  SKILL: 'Skill',
 };
 
 export const linkDaAtividade = (activityId: string) => `/pre-sales-ops/backlog?atividade=${encodeURIComponent(activityId)}`;
@@ -42,6 +43,36 @@ export async function notificarAtividadesNovas(
     }));
   if (!data.length) return 0;
   return (await db.notificacao.createMany({ data })).count;
+}
+
+/**
+ * Relato (bug ou sugestão) marcado como resolvido em /reports: avisa quem
+ * enviou, com o que foi feito (quando quem resolveu escreveu) e um trecho do
+ * relato. Não avisa a própria pessoa que resolveu.
+ */
+export async function notificarRelatoResolvido(
+  db: Db,
+  relato: { id: number; userId: number | null; kind: string; body: string; pageUrl?: string | null },
+  resolvidoPor: number | null,
+  nota?: string | null,
+): Promise<boolean> {
+  if (!relato.userId || relato.userId === resolvidoPor) return false;
+  const tipo = relato.kind === 'bug' ? 'Seu bug' : 'Sua sugestão';
+  const trecho = relato.body.replace(/\s+/g, ' ').trim().slice(0, 140);
+  const corpo = [nota?.trim() ? `Atualização: ${nota.trim()}` : null, `Relato #${relato.id}: ${trecho}`]
+    .filter(Boolean)
+    .join(' — ')
+    .slice(0, 600);
+  await db.notificacao.create({
+    data: {
+      userId: relato.userId,
+      tipo: 'RELATO_RESOLVIDO',
+      titulo: `${tipo} foi ${relato.kind === 'bug' ? 'resolvido' : 'resolvida'}`,
+      corpo,
+      link: relato.pageUrl && relato.pageUrl.startsWith('/') ? relato.pageUrl : null,
+    },
+  });
+  return true;
 }
 
 export async function listarNotificacoes(db: Db, userId: number, limite = 30) {

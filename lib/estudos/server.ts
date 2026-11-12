@@ -31,7 +31,7 @@ type Db = Pick<PrismaClient, 'user' | 'estudoTopico' | 'estudoNivel' | 'estudoRe
  * Quem não aparece em Estudos, mesmo sendo SC: a conta genérica de admin e
  * quem não faz parte do time de estudos.
  */
-export const OCULTOS_EM_ESTUDOS = ['admin@aktienow.com', 'tmunari@aktienow.com'];
+export const OCULTOS_EM_ESTUDOS = ['admin@aktienow.com', 'tmunari@aktienow.com', 'bstuchi@coaktion.com'];
 
 /** Ordem da planilha primeiro (Renato, Matheus, Arthur, Elisa), depois por nome. */
 const ORDEM_PLANILHA = Object.values(PESSOA_POR_NOME);

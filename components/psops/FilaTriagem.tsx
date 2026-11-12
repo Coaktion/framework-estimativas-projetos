@@ -15,8 +15,11 @@ import { useLanguage } from '@/components/LanguageProvider';
 import { api, ErroRequisicao } from '@/lib/psops/client/api';
 import {
   ABAS_MODULO,
+  ABA_EAP,
+  abaDoSinal,
+  ordenarFila,
+  type OrdemFila,
   IMPACTOS_ORDEM,
-  abaDoProduto,
   type ErroApi,
   type Impacto,
   type RespostaFila,
@@ -61,17 +64,34 @@ function Conteudo({ gestor }: { gestor: boolean }) {
   const [ocupado, setOcupado] = useState(false);
   const [mostrarDescarte, setMostrarDescarte] = useState(false);
 
-  // Abas por módulo: a fila inteira continua carregada (e ordenada por
-  // relevância); a aba só filtra o que se vê, e o teclado anda nela.
+  // Abas por módulo (EAPs e betas numa aba própria): a fila inteira continua
+  // carregada; a aba só filtra o que se vê, e o teclado anda nela. A ordem é
+  // por relevância (score) ou pela data de publicação da novidade.
   const [aba, setAba] = useState<string>('TODOS');
-  const todosSinais = useMemo(() => fila?.itens ?? [], [fila]);
+  const [ordem, setOrdemEstado] = useState<OrdemFila>('relevancia');
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('psops:fila:ordem') === 'data') setOrdemEstado('data');
+    } catch {
+      /* sem armazenamento: fica a relevância */
+    }
+  }, []);
+  const setOrdem = (o: OrdemFila) => {
+    setOrdemEstado(o);
+    try {
+      window.localStorage.setItem('psops:fila:ordem', o);
+    } catch {
+      /* ignora */
+    }
+  };
+  const todosSinais = useMemo(() => ordenarFila(fila?.itens ?? [], ordem), [fila, ordem]);
   const porAba = useMemo(() => {
     const m: Record<string, number> = {};
-    todosSinais.forEach((s) => { const a = abaDoProduto(s.produto); m[a] = (m[a] ?? 0) + 1; });
+    todosSinais.forEach((s) => { const a = abaDoSinal(s); m[a] = (m[a] ?? 0) + 1; });
     return m;
   }, [todosSinais]);
   const sinais = useMemo(
-    () => (aba === 'TODOS' ? todosSinais : todosSinais.filter((s) => abaDoProduto(s.produto) === aba)),
+    () => (aba === 'TODOS' ? todosSinais : todosSinais.filter((s) => abaDoSinal(s) === aba)),
     [todosSinais, aba],
   );
   const selecionado = useMemo(
@@ -395,9 +415,9 @@ function Conteudo({ gestor }: { gestor: boolean }) {
               <div
                 role="tablist"
                 aria-label={t('psops.triagem.abasModulo')}
-                className="flex flex-wrap gap-1.5 border-b border-psops-linha px-5 py-3"
+                className="flex flex-wrap items-center gap-1.5 border-b border-psops-linha px-5 py-3"
               >
-                {[{ id: 'TODOS' }, ...ABAS_MODULO].filter((a) => a.id === 'TODOS' || porAba[a.id]).map((a) => {
+                {[{ id: 'TODOS' }, { id: ABA_EAP }, ...ABAS_MODULO].filter((a) => a.id === 'TODOS' || porAba[a.id]).map((a) => {
                   const ativo = aba === a.id;
                   const total = a.id === 'TODOS' ? todosSinais.length : porAba[a.id];
                   return (
@@ -415,13 +435,26 @@ function Conteudo({ gestor }: { gestor: boolean }) {
                     >
                       {a.id === 'TODOS'
                         ? t('psops.triagem.abaTodos')
-                        : a.id === 'OUTROS'
+                        : a.id === ABA_EAP
+                          ? t('psops.triagem.abaEap')
+                          : a.id === 'OUTROS'
                           ? t('psops.triagem.abaOutros')
                           : t(`psops.produto.${a.id}`)}
                       <span className="opacity-70">{total}</span>
                     </button>
                   );
                 })}
+                <label className="ml-auto inline-flex items-center gap-1.5 text-caption text-psops-muted">
+                  {t('psops.triagem.ordenarPor')}
+                  <select
+                    value={ordem}
+                    onChange={(e) => setOrdem(e.target.value as OrdemFila)}
+                    className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
+                  >
+                    <option value="relevancia">{t('psops.triagem.ordemRelevancia')}</option>
+                    <option value="data">{t('psops.triagem.ordemData')}</option>
+                  </select>
+                </label>
               </div>
               <ListaSinais
                 sinais={sinais}

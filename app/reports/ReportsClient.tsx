@@ -56,8 +56,15 @@ export default function ReportsClient({ reports: initial }: { reports: Report[] 
 
   const changeStatus = async (id: number, next: string) => {
     const previous = reports;
+    // Resolvido: quem enviou é avisado no sininho; o texto opcional vai junto.
+    let nota: string | null = null;
+    if (next === 'solved' && reports.find((r) => r.id === id)?.status !== 'solved') {
+      const resposta = window.prompt(t('reports.solvedNotePrompt'));
+      if (resposta === null) return;
+      nota = resposta.trim() || null;
+    }
     setReports((list) => list.map((r) => (r.id === id ? { ...r, status: next } : r)));
-    const res = await updateFeedbackStatusAction(id, next).catch(() => null);
+    const res = await updateFeedbackStatusAction(id, next, nota).catch(() => null);
     if (!res || !res.ok) { setReports(previous); alert(t('reports.statusError')); }
   };
 

@@ -328,6 +328,9 @@ enum PsOpsImpacto {
   DEMO
   ESTIM
   ESCOPO
+  /// não é destino da triagem: atualizar a skill de escopo depois que um
+  /// documento de estimativa mudou (services/skill.ts)
+  SKILL
 }
 
 enum PsOpsArtifactTipo {
@@ -419,6 +422,8 @@ model PsOpsRawItem {
 
   /// quando a tradução pt-br do Zendesk foi aplicada aos sinais deste artigo
   traducaoPtEm DateTime?
+  /// idem, espanhol
+  traducaoEsEm DateTime?
 
   signals PsOpsSignal[]
 
@@ -452,6 +457,9 @@ model PsOpsSignal {
   /// bullet a bullet — na dúvida, fica em inglês.
   tituloPt String?
   trechoPt String? @db.Text
+  /// idem, espanhol (o portal em es mostra estes)
+  tituloEs String?
+  trechoEs String? @db.Text
 
   produto PsOpsProduto
   modulo  PsOpsModulo
@@ -522,9 +530,11 @@ model PsOpsInitiative {
 }
 
 model PsOpsActivity {
-  id           String          @id @default(cuid())
-  initiativeId String
-  initiative   PsOpsInitiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+  id           String           @id @default(cuid())
+  /// null só nas tarefas que não nascem de uma novidade (SKILL vinda de um
+  /// commit feito direto no Mapa)
+  initiativeId String?
+  initiative   PsOpsInitiative? @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
 
   tipo   PsOpsImpacto
   titulo String
@@ -825,6 +835,8 @@ model EstudoRegistro {
   observacoes String?  @db.Text
   criadoEm    DateTime @default(now())
   criadoPor   Int?
+  /// atividade de Estudo do Radar que gerou este registro (uma por atividade)
+  atividadeRadarId String? @unique
 
   @@index([data])
   @@index([userId])

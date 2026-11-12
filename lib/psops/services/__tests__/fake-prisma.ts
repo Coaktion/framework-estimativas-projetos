@@ -34,6 +34,9 @@ export interface Estado {
   notificacoes: Row[];
   /** cadastro de usuários do portal (config/responsaveis.ts resolve e-mail → id) */
   users: Row[];
+  /** área Estudos: categorias da matriz e Acompanhamento semanal */
+  estudoTopicos: Row[];
+  estudoRegistros: Row[];
 }
 
 /**
@@ -73,6 +76,8 @@ const DEFAULTS: Record<keyof Estado, Row> = {
   categories: { isActive: true, parentName: null, displayName: null },
   notificacoes: { corpo: null, link: null, lidaEm: null },
   users: {},
+  estudoTopicos: { ordem: 0 },
+  estudoRegistros: { observacoes: null, tipo: null, categoria: null, criadoPor: null, atividadeRadarId: null },
 };
 
 const casa = (row: Row, where: Row): boolean =>
@@ -110,6 +115,8 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     categories: [],
     notificacoes: [],
     users: [],
+    estudoTopicos: [],
+    estudoRegistros: [],
     ...inicial,
   };
 
@@ -233,6 +240,8 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     category: tabela('categories', 'cat'),
     notificacao: tabela('notificacoes', 'ntf'),
     user: tabela('users', 'usr'),
+    estudoTopico: tabela('estudoTopicos', 'etp'),
+    estudoRegistro: tabela('estudoRegistros', 'erg'),
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       // sem rollback: os testes verificam o caminho felizes e as validações,
       // que acontecem antes da transação

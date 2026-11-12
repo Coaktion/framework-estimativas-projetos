@@ -27,6 +27,12 @@ export const RESPONSAVEIS_POR_IMPACTO: Record<Impacto, readonly string[]> = {
   [Impacto.ESCOPO]: ['esimicevic@aktienow.com'],
 };
 
+/**
+ * Quem atualiza a skill de escopo quando um documento de estimativa muda
+ * (cada commit num artefato ESTIM:* gera uma tarefa SKILL para esta pessoa).
+ */
+export const RESPONSAVEL_SKILL = 'rzanetti@aktienow.com';
+
 /** Ids (como texto, no padrão do módulo) dos responsáveis de cada destino. */
 export type ResponsaveisResolvidos = Record<Impacto, string[]>;
 

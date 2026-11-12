@@ -13,6 +13,8 @@
 import type { PrismaClient } from '@prisma/client';
 import { env } from '../lib/env';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
+import { ehArtefatoAtual } from '../config/artefatos';
+import { gerarTarefaDeSkill } from './skill';
 
 export type EstadoSaude = 'SAUDAVEL' | 'ATENCAO' | 'CRITICO' | 'DIVERGENTE' | 'NAO_VERIFICADO';
 
@@ -121,7 +123,9 @@ export async function listarArtefatos(prisma: PrismaClient, agora = new Date()) 
     },
   });
 
-  return artefatos.map((a) => {
+  // os do formato antigo (blocos de escopo por módulo, framework e template
+  // únicos) ficam no banco por terem histórico, mas saem do Mapa
+  return artefatos.filter((a) => ehArtefatoAtual(a.chave)).map((a) => {
     const pendentes = a.atividades.length;
     return {
       id: a.id,
@@ -197,7 +201,7 @@ export function incrementarVersao(v: string): string {
  * Aceita um client de transação, para a conclusão gravar tudo junto.
  */
 export async function registrarAtualizacao(
-  prisma: Pick<PrismaClient, 'psOpsArtifact' | 'psOpsArtifactUpdate'>,
+  prisma: Pick<PrismaClient, 'psOpsArtifact' | 'psOpsArtifactUpdate' | 'psOpsActivity' | 'user' | 'notificacao'>,
   args: {
     artifactId: string;
     autorId: string;
@@ -233,7 +237,13 @@ export async function registrarAtualizacao(
       ...(art.donoId ? {} : { donoId: args.autorId }),
     },
   });
-  return { atualizacao, artefato };
+  // documento de estimativa mudou: a skill de escopo precisa acompanhar
+  const tarefaSkill = await gerarTarefaDeSkill(prisma, {
+    artefato: { id: art.id, chave: art.chave, nome: art.nome },
+    descricao,
+    activityId: args.activityId ?? null,
+  });
+  return { atualizacao, artefato, tarefaSkill };
 }
 
 export async function atualizarArtefato(
