@@ -60,6 +60,43 @@ export interface Sinal {
   publicadoEm: string;
   /** EAP ou beta (lista de EAPs do Zendesk ou classificado como EAP/beta) */
   eap: boolean;
+  /** frentes de quem está vendo que ainda esperam a decisão dela */
+  minhasPendentes?: Impacto[];
+  /** frentes que outra pessoa sugeriu para quem está vendo */
+  sugestoesParaMim?: Array<{ impacto: Impacto; sugeridoPor: string; sugeridoPorNome: string | null }>;
+}
+
+/** Dono de uma frente e o que ele já decidiu. */
+export interface DonoFrente {
+  id: string;
+  nome: string;
+  iniciais: string;
+  /** FAZER | NAO_FAZER | null (ainda não decidiu) */
+  decisao: string | null;
+  sugeridoPor: string | null;
+  sugeridoPorNome: string | null;
+}
+
+export interface FrenteDecisao {
+  impacto: Impacto;
+  /** quem está vendo é dono desta frente */
+  minha: boolean;
+  donos: DonoFrente[];
+}
+
+/** Resposta da decisão (POST .../triage). */
+export interface RespostaDecisao {
+  atividades: AtividadeGerada[];
+  sugestoes: Array<{ impacto: Impacto; donoId: string }>;
+  naoFazer: Impacto[];
+  status: 'NOVO' | 'TRIADO' | 'DESCARTADO';
+}
+
+/** Frentes marcadas de saída: as minhas pendentes sugeridas (pelo sistema ou por alguém). */
+export function marcadasDeSaida(s: Pick<Sinal, 'impactosSugeridos' | 'minhasPendentes' | 'sugestoesParaMim'>): Impacto[] {
+  const pend = s.minhasPendentes ?? [];
+  const sugeridas = new Set<Impacto>([...s.impactosSugeridos, ...(s.sugestoesParaMim ?? []).map((x) => x.impacto)]);
+  return IMPACTOS_ORDEM.filter((i) => pend.includes(i) && sugeridas.has(i));
 }
 
 export interface PreviaImpacto {
@@ -77,6 +114,7 @@ export interface PreviaImpacto {
 
 export interface SinalDetalhe extends Sinal {
   previa: PreviaImpacto[];
+  frentes?: FrenteDecisao[];
 }
 
 export interface ResumoFila {

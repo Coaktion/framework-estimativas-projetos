@@ -96,6 +96,13 @@ export function ListaSinais({
                   <Badge variante="produto">{t(`psops.produto.${s.produto}`)}</Badge>
                   <Badge variante={varianteDoTipo(s.tipo)}>{t(`psops.tipo.${s.tipo}`)}</Badge>
                   {impactos.length ? <Badge variante="discreto">{impactos.join(' · ')}</Badge> : null}
+                  {(s.sugestoesParaMim ?? []).length ? (
+                    <Badge variante="alerta">
+                      {t('psops.triagem.sugeridoPor', {
+                        nome: (s.sugestoesParaMim![0]!.sugeridoPorNome ?? '').split(' ')[0] || '?',
+                      })}
+                    </Badge>
+                  ) : null}
                   {dataDaNota(s.fonteTitulo) ? (
                     <Badge variante="discreto" titulo={s.fonteTitulo}>
                       {t('psops.triagem.notaDeVersao', { data: dataDaNota(s.fonteTitulo) })}

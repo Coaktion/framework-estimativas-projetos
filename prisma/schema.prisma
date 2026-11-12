@@ -482,6 +482,8 @@ model PsOpsSignal {
   criadoEm DateTime          @default(now())
 
   triage     PsOpsTriage?
+  /// decisão de cada dono de frente (e sugestões de outras pessoas)
+  decisoes   PsOpsDecisao[]
   initiative PsOpsInitiative?
   aplicacoes PsOpsArtifactSignal[]
   studyNote  PsOpsStudyNote?
@@ -512,6 +514,29 @@ model PsOpsTriage {
 }
 
 // ─────────────── Camada 4 · Geração (iniciativa + atividades) ───────────────
+
+/// Decisão de elegibilidade de UM dono numa frente: cada dono decide a sua
+/// (Demo, Estimativa, Escopo; Estudo é de cada SE). Quem marca a frente de
+/// outra pessoa deixa uma sugestão (sugeridoPor), que o dono vê na triagem.
+model PsOpsDecisao {
+  id          String       @id @default(cuid())
+  signalId    String
+  signal      PsOpsSignal  @relation(fields: [signalId], references: [id], onDelete: Cascade)
+  impacto     PsOpsImpacto
+  /// User.id do dono da frente
+  donoId      String
+  /// FAZER | NAO_FAZER; null = ainda não decidiu (só há sugestão)
+  decisao     String?
+  decididoEm  DateTime?
+  sugeridoPor String?
+  sugeridoEm  DateTime?
+  /// a atividade criada quando o dono decidiu FAZER
+  activityId  String?
+
+  @@unique([signalId, impacto, donoId])
+  @@index([donoId, decisao])
+  @@map("psops_decisoes")
+}
 
 model PsOpsInitiative {
   id       String      @id @default(cuid())

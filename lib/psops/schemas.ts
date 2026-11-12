@@ -38,10 +38,13 @@ export const querySinais = z.object({
   scoreMin: z.coerce.number().int().min(0).max(100).optional(),
   limite: z.coerce.number().int().min(1).max(200).optional(),
   cursor: z.string().cuid().optional(),
+  // minhas: só o que espera decisão de quem está vendo; todas: tudo em aberto
+  modo: z.enum(['minhas', 'todas']).optional(),
 });
 
 export const bodyTriagem = z.object({
-  impactos: z.array(impacto).min(1, 'Marque ao menos um impacto.'),
+  // vazio vale: o dono dizendo que não vai fazer nenhuma das frentes dele
+  impactos: z.array(impacto),
   nota: z.string().trim().max(1000).optional().nullable(),
 });
 

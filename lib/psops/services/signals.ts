@@ -7,6 +7,7 @@ import { IMPACTOS_ORDEM, type Impacto } from '../config/taxonomy';
 import { NaoEncontrado } from '../lib/http';
 import { resolverResponsaveis } from '../config/responsaveis';
 import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
+import { frentesDe, pendentesDe, type LinhaDecisao } from './decisoes';
 
 export interface FiltroSinais {
   status?: Array<'NOVO' | 'TRIADO' | 'DESCARTADO' | 'AUTO_ARQUIVADO' | 'NAO_CLASSIFICADO'>;
@@ -17,6 +18,13 @@ export interface FiltroSinais {
   scoreMin?: number;
   limite?: number;
   cursor?: string;
+  /**
+   * Fila de quem? Com `usuarioId`, cada item diz o que falta a pessoa decidir
+   * e as sugestões que deixaram para ela; `modo: 'minhas'` mostra só o que
+   * ainda espera decisão dela (quem não é dono de frente nenhuma vê tudo).
+   */
+  usuarioId?: string;
+  modo?: 'minhas' | 'todas';
 }
 
 const selecaoLista = {
@@ -42,6 +50,7 @@ const selecaoLista = {
   motivoRuido: true,
   status: true,
   criadoEm: true,
+  decisoes: { select: { impacto: true, donoId: true, decisao: true, sugeridoPor: true } },
   rawItem: {
     select: {
       htmlUrl: true,
@@ -85,13 +94,33 @@ export async function listarSinais(prisma: PrismaClient, f: FiltroSinais) {
   const temMais = sinais.length > limite;
   const pagina = temMais ? sinais.slice(0, limite) : sinais;
 
+  let itens = pagina.map(mapear);
+  if (f.usuarioId) {
+    const responsaveis = await resolverResponsaveis(prisma);
+    const eu = f.usuarioId;
+    const souDono = frentesDe(eu, responsaveis).length > 0;
+    itens = itens
+      .map((s) => {
+        const decisoes = (s.decisoes ?? []) as LinhaDecisao[];
+        return {
+          ...s,
+          minhasPendentes: pendentesDe(eu, responsaveis, decisoes),
+          sugestoesParaMim: decisoes
+            .filter((d) => d.donoId === eu && !d.decisao && d.sugeridoPor)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: d.sugeridoPor as string })),
+        };
+      })
+      .filter((s) => f.modo !== 'minhas' || !souDono || s.minhasPendentes.length > 0);
+  }
+
   return {
-    itens: pagina.map(mapear),
+    itens,
     proximoCursor: temMais ? (pagina[pagina.length - 1]?.id ?? null) : null,
   };
 }
 
 function mapear(s: {
+  decisoes?: unknown[];
   rawItem: {
     htmlUrl: string;
     titulo: string;
@@ -121,7 +150,7 @@ function mapear(s: {
  * serão tocados e quem é o responsável de cada um. Mostrar a consequência
  * antes de clicar é o que substitui campos como prioridade e segmento.
  */
-export async function detalharSinal(prisma: PrismaClient, id: string) {
+export async function detalharSinal(prisma: PrismaClient, id: string, usuarioId?: string) {
   const s = await prisma.psOpsSignal.findUnique({
     where: { id },
     select: {
@@ -153,7 +182,33 @@ export async function detalharSinal(prisma: PrismaClient, id: string) {
   // Prévia dos QUATRO destinos, não só dos sugeridos: a tela filtra pelo que
   // a pessoa marcou. Se aqui viessem só os sugeridos, marcar um destino fora
   // da sugestão geraria a atividade sem mostrar antes quem responde por ela.
-  return { ...mapear(s as never), previa: await previaImpactos(prisma, String(s.produto), IMPACTOS_ORDEM) };
+  // Quem é dono de cada frente e o que cada um já decidiu (ou recebeu de
+  // sugestão): a tela mostra "Sua decisão" nas frentes da pessoa e "Sugerir
+  // para …" nas dos outros.
+  const responsaveis = await resolverResponsaveis(prisma);
+  const decisoes = ((s as { decisoes?: LinhaDecisao[] }).decisoes ?? []) as LinhaDecisao[];
+  const frentes = IMPACTOS_ORDEM.map((impacto) => ({
+    impacto,
+    minha: Boolean(usuarioId && (responsaveis[impacto] ?? []).includes(usuarioId)),
+    donos: (responsaveis[impacto] ?? []).map((donoId) => {
+      const d = decisoes.find((x) => x.impacto === impacto && x.donoId === donoId);
+      return { id: donoId, decisao: d?.decisao ?? null, sugeridoPor: d?.sugeridoPor ?? null };
+    }),
+  }));
+  const base = mapear(s as never) as ReturnType<typeof mapear> & { decisoes?: LinhaDecisao[] };
+  return {
+    ...base,
+    ...(usuarioId
+      ? {
+          minhasPendentes: pendentesDe(usuarioId, responsaveis, decisoes),
+          sugestoesParaMim: decisoes
+            .filter((d) => d.donoId === usuarioId && !d.decisao && d.sugeridoPor)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: d.sugeridoPor as string })),
+        }
+      : {}),
+    frentes,
+    previa: await previaImpactos(prisma, String(s.produto), IMPACTOS_ORDEM),
+  };
 }
 
 /** Para cada impacto, qual artefato será tocado e quem responde por ele. */

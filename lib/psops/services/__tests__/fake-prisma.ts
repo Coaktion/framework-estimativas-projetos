@@ -37,6 +37,8 @@ export interface Estado {
   /** área Estudos: categorias da matriz e Acompanhamento semanal */
   estudoTopicos: Row[];
   estudoRegistros: Row[];
+  /** decisão por dono de frente */
+  decisoes: Row[];
 }
 
 /**
@@ -77,6 +79,7 @@ const DEFAULTS: Record<keyof Estado, Row> = {
   notificacoes: { corpo: null, link: null, lidaEm: null },
   users: {},
   estudoTopicos: { ordem: 0 },
+  decisoes: { decisao: null, decididoEm: null, sugeridoPor: null, sugeridoEm: null, activityId: null },
   estudoRegistros: { observacoes: null, tipo: null, categoria: null, criadoPor: null, atividadeRadarId: null },
 };
 
@@ -117,6 +120,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     users: [],
     estudoTopicos: [],
     estudoRegistros: [],
+    decisoes: [],
     ...inicial,
   };
 
@@ -242,6 +246,7 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     user: tabela('users', 'usr'),
     estudoTopico: tabela('estudoTopicos', 'etp'),
     estudoRegistro: tabela('estudoRegistros', 'erg'),
+    psOpsDecisao: tabela('decisoes', 'dec'),
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       // sem rollback: os testes verificam o caminho felizes e as validações,
       // que acontecem antes da transação

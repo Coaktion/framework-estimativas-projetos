@@ -67,13 +67,7 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
   const responsaveis = input.responsaveis ?? (await resolverResponsaveis(prisma));
 
   const resultado = await prisma.$transaction(async (tx) => {
-    const initiative = await tx.psOpsInitiative.create({
-      data: {
-        signalId: sinal.id,
-        titulo: `Ciclo ${semanaIso(sinal.criadoEm)} · ${sinal.titulo.slice(0, 90)}`,
-        ciclo: semanaIso(sinal.criadoEm),
-      },
-    });
+    const initiative = await garantirIniciativa(tx, sinal);
 
     await tx.psOpsTriage.create({
       data: {
@@ -87,79 +81,16 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
     const atividades: TriarResultado['atividades'] = [];
 
     for (const impacto of impactos) {
-      let artifactId: string | null = null;
-      let responsavelId: string | null = null;
-      let nomeArt: string | null = null;
-
-      // Quais artefatos foram atualizados quem conclui é que diz (pode ser
-      // mais de um: os 3 ambientes de demo, vários documentos de escopo). Na
-      // Estimativa já sugerimos o módulo do produto; Demo e Escopo ficam para
-      // a escolha na conclusão.
-      if (impacto === Impacto.ESTIM) {
-        const estimativas = await tx.psOpsArtifact.findMany({
-          where: { chave: { startsWith: 'ESTIM:' } },
-          select: { id: true, chave: true, nome: true, donoId: true },
-        });
-        const art = estimativaSugerida(sinal.produto, estimativas);
-        if (art) {
-          artifactId = art.id;
-          responsavelId = art.donoId;
-          nomeArt = art.nome;
-        }
-      } else if (impacto !== Impacto.ESTUDO) {
-        nomeArt = NOME_GRUPO[impacto] ?? null;
-      }
-
       // Quem responde vem da configuração do time (config/responsaveis.ts):
       // Estudo é de todos os SEs — uma atividade para cada um —, os outros
       // destinos têm um dono só. Sem ninguém configurado, fica o dono do
       // artefato (ou ninguém, e o card cai em "Sem responsável").
       const configurados = responsaveis[impacto] ?? [];
-      const pessoas: Array<string | null> =
-        impacto === Impacto.ESTUDO
-          ? (configurados.length ? configurados : [responsavelId])
-          : [configurados[0] ?? responsavelId];
-
-      let primeiraId: string | null = null;
-      for (const pessoa of pessoas) {
-        const atividade = await tx.psOpsActivity.create({
-          data: {
-            initiativeId: initiative.id,
-            tipo: impacto,
-            titulo: tituloAtividade(impacto, sinal.titulo),
-            artifactId,
-            responsavelId: pessoa,
-            dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
-            criterioVerificavel: criterioSugerido(
-              impacto,
-              modulo,
-              sinal.tipo,
-              sinal.titulo,
-            ) as unknown as Prisma.InputJsonValue,
-          },
-        });
-        primeiraId ??= atividade.id;
-        atividades.push({
-          id: atividade.id,
-          tipo: impacto,
-          titulo: atividade.titulo,
-          artefato: nomeArt,
-          responsavelId: pessoa,
-        });
-      }
-
-      // ESTUDO gera UMA ficha da feature, compartilhada pelos SEs: todos os
-      // estudos dessa feature leem e preenchem a mesma (busca pelo sinal).
-      if (impacto === Impacto.ESTUDO) {
-        await tx.psOpsStudyNote.create({
-          data: {
-            signalId: sinal.id,
-            activityId: primeiraId,
-            autorId: null,
-            linksConsultados: [],
-          },
-        });
-      }
+      const pessoas: Array<string | null | undefined> =
+        impacto === Impacto.ESTUDO ? (configurados.length ? configurados : [null]) : [configurados[0]];
+      atividades.push(
+        ...(await criarAtividadesDaFrente(tx, { sinal, initiativeId: initiative.id, impacto, pessoas, modulo })),
+      );
     }
 
     await tx.psOpsSignal.update({
@@ -174,6 +105,96 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
   });
 
   return { ...resultado, artefatosCriados };
+}
+
+type Tx = Prisma.TransactionClient;
+type SinalBase = { id: string; titulo: string; criadoEm: Date; produto: string; tipo: string };
+
+/** A iniciativa da novidade: criada na primeira atividade, reaproveitada nas outras. */
+export async function garantirIniciativa(tx: Tx, sinal: SinalBase) {
+  const existente = await tx.psOpsInitiative.findUnique({ where: { signalId: sinal.id } });
+  if (existente) return existente;
+  return tx.psOpsInitiative.create({
+    data: {
+      signalId: sinal.id,
+      titulo: `Ciclo ${semanaIso(sinal.criadoEm)} · ${sinal.titulo.slice(0, 90)}`,
+      ciclo: semanaIso(sinal.criadoEm),
+    },
+  });
+}
+
+/**
+ * As atividades de UMA frente para as pessoas indicadas (Estudo: uma por SE).
+ * `undefined` numa posição de `pessoas` = usar o dono do artefato sugerido.
+ *
+ *   · Estimativa já aponta para a estimativa do módulo do produto; Demo e
+ *     Escopo apontam para o grupo — quais artefatos foram atualizados quem
+ *     conclui é que diz
+ *   · Estudo: UMA ficha da feature, compartilhada (criada na primeira vez)
+ */
+export async function criarAtividadesDaFrente(
+  tx: Tx,
+  args: {
+    sinal: SinalBase;
+    initiativeId: string;
+    impacto: Impacto;
+    pessoas: Array<string | null | undefined>;
+    modulo: Modulo;
+  },
+): Promise<TriarResultado['atividades']> {
+  const { sinal, impacto } = args;
+  let artifactId: string | null = null;
+  let donoArtefato: string | null = null;
+  let nomeArt: string | null = null;
+  if (impacto === Impacto.ESTIM) {
+    const estimativas = await tx.psOpsArtifact.findMany({
+      where: { chave: { startsWith: 'ESTIM:' } },
+      select: { id: true, chave: true, nome: true, donoId: true },
+    });
+    const art = estimativaSugerida(sinal.produto, estimativas);
+    if (art) {
+      artifactId = art.id;
+      donoArtefato = art.donoId;
+      nomeArt = art.nome;
+    }
+  } else if (impacto !== Impacto.ESTUDO) {
+    nomeArt = NOME_GRUPO[impacto] ?? null;
+  }
+
+  const saida: TriarResultado['atividades'] = [];
+  let primeiraId: string | null = null;
+  for (const p of args.pessoas) {
+    const pessoa = p === undefined ? donoArtefato : p;
+    const atividade = await tx.psOpsActivity.create({
+      data: {
+        initiativeId: args.initiativeId,
+        tipo: impacto,
+        titulo: tituloAtividade(impacto, sinal.titulo),
+        artifactId,
+        responsavelId: pessoa,
+        dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
+        criterioVerificavel: criterioSugerido(
+          impacto,
+          args.modulo,
+          sinal.tipo as never,
+          sinal.titulo,
+        ) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    primeiraId ??= atividade.id;
+    saida.push({ id: atividade.id, tipo: impacto, titulo: atividade.titulo, artefato: nomeArt, responsavelId: pessoa });
+  }
+
+  // ESTUDO: UMA ficha da feature, compartilhada pelos SEs (busca pelo sinal)
+  if (impacto === Impacto.ESTUDO) {
+    const ficha = await tx.psOpsStudyNote.findUnique({ where: { signalId: sinal.id } });
+    if (!ficha) {
+      await tx.psOpsStudyNote.create({
+        data: { signalId: sinal.id, activityId: primeiraId, autorId: null, linksConsultados: [] },
+      });
+    }
+  }
+  return saida;
 }
 
 export async function descartar(
