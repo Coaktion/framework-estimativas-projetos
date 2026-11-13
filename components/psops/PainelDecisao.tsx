@@ -202,7 +202,9 @@ export function PainelDecisao({
                 ) : null}
                 {deAlguem && !bloqueada ? (
                   <span className="w-fit rounded-full bg-psops-acento/15 px-2 py-0.5 text-caption font-bold text-psops-tinta">
-                    {t('psops.triagem.sugeridoPor', { nome: (deAlguem.sugeridoPorNome ?? '').split(' ')[0] || '?' })}
+                    {t('psops.triagem.sugeridoPor', {
+                      nome: (deAlguem.sugeridosPorNomes?.length ? deAlguem.sugeridosPorNomes : [deAlguem.sugeridoPorNome ?? '?']).join(', '),
+                    })}
                   </span>
                 ) : null}
                 <kbd className="absolute right-2.5 top-2.5">{ATALHO_IMPACTO[k]}</kbd>

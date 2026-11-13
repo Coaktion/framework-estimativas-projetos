@@ -14,8 +14,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     // nomes: a tela não conhece o User
     const pessoas = await pessoasPorId(prisma, [
       ...d.previa.flatMap((p) => [p.responsavelId, ...p.responsaveisIds]),
-      ...d.frentes.flatMap((f) => f.donos.flatMap((x) => [x.id, x.sugeridoPor])),
-      ...(d.sugestoesParaMim ?? []).map((x) => x.sugeridoPor),
+      ...d.frentes.flatMap((f) => f.donos.flatMap((x) => [x.id, ...x.sugeridosPor])),
+      ...(d.sugestoesParaMim ?? []).flatMap((x) => x.sugeridosPor),
     ]);
     const nome = (id: string | null | undefined) => (id ? (pessoas[id]?.nome ?? null) : null);
     return ok({
@@ -28,9 +28,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           nome: nome(x.id) ?? x.id,
           iniciais: pessoas[x.id]?.iniciais ?? '?',
           sugeridoPorNome: nome(x.sugeridoPor),
+          sugeridosPorNomes: x.sugeridosPor.map((id) => nome(id) ?? id),
         })),
       })),
-      sugestoesParaMim: (d.sugestoesParaMim ?? []).map((x) => ({ ...x, sugeridoPorNome: nome(x.sugeridoPor) })),
+      sugestoesParaMim: (d.sugestoesParaMim ?? []).map((x) => ({
+        ...x,
+        sugeridoPorNome: nome(x.sugeridoPor),
+        sugeridosPorNomes: x.sugeridosPor.map((id) => nome(id) ?? id),
+      })),
       previa: d.previa.map((p) => ({
         ...p,
         responsavelNome: nome(p.responsavelId),

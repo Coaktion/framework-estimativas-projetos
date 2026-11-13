@@ -89,13 +89,30 @@ export function StatTile({
   );
 }
 
+/**
+ * Cor do score de relevância: até 33 vermelho, até 66 amarelo, acima verde.
+ * forma "texto" para o número solto; "selo" para a pílula com borda.
+ */
+export function faixaDoScore(valor: number): 'baixo' | 'medio' | 'alto' {
+  return valor <= 33 ? 'baixo' : valor <= 66 ? 'medio' : 'alto';
+}
+const COR_SCORE = {
+  baixo: { texto: 'text-red-600 dark:text-red-400', selo: 'border-red-500/60 text-red-600 dark:text-red-400' },
+  medio: { texto: 'text-amber-600 dark:text-amber-400', selo: 'border-amber-500/60 text-amber-600 dark:text-amber-400' },
+  alto: { texto: 'text-emerald-600 dark:text-emerald-400', selo: 'border-emerald-500/60 text-emerald-600 dark:text-emerald-400' },
+} as const;
+export const corDoScore = (valor: number, forma: 'texto' | 'selo' = 'texto') => COR_SCORE[faixaDoScore(valor)][forma];
+
 export function Painel({
   titulo,
+  acoes,
   dica,
   children,
   className = '',
 }: {
   titulo: string;
+  /** controles na linha do título (filtros, ordenação) */
+  acoes?: ReactNode;
   dica?: ReactNode;
   children: ReactNode;
   className?: string;
@@ -108,6 +125,7 @@ export function Painel({
         <h2 className="text-psops-texto text-title font-bold">
           {titulo}
         </h2>
+        {acoes ? <div className="flex flex-wrap items-center gap-3">{acoes}</div> : null}
         {dica ? <div className="ml-auto text-[10.5px] text-psops-muted">{dica}</div> : null}
       </header>
       {children}

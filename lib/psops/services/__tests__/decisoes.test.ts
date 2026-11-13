@@ -82,7 +82,7 @@ test('fila do dono: mostra as pendências dele e a sugestão recebida; some quan
   assert.equal(arthur.itens.length, 1);
   const item = arthur.itens[0] as unknown as { minhasPendentes: string[]; sugestoesParaMim: Array<{ impacto: string; sugeridoPor: string }> };
   assert.deepEqual(item.minhasPendentes.sort(), ['ESTIM', 'ESTUDO']);
-  assert.deepEqual(item.sugestoesParaMim, [{ impacto: 'ESTIM', sugeridoPor: '6' }]);
+  assert.deepEqual(item.sugestoesParaMim, [{ impacto: 'ESTIM', sugeridoPor: '6', sugeridosPor: ['6'] }]);
 
   // "todas": o Renato continua vendo a novidade em aberto
   const todas = await listarSinais(asPrisma(f), { status: ['NOVO'], usuarioId: '6', modo: 'todas' });
@@ -125,4 +125,19 @@ test('sugestão não sobrescreve decisão já tomada pelo dono', async () => {
   const r = await decidir(asPrisma(f), { signalId: id, usuarioId: '6', marcados: ['ESTIM'], responsaveis: RESP });
   assert.deepEqual(r.sugestoes, []);
   assert.equal(f.estado.decisoes.find((d) => d.impacto === 'ESTIM')!.decisao, 'NAO_FAZER');
+});
+
+test('duas pessoas sugerindo a mesma frente: o dono vê as duas, sem repetir', async () => {
+  const { f, id } = cenario();
+  await decidir(asPrisma(f), { signalId: id, usuarioId: '6', marcados: ['DEMO', 'ESCOPO'], responsaveis: RESP });
+  await decidir(asPrisma(f), { signalId: id, usuarioId: '5', marcados: ['ESCOPO'], responsaveis: RESP });
+
+  const dec = f.estado.decisoes.find((d) => d.impacto === 'ESCOPO' && d.donoId === '7')!;
+  assert.deepEqual(dec.sugeridosPor, ['6', '5']);
+  assert.equal(dec.sugeridoPor, '6', 'a primeira continua registrada');
+
+  const elisa = await listarSinais(asPrisma(f), { status: ['NOVO'], usuarioId: '7', modo: 'minhas' });
+  const item = elisa.itens[0] as unknown as { sugestoesParaMim: Array<{ impacto: string; sugeridosPor: string[] }> };
+  assert.deepEqual(item.sugestoesParaMim, [{ impacto: 'ESCOPO', sugeridoPor: '6', sugeridosPor: ['6', '5'] }]);
+  assert.equal(f.estado.notificacoes.filter((n) => n.userId === 7).length, 2, 'cada sugestão avisa');
 });

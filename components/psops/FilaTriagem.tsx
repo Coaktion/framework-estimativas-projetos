@@ -440,6 +440,32 @@ function Conteudo({ gestor }: { gestor: boolean }) {
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(340px,1fr)_minmax(460px,1.15fr)]">
         <Painel
           titulo={t('psops.triagem.sinaisNovos')}
+          acoes={
+            <>
+              <label className="inline-flex items-center gap-1.5 text-caption text-psops-muted">
+                {t('psops.triagem.ver')}
+                <select
+                  value={modo}
+                  onChange={(e) => setModo(e.target.value as 'minhas' | 'todas')}
+                  className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
+                >
+                  <option value="minhas">{t('psops.triagem.modoMinhas')}</option>
+                  <option value="todas">{t('psops.triagem.modoTodas')}</option>
+                </select>
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-caption text-psops-muted">
+                {t('psops.triagem.ordenarPor')}
+                <select
+                  value={ordem}
+                  onChange={(e) => setOrdem(e.target.value as OrdemFila)}
+                  className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
+                >
+                  <option value="relevancia">{t('psops.triagem.ordemRelevancia')}</option>
+                  <option value="data">{t('psops.triagem.ordemData')}</option>
+                </select>
+              </label>
+            </>
+          }
           dica={
             <>
               <kbd>↑</kbd>
@@ -501,28 +527,6 @@ function Conteudo({ gestor }: { gestor: boolean }) {
                     </button>
                   );
                 })}
-                <label className="ml-auto inline-flex items-center gap-1.5 text-caption text-psops-muted">
-                  {t('psops.triagem.ver')}
-                  <select
-                    value={modo}
-                    onChange={(e) => setModo(e.target.value as 'minhas' | 'todas')}
-                    className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
-                  >
-                    <option value="minhas">{t('psops.triagem.modoMinhas')}</option>
-                    <option value="todas">{t('psops.triagem.modoTodas')}</option>
-                  </select>
-                </label>
-                <label className="inline-flex items-center gap-1.5 text-caption text-psops-muted">
-                  {t('psops.triagem.ordenarPor')}
-                  <select
-                    value={ordem}
-                    onChange={(e) => setOrdem(e.target.value as OrdemFila)}
-                    className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
-                  >
-                    <option value="relevancia">{t('psops.triagem.ordemRelevancia')}</option>
-                    <option value="data">{t('psops.triagem.ordemData')}</option>
-                  </select>
-                </label>
               </div>
               <ListaSinais
                 sinais={sinais}

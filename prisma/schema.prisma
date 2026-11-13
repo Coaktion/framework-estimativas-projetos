@@ -528,8 +528,11 @@ model PsOpsDecisao {
   /// FAZER | NAO_FAZER; null = ainda não decidiu (só há sugestão)
   decisao     String?
   decididoEm  DateTime?
+  /// a primeira pessoa que sugeriu (mantido); a lista completa fica em sugeridosPor
   sugeridoPor String?
   sugeridoEm  DateTime?
+  /// todos que sugeriram esta frente para este dono, na ordem
+  sugeridosPor String[] @default([])
   /// a atividade criada quando o dono decidiu FAZER
   activityId  String?
 

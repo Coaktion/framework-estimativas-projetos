@@ -63,7 +63,14 @@ export interface Sinal {
   /** frentes de quem está vendo que ainda esperam a decisão dela */
   minhasPendentes?: Impacto[];
   /** frentes que outra pessoa sugeriu para quem está vendo */
-  sugestoesParaMim?: Array<{ impacto: Impacto; sugeridoPor: string; sugeridoPorNome: string | null }>;
+  sugestoesParaMim?: Array<{
+    impacto: Impacto;
+    sugeridoPor: string;
+    sugeridoPorNome: string | null;
+    /** todos que sugeriram esta frente para quem está vendo */
+    sugeridosPor?: string[];
+    sugeridosPorNomes?: string[];
+  }>;
 }
 
 /** Dono de uma frente e o que ele já decidiu. */
@@ -75,6 +82,8 @@ export interface DonoFrente {
   decisao: string | null;
   sugeridoPor: string | null;
   sugeridoPorNome: string | null;
+  sugeridosPor?: string[];
+  sugeridosPorNomes?: string[];
 }
 
 export interface FrenteDecisao {
@@ -90,6 +99,21 @@ export interface RespostaDecisao {
   sugestoes: Array<{ impacto: Impacto; donoId: string }>;
   naoFazer: Impacto[];
   status: 'NOVO' | 'TRIADO' | 'DESCARTADO';
+}
+
+/**
+ * Quem sugeriu algo para quem está vendo, sem repetir pessoa (em qualquer
+ * frente). A lista mostra o nome quando é uma pessoa e "N pessoas" quando são
+ * mais; o painel de decisão mostra todos os nomes.
+ */
+export function sugeridoresDoSinal(s: Pick<Sinal, 'sugestoesParaMim'>): string[] {
+  const nomes: string[] = [];
+  for (const x of s.sugestoesParaMim ?? []) {
+    for (const n of x.sugeridosPorNomes?.length ? x.sugeridosPorNomes : [x.sugeridoPorNome ?? '?']) {
+      if (!nomes.includes(n)) nomes.push(n);
+    }
+  }
+  return nomes;
 }
 
 /** Frentes marcadas de saída: as minhas pendentes sugeridas (pelo sistema ou por alguém). */

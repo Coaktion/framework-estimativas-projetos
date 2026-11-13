@@ -12,7 +12,7 @@ import { criarFakePrisma, semearArtefato, semearSinal } from './fake-prisma';
 import { categoriaDoProduto } from '../../../estudos/radar';
 import { registrarAtualizacao } from '../artifacts';
 import { concluir } from '../activities';
-import { abaDoSinal, ordenarFila, textoDoSinal, urlDaNota } from '../../client/tipos';
+import { abaDoSinal, ordenarFila, sugeridoresDoSinal, textoDoSinal, urlDaNota } from '../../client/tipos';
 import { notificarRelatoResolvido } from '../../../notificacoes';
 
 process.env.DATABASE_URL ??= 'postgresql://teste';
@@ -61,7 +61,7 @@ test('segundo commit no mesmo documento não duplica a tarefa aberta, só avisa 
   assert.equal(f.estado.notificacoes.length, 2);
 });
 
-test('demo e escopo não geram tarefa de skill', async () => {
+test('modelo de escopo gera tarefa de skill; demo não', async () => {
   const f = criarFakePrisma();
   comRenato(f);
   const demo = semearArtefato(f, { chave: 'DEMO:BR', tipo: 'DEMO_TEMPLATE', nome: 'Ambiente de demo padrão Brasil' });
@@ -70,7 +70,10 @@ test('demo e escopo não geram tarefa de skill', async () => {
   await registrarAtualizacao(asPrisma(f), { artifactId: demo.id as string, autorId: '6', descricao: 'Gatilho novo na demo' });
   await registrarAtualizacao(asPrisma(f), { artifactId: escopo.id as string, autorId: '7', descricao: 'Cláusula nova de horas' });
 
-  assert.equal(f.estado.activities.filter((a) => a.tipo === 'SKILL').length, 0);
+  const tarefas = f.estado.activities.filter((a) => a.tipo === 'SKILL');
+  assert.equal(tarefas.length, 1, 'só o escopo');
+  assert.equal(tarefas[0]!.artifactId, escopo.id);
+  assert.match(String(tarefas[0]!.titulo), /Time & Materials · PT: Cláusula nova/);
 });
 
 test('concluir uma tarefa SKILL não pede artefato nem gera outra tarefa', async () => {
@@ -225,4 +228,16 @@ test('concluir, reabrir e concluir de novo não duplica o registro', async () =>
   f.estado.activities.find((a) => a.id === 'act-estudo')!.status = 'DOING';
   await concluir(asPrisma(f) as never, { activityId: 'act-estudo', usuarioId: '6' });
   assert.equal(f.estado.estudoRegistros.length, 1);
+});
+
+test('lista: um nome quando uma pessoa sugeriu; todos os nomes (sem repetir) para contar', () => {
+  const um = { sugestoesParaMim: [{ impacto: 'DEMO' as const, sugeridoPor: '6', sugeridoPorNome: 'Renato Zanetti', sugeridosPorNomes: ['Renato Zanetti'] }] };
+  assert.deepEqual(sugeridoresDoSinal(um), ['Renato Zanetti']);
+  const varios = {
+    sugestoesParaMim: [
+      { impacto: 'DEMO' as const, sugeridoPor: '6', sugeridoPorNome: 'Renato', sugeridosPorNomes: ['Renato', 'Arthur'] },
+      { impacto: 'ESTUDO' as const, sugeridoPor: '5', sugeridoPorNome: 'Arthur', sugeridosPorNomes: ['Arthur', 'Elisa'] },
+    ],
+  };
+  assert.deepEqual(sugeridoresDoSinal(varios), ['Renato', 'Arthur', 'Elisa']);
 });

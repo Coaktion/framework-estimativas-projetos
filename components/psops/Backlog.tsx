@@ -33,6 +33,7 @@ import {
   CaixaErro,
   CaixaVazia,
   Carregando,
+  corDoScore,
   btnPrimario,
   btnSecundario,
   rotulo,
@@ -726,7 +727,7 @@ function Score({ valor }: { valor: number }) {
     <span
       title={t('psops.backlog.scoreDica')}
       className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-[3px] text-caption font-bold tabular-nums ${
-        valor >= 80 ? 'border-psops-tinta text-psops-tinta' : 'border-psops-linha text-psops-muted'
+        corDoScore(valor, 'selo')
       }`}
     >
       {t('psops.triagem.score')} {valor}

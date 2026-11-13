@@ -18,14 +18,19 @@ export async function GET(req: NextRequest) {
       resumoFila(prisma),
     ]);
     // quem deixou cada sugestão, com nome
-    const itens = lista.itens as Array<Record<string, unknown> & { sugestoesParaMim?: Array<{ impacto: string; sugeridoPor: string }> }>;
-    const pessoas = await pessoasPorId(prisma, itens.flatMap((s) => (s.sugestoesParaMim ?? []).map((x) => x.sugeridoPor)));
+    type Sug = { impacto: string; sugeridoPor: string; sugeridosPor: string[] };
+    const itens = lista.itens as Array<Record<string, unknown> & { sugestoesParaMim?: Sug[] }>;
+    const pessoas = await pessoasPorId(prisma, itens.flatMap((s) => (s.sugestoesParaMim ?? []).flatMap((x) => x.sugeridosPor)));
     return ok({
       ...lista,
       itens: itens.map((s) => ({
         ...s,
         decisoes: undefined,
-        sugestoesParaMim: (s.sugestoesParaMim ?? []).map((x) => ({ ...x, sugeridoPorNome: pessoas[x.sugeridoPor]?.nome ?? null })),
+        sugestoesParaMim: (s.sugestoesParaMim ?? []).map((x) => ({
+          ...x,
+          sugeridoPorNome: pessoas[x.sugeridoPor]?.nome ?? null,
+          sugeridosPorNomes: x.sugeridosPor.map((id) => pessoas[id]?.nome ?? id),
+        })),
       })),
       resumo,
     });

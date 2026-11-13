@@ -29,6 +29,14 @@ export interface LinhaDecisao {
   donoId: string;
   decisao: string | null;
   sugeridoPor: string | null;
+  sugeridosPor?: string[] | null;
+}
+
+/** Todos que sugeriram (linhas antigas só têm `sugeridoPor`). */
+export function quemSugeriu(d: Pick<LinhaDecisao, 'sugeridoPor' | 'sugeridosPor'> | null | undefined): string[] {
+  if (!d) return [];
+  if (d.sugeridosPor?.length) return d.sugeridosPor;
+  return d.sugeridoPor ? [d.sugeridoPor] : [];
 }
 
 /** Frentes de que a pessoa é dona. */
@@ -144,11 +152,15 @@ export async function decidir(
       for (const dono of responsaveis[impacto] ?? []) {
         if (dono === eu) continue;
         const ant = anteriores.find((d) => d.impacto === impacto && d.donoId === dono);
-        if (ant?.decisao || ant?.sugeridoPor) continue; // já decidiu, ou já tem sugestão
+        const ja = quemSugeriu(ant);
+        // já decidiu, ou eu já tinha sugerido: nada a fazer. Outra pessoa
+        // sugerindo a mesma frente entra na lista (o dono vê todos os nomes).
+        if (ant?.decisao || ja.includes(eu)) continue;
+        const lista = [...ja, eu];
         await tx.psOpsDecisao.upsert({
           where: { signalId_impacto_donoId: { signalId: sinal.id, impacto, donoId: dono } },
-          create: { signalId: sinal.id, impacto, donoId: dono, sugeridoPor: eu, sugeridoEm: agora },
-          update: { sugeridoPor: eu, sugeridoEm: agora },
+          create: { signalId: sinal.id, impacto, donoId: dono, sugeridoPor: eu, sugeridoEm: agora, sugeridosPor: lista },
+          update: { sugeridoPor: lista[0], sugeridoEm: agora, sugeridosPor: lista },
         });
         r.sugestoes.push({ impacto, donoId: dono });
       }

@@ -7,7 +7,7 @@ import { IMPACTOS_ORDEM, type Impacto } from '../config/taxonomy';
 import { NaoEncontrado } from '../lib/http';
 import { resolverResponsaveis } from '../config/responsaveis';
 import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
-import { frentesDe, pendentesDe, type LinhaDecisao } from './decisoes';
+import { frentesDe, pendentesDe, quemSugeriu, type LinhaDecisao } from './decisoes';
 
 export interface FiltroSinais {
   status?: Array<'NOVO' | 'TRIADO' | 'DESCARTADO' | 'AUTO_ARQUIVADO' | 'NAO_CLASSIFICADO'>;
@@ -50,7 +50,7 @@ const selecaoLista = {
   motivoRuido: true,
   status: true,
   criadoEm: true,
-  decisoes: { select: { impacto: true, donoId: true, decisao: true, sugeridoPor: true } },
+  decisoes: { select: { impacto: true, donoId: true, decisao: true, sugeridoPor: true, sugeridosPor: true } },
   rawItem: {
     select: {
       htmlUrl: true,
@@ -106,8 +106,8 @@ export async function listarSinais(prisma: PrismaClient, f: FiltroSinais) {
           ...s,
           minhasPendentes: pendentesDe(eu, responsaveis, decisoes),
           sugestoesParaMim: decisoes
-            .filter((d) => d.donoId === eu && !d.decisao && d.sugeridoPor)
-            .map((d) => ({ impacto: d.impacto, sugeridoPor: d.sugeridoPor as string })),
+            .filter((d) => d.donoId === eu && !d.decisao && quemSugeriu(d).length)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: quemSugeriu(d)[0]!, sugeridosPor: quemSugeriu(d) })),
         };
       })
       .filter((s) => f.modo !== 'minhas' || !souDono || s.minhasPendentes.length > 0);
@@ -192,7 +192,7 @@ export async function detalharSinal(prisma: PrismaClient, id: string, usuarioId?
     minha: Boolean(usuarioId && (responsaveis[impacto] ?? []).includes(usuarioId)),
     donos: (responsaveis[impacto] ?? []).map((donoId) => {
       const d = decisoes.find((x) => x.impacto === impacto && x.donoId === donoId);
-      return { id: donoId, decisao: d?.decisao ?? null, sugeridoPor: d?.sugeridoPor ?? null };
+      return { id: donoId, decisao: d?.decisao ?? null, sugeridoPor: d?.sugeridoPor ?? null, sugeridosPor: quemSugeriu(d) };
     }),
   }));
   const base = mapear(s as never) as ReturnType<typeof mapear> & { decisoes?: LinhaDecisao[] };
@@ -202,8 +202,8 @@ export async function detalharSinal(prisma: PrismaClient, id: string, usuarioId?
       ? {
           minhasPendentes: pendentesDe(usuarioId, responsaveis, decisoes),
           sugestoesParaMim: decisoes
-            .filter((d) => d.donoId === usuarioId && !d.decisao && d.sugeridoPor)
-            .map((d) => ({ impacto: d.impacto, sugeridoPor: d.sugeridoPor as string })),
+            .filter((d) => d.donoId === usuarioId && !d.decisao && quemSugeriu(d).length)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: quemSugeriu(d)[0]!, sugeridosPor: quemSugeriu(d) })),
         }
       : {}),
     frentes,
