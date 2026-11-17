@@ -1,3 +1,4 @@
+import { canViewAEEstimate } from "@/lib/ae-access";
 import prisma from "@/lib/prisma";
 import AEClient from "./AEClient";
 import { getActiveAeConfig } from "@/lib/ae-config-server";
@@ -37,9 +38,14 @@ export default async function AEPage({ searchParams }: { searchParams: { client?
   if (searchParams.cloneFrom) {
     const cloneId = parseInt(searchParams.cloneFrom);
     if (!Number.isNaN(cloneId) && cloneId > 0) {
-      const found = await prisma.aEEstimate.findUnique({ where: { id: cloneId } });
-      // Estimativa excluída (só na tela) não serve de base, salvo para admin.
-      const source = found && (!(found as any).deletedAt || Boolean((session?.user as any)?.isAdmin)) ? found : null;
+      const found = await prisma.aEEstimate.findUnique({
+        where: { id: cloneId },
+        include: { creator: { select: { role: true } } },
+      });
+      // Só serve de base uma estimativa que o usuário pode ver (lib/ae-access.ts);
+      // excluída (só na tela), só para admin.
+      const viewer = session?.user as any;
+      const source = found && viewer?.id && canViewAEEstimate(viewer, found as any, found.creator?.role) ? found : null;
       if (source) {
         try {
           initialData = JSON.parse(source.data);

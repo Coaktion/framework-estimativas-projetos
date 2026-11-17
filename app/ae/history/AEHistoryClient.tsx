@@ -69,6 +69,8 @@ export default function AEHistoryClient(
   props: HistoryGroup & {
     groups?: HistoryGroup[];
     isAdmin?: boolean;
+    /** Enxerga estimativas de outras pessoas (admin; SC vê as dos AEs). */
+    seesOthers?: boolean;
     currentUserId?: number;
     scope?: Scope;
   },
@@ -83,7 +85,8 @@ export default function AEHistoryClient(
     (Boolean((session?.user as any)?.isAdmin) ||
     (String((session?.user as any)?.role || '').toUpperCase() === 'ADMIN'));
 
-  const initialScope = props.scope ?? (sessionIsAdmin ? 'all' : 'mine');
+  const seesOthers = props.seesOthers ?? sessionIsAdmin;
+  const initialScope = props.scope ?? (seesOthers ? 'all' : 'mine');
   const [projectScope, setProjectScope] = useState<Scope>(initialScope);
 
   const setScope = useCallback((next: Scope) => {
@@ -93,7 +96,7 @@ export default function AEHistoryClient(
     router.push(`/ae/history?${params.toString()}`);
   }, [router, searchParams]);
 
-  const showOwnerChip = sessionIsAdmin && projectScope === 'all';
+  const showOwnerChip = seesOthers && projectScope === 'all';
   const viewerId = Number((session?.user as any)?.id);
 
   /** Exclui (só na tela) todas as versões visíveis de um cliente. */
@@ -151,7 +154,7 @@ export default function AEHistoryClient(
           <p className="text-slate-500 text-[18px] font-light mt-2">
             {t('aeHistory.subtitle', 'Estimativas da Calculadora AE, agrupadas por cliente.')}
           </p>
-          {sessionIsAdmin && (
+          {seesOthers && (
             <p className="mt-2 inline-flex items-center gap-2 text-label text-slate-500">
               <Filter className="w-3.5 h-3.5" />
               <span>
@@ -166,7 +169,7 @@ export default function AEHistoryClient(
           )}
         </div>
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
-          {sessionIsAdmin && (
+          {seesOthers && (
             <div className={SEGMENTED} role="group" aria-label={t('aeHistory.title')}>
               {(['mine', 'all'] as const).map((scope) => (
                 <button
@@ -352,7 +355,7 @@ function ProjectCard({ group, canSeeOwner }: { group: HistoryGroup; canSeeOwner:
             </h3>
           </Link>
 
-          {/* chip do owner do projeto — EXCLUSIVO para admins */}
+          {/* chip do autor — para quem vê estimativas de outras pessoas (admin, SC) */}
           {showOwnerChip && group.owner && (
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-xl bg-slate-100 text-brand-dark dark:bg-[color:var(--bg-input-solid)] dark:text-[color:var(--text-main)] border border-slate-200 dark:border-[color:var(--border-main)]">
               <Shield className="w-3.5 h-3.5 shrink-0" />

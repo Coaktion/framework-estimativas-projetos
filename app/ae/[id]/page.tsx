@@ -1,3 +1,4 @@
+import { canViewAEEstimate } from "@/lib/ae-access";
 import prisma from "@/lib/prisma";
 import { getActiveAeConfig, getAeConfigById, getAeLibrary } from "@/lib/ae-config-server";
 import { normalizeAEConfig, resolveAEConfig, type AEConfig } from "@/lib/ae-config";
@@ -26,7 +27,7 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   );
 
   const userSession = session.user as any;
-  const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && userSession.role.toUpperCase) === 'ADMIN';
+  const isAdmin = Boolean(userSession.isAdmin) || String(userSession.role || '').toUpperCase() === 'ADMIN';
   const userId = parseInt(session.user.id);
 
   const estimate = await prisma.aEEstimate.findUnique({
@@ -44,7 +45,8 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   });
 
   // Estimativa excluída (só na tela) abre apenas para admin, com aviso.
-  const canView = Boolean(estimate) && (isAdmin || (Number(estimate?.createdBy) === userId && !(estimate as any)?.deletedAt));
+  // Regras em lib/ae-access.ts (admin: todas; SC: próprias + dos AEs; demais: próprias).
+  const canView = Boolean(estimate) && canViewAEEstimate(userSession, estimate as any, (estimate as any)?.creator?.role);
   if (!canView) return (
     <div className="p-12 text-center">
       <p className="text-slate-400 font-bold ">{t('aeView.notFoundOrNoPermission')}</p>
@@ -66,7 +68,8 @@ export default async function AEViewPage({ params }: { params: { id: string } })
   const variables = await prisma.variable.findMany({ where: { isActive: true } });
   const categories = categoriesData.map(c => c.name);
 
-  const filterCreatedBy = isAdmin ? {} : { createdBy: userId };
+  // Versões do mesmo cliente: as do autor desta estimativa (o admin vê todas).
+  const filterCreatedBy = isAdmin ? {} : { createdBy: Number(estimate.createdBy) };
   let allVersions: { id: number; version: number; createdAt: Date; needsSC: boolean; resultHours: number }[] = [];
   try {
     allVersions = (await prisma.aEEstimate.findMany({

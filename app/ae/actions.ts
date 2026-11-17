@@ -230,9 +230,15 @@ export async function createEstimateFromAEAction(estimateId: number, target: AET
     return { ok: false as const, error: getServerT()('errors.notAuthorized') };
   }
   try {
-    const estimate = await prisma.aEEstimate.findUnique({ where: { id: Number(estimateId) } });
+    const estimate = await prisma.aEEstimate.findUnique({
+      where: { id: Number(estimateId) },
+      include: { creator: { select: { role: true } } },
+    });
+    const { canViewAEEstimate } = await import('@/lib/ae-access');
     const isAdmin = Boolean(user.isAdmin);
-    if (!estimate || (estimate as any).deletedAt || (!isAdmin && Number(estimate.createdBy) !== Number(user.id))) {
+    // Quem pode ver a estimativa pode gerar a estimativa de escopo a partir dela
+    // (SC a partir das dos AEs); excluída não serve de base.
+    if (!estimate || (estimate as any).deletedAt || !canViewAEEstimate(user, estimate as any, estimate.creator?.role)) {
       return { ok: false as const, error: getServerT()('aeView.notFoundOrNoPermission') };
     }
 

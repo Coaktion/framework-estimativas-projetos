@@ -93,6 +93,13 @@ const LEGACY_SEGMENT_MAP: Record<string, Segment> = {
 };
 
 /** Converte qualquer valor vindo do banco/sessão num segmento válido. */
+/** Todos os valores de `User.role` (atuais e legados) que caem neste segmento. */
+export function roleValuesOf(segment: Segment): string[] {
+  return Object.entries(LEGACY_SEGMENT_MAP)
+    .filter(([, seg]) => seg === segment)
+    .map(([raw]) => raw);
+}
+
 export function normalizeSegment(value?: string | null): Segment {
   if (!value) return DEFAULT_SEGMENT;
   const upper = String(value).trim().toUpperCase();
