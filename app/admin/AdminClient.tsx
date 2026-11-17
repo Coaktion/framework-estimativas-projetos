@@ -41,6 +41,7 @@ import {
 import { buildTranslationCsv, parseTranslationCsv, type TranslationRow } from '@/lib/translation-csv';
 import { addVariableAction, deleteVariableAction, updateVariableAction } from './variable_actions';
 import AEConfigAdmin from '@/components/AEConfigAdmin';
+import UserAvatar from '@/components/UserAvatar';
 import ZohoAdmin from '@/components/ZohoAdmin';
 import DeletedEstimatesAdmin from '@/components/DeletedEstimatesAdmin';
 import ShortcutsAdmin from '@/components/ShortcutsAdmin';
@@ -1692,9 +1693,13 @@ export default function AdminClient({ packages, categories, skills, variables, v
                     <tr key={user.id} className="hover:bg-slate-50/30 transition-all group">
                       <td className="px-12 py-8">
                         <div className="flex items-center space-x-4">
-                          <div className="w-10 h-10 rounded-2xl brand-bg-primary flex items-center justify-center text-brand-ink font-bold text-body shadow-md group-hover:scale-110 transition-transform ">
-                            {user.name?.[0] || user.email[0]}
-                          </div>
+                          <UserAvatar
+                            name={user.name}
+                            email={user.email}
+                            picture={user.picture}
+                            className="w-10 h-10 rounded-2xl text-body shadow-md group-hover:scale-110 transition-transform"
+                            px={80}
+                          />
                           <div>
                             <div className="text-body font-bold text-brand-dark tracking-tight">{user.name || t('admin.noName')}</div>
                             <div className="flex items-center text-label font-bold text-slate-400 mt-1">

@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, ChevronRight, Search, UserRound } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Search } from 'lucide-react';
+import UserAvatar from '@/components/UserAvatar';
 import { CARD, PageHeader } from '@/components/booking/ui';
 
 export type HostCard = {
   id: number;
   name: string;
   email: string;
+  picture?: string | null;
   segment: string;
   status: 'available' | 'not_connected' | 'paused' | 'no_types';
   typeNames: string[];
@@ -61,9 +63,7 @@ export default function HostPickerClient({ hosts }: { hosts: HostCard[] }) {
             const body = (
               <>
                 <div className="flex items-center gap-3">
-                  <span className="w-11 h-11 rounded-full bg-brand-soft text-brand-soft-fg flex items-center justify-center shrink-0 font-bold">
-                    {h.name ? h.name.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase()).join('') : <UserRound className="w-5 h-5" />}
-                  </span>
+                  <UserAvatar name={h.name} email={h.email} picture={h.picture} className="w-11 h-11 rounded-full" px={88} />
                   <div className="min-w-0">
                     <p className="font-bold text-brand-dark truncate">{h.name}</p>
                     <p className="text-label text-slate-500 truncate">{h.email}</p>

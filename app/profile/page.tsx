@@ -35,6 +35,7 @@ export default async function ProfilePage() {
       name={String(user.name || '')}
       email={String(user.email || '')}
       role={String(user.role || '')}
+      picture={user.image || null}
     >
       {canUseApi && <ApiKeysCard initialKeys={apiKeys} mcpUrl={`${appOrigin()}/api/mcp`} />}
     </ProfileClient>
