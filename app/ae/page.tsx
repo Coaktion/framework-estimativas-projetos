@@ -1,15 +1,19 @@
+import { canViewAEEstimate } from "@/lib/ae-access";
 import prisma from "@/lib/prisma";
 import AEClient from "./AEClient";
 import { getActiveAeConfig } from "@/lib/ae-config-server";
 import { resolveAEConfig } from "@/lib/ae-config";
 import { cookies } from "next/headers";
 import { AE_VIEW_COOKIE } from "@/lib/editor-view";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Depende da URL (?cloneFrom=, ?client=) e da configuração ativa no banco:
 // nunca deve ser pré-renderizada no build.
 export const dynamic = 'force-dynamic';
 
 export default async function AEPage({ searchParams }: { searchParams: { client?: string; cloneFrom?: string } }) {
+  const session = await getServerSession(authOptions);
   const categoriesData = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: { name: 'asc' },
@@ -34,7 +38,14 @@ export default async function AEPage({ searchParams }: { searchParams: { client?
   if (searchParams.cloneFrom) {
     const cloneId = parseInt(searchParams.cloneFrom);
     if (!Number.isNaN(cloneId) && cloneId > 0) {
-      const source = await prisma.aEEstimate.findUnique({ where: { id: cloneId } });
+      const found = await prisma.aEEstimate.findUnique({
+        where: { id: cloneId },
+        include: { creator: { select: { role: true } } },
+      });
+      // Só serve de base uma estimativa que o usuário pode ver (lib/ae-access.ts);
+      // excluída (só na tela), só para admin.
+      const viewer = session?.user as any;
+      const source = found && viewer?.id && canViewAEEstimate(viewer, found as any, found.creator?.role) ? found : null;
       if (source) {
         try {
           initialData = JSON.parse(source.data);

@@ -61,16 +61,11 @@ export async function deleteProjectAction(projectId: number) {
   }
   await assertProjectAccess(projectId, session!.user as any, 'manage');
 
-  await prisma.projectVersion.deleteMany({
-    where: { projectId }
-  });
-  
-  await prisma.spreadsheet.deleteMany({
-    where: { projectId }
-  });
-
-  await prisma.project.delete({
-    where: { id: projectId }
+  // Exclusão SÓ NA TELA: o projeto e as versões continuam no banco e um admin
+  // pode vê-los e restaurá-los em Admin › Estimativas excluídas.
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { deletedAt: new Date(), deletedBy: Number((session!.user as any).id) || null },
   });
 
   revalidatePath("/sc");

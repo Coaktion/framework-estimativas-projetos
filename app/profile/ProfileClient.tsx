@@ -2,29 +2,26 @@
 
 import { Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import UserAvatar from "@/components/UserAvatar";
 import { ssoDomainsLabel } from "@/lib/sso-domains";
 
 type Props = {
   name: string;
   email: string;
   role: string;
+  /** Foto do perfil Google (gravada no login). */
+  picture?: string | null;
   /** Cartões extras abaixo do aviso de login (ex.: chaves de API). */
   children?: React.ReactNode;
 };
 
-export default function ProfileClient({ name, email, role, children }: Props) {
+export default function ProfileClient({ name, email, role, picture, children }: Props) {
   const { t } = useTranslation();
-  const initials = name
-    ? name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : (email?.[0]?.toUpperCase() || 'U');
-
   return (
     <div className="max-w-2xl mx-auto py-10 px-4 flex flex-col gap-8 animate-in fade-in duration-500">
       {/* Cabeçalho do perfil */}
       <div className="flex items-center gap-5">
-        <div className="w-16 h-16 rounded-2xl bg-brand-soft text-brand-soft-fg flex items-center justify-center text-[22px] font-bold shrink-0">
-          {initials}
-        </div>
+        <UserAvatar name={name} email={email} picture={picture} className="w-16 h-16 rounded-2xl text-[22px]" px={128} />
         <div className="min-w-0">
           <span className="text-caption uppercase tracking-[0.22em] text-[color:var(--text-subtle)]">
             {t('profile.titleAccent')}

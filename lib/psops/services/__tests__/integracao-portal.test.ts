@@ -49,13 +49,12 @@ test('pessoasPorId usa o nome e, sem nome, o começo do e-mail', async () => {
   assert.equal(r['9']?.nome, 'mtavares');
 });
 
-test('prévia com os quatro destinos herda o dono de cada artefato', async () => {
+test('prévia com os quatro destinos: estimativa do módulo do produto, Demo e Escopo pelo grupo', async () => {
   const fake = criarFakePrisma();
-  semearArtefato(fake, { chave: 'DEMO_TEMPLATE', tipo: 'DEMO_TEMPLATE', nome: 'Template de demo', donoId: '3' });
-  semearArtefato(fake, { chave: 'FRAMEWORK:VOICE', donoId: '7' });
-  // ESCOPO:VOICE não existe: aparece como artefato novo, sem dono
+  semearArtefato(fake, { chave: 'ESTIM:Canais - Voz', nome: 'Estimativa · Canais - Voz', donoId: '7' });
+  // sem ninguém no cadastro: o responsável vem do dono do artefato
 
-  const previa = await previaImpactos(fake as never, 'VOICE', IMPACTOS_ORDEM);
+  const previa = await previaImpactos(fake as never, 'CONTACT_CENTER', IMPACTOS_ORDEM);
 
   assert.deepEqual(
     previa.map((p) => p.impacto),
@@ -63,10 +62,11 @@ test('prévia com os quatro destinos herda o dono de cada artefato', async () =>
   );
   const por = Object.fromEntries(previa.map((p) => [p.impacto, p]));
   assert.equal(por.ESTUDO!.artefatoChave, null, 'estudo gera ficha, não toca artefato');
-  assert.equal(por.DEMO!.responsavelId, '3');
+  assert.equal(por.ESTIM!.artefatoChave, 'ESTIM:Canais - Voz');
   assert.equal(por.ESTIM!.responsavelId, '7');
-  assert.equal(por.ESCOPO!.artefatoExiste, false);
-  assert.equal(por.ESCOPO!.responsavelId, null);
+  assert.equal(por.DEMO!.artefatoNome, 'Ambientes de demo (Brasil, EUA, SSAC)');
+  assert.equal(por.DEMO!.responsavelId, null);
+  assert.equal(por.ESCOPO!.artefatoNome, 'Documentos de escopo');
 });
 
 test('dono novo no artefato herda as atividades abertas que estavam sem responsável', async () => {

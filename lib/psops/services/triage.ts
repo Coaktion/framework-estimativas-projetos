@@ -3,33 +3,35 @@
  *
  * O triador não escreve tarefa: ele marca ONDE impacta. Este serviço traduz
  * essa decisão em uma Iniciativa e N Atividades, cada uma com Definition of
- * Done do template e responsável herdado do dono do artefato.
+ * Done do template e o responsável do destino (config/responsaveis.ts).
  *
  * Regras que este arquivo garante:
- *   · ESTUDO não toca artefato — cria a ficha da feature (PsOpsStudyNote)
- *   · DEMO / ESTIM / ESCOPO tocam o artefato correspondente, criando-o se
- *     ainda não existir (sem dono, e isso fica visível no mapa)
- *   · o responsável vem do dono do artefato, não de sorteio
+ *   · ESTUDO não toca artefato — gera uma atividade para cada SE e UMA ficha
+ *     da feature (PsOpsStudyNote), compartilhada por eles
+ *   · DEMO / ESCOPO apontam para o grupo de artefatos (3 ambientes, os
+ *     documentos de escopo); quais foram atualizados se escolhe ao concluir.
+ *     ESTIM já aponta para a estimativa do módulo do produto (sugestão)
+ *   · o responsável vem da configuração do time; sem ninguém configurado,
+ *     do dono do artefato — nunca de sorteio nem de quem triou
  *   · triar duas vezes o mesmo sinal é erro de negócio, não duplicação
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import {
-  Impacto,
-  IMPACTOS_ORDEM,
-  MODULO_LABEL,
-  chaveArtefato,
-  type Modulo,
-} from '../config/taxonomy';
+import { Impacto, IMPACTOS_ORDEM, type Modulo } from '../config/taxonomy';
+import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
 import { DOD_TEMPLATES, criterioSugerido, tituloAtividade } from '../config/dod';
+import { resolverResponsaveis, type ResponsaveisResolvidos } from '../config/responsaveis';
 import { semanaIso } from '../ingest/collector';
 import { NaoEncontrado, RegraDeNegocio } from '../lib/http';
+import { notificarAtividadesNovas } from '../../notificacoes';
 
 export interface TriarInput {
   signalId: string;
   impactos: Impacto[];
   usuarioId: string;
   nota?: string | null;
+  /** quem responde por destino; sem isto, vem de config/responsaveis.ts */
+  responsaveis?: ResponsaveisResolvidos;
 }
 
 export interface TriarResultado {
@@ -44,17 +46,6 @@ export interface TriarResultado {
   artefatosCriados: string[];
 }
 
-/** Nome legível do artefato a partir da chave. */
-function nomeArtefato(chave: string, modulo: Modulo): string {
-  if (chave === 'DEMO_TEMPLATE') return 'Template de demo · zd_auto_template';
-  const [tipo] = chave.split(':');
-  return `${tipo === 'FRAMEWORK' ? 'Framework' : 'Bloco escopo'} · ${MODULO_LABEL[modulo]}`;
-}
-
-function tipoArtefatoDaChave(chave: string): 'DEMO_TEMPLATE' | 'FRAMEWORK' | 'ESCOPO' {
-  if (chave === 'DEMO_TEMPLATE') return 'DEMO_TEMPLATE';
-  return chave.startsWith('FRAMEWORK') ? 'FRAMEWORK' : 'ESCOPO';
-}
 
 export async function triar(prisma: PrismaClient, input: TriarInput): Promise<TriarResultado> {
   const sinal = await prisma.psOpsSignal.findUnique({
@@ -73,15 +64,10 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
   const impactos = IMPACTOS_ORDEM.filter((i) => input.impactos.includes(i));
   const modulo = sinal.modulo as Modulo;
   const artefatosCriados: string[] = [];
+  const responsaveis = input.responsaveis ?? (await resolverResponsaveis(prisma));
 
   const resultado = await prisma.$transaction(async (tx) => {
-    const initiative = await tx.psOpsInitiative.create({
-      data: {
-        signalId: sinal.id,
-        titulo: `Ciclo ${semanaIso(sinal.criadoEm)} · ${sinal.titulo.slice(0, 90)}`,
-        ciclo: semanaIso(sinal.criadoEm),
-      },
-    });
+    const initiative = await garantirIniciativa(tx, sinal);
 
     await tx.psOpsTriage.create({
       data: {
@@ -95,68 +81,16 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
     const atividades: TriarResultado['atividades'] = [];
 
     for (const impacto of impactos) {
-      const chave = chaveArtefato(impacto, modulo);
-
-      let artifactId: string | null = null;
-      let responsavelId: string | null = null;
-      let nomeArt: string | null = null;
-
-      if (chave) {
-        let art = await tx.psOpsArtifact.findUnique({ where: { chave } });
-        if (!art) {
-          // Artefato ainda não existe no mapa. Criar sem dono é deliberado: o
-          // card cai no filtro "sem responsável" e alguém precisa assumir.
-          art = await tx.psOpsArtifact.create({
-            data: {
-              chave,
-              tipo: tipoArtefatoDaChave(chave),
-              modulo: chave === 'DEMO_TEMPLATE' ? null : modulo,
-              nome: nomeArtefato(chave, modulo),
-            },
-          });
-          artefatosCriados.push(art.nome);
-        }
-        artifactId = art.id;
-        responsavelId = art.donoId;
-        nomeArt = art.nome;
-      }
-
-      const atividade = await tx.psOpsActivity.create({
-        data: {
-          initiativeId: initiative.id,
-          tipo: impacto,
-          titulo: tituloAtividade(impacto, sinal.titulo),
-          artifactId,
-          responsavelId,
-          dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
-          criterioVerificavel: criterioSugerido(
-            impacto,
-            modulo,
-            sinal.tipo,
-            sinal.titulo,
-          ) as unknown as Prisma.InputJsonValue,
-        },
-      });
-
-      // ESTUDO gera a ficha da feature, já vinculada ao sinal e à atividade.
-      if (impacto === Impacto.ESTUDO) {
-        await tx.psOpsStudyNote.create({
-          data: {
-            signalId: sinal.id,
-            activityId: atividade.id,
-            autorId: null,
-            linksConsultados: [],
-          },
-        });
-      }
-
-      atividades.push({
-        id: atividade.id,
-        tipo: impacto,
-        titulo: atividade.titulo,
-        artefato: nomeArt,
-        responsavelId,
-      });
+      // Quem responde vem da configuração do time (config/responsaveis.ts):
+      // Estudo é de todos os SEs — uma atividade para cada um —, os outros
+      // destinos têm um dono só. Sem ninguém configurado, fica o dono do
+      // artefato (ou ninguém, e o card cai em "Sem responsável").
+      const configurados = responsaveis[impacto] ?? [];
+      const pessoas: Array<string | null | undefined> =
+        impacto === Impacto.ESTUDO ? (configurados.length ? configurados : [null]) : [configurados[0]];
+      atividades.push(
+        ...(await criarAtividadesDaFrente(tx, { sinal, initiativeId: initiative.id, impacto, pessoas, modulo })),
+      );
     }
 
     await tx.psOpsSignal.update({
@@ -164,10 +98,103 @@ export async function triar(prisma: PrismaClient, input: TriarInput): Promise<Tr
       data: { status: 'TRIADO' },
     });
 
+    // o sininho de cada responsável: uma notificação por atividade nova
+    await notificarAtividadesNovas(tx, atividades, sinal.tituloPt || sinal.titulo);
+
     return { initiativeId: initiative.id, atividades };
   });
 
   return { ...resultado, artefatosCriados };
+}
+
+type Tx = Prisma.TransactionClient;
+type SinalBase = { id: string; titulo: string; criadoEm: Date; produto: string; tipo: string };
+
+/** A iniciativa da novidade: criada na primeira atividade, reaproveitada nas outras. */
+export async function garantirIniciativa(tx: Tx, sinal: SinalBase) {
+  const existente = await tx.psOpsInitiative.findUnique({ where: { signalId: sinal.id } });
+  if (existente) return existente;
+  return tx.psOpsInitiative.create({
+    data: {
+      signalId: sinal.id,
+      titulo: `Ciclo ${semanaIso(sinal.criadoEm)} · ${sinal.titulo.slice(0, 90)}`,
+      ciclo: semanaIso(sinal.criadoEm),
+    },
+  });
+}
+
+/**
+ * As atividades de UMA frente para as pessoas indicadas (Estudo: uma por SE).
+ * `undefined` numa posição de `pessoas` = usar o dono do artefato sugerido.
+ *
+ *   · Estimativa já aponta para a estimativa do módulo do produto; Demo e
+ *     Escopo apontam para o grupo — quais artefatos foram atualizados quem
+ *     conclui é que diz
+ *   · Estudo: UMA ficha da feature, compartilhada (criada na primeira vez)
+ */
+export async function criarAtividadesDaFrente(
+  tx: Tx,
+  args: {
+    sinal: SinalBase;
+    initiativeId: string;
+    impacto: Impacto;
+    pessoas: Array<string | null | undefined>;
+    modulo: Modulo;
+  },
+): Promise<TriarResultado['atividades']> {
+  const { sinal, impacto } = args;
+  let artifactId: string | null = null;
+  let donoArtefato: string | null = null;
+  let nomeArt: string | null = null;
+  if (impacto === Impacto.ESTIM) {
+    const estimativas = await tx.psOpsArtifact.findMany({
+      where: { chave: { startsWith: 'ESTIM:' } },
+      select: { id: true, chave: true, nome: true, donoId: true },
+    });
+    const art = estimativaSugerida(sinal.produto, estimativas);
+    if (art) {
+      artifactId = art.id;
+      donoArtefato = art.donoId;
+      nomeArt = art.nome;
+    }
+  } else if (impacto !== Impacto.ESTUDO) {
+    nomeArt = NOME_GRUPO[impacto] ?? null;
+  }
+
+  const saida: TriarResultado['atividades'] = [];
+  let primeiraId: string | null = null;
+  for (const p of args.pessoas) {
+    const pessoa = p === undefined ? donoArtefato : p;
+    const atividade = await tx.psOpsActivity.create({
+      data: {
+        initiativeId: args.initiativeId,
+        tipo: impacto,
+        titulo: tituloAtividade(impacto, sinal.titulo),
+        artifactId,
+        responsavelId: pessoa,
+        dod: DOD_TEMPLATES[impacto]() as unknown as Prisma.InputJsonValue,
+        criterioVerificavel: criterioSugerido(
+          impacto,
+          args.modulo,
+          sinal.tipo as never,
+          sinal.titulo,
+        ) as unknown as Prisma.InputJsonValue,
+      },
+    });
+    primeiraId ??= atividade.id;
+    saida.push({ id: atividade.id, tipo: impacto, titulo: atividade.titulo, artefato: nomeArt, responsavelId: pessoa });
+  }
+
+  // ESTUDO: UMA ficha da feature, compartilhada pelos SEs (busca pelo sinal)
+  if (impacto === Impacto.ESTUDO) {
+    const ficha = await tx.psOpsStudyNote.findUnique({ where: { signalId: sinal.id } });
+    if (!ficha) {
+      await tx.psOpsStudyNote.create({
+        data: { signalId: sinal.id, activityId: primeiraId, autorId: null, linksConsultados: [] },
+      });
+    }
+  }
+  return saida;
 }
 
 export async function descartar(

@@ -4,6 +4,7 @@ import { useSession, signOut } from "next-auth/react";
 import { LogOut, ChevronDown, LogIn, User as UserIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import UserAvatar from "@/components/UserAvatar";
 import { useTranslation } from "react-i18next";
 
 export default function UserMenu() {
@@ -35,10 +36,6 @@ export default function UserMenu() {
     );
   }
 
-  const initials = session.user.name 
-    ? session.user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : session.user.email?.[0].toUpperCase() || 'U';
-
   return (
     <div className="relative" ref={menuRef}>
       <button 
@@ -46,9 +43,13 @@ export default function UserMenu() {
         className="flex items-center gap-2.5 h-10 pl-1 pr-2.5 rounded-full border border-slate-200 bg-white hover:border-slate-400 transition-colors"
         aria-expanded={isOpen}
       >
-        <div className="w-8 h-8 rounded-full bg-brand-soft text-brand-soft-fg flex items-center justify-center text-label font-bold">
-          {initials}
-        </div>
+        <UserAvatar
+          name={session.user.name}
+          email={session.user.email}
+          picture={session.user.image}
+          className="w-8 h-8 rounded-full text-label"
+          px={64}
+        />
         <div className="hidden lg:flex flex-col items-start leading-tight">
           <span className="text-label font-medium text-brand-dark">
             {session.user.name?.split(' ')[0] || t('userMenu.user')}

@@ -31,7 +31,12 @@ async function requisitar<T>(url: string, init?: RequestInit): Promise<T> {
       corpo?.detalhe,
     );
   }
-  return (await res.json()) as T;
+  const corpo = (await res.json()) as T;
+  // triar ou reatribuir pode gerar notificação: o sininho confere na hora
+  if (init?.method && init.method !== 'GET' && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('notificacoes:atualizar'));
+  }
+  return corpo;
 }
 
 export const api = {

@@ -29,9 +29,11 @@ export function canManageProject(p: { ownerId: number }, user: ProjectUser) {
 export async function assertProjectAccess(projectId: number, user: ProjectUser, mode: 'read' | 'manage' = 'read') {
   const id = Number(projectId);
   const project = Number.isInteger(id)
-    ? await prisma.project.findUnique({ where: { id }, select: { id: true, ownerId: true, isPrivate: true } })
+    ? await prisma.project.findUnique({ where: { id }, select: { id: true, ownerId: true, isPrivate: true, deletedAt: true } })
     : null;
-  const ok = !!project && (mode === 'manage' ? canManageProject(project, user) : canReadProject(project, user));
+  // Projeto excluído (só na tela): ninguém além do admin mexe nele.
+  const visible = !!project && (!project.deletedAt || !!user.isAdmin);
+  const ok = visible && (mode === 'manage' ? canManageProject(project!, user) : canReadProject(project!, user));
   if (!ok) throw new Error(getServerT()('errors.notAuthorized'));
   return project!;
 }

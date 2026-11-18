@@ -5,6 +5,13 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getServerT } from "@/app/i18n/server";
+import { recordAdminChange } from "@/lib/admin-audit";
+
+/** Registra a alteração para a aba "Alterações do Admin" do changelog. */
+async function audit(action: string, summary: string, details?: unknown) {
+  const session: any = await getServerSession(authOptions);
+  await recordAdminChange({ userId: Number(session?.user?.id) || null, area: 'variables', action, summary, details });
+}
 
 export async function addVariableAction(formData: FormData) {
   const session = await getServerSession(authOptions);
@@ -25,6 +32,7 @@ export async function addVariableAction(formData: FormData) {
     create: { key, label, labelEn, labelEs, value, category, type, flatValue, isActive: true }
   });
 
+  await audit('create', `Variável ${key} criada (ou reativada): ${value}`);
   revalidatePath("/admin");
 }
 
@@ -34,7 +42,8 @@ export async function updateVariableAction(id: number, data: any) {
 
   const { targetItems, targetCategories, excludedItems, flatValue, ...rest } = data;
 
-  await prisma.variable.update({
+  const before = await prisma.variable.findUnique({ where: { id } });
+  const updatedVariable = await prisma.variable.update({
     where: { id },
     data: {
       ...rest,
@@ -45,6 +54,7 @@ export async function updateVariableAction(id: number, data: any) {
     }
   });
 
+  await audit('update', `Variável ${updatedVariable.key} alterada${before && before.value !== updatedVariable.value ? `: ${before.value} → ${updatedVariable.value}` : ` (${Object.keys(data || {}).join(', ')})`}`, { id });
   revalidatePath("/admin");
 }
 
@@ -52,9 +62,10 @@ export async function deleteVariableAction(id: number) {
   const session = await getServerSession(authOptions);
   if (!session?.user || !session.user.isAdmin) throw new Error(getServerT()('errors.notAuthorized'));
 
-  await prisma.variable.update({
+  const removedVariable = await prisma.variable.update({
     where: { id },
     data: { isActive: false }
   });
+  await audit('delete', `Variável ${removedVariable.key} desativada`);
   revalidatePath("/admin");
 }

@@ -26,6 +26,19 @@ export interface Estado {
   artifacts: Row[];
   studyNotes: Row[];
   artifactSignals: Row[];
+  /** os commits de cada artefato */
+  artifactUpdates: Row[];
+  /** categorias do Framework (os módulos de estimativa são as raiz ativas) */
+  categories: Row[];
+  /** sininho */
+  notificacoes: Row[];
+  /** cadastro de usuários do portal (config/responsaveis.ts resolve e-mail → id) */
+  users: Row[];
+  /** área Estudos: categorias da matriz e Acompanhamento semanal */
+  estudoTopicos: Row[];
+  estudoRegistros: Row[];
+  /** decisão por dono de frente */
+  decisoes: Row[];
 }
 
 /**
@@ -61,12 +74,22 @@ const DEFAULTS: Record<keyof Estado, Row> = {
     publicadoEm: null, autorId: null, activityId: null,
   },
   artifactSignals: { versaoResultante: null },
+  artifactUpdates: { activityId: null, signalId: null },
+  categories: { isActive: true, parentName: null, displayName: null },
+  notificacoes: { corpo: null, link: null, lidaEm: null },
+  users: {},
+  estudoTopicos: { ordem: 0 },
+  decisoes: { decisao: null, decididoEm: null, sugeridoPor: null, sugeridoEm: null, activityId: null },
+  estudoRegistros: { observacoes: null, tipo: null, categoria: null, criadoPor: null, atividadeRadarId: null },
 };
 
 const casa = (row: Row, where: Row): boolean =>
   Object.entries(where).every(([k, v]) => {
     if (v !== null && typeof v === 'object' && 'in' in (v as Row)) {
       return ((v as { in: unknown[] }).in ?? []).includes(row[k]);
+    }
+    if (v !== null && typeof v === 'object' && 'startsWith' in (v as Row)) {
+      return String(row[k] ?? '').startsWith((v as { startsWith: string }).startsWith);
     }
     if (v !== null && typeof v === 'object' && 'not' in (v as Row)) {
       return row[k] !== (v as { not: unknown }).not;
@@ -91,6 +114,13 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     artifacts: [],
     studyNotes: [],
     artifactSignals: [],
+    artifactUpdates: [],
+    categories: [],
+    notificacoes: [],
+    users: [],
+    estudoTopicos: [],
+    estudoRegistros: [],
+    decisoes: [],
     ...inicial,
   };
 
@@ -108,6 +138,10 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     },
     async count({ where }: { where?: Row } = {}) {
       return (where ? st[nome].filter((r) => casaComRelacao(r, achatarWhere(where))) : st[nome]).length;
+    },
+    async createMany({ data }: { data: Row[] }) {
+      for (const d of data) st[nome].push({ id: id(prefixo), ...DEFAULTS[nome], ...d });
+      return { count: data.length };
     },
     async create({ data }: { data: Row }) {
       const row = { id: id(prefixo), ...DEFAULTS[nome], ...data };
@@ -206,6 +240,13 @@ export function criarFakePrisma(inicial?: Partial<Estado>) {
     psOpsArtifact: tabela('artifacts', 'art'),
     psOpsStudyNote: tabela('studyNotes', 'stn'),
     psOpsArtifactSignal: tabela('artifactSignals', 'aps'),
+    psOpsArtifactUpdate: tabela('artifactUpdates', 'upd'),
+    category: tabela('categories', 'cat'),
+    notificacao: tabela('notificacoes', 'ntf'),
+    user: tabela('users', 'usr'),
+    estudoTopico: tabela('estudoTopicos', 'etp'),
+    estudoRegistro: tabela('estudoRegistros', 'erg'),
+    psOpsDecisao: tabela('decisoes', 'dec'),
     async $transaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
       // sem rollback: os testes verificam o caminho felizes e as validações,
       // que acontecem antes da transação

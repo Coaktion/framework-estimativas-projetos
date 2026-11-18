@@ -3,8 +3,11 @@
  */
 
 import type { PrismaClient, Prisma } from '@prisma/client';
-import { chaveArtefato, IMPACTOS_ORDEM, MODULO_LABEL, type Impacto, type Modulo } from '../config/taxonomy';
+import { IMPACTOS_ORDEM, type Impacto } from '../config/taxonomy';
 import { NaoEncontrado } from '../lib/http';
+import { resolverResponsaveis } from '../config/responsaveis';
+import { NOME_GRUPO, estimativaSugerida } from '../config/artefatos';
+import { frentesDe, pendentesDe, quemSugeriu, type LinhaDecisao } from './decisoes';
 
 export interface FiltroSinais {
   status?: Array<'NOVO' | 'TRIADO' | 'DESCARTADO' | 'AUTO_ARQUIVADO' | 'NAO_CLASSIFICADO'>;
@@ -15,6 +18,13 @@ export interface FiltroSinais {
   scoreMin?: number;
   limite?: number;
   cursor?: string;
+  /**
+   * Fila de quem? Com `usuarioId`, cada item diz o que falta a pessoa decidir
+   * e as sugestões que deixaram para ela; `modo: 'minhas'` mostra só o que
+   * ainda espera decisão dela (quem não é dono de frente nenhuma vê tudo).
+   */
+  usuarioId?: string;
+  modo?: 'minhas' | 'todas';
 }
 
 const selecaoLista = {
@@ -24,6 +34,8 @@ const selecaoLista = {
   trechoOriginal: true,
   tituloPt: true,
   trechoPt: true,
+  tituloEs: true,
+  trechoEs: true,
   produto: true,
   modulo: true,
   tipo: true,
@@ -38,8 +50,16 @@ const selecaoLista = {
   motivoRuido: true,
   status: true,
   criadoEm: true,
+  decisoes: { select: { impacto: true, donoId: true, decisao: true, sugeridoPor: true, sugeridosPor: true } },
   rawItem: {
-    select: { htmlUrl: true, titulo: true, criadoEm: true, secaoId: true, source: { select: { nome: true } } },
+    select: {
+      htmlUrl: true,
+      titulo: true,
+      criadoEm: true,
+      atualizadoEm: true,
+      secaoId: true,
+      source: { select: { nome: true, isLiveArticle: true } },
+    },
   },
 } satisfies Prisma.PsOpsSignalSelect;
 
@@ -74,23 +94,54 @@ export async function listarSinais(prisma: PrismaClient, f: FiltroSinais) {
   const temMais = sinais.length > limite;
   const pagina = temMais ? sinais.slice(0, limite) : sinais;
 
+  let itens = pagina.map(mapear);
+  if (f.usuarioId) {
+    const responsaveis = await resolverResponsaveis(prisma);
+    const eu = f.usuarioId;
+    const souDono = frentesDe(eu, responsaveis).length > 0;
+    itens = itens
+      .map((s) => {
+        const decisoes = (s.decisoes ?? []) as LinhaDecisao[];
+        return {
+          ...s,
+          minhasPendentes: pendentesDe(eu, responsaveis, decisoes),
+          sugestoesParaMim: decisoes
+            .filter((d) => d.donoId === eu && !d.decisao && quemSugeriu(d).length)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: quemSugeriu(d)[0]!, sugeridosPor: quemSugeriu(d) })),
+        };
+      })
+      .filter((s) => f.modo !== 'minhas' || !souDono || s.minhasPendentes.length > 0);
+  }
+
   return {
-    itens: pagina.map(mapear),
+    itens,
     proximoCursor: temMais ? (pagina[pagina.length - 1]?.id ?? null) : null,
   };
 }
 
 function mapear(s: {
-  rawItem: { htmlUrl: string; titulo: string; criadoEm: Date; source: { nome: string } };
+  decisoes?: unknown[];
+  rawItem: {
+    htmlUrl: string;
+    titulo: string;
+    criadoEm: Date;
+    atualizadoEm?: Date;
+    source: { nome: string; isLiveArticle?: boolean };
+  };
 } & Record<string, unknown>) {
   const { rawItem, ...resto } = s;
+  const vivo = Boolean(rawItem.source.isLiveArticle);
   return {
     ...resto,
     /** link direto para a nota completa no Help Center do Zendesk */
     fonteUrl: rawItem.htmlUrl,
     fonteTitulo: rawItem.titulo,
     fonteNome: rawItem.source.nome,
-    publicadoEm: rawItem.criadoEm,
+    // Artigo-vivo (lista de EAPs) é o mesmo artigo editado: a novidade foi
+    // publicada na edição em que o bloco apareceu, não quando o artigo nasceu.
+    publicadoEm: vivo ? (rawItem.atualizadoEm ?? rawItem.criadoEm) : rawItem.criadoEm,
+    /** EAP ou beta: vem da lista de EAPs ou foi classificado como EAP/beta */
+    eap: vivo || resto.tipo === 'EAP_BETA',
   };
 }
 
@@ -99,7 +150,7 @@ function mapear(s: {
  * serão tocados e quem é o responsável de cada um. Mostrar a consequência
  * antes de clicar é o que substitui campos como prioridade e segmento.
  */
-export async function detalharSinal(prisma: PrismaClient, id: string) {
+export async function detalharSinal(prisma: PrismaClient, id: string, usuarioId?: string) {
   const s = await prisma.psOpsSignal.findUnique({
     where: { id },
     select: {
@@ -131,13 +182,39 @@ export async function detalharSinal(prisma: PrismaClient, id: string) {
   // Prévia dos QUATRO destinos, não só dos sugeridos: a tela filtra pelo que
   // a pessoa marcou. Se aqui viessem só os sugeridos, marcar um destino fora
   // da sugestão geraria a atividade sem mostrar antes quem responde por ela.
-  return { ...mapear(s as never), previa: await previaImpactos(prisma, s.modulo as Modulo, IMPACTOS_ORDEM) };
+  // Quem é dono de cada frente e o que cada um já decidiu (ou recebeu de
+  // sugestão): a tela mostra "Sua decisão" nas frentes da pessoa e "Sugerir
+  // para …" nas dos outros.
+  const responsaveis = await resolverResponsaveis(prisma);
+  const decisoes = ((s as { decisoes?: LinhaDecisao[] }).decisoes ?? []) as LinhaDecisao[];
+  const frentes = IMPACTOS_ORDEM.map((impacto) => ({
+    impacto,
+    minha: Boolean(usuarioId && (responsaveis[impacto] ?? []).includes(usuarioId)),
+    donos: (responsaveis[impacto] ?? []).map((donoId) => {
+      const d = decisoes.find((x) => x.impacto === impacto && x.donoId === donoId);
+      return { id: donoId, decisao: d?.decisao ?? null, sugeridoPor: d?.sugeridoPor ?? null, sugeridosPor: quemSugeriu(d) };
+    }),
+  }));
+  const base = mapear(s as never) as ReturnType<typeof mapear> & { decisoes?: LinhaDecisao[] };
+  return {
+    ...base,
+    ...(usuarioId
+      ? {
+          minhasPendentes: pendentesDe(usuarioId, responsaveis, decisoes),
+          sugestoesParaMim: decisoes
+            .filter((d) => d.donoId === usuarioId && !d.decisao && quemSugeriu(d).length)
+            .map((d) => ({ impacto: d.impacto, sugeridoPor: quemSugeriu(d)[0]!, sugeridosPor: quemSugeriu(d) })),
+        }
+      : {}),
+    frentes,
+    previa: await previaImpactos(prisma, String(s.produto), IMPACTOS_ORDEM),
+  };
 }
 
 /** Para cada impacto, qual artefato será tocado e quem responde por ele. */
 export async function previaImpactos(
   prisma: PrismaClient,
-  modulo: Modulo,
+  produto: string,
   impactos: Impacto[],
 ) {
   const saida: Array<{
@@ -145,35 +222,43 @@ export async function previaImpactos(
     artefatoChave: string | null;
     artefatoNome: string;
     responsavelId: string | null;
+    /** todos que recebem a atividade — o mesmo critério de triar() */
+    responsaveisIds: string[];
     artefatoExiste: boolean;
   }> = [];
+  const config = await resolverResponsaveis(prisma);
 
   for (const impacto of impactos) {
-    const chave = chaveArtefato(impacto, modulo);
-    if (!chave) {
+    const configurados = config[impacto] ?? [];
+    if (impacto === 'ESTUDO') {
       saida.push({
         impacto,
         artefatoChave: null,
-        artefatoNome: `Ficha da feature (nova)`,
-        responsavelId: null,
+        artefatoNome: 'Ficha da feature (nova)',
+        responsavelId: configurados[0] ?? null,
+        responsaveisIds: configurados,
         artefatoExiste: false,
       });
       continue;
     }
-    const art = await prisma.psOpsArtifact.findUnique({
-      where: { chave },
-      select: { nome: true, donoId: true },
-    });
+    // Mesmo critério de triar(): Estimativa sugere o módulo do produto; Demo e
+    // Escopo apontam para o grupo, e os artefatos se escolhem na conclusão.
+    let art: { chave: string; nome: string; donoId: string | null } | null = null;
+    if (impacto === 'ESTIM') {
+      const estimativas = await prisma.psOpsArtifact.findMany({
+        where: { chave: { startsWith: 'ESTIM:' } },
+        select: { chave: true, nome: true, donoId: true },
+      });
+      art = estimativaSugerida(produto, estimativas);
+    }
+    const dono = configurados[0] ?? art?.donoId ?? null;
     saida.push({
       impacto,
-      artefatoChave: chave,
-      artefatoNome:
-        art?.nome ??
-        (chave === 'DEMO_TEMPLATE'
-          ? 'Template de demo · zd_auto_template'
-          : `${chave.startsWith('FRAMEWORK') ? 'Framework' : 'Bloco escopo'} · ${MODULO_LABEL[modulo]}`),
-      responsavelId: art?.donoId ?? null,
-      artefatoExiste: Boolean(art),
+      artefatoChave: art?.chave ?? null,
+      artefatoNome: art?.nome ?? NOME_GRUPO[impacto] ?? 'Estimativa',
+      responsavelId: dono,
+      responsaveisIds: dono ? [dono] : [],
+      artefatoExiste: true,
     });
   }
   return saida;

@@ -14,7 +14,7 @@ import { Banner, Button, INPUT, Label, NumberField, SELECT, Section, Switch, Tex
 type Suggestion = { api: string; label: string; type: string };
 
 export default function ZohoAdmin({ initialConfig, configured }: { initialConfig: ZohoConfig; configured: boolean }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [saved, setSaved] = useState(initialConfig);
   const [config, setConfig] = useState(initialConfig);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
@@ -52,7 +52,7 @@ export default function ZohoAdmin({ initialConfig, configured }: { initialConfig
     setBusy('test');
     setMessage(null);
     setTestLines(null);
-    const res = await zohoTestAction(testLink, normalizeZohoConfig(config));
+    const res = await zohoTestAction(testLink, normalizeZohoConfig(config), i18n.language);
     setBusy(null);
     if (!res.ok) { setMessage({ tone: 'error', text: errorText((res as { error: string }).error) }); return; }
     setTestLines(res.lines);
@@ -129,6 +129,10 @@ export default function ZohoAdmin({ initialConfig, configured }: { initialConfig
           </div>
         </div>
         {fieldsEditor('Deals', config.deal.fields, (fields) => setConfig({ ...config, deal: { ...config.deal, fields } }))}
+        <div className="mt-4">
+          <Switch checked={config.deal.includeNotes} onChange={(v) => setConfig({ ...config, deal: { ...config.deal, includeNotes: v } })} label={t('zoho.includeNotes')} />
+          <p className="text-caption text-slate-500 mt-1">{t('zoho.includeNotesHint')}</p>
+        </div>
       </Section>
 
       <Section title={t('zoho.contactTitle')} description={t('zoho.contactDesc')}>
@@ -187,6 +191,10 @@ export default function ZohoAdmin({ initialConfig, configured }: { initialConfig
                 )}
               </div>
               {fieldsEditor(config.custom.module, config.custom.fields, (fields) => setConfig({ ...config, custom: { ...config.custom, fields } }))}
+              <div>
+                <Switch checked={config.custom.includeNotes} onChange={(v) => setConfig({ ...config, custom: { ...config.custom, includeNotes: v } })} label={t('zoho.includeNotes')} />
+                <p className="text-caption text-slate-500 mt-1">{t('zoho.includeNotesHint')}</p>
+              </div>
             </>
           )}
         </div>

@@ -230,7 +230,8 @@ test('tradução: estrutura igual → título e trecho em português, bullet a b
 
   const voice = f.estado.signals.find((s) => s.id === 's-voice')!;
   assert.match(String(voice.trechoPt), /^PT: Voice AI agents are now generally available/);
-  assert.match(String(voice.tituloPt), /^AI Agents: PT: Voice AI agents/);
+  // título = nome da feature, sem o componente emendado na frente
+  assert.match(String(voice.tituloPt), /^PT: Voice AI agents are now generally available/);
   assert.ok(f.estado.rawItems[0]!.traducaoPtEm instanceof Date);
 
   // artigo já traduzido não é consultado de novo

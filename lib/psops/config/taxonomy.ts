@@ -73,7 +73,7 @@ export const IMPACTO_LABEL: Record<Impacto, { curto: string; pergunta: string }>
     pergunta: 'Isso muda quanto custa implantar?',
   },
   ESCOPO: {
-    curto: 'Bloco de escopo técnico',
+    curto: 'Modelos comerciais de escopo',
     pergunta: 'Isso muda o que prometemos no escopo?',
   },
 };

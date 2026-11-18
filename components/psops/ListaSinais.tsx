@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
-import { Badge, varianteDoTipo } from './ui';
-import { dataDaNota, textoDoSinal, type Impacto, type Sinal } from '@/lib/psops/client/tipos';
+import { Badge, corDoScore, varianteDoTipo } from './ui';
+import { dataDaNota, sugeridoresDoSinal, textoDoSinal, type Impacto, type Sinal } from '@/lib/psops/client/tipos';
 
 /**
  * A fila. Densa de propósito: o triador precisa varrer 40 itens sem rolar mais
@@ -77,8 +77,8 @@ export function ListaSinais({
 
               <span className="w-10 shrink-0 pt-0.5 text-center">
                 <span
-                  className={`block leading-none text-title font-bold${
-                    s.score >= 80 ? 'text-psops-tinta' : 'text-psops-muted'
+                  className={`block leading-none text-title font-bold ${
+                    corDoScore(s.score)
                   }`}
                 >
                   {s.score}
@@ -96,12 +96,25 @@ export function ListaSinais({
                   <Badge variante="produto">{t(`psops.produto.${s.produto}`)}</Badge>
                   <Badge variante={varianteDoTipo(s.tipo)}>{t(`psops.tipo.${s.tipo}`)}</Badge>
                   {impactos.length ? <Badge variante="discreto">{impactos.join(' · ')}</Badge> : null}
+                  {sugeridoresDoSinal(s).length ? (
+                    <Badge variante="alerta" titulo={sugeridoresDoSinal(s).join(', ')}>
+                      {sugeridoresDoSinal(s).length === 1
+                        ? t('psops.triagem.sugeridoPor', { nome: sugeridoresDoSinal(s)[0] })
+                        : t('psops.triagem.sugeridoPorPessoas', { count: sugeridoresDoSinal(s).length })}
+                    </Badge>
+                  ) : null}
                   {dataDaNota(s.fonteTitulo) ? (
                     <Badge variante="discreto" titulo={s.fonteTitulo}>
                       {t('psops.triagem.notaDeVersao', { data: dataDaNota(s.fonteTitulo) })}
                       {(itensPorArtigo[s.fonteUrl] ?? 0) > 1
                         ? ` · ${t('psops.triagem.itensDaNota', { count: itensPorArtigo[s.fonteUrl] })}`
                         : ''}
+                    </Badge>
+                  ) : s.publicadoEm ? (
+                    <Badge variante="discreto">
+                      {t('psops.triagem.publicadoEm', {
+                        data: new Date(s.publicadoEm).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit' }),
+                      })}
                     </Badge>
                   ) : null}
                 </span>

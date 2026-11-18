@@ -38,7 +38,10 @@ export function aeNumberLabel(path: string, t: TFunc, lang: Lang): string {
       const target = parts[1];
       const targetLabel = t(`aeNumbers.factor_${target}`, { defaultValue: target });
       const planKey: Record<string, string> = { team: 'ae.planTeam', growth: 'ae.planGrowth', professional: 'ae.planProfessional', enterprise: 'ae.planEnterprise' };
-      return `${targetLabel} · ${planKey[key] ? t(planKey[key]) : key}`;
+      // fatores_plano.<alvo>.<CS|ES>.<plano>
+      const sku = group === 'fatores_plano' && parts.length === 4 ? parts[2] : null;
+      const skuLabel = sku === 'ES' ? t('plans.employeeService') : sku === 'CS' ? t('plans.customerService') : null;
+      return [targetLabel, skuLabel, planKey[key] ? t(planKey[key]) : key].filter(Boolean).join(' · ');
     }
     case 'percentuais':
       return t(`aeNumbers.pct_${key}`, { defaultValue: key });

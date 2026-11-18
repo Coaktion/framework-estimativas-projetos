@@ -92,6 +92,8 @@ export const authOptions: NextAuthOptions = {
           // gravado no banco para não rebaixar administradores existentes.
           session.user.isAdmin = dbUser.isAdmin || syncIsAdmin(segment);
           session.user.name = dbUser.name;
+          // Foto do perfil Google (gravada no login); os avatares caem nas iniciais sem ela.
+          session.user.image = dbUser.picture || null;
 
           // Último acesso: quem está usando o portal. A sessão é lida a cada
           // página, então grava no máximo a cada 10 min por pessoa (na Netlify, um write solto pode ser cortado).
@@ -117,16 +119,20 @@ export const authOptions: NextAuthOptions = {
         token.role = normalizeSegment(dbUser.role);
         token.isAdmin = dbUser.isAdmin || syncIsAdmin(normalizeSegment(dbUser.role));
         // Login registrado: data e contagem (aparecem na lista de usuários do Admin).
+        // A foto do perfil Google é atualizada a cada login (se a pessoa trocar
+        // a foto no Google, o Tool Center acompanha no próximo login).
+        const picture = typeof profile?.picture === 'string' && profile.picture.startsWith('https://') ? profile.picture : null;
         await prisma.user
           .update({
             where: { id: dbUser.id },
-            data: { ultimoLoginEm: new Date(), ultimoAcessoEm: new Date(), totalLogins: { increment: 1 } },
+            data: {
+              ultimoLoginEm: new Date(),
+              ultimoAcessoEm: new Date(),
+              totalLogins: { increment: 1 },
+              ...(picture ? { picture } : {}),
+            },
           })
           .catch(() => {});
-        // Foto do Google no perfil, enquanto o usuário não tiver uma.
-        if (!dbUser.picture && profile?.picture) {
-          await prisma.user.update({ where: { id: dbUser.id }, data: { picture: String(profile.picture) } }).catch(() => {});
-        }
         return token;
       }
       return token;

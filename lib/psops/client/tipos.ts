@@ -36,6 +36,9 @@ export interface Sinal {
   /** tradução pt-br publicada pelo Zendesk; null enquanto não sai */
   tituloPt: string | null;
   trechoPt: string | null;
+  /** tradução em espanhol publicada pelo Zendesk */
+  tituloEs?: string | null;
+  trechoEs?: string | null;
   produto: Produto;
   modulo: Modulo;
   tipo: SignalTipo;
@@ -55,6 +58,69 @@ export interface Sinal {
   fonteTitulo: string;
   fonteNome: string;
   publicadoEm: string;
+  /** EAP ou beta (lista de EAPs do Zendesk ou classificado como EAP/beta) */
+  eap: boolean;
+  /** frentes de quem está vendo que ainda esperam a decisão dela */
+  minhasPendentes?: Impacto[];
+  /** frentes que outra pessoa sugeriu para quem está vendo */
+  sugestoesParaMim?: Array<{
+    impacto: Impacto;
+    sugeridoPor: string;
+    sugeridoPorNome: string | null;
+    /** todos que sugeriram esta frente para quem está vendo */
+    sugeridosPor?: string[];
+    sugeridosPorNomes?: string[];
+  }>;
+}
+
+/** Dono de uma frente e o que ele já decidiu. */
+export interface DonoFrente {
+  id: string;
+  nome: string;
+  iniciais: string;
+  /** FAZER | NAO_FAZER | null (ainda não decidiu) */
+  decisao: string | null;
+  sugeridoPor: string | null;
+  sugeridoPorNome: string | null;
+  sugeridosPor?: string[];
+  sugeridosPorNomes?: string[];
+}
+
+export interface FrenteDecisao {
+  impacto: Impacto;
+  /** quem está vendo é dono desta frente */
+  minha: boolean;
+  donos: DonoFrente[];
+}
+
+/** Resposta da decisão (POST .../triage). */
+export interface RespostaDecisao {
+  atividades: AtividadeGerada[];
+  sugestoes: Array<{ impacto: Impacto; donoId: string }>;
+  naoFazer: Impacto[];
+  status: 'NOVO' | 'TRIADO' | 'DESCARTADO';
+}
+
+/**
+ * Quem sugeriu algo para quem está vendo, sem repetir pessoa (em qualquer
+ * frente). A lista mostra o nome quando é uma pessoa e "N pessoas" quando são
+ * mais; o painel de decisão mostra todos os nomes.
+ */
+export function sugeridoresDoSinal(s: Pick<Sinal, 'sugestoesParaMim'>): string[] {
+  const nomes: string[] = [];
+  for (const x of s.sugestoesParaMim ?? []) {
+    for (const n of x.sugeridosPorNomes?.length ? x.sugeridosPorNomes : [x.sugeridoPorNome ?? '?']) {
+      if (!nomes.includes(n)) nomes.push(n);
+    }
+  }
+  return nomes;
+}
+
+/** Frentes marcadas de saída: as minhas pendentes sugeridas (pelo sistema ou por alguém). */
+export function marcadasDeSaida(s: Pick<Sinal, 'impactosSugeridos' | 'minhasPendentes' | 'sugestoesParaMim'>): Impacto[] {
+  const pend = s.minhasPendentes ?? [];
+  const sugeridas = new Set<Impacto>([...s.impactosSugeridos, ...(s.sugestoesParaMim ?? []).map((x) => x.impacto)]);
+  return IMPACTOS_ORDEM.filter((i) => pend.includes(i) && sugeridas.has(i));
 }
 
 export interface PreviaImpacto {
@@ -66,10 +132,13 @@ export interface PreviaImpacto {
   responsavelNome: string | null;
   responsavelIniciais: string | null;
   artefatoExiste: boolean;
+  /** todos que vão receber a atividade (Estudo: os SEs; os outros: um só) */
+  responsaveis?: Array<{ id: string; nome: string; iniciais: string }>;
 }
 
 export interface SinalDetalhe extends Sinal {
   previa: PreviaImpacto[];
+  frentes?: FrenteDecisao[];
 }
 
 export interface ResumoFila {
@@ -142,21 +211,58 @@ export interface ResultadoColeta {
  * Zendesk quando ela existe; senão cai no original e marca como pendente.
  */
 export function textoDoSinal(
-  s: Pick<Sinal, 'titulo' | 'trechoOriginal' | 'tituloPt' | 'trechoPt'>,
+  s: Pick<Sinal, 'titulo' | 'trechoOriginal' | 'tituloPt' | 'trechoPt' | 'tituloEs' | 'trechoEs'>,
   idioma: string,
 ): { titulo: string; trecho: string; traduzido: boolean; pendente: boolean } {
-  const querPt = idioma === 'pt';
-  if (querPt && s.tituloPt) {
+  if (idioma === 'pt' && s.tituloPt) {
     return { titulo: s.tituloPt, trecho: s.trechoPt ?? s.trechoOriginal, traduzido: true, pendente: false };
   }
-  return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: querPt };
+  if (idioma === 'es' && s.tituloEs) {
+    return { titulo: s.tituloEs, trecho: s.trechoEs ?? s.trechoOriginal, traduzido: true, pendente: false };
+  }
+  return { titulo: s.titulo, trecho: s.trechoOriginal, traduzido: false, pendente: idioma === 'pt' || idioma === 'es' };
 }
 
 /**
- * Link da nota no idioma do que está na tela: com a tradução do Zendesk
- * aplicada, abre a versão pt-br do mesmo artigo (/hc/pt-br/articles/:id).
- * O slug em inglês sai — o Help Center redireciona para o slug do idioma.
+ * Abas por módulo do Zendesk, na ordem do nosso negócio (AI Agents e Copilot
+ * primeiro). "Outros" junta o que não é módulo nosso (Marketplace, sem
+ * produto). A aba só aparece quando tem sinal.
  */
+export const ABAS_MODULO: ReadonlyArray<{ id: string; produtos: Produto[] }> = [
+  { id: 'AI_AGENTS', produtos: ['AI_AGENTS'] },
+  { id: 'COPILOT', produtos: ['COPILOT'] },
+  { id: 'SUPPORT', produtos: ['SUPPORT'] },
+  { id: 'MESSAGING', produtos: ['MESSAGING'] },
+  { id: 'KNOWLEDGE', produtos: ['KNOWLEDGE'] },
+  { id: 'CONTACT_CENTER', produtos: ['CONTACT_CENTER'] },
+  { id: 'WFM', produtos: ['WFM'] },
+  { id: 'QA', produtos: ['QA'] },
+  { id: 'ANALYTICS', produtos: ['ANALYTICS'] },
+  { id: 'ADMIN_SEGURANCA', produtos: ['ADMIN_SEGURANCA'] },
+  { id: 'OUTROS', produtos: ['MARKETPLACE', 'OUTRO', 'DEVELOPER_API'] },
+];
+
+export function abaDoProduto(produto: Produto): string {
+  return ABAS_MODULO.find((a) => a.produtos.includes(produto))?.id ?? 'OUTROS';
+}
+
+/** Aba da fila de triagem: EAPs e betas têm a sua; o resto vai pelo módulo. */
+export const ABA_EAP = 'EAP';
+export function abaDoSinal(s: { produto: Produto; eap?: boolean }): string {
+  return s.eap ? ABA_EAP : abaDoProduto(s.produto);
+}
+
+/** Ordem da fila de triagem. */
+export type OrdemFila = 'relevancia' | 'data';
+export function ordenarFila<T extends { score: number; publicadoEm: string; criadoEm: string }>(
+  itens: T[],
+  ordem: OrdemFila,
+): T[] {
+  if (ordem === 'relevancia') return itens;
+  const t = (x: T) => new Date(x.publicadoEm || x.criadoEm).getTime() || 0;
+  return [...itens].sort((a, b) => t(b) - t(a) || b.score - a.score);
+}
+
 /**
  * "Release notes through 2026-10-23" → "23/10". Os sinais de uma mesma nota
  * de versão carregam o mesmo título de artigo; a data é o que os distingue.
@@ -166,9 +272,15 @@ export function dataDaNota(fonteTitulo: string | null | undefined): string | nul
   return m && /release notes|notas de vers/i.test(String(fonteTitulo)) ? `${m[3]}/${m[2]}` : null;
 }
 
-export function urlDaNota(url: string, traduzido: boolean): string {
-  if (!traduzido) return url;
-  return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, '/hc/pt-br/articles/$2');
+/**
+ * Link da nota no idioma do portal (espanhol em es; nos demais, SEMPRE português): a versão pt-br do mesmo artigo
+ * (/hc/pt-br/articles/:id). O slug em inglês sai — o Help Center redireciona
+ * para o slug do idioma; sem tradução publicada, ele mostra o original.
+ */
+export function urlDaNota(url: string, idioma?: string): string {
+  // portal em espanhol: a nota em espanhol; nos demais idiomas, pt-br
+  const locale = idioma === 'es' ? 'es' : 'pt-br';
+  return url.replace(/\/hc\/[a-z]{2}(-[a-z]{2})?\/articles\/(\d+)[^?#]*/i, `/hc/${locale}/articles/$2`);
 }
 
 // ─────────────────────────────── Backlog ────────────────────────────────────
@@ -182,9 +294,12 @@ export interface DodItem {
   evidencia?: string | null;
 }
 
+/** SKILL: atualizar a skill de escopo depois de um commit num documento de estimativa (não vem da triagem). */
+export type TipoAtividade = Impacto | 'SKILL';
+
 export interface Atividade {
   id: string;
-  tipo: Impacto;
+  tipo: TipoAtividade;
   titulo: string;
   status: AtividadeStatus;
   responsavelId: string | null;
@@ -205,8 +320,11 @@ export interface Atividade {
       tituloPt: string | null;
       trechoOriginal: string;
       trechoPt: string | null;
+      tituloEs?: string | null;
+      trechoEs?: string | null;
       tipo: SignalTipo;
       produto: Produto;
+      score: number;
     };
   };
   studyNote: { id: string; publicadoEm: string | null } | null;
@@ -263,10 +381,40 @@ export interface Artefato {
   fonteVerificacao: 'PORTAL' | 'GDRIVE' | 'ZENDESK_ADMIN' | 'NENHUMA';
   pendentes: number;
   aplicacoesTotal: number;
+  /** data do commit mais recente */
+  ultimaAtualizacao: string | null;
+  atualizacoesTotal: number;
+  ultimoCommit: { autorId: string; autorNome: string | null; descricao: string; criadoEm: string } | null;
   saude: { estado: EstadoSaude; detalhe: string; idadeDias: number | null };
 }
 
+/** Um commit no artefato. */
+export interface AtualizacaoArtefato {
+  id: string;
+  criadoEm: string;
+  autorId: string;
+  autorNome: string | null;
+  autorIniciais: string;
+  descricao: string;
+  activityId: string | null;
+  sinal: { id: string; titulo: string; fonteUrl: string } | null;
+}
+
+export interface HistoricoArtefato {
+  artefato: { id: string; nome: string; donoId: string | null; versao: string };
+  donoNome: string | null;
+  atualizacoes: AtualizacaoArtefato[];
+}
+
 export const ARTEFATO_TIPOS_ORDEM: ArtefatoTipo[] = ['DEMO_TEMPLATE', 'FRAMEWORK', 'ESCOPO'];
+
+/** Que tipo de artefato cada destino atualiza (Estudo não atualiza artefato). */
+export const TIPO_ARTEFATO_DO_IMPACTO: Record<Impacto, ArtefatoTipo | null> = {
+  ESTUDO: null,
+  DEMO: 'DEMO_TEMPLATE',
+  ESTIM: 'FRAMEWORK',
+  ESCOPO: 'ESCOPO',
+};
 
 // ───────────────────────────── Linha do tempo ───────────────────────────────
 

@@ -38,10 +38,13 @@ export const querySinais = z.object({
   scoreMin: z.coerce.number().int().min(0).max(100).optional(),
   limite: z.coerce.number().int().min(1).max(200).optional(),
   cursor: z.string().cuid().optional(),
+  // minhas: só o que espera decisão de quem está vendo; todas: tudo em aberto
+  modo: z.enum(['minhas', 'todas']).optional(),
 });
 
 export const bodyTriagem = z.object({
-  impactos: z.array(impacto).min(1, 'Marque ao menos um impacto.'),
+  // vazio vale: o dono dizendo que não vai fazer nenhuma das frentes dele
+  impactos: z.array(impacto),
   nota: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -72,6 +75,8 @@ export const queryAtividades = z.object({
 export const bodyAtividade = z
   .object({
     responsavelId: z.string().min(1).nullable().optional(),
+    /** mover o card: arrastar entre colunas, arquivar (CANCELADA), desarquivar */
+    status: statusAtividade.optional(),
     dod: z
       .object({
         indice: z.number().int().min(0),
@@ -80,8 +85,8 @@ export const bodyAtividade = z
       })
       .optional(),
   })
-  .refine((v) => v.responsavelId !== undefined || v.dod !== undefined, {
-    message: 'Informe responsavelId ou dod.',
+  .refine((v) => v.responsavelId !== undefined || v.dod !== undefined || v.status !== undefined, {
+    message: 'Informe responsavelId, status ou dod.',
   });
 
 // ───────────────────────────────── Artefatos ────────────────────────────────
@@ -94,6 +99,17 @@ export const bodyArtefato = z
     nome: z.string().trim().min(3).max(160).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Nada para atualizar.' });
+
+/** Commit num artefato, pelo Mapa. */
+export const bodyAtualizacaoArtefato = z.object({
+  descricao: z.string().trim().min(5, 'Descreva o que mudou (pelo menos 5 caracteres).').max(2000),
+});
+
+/** Conclusão de atividade: quais artefatos foram atualizados e o que mudou. */
+export const bodyConclusao = z.object({
+  artefatoIds: z.array(z.string().min(1)).max(40).optional(),
+  descricao: z.string().trim().max(2000).nullable().optional(),
+});
 
 // ─────────────────────────────── Ficha de estudo ────────────────────────────
 

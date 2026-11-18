@@ -15,10 +15,11 @@ import assert from 'node:assert/strict';
 
 import { criarFakePrisma } from '../../services/__tests__/fake-prisma';
 import { parseReleaseNote } from '../parser';
-import { tituloDoBruto } from '../artigo';
+import { brutosDoArtigo, tituloDoBruto } from '../artigo';
 import { ClassificadorPorRegras, VERSAO_REGRAS } from '../classify';
 import { avaliarEscopo, avaliarRuido, decidirArquivamento, MOTIVO_ESCOPO } from '../noise';
 import { reconstruirArtigos } from '../collector';
+import { ABAS_MODULO, abaDoProduto, urlDaNota } from '../../client/tipos';
 
 process.env.DATABASE_URL ??= 'postgresql://teste';
 
@@ -69,17 +70,41 @@ test('formato novo: índice e "no updates" ficam fora; grupo não vira sinal, os
   assert.equal(insights.destaque, 'Article and procedure recommendations for email');
 });
 
-test('título: nome em negrito ou primeira frase, com o rótulo/componente na frente', () => {
+test('título é o nome da feature, nunca "contexto: descrição"', () => {
   const s = parseReleaseNote(NOVO_FORMATO);
   const porTexto = (ini: string) => tituloDoBruto(s.find((x) => x.texto.startsWith(ini))!);
 
-  assert.equal(porTexto('Article and procedure'), 'AI Agents Insights: Article and procedure recommendations for email');
-  assert.match(porTexto('Rastro'), /^Rastro for Bling \(Support\) \(paid\): Rastro for Bling matches a ticket requester/);
-  // rótulo igual ao produto (Contact Center) não se repete: já aparece como etiqueta
-  assert.equal(
-    porTexto('Voicemail'),
-    'Voicemail tickets now keep tags added by triggers and business rules when the voicemail tag is applied',
-  );
+  // nome em negrito, sem o componente (AI Agents Insights) na frente
+  assert.equal(porTexto('Article and procedure'), 'Article and procedure recommendations for email');
+  // app/feature que agrupa: o nome dela, sem "(Support)"/"(paid)" e sem a descrição
+  assert.equal(porTexto('Rastro'), 'Rastro for Bling');
+  // sem nome explícito: a primeira frase, sem o produto emendado
+  assert.match(porTexto('Voicemail'), /^Voicemail tickets now keep tags added by triggers/);
+  assert.ok(!s.some((x) => tituloDoBruto(x).includes(': ')), 'nenhum título "Rótulo: descrição"');
+});
+
+test('feature com sub-itens vira UM sinal; grupo que é o produto continua item a item', () => {
+  const html = `
+<h2>Contact Center</h2>
+<ul><li><strong>Custom summaries for tickets and calls (GA)</strong><ul>
+  <li>Admins can create prompts that define what AI summaries include.</li>
+  <li>This feature requires the Copilot add-on.</li>
+</ul></li></ul>`;
+  const s = parseReleaseNote(html);
+  assert.equal(s.length, 1, 'os dois detalhes são da mesma feature');
+  assert.equal(tituloDoBruto(s[0]!), 'Custom summaries for tickets and calls');
+  assert.match(s[0]!.texto, /define what AI summaries include\. This feature requires the Copilot add-on/);
+
+  // o grupo "Contact Center" do recorte principal repete o produto: 2 sinais
+  const cc = parseReleaseNote(NOVO_FORMATO).filter((x) => x.rotulo === 'Contact Center');
+  assert.equal(cc.length, 2);
+});
+
+test('anúncio avulso: o título do artigo vira o nome, sem "Announcing"/"Anúncio de"', () => {
+  const en = brutosDoArtigo({ title: 'Announcing custom summaries for tickets and calls', body: '<p>Zendesk is launching custom summaries for tickets and calls, so admins can decide what AI summaries include.</p>', section_id: null }, 'Announcements');
+  assert.equal(tituloDoBruto(en.brutos[0]!), 'Custom summaries for tickets and calls');
+  const pt = brutosDoArtigo({ title: 'Anúncio da disponibilidade geral de cinco novas fontes de conhecimento', body: '<p>Temos o prazer de anunciar a disponibilidade geral de cinco novas fontes de conhecimento para os agentes de IA.</p>', section_id: null }, 'Announcements', en.modo);
+  assert.equal(tituloDoBruto(pt.brutos[0]!), 'Disponibilidade geral de cinco novas fontes de conhecimento');
 });
 
 test('classificação: item sob <p><strong>Fixed</strong> é correção e vai para o arquivo', async () => {
@@ -187,4 +212,30 @@ test('reconstrução: artigo sem decisão humana é quebrado de novo com o leito
   // idempotente: na segunda passada não há artigo para reconstruir
   const r2 = await reconstruirArtigos(f as never, new ClassificadorPorRegras());
   assert.equal(r2.artigos, 0);
+});
+
+// ─────────────────────────── Tela: links e abas ─────────────────────────────
+
+test('link da nota é sempre em pt-br, mesmo sem tradução aplicada', () => {
+  assert.equal(
+    urlDaNota('https://support.zendesk.com/hc/en-us/articles/11423451105946-Release-notes-through-2026-10-23'),
+    'https://support.zendesk.com/hc/pt-br/articles/11423451105946',
+  );
+  assert.equal(
+    urlDaNota('https://support.zendesk.com/hc/en-us/articles/123-x#contact_center'),
+    'https://support.zendesk.com/hc/pt-br/articles/123#contact_center',
+  );
+});
+
+test('abas por módulo: cada produto cai na sua aba; o resto vai para "Outros"', () => {
+  assert.equal(abaDoProduto('AI_AGENTS'), 'AI_AGENTS');
+  assert.equal(abaDoProduto('COPILOT'), 'COPILOT');
+  assert.equal(abaDoProduto('MARKETPLACE'), 'OUTROS');
+  assert.equal(abaDoProduto('OUTRO'), 'OUTROS');
+  assert.equal(ABAS_MODULO[0]!.id, 'AI_AGENTS', 'AI Agents primeiro, como no nosso negócio');
+});
+
+test('"Nome da feature: descrição" sem negrito também vira o nome', () => {
+  const s = parseReleaseNote('<h2>Knowledge</h2><h3>Editor</h3><ul><li>Excluded terms with ampersand: AI article translations no longer ignore excluded terms that contain an ampersand.</li></ul>');
+  assert.equal(tituloDoBruto(s[0]!), 'Excluded terms with ampersand');
 });

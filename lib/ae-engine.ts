@@ -499,9 +499,12 @@ export function calculateAEEstimate(
 
   // --- Factors -------------------------------------------------------------
   const qtdOperacoes = inputs.operationTypes.length || 1;
-  const fatorPlanoFuncoes = N.fatores_plano.funcoes[plan] ?? 0;
-  const fatorPlanoCamposTicket = N.fatores_plano.campos_ticket[plan] ?? 1;
-  const fatorPlanoSLA = N.fatores_plano.sla[plan] ?? 1;
+  // Fatores de plano por SKU (CS e ES não têm os mesmos recursos por plano).
+  const planFactor = (target: 'funcoes' | 'campos_ticket' | 'sla', fallback: number) =>
+    (N.fatores_plano as any)?.[target]?.[sku]?.[plan] ?? fallback;
+  const fatorPlanoFuncoes = planFactor('funcoes', 0);
+  const fatorPlanoCamposTicket = planFactor('campos_ticket', 1);
+  const fatorPlanoSLA = planFactor('sla', 1);
 
   const somaFatorOperacaoUsuario = inputs.operationTypes.reduce(
     (acc, op) => acc + (N.fatores_operacao.campos_usuario[op] ?? 0),

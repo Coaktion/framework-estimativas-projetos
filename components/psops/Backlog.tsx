@@ -8,16 +8,21 @@
  * filtro por responsável é o caminho principal: cada um abre e vê o seu.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ExternalLink, X } from 'lucide-react';
+import { Archive, ArchiveRestore, ExternalLink, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { api } from '@/lib/psops/client/api';
 import {
+  ABAS_MODULO,
   IMPACTOS_ORDEM,
+  type TipoAtividade,
+  TIPO_ARTEFATO_DO_IMPACTO,
+  abaDoProduto,
   textoDoSinal,
+  urlDaNota,
+  type Artefato,
   type Atividade,
   type AtividadeStatus,
-  type Impacto,
   type Pessoa,
   type RespostaBacklog,
   type RespostaPessoas,
@@ -28,6 +33,7 @@ import {
   CaixaErro,
   CaixaVazia,
   Carregando,
+  corDoScore,
   btnPrimario,
   btnSecundario,
   rotulo,
@@ -35,6 +41,8 @@ import {
 import { ProvedorDeAvisos, useAvisos } from './Toaster';
 import { FichaEstudoForm } from './FichaEstudoForm';
 import { Portal } from './Portal';
+import { ModalRegistroEstudo } from './ModalRegistroEstudo';
+import type { ResultadoRegistroEstudo, SugestaoRegistroEstudo } from '@/lib/estudos/radar';
 
 export function Backlog() {
   return (
@@ -57,8 +65,24 @@ function Conteudo() {
   const [euId, setEuId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [filtroResp, setFiltroResp] = useState<FiltroResp>('todos');
-  const [tipos, setTipos] = useState<Impacto[]>([]);
+  const [tipos, setTipos] = useState<TipoAtividade[]>([]);
+  /** aba de módulo do Zendesk (as mesmas da Triagem); 'TODOS' = sem filtro */
+  const [modulo, setModulo] = useState<string>('TODOS');
   const [abertaId, setAbertaId] = useState<string | null>(null);
+  // estudo concluído que não entrou sozinho nos Estudos: abre a janela
+  const [registroEstudo, setRegistroEstudo] = useState<SugestaoRegistroEstudo | null>(null);
+  const aposConcluirEstudo = useCallback(
+    (estudo: ResultadoRegistroEstudo | null | undefined) => {
+      if (!estudo) return;
+      if (estudo.registrado) avisar(t('psops.estudoRegistro.automatico', { categoria: estudo.categoria }), 'neutro');
+      else if ('sugestao' in estudo) setRegistroEstudo(estudo.sugestao);
+    },
+    [avisar, t],
+  );
+  const [verArquivadas, setVerArquivadas] = useState(false);
+  /** card sendo arrastado e a coluna sob o cursor */
+  const [arrastando, setArrastando] = useState<string | null>(null);
+  const [colunaAlvo, setColunaAlvo] = useState<AtividadeStatus | null>(null);
 
   const carregar = useCallback(async () => {
     setErro(null);
@@ -79,8 +103,43 @@ function Conteudo() {
     void carregar();
   }, [carregar]);
 
+  // Link do sininho (?atividade=<id>): abre a atividade direto e limpa a URL
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('atividade');
+    if (!id) return;
+    setAbertaId(id);
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+
+  // Soltar o card numa coluna muda o status na hora (otimista); se o servidor
+  // recusar, a lista recarrega e o card volta.
+  const moverCard = useCallback(
+    async (id: string, status: AtividadeStatus) => {
+      const atual = dados?.itens.find((x) => x.id === id);
+      if (!atual || atual.status === status) return;
+      setDados((d) => (d ? { ...d, itens: d.itens.map((x) => (x.id === id ? { ...x, status } : x)) } : d));
+      try {
+        const r = await api.patch<{ estudo?: ResultadoRegistroEstudo | null }>(
+          `/api/pre-sales-ops/activities/${id}`,
+          { status },
+        );
+        if (status === 'CANCELADA') avisar(t('psops.backlog.arquivadaOk'));
+        if (status === 'DONE') aposConcluirEstudo(r?.estudo);
+      } catch (e) {
+        avisar((e as Error).message, 'erro');
+      } finally {
+        await carregar();
+      }
+    },
+    [dados, avisar, carregar, t, aposConcluirEstudo],
+  );
+
   const itens = useMemo(
     () => (dados?.itens ?? []).filter((a) => a.status !== 'CANCELADA'),
+    [dados],
+  );
+  const arquivadas = useMemo(
+    () => (dados?.itens ?? []).filter((a) => a.status === 'CANCELADA'),
     [dados],
   );
   const abertas = useMemo(() => itens.filter((a) => a.status !== 'DONE'), [itens]);
@@ -96,19 +155,26 @@ function Conteudo() {
     return { porPessoa, sem, total: abertas.length };
   }, [abertas]);
 
-  const visiveis = useMemo(
-    () =>
-      itens.filter((a) => {
-        if (tipos.length && !tipos.includes(a.tipo)) return false;
-        if (filtroResp === 'todos') return true;
-        if (filtroResp === 'sem') return !a.responsavelId;
-        if (filtroResp === 'meus') return a.responsavelId === euId;
-        return a.responsavelId === filtroResp;
-      }),
-    [itens, tipos, filtroResp, euId],
+  const filtrar = useCallback(
+    (a: Atividade) => {
+      if (tipos.length && !tipos.includes(a.tipo)) return false;
+      if (modulo !== 'TODOS' && abaDoProduto(a.initiative.signal.produto) !== modulo) return false;
+      if (filtroResp === 'todos') return true;
+      if (filtroResp === 'sem') return !a.responsavelId;
+      if (filtroResp === 'meus') return a.responsavelId === euId;
+      return a.responsavelId === filtroResp;
+    },
+    [tipos, filtroResp, euId, modulo],
   );
+  const visiveis = useMemo(() => itens.filter(filtrar), [itens, filtrar]);
 
-  const aberta = itens.find((a) => a.id === abertaId) ?? null;
+  const aberta = (dados?.itens ?? []).find((a) => a.id === abertaId) ?? null;
+  // módulos com atividade aberta, para os chips do filtro
+  const abertasPorModulo = abertas.reduce<Record<string, number>>((m, a) => {
+    const aba = abaDoProduto(a.initiative.signal.produto);
+    m[aba] = (m[aba] ?? 0) + 1;
+    return m;
+  }, {});
 
   if (erro) {
     return (
@@ -180,7 +246,7 @@ function Conteudo() {
         role="group"
         aria-label={t('psops.backlog.filtroTipo')}
       >
-        {IMPACTOS_ORDEM.map((k) => {
+        {[...IMPACTOS_ORDEM, 'SKILL' as const].map((k) => {
           const ativo = tipos.includes(k);
           return (
             <button
@@ -196,17 +262,69 @@ function Conteudo() {
         })}
       </div>
 
-      {itens.length === 0 ? (
+      {/* ── filtro por módulo (as mesmas abas da Triagem) ── */}
+      {Object.keys(abertasPorModulo).length > 1 ? (
+        <div
+          className="-mt-3 mb-6 flex flex-wrap items-center gap-2"
+          role="group"
+          aria-label={t('psops.backlog.filtroModulo')}
+        >
+          <button type="button" className={chip(modulo === 'TODOS')} onClick={() => setModulo('TODOS')}>
+            {t('psops.backlog.todosModulos')} {n(abertas.length)}
+          </button>
+          {ABAS_MODULO.filter((a) => abertasPorModulo[a.id]).map((a) => (
+            <button key={a.id} type="button" className={chip(modulo === a.id)} onClick={() => setModulo(a.id)}>
+              {a.id === 'OUTROS' ? t('psops.triagem.abaOutros') : t(`psops.produto.${a.id}`)} {n(abertasPorModulo[a.id]!)}
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      {itens.length === 0 && arquivadas.length === 0 ? (
         <CaixaVazia titulo={t('psops.backlog.vazioTitulo')} texto={t('psops.backlog.vazioTexto')} />
       ) : (
-        <div className="grid items-start gap-4 lg:grid-cols-3">
-          {COLUNAS.map((col) => {
-            const daColuna = visiveis.filter((a) => a.status === col);
+        <>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-label text-psops-muted">{t('psops.backlog.dicaArrastar')}</p>
+          <button
+            type="button"
+            className={chip(verArquivadas)}
+            aria-pressed={verArquivadas}
+            onClick={() => setVerArquivadas((v) => !v)}
+          >
+            <Archive size={13} aria-hidden /> {t('psops.backlog.verArquivadas')} {n(arquivadas.length)}
+          </button>
+        </div>
+        <div className={`grid items-stretch gap-4 ${verArquivadas ? 'lg:grid-cols-4' : 'lg:grid-cols-3'}`}>
+          {[...COLUNAS, ...(verArquivadas ? (['CANCELADA'] as AtividadeStatus[]) : [])].map((col) => {
+            const daColuna =
+              col === 'CANCELADA'
+                ? arquivadas.filter(filtrar)
+                : visiveis.filter((a) => a.status === col);
             const mostradas = col === 'DONE' ? daColuna.slice(0, MAX_CONCLUIDAS) : daColuna;
+            const alvo = colunaAlvo === col && arrastando !== null;
             return (
               <section
                 key={col}
-                className="rounded-3xl border border-psops-linha bg-psops-surf2 p-3"
+                onDragOver={(e) => {
+                  if (!arrastando) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (colunaAlvo !== col) setColunaAlvo(col);
+                }}
+                onDragLeave={(e) => {
+                  if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setColunaAlvo(null);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = e.dataTransfer.getData('text/plain') || arrastando;
+                  setArrastando(null);
+                  setColunaAlvo(null);
+                  if (id) void moverCard(id, col);
+                }}
+                className={`min-h-[120px] rounded-3xl border p-3 transition ${
+                  alvo ? 'border-psops-acento bg-psops-acento/10' : 'border-psops-linha bg-psops-surf2'
+                }`}
               >
                 <header className="mb-3 flex items-center justify-between px-2 pt-1">
                   <h3 className="text-psops-texto text-title font-bold">
@@ -216,12 +334,25 @@ function Conteudo() {
                 </header>
                 {mostradas.length === 0 ? (
                   <p className="px-2 pb-3 text-[12px] text-psops-muted">
-                    {t('psops.backlog.colunaVazia')}
+                    {col === 'CANCELADA' ? t('psops.backlog.arquivadasVazia') : t('psops.backlog.colunaVazia')}
                   </p>
                 ) : (
                   <ul className="space-y-2.5">
                     {mostradas.map((a) => (
-                      <li key={a.id}>
+                      <li
+                        key={a.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('text/plain', a.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          setArrastando(a.id);
+                        }}
+                        onDragEnd={() => {
+                          setArrastando(null);
+                          setColunaAlvo(null);
+                        }}
+                        className={`cursor-grab active:cursor-grabbing ${arrastando === a.id ? 'opacity-40' : ''}`}
+                      >
                         <CardAtividade a={a} onAbrir={() => setAbertaId(a.id)} />
                       </li>
                     ))}
@@ -236,6 +367,7 @@ function Conteudo() {
             );
           })}
         </div>
+        </>
       )}
 
       {aberta ? (
@@ -244,6 +376,15 @@ function Conteudo() {
           pessoas={pessoas}
           onFechar={() => setAbertaId(null)}
           onMudou={carregar}
+          avisar={avisar}
+          onEstudoConcluido={aposConcluirEstudo}
+        />
+      ) : null}
+      {registroEstudo ? (
+        <ModalRegistroEstudo
+          sugestao={registroEstudo}
+          pessoas={pessoas}
+          onFechar={() => setRegistroEstudo(null)}
           avisar={avisar}
         />
       ) : null}
@@ -255,7 +396,6 @@ function CardAtividade({ a, onAbrir }: { a: Atividade; onAbrir: () => void }) {
   const { t } = useTranslation();
   const { language } = useLanguage();
   const texto = textoDoSinal(a.initiative.signal, language);
-  const pct = a.progresso.total ? Math.round((a.progresso.feitos / a.progresso.total) * 100) : 0;
 
   return (
     <button
@@ -263,26 +403,25 @@ function CardAtividade({ a, onAbrir }: { a: Atividade; onAbrir: () => void }) {
       onClick={onAbrir}
       className="block w-full rounded-2xl border border-psops-linha bg-psops-surf1 p-3.5 text-left transition hover:border-psops-tinta"
     >
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
-        <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
+      <div className="mb-2 flex items-start gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+          <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
+          <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
+        </div>
+        <Score valor={a.initiative.signal.score} />
       </div>
       <div className="mb-1.5 text-[12.5px] font-bold leading-snug text-psops-texto">
         {texto.titulo}
       </div>
       <div className="mb-3 text-label text-psops-muted">
-        {a.artifact?.nome ?? t('psops.backlog.fichaDaFeature')}
+        {a.tipo === 'ESTUDO'
+          ? t('psops.backlog.fichaDaFeature')
+          : (a.artifact?.nome ?? t(`psops.backlog.grupoArtefatos.${a.tipo}`))}
       </div>
       <div className="flex items-center justify-between gap-3">
         <span className="flex min-w-0 items-center gap-1.5 text-label text-psops-muted">
           <Avatar iniciais={a.responsavelIniciais ?? '?'} indefinido={!a.responsavelId} />
           <span className="truncate">{a.responsavelNome ?? t('psops.triagem.semResponsavel')}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-2 text-label font-bold text-psops-muted">
-          <span className="h-1.5 w-14 overflow-hidden rounded-full bg-psops-surf3" aria-hidden>
-            <span className="block h-full bg-psops-acento" style={{ width: `${pct}%` }} />
-          </span>
-          {a.progresso.feitos}/{a.progresso.total}
         </span>
       </div>
     </button>
@@ -295,21 +434,21 @@ function DetalheAtividade({
   onFechar,
   onMudou,
   avisar,
+  onEstudoConcluido,
 }: {
   a: Atividade;
   pessoas: Pessoa[];
   onFechar: () => void;
   onMudou: () => Promise<void>;
   avisar: ReturnType<typeof useAvisos>;
+  onEstudoConcluido: (estudo: ResultadoRegistroEstudo | null | undefined) => void;
 }) {
   const { t } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const texto = textoDoSinal(a.initiative.signal, language);
   const [ocupado, setOcupado] = useState(false);
-  const [evidencias, setEvidencias] = useState<Record<number, string>>({});
-  // marcação otimista: o checkbox responde na hora; se o servidor recusar, volta
-  const [otimista, setOtimista] = useState<Record<number, boolean>>({});
   const concluida = a.status === 'DONE';
+  const arquivada = a.status === 'CANCELADA';
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
@@ -332,35 +471,40 @@ function DetalheAtividade({
     }
   };
 
-  const marcar = (indice: number, feito: boolean) => {
-    const item = a.dod[indice]!;
-    const evidencia = (evidencias[indice] ?? item.evidencia ?? '').trim();
-    if (feito && item.exigeEvidencia && !evidencia) {
-      avisar(t('psops.backlog.evidenciaObrigatoria'), 'erro');
-      return;
-    }
-    setOtimista((m) => ({ ...m, [indice]: feito }));
-    void executar(() =>
-      api.patch(`/api/pre-sales-ops/activities/${a.id}`, {
-        dod: {
-          indice,
-          feito,
-          ...(item.exigeEvidencia ? { evidencia: feito ? evidencia : null } : {}),
-        },
-      }),
-    ).finally(() =>
-      setOtimista((m) => {
-        const { [indice]: _, ...resto } = m;
-        return resto;
-      }),
-    );
-  };
+  const mover = (status: AtividadeStatus, ok: string) =>
+    executar(() => api.patch(`/api/pre-sales-ops/activities/${a.id}`, { status }), ok);
 
-  const podeConcluir =
-    !concluida &&
-    a.progresso.total > 0 &&
-    a.pendencias.faltamCheck === 0 &&
-    a.pendencias.faltamEvidencia === 0;
+  // Demo, Estimativa e Escopo: opcionalmente, quais artefatos foram
+  // atualizados e o que mudou (vira um commit em cada um). O sugerido na
+  // triagem já vem marcado.
+  const tipoArtefato = a.tipo === 'SKILL' ? null : TIPO_ARTEFATO_DO_IMPACTO[a.tipo];
+  const artefatoSugerido = a.artifact?.id ?? null;
+  const [opcoesArt, setOpcoesArt] = useState<Artefato[] | null>(null);
+  const [marcados, setMarcados] = useState<string[]>(a.artifact ? [a.artifact.id] : []);
+  const [descricao, setDescricao] = useState('');
+  useEffect(() => {
+    if (!tipoArtefato || concluida) return;
+    let vivo = true;
+    api
+      .get<{ itens: Artefato[] }>('/api/pre-sales-ops/artifacts')
+      .then((r) => {
+        if (!vivo) return;
+        const doTipo = r.itens.filter((x) => x.tipo === tipoArtefato);
+        setOpcoesArt(doTipo);
+        // Demo atualiza os 3 ambientes padrão quase sempre: já vêm marcados
+        if (a.tipo === 'DEMO' && !artefatoSugerido) setMarcados(doTipo.map((x) => x.id));
+      })
+      .catch(() => vivo && setOpcoesArt([]));
+    return () => {
+      vivo = false;
+    };
+    // pelo id: recarregar a atividade não desfaz as marcações
+  }, [tipoArtefato, concluida, a.tipo, a.id, artefatoSugerido]);
+  // o commit é opcional; mas, começado, precisa estar completo
+  const comCommit = Boolean(tipoArtefato) && descricao.trim().length > 0;
+  const faltaCommit = comCommit && (marcados.length === 0 || descricao.trim().length < 5);
+
+  const podeConcluir = !concluida && !arquivada && !faltaCommit;
 
   return (
     <Portal>
@@ -379,6 +523,7 @@ function DetalheAtividade({
               <Badge variante="ga">{t(`psops.impacto.${a.tipo}.nome`)}</Badge>
               <Badge variante="produto">{t(`psops.produto.${a.initiative.signal.produto}`)}</Badge>
               <Badge>{t(`psops.backlog.coluna.${a.status}`)}</Badge>
+              <Score valor={a.initiative.signal.score} />
             </div>
             <button
               type="button"
@@ -396,22 +541,36 @@ function DetalheAtividade({
           >
             {texto.titulo}
           </h2>
-          <p className="mb-2 text-[12.5px] leading-relaxed text-psops-muted">{texto.trecho}</p>
-          <a
-            href={a.fonteUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mb-5 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"
-          >
-            <ExternalLink size={12} aria-hidden />
-            {t('psops.triagem.lerNota')}
-          </a>
+          {a.tipo === 'SKILL' && a.initiative.id ? (
+            <p className="mb-2 rounded-xl border border-psops-linha bg-psops-surf2 px-3 py-2 text-[12.5px] font-medium text-psops-texto">
+              {a.titulo}
+            </p>
+          ) : null}
+          {a.tipo === 'SKILL' ? (
+            <p className="mb-2 text-[12px] text-psops-muted">{t('psops.backlog.skillDica')}</p>
+          ) : null}
+          {texto.trecho ? <p className="mb-2 text-[12.5px] leading-relaxed text-psops-muted">{texto.trecho}</p> : null}
+          {a.fonteUrl ? (
+            <a
+              href={urlDaNota(a.fonteUrl, language)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-5 inline-flex items-center gap-1.5 text-[11.5px] font-bold text-psops-tinta hover:underline"
+            >
+              <ExternalLink size={12} aria-hidden />
+              {t('psops.triagem.lerNota')}
+            </a>
+          ) : (
+            <div className="mb-5" />
+          )}
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2">
             <div>
               <div className={`${rotulo} mb-1.5`}>{t('psops.backlog.artefato')}</div>
               <div className="text-[12.5px] font-bold text-psops-texto">
-                {a.artifact?.nome ?? t('psops.backlog.fichaDaFeature')}
+                {a.tipo === 'ESTUDO'
+                  ? t('psops.backlog.fichaDaFeature')
+                  : (a.artifact?.nome ?? t(`psops.backlog.grupoArtefatos.${a.tipo}`))}
               </div>
             </div>
             <div>
@@ -441,67 +600,79 @@ function DetalheAtividade({
             </div>
           </div>
 
-          {/* ── Definition of Done ── */}
-          <div className={`${rotulo} mb-2`}>
-            {t('psops.backlog.dod')} · {a.progresso.feitos}/{a.progresso.total}
-          </div>
-          <ul className="mb-6 space-y-2">
-            {a.dod.map((item, i) => (
-              <li
-                key={i}
-                className="rounded-2xl border border-psops-linha bg-psops-surf2 px-3.5 py-2.5"
-              >
-                <label className="flex cursor-pointer items-start gap-2.5 text-[12.5px] text-psops-texto">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--psops-acento))]"
-                    checked={otimista[i] ?? item.d}
-                    disabled={ocupado || concluida}
-                    onChange={(e) => marcar(i, e.target.checked)}
-                  />
-                  <span
-                    className={
-                      item.d ? 'text-psops-muted line-through decoration-psops-muted/50' : ''
-                    }
-                  >
-                    {item.t}
-                  </span>
-                </label>
-                {item.exigeEvidencia ? (
-                  <div className="mt-2 pl-6">
-                    {item.d && item.evidencia ? (
-                      <span className="break-all text-label text-psops-tinta">
-                        {t('psops.backlog.evidencia')}: {item.evidencia}
-                      </span>
-                    ) : (
-                      <input
-                        type="text"
-                        value={evidencias[i] ?? ''}
-                        disabled={ocupado || concluida}
-                        onChange={(e) => setEvidencias((m) => ({ ...m, [i]: e.target.value }))}
-                        placeholder={t('psops.backlog.evidenciaPlaceholder')}
-                        className="w-full rounded-xl border border-dashed border-psops-forte bg-psops-surf1 px-3 py-1.5 text-[11.5px] text-psops-texto outline-none placeholder:text-psops-muted/60 focus:border-psops-tinta"
-                      />
-                    )}
-                  </div>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-
           {a.tipo === 'ESTUDO' && a.studyNote ? (
-            <FichaEstudoForm fichaId={a.studyNote.id} somenteLeitura={concluida} avisar={avisar} />
+            <FichaEstudoForm fichaId={a.studyNote.id} somenteLeitura={arquivada} avisar={avisar} />
+          ) : null}
+
+          {tipoArtefato && !concluida && !arquivada ? (
+            <div className="mb-2 rounded-2xl border border-psops-linha bg-psops-surf2 p-4">
+              <div className={`${rotulo} mb-2`}>{t('psops.backlog.quaisArtefatos')}</div>
+              {!opcoesArt ? (
+                <p className="text-[12px] text-psops-muted">{t('psops.carregando')}</p>
+              ) : (
+                <div className="mb-3 grid gap-1.5 sm:grid-cols-2">
+                  {opcoesArt.map((o) => (
+                    <label key={o.id} className="flex cursor-pointer items-start gap-2 text-[12px] text-psops-texto">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-[rgb(var(--psops-acento))]"
+                        checked={marcados.includes(o.id)}
+                        disabled={ocupado}
+                        onChange={(e) =>
+                          setMarcados((m) => (e.target.checked ? [...m, o.id] : m.filter((x) => x !== o.id)))
+                        }
+                      />
+                      <span>{o.nome}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <label htmlFor="psops-commit" className={`${rotulo} mb-1.5 block`}>
+                {t('psops.backlog.oQueMudou')}
+              </label>
+              <textarea
+                id="psops-commit"
+                rows={3}
+                value={descricao}
+                disabled={ocupado}
+                onChange={(e) => setDescricao(e.target.value)}
+                placeholder={t('psops.backlog.oQueMudouPlaceholder')}
+                className="w-full rounded-xl border border-psops-linha bg-psops-surf1 px-3 py-2 text-[12.5px] text-psops-texto outline-none focus:border-psops-tinta"
+              />
+            </div>
           ) : null}
 
           <div className="mt-6 flex flex-wrap items-center gap-2.5 border-t border-psops-linha pt-5">
-            {concluida ? (
-              <span className="text-[12px] text-psops-muted">
-                {t('psops.backlog.concluidaEm', {
-                  data: a.concluidoEm
-                    ? new Date(a.concluidoEm).toLocaleDateString(dateLocale)
-                    : '—',
-                })}
-              </span>
+            {arquivada ? (
+              <>
+                <span className="text-[12px] text-psops-muted">{t('psops.backlog.arquivadaAviso')}</span>
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  onClick={() => void mover('TODO', t('psops.backlog.desarquivada'))}
+                  className={btnSecundario}
+                >
+                  <ArchiveRestore size={14} aria-hidden /> {t('psops.backlog.desarquivar')}
+                </button>
+              </>
+            ) : concluida ? (
+              <>
+                <span className="text-[12px] text-psops-muted">
+                  {t('psops.backlog.concluidaEm', {
+                    data: a.concluidoEm
+                      ? new Date(a.concluidoEm).toLocaleDateString(dateLocale)
+                      : '—',
+                  })}
+                </span>
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  onClick={() => void mover('DOING', t('psops.backlog.reaberta'))}
+                  className={btnSecundario}
+                >
+                  {t('psops.backlog.reabrir')}
+                </button>
+              </>
             ) : (
               <>
                 <button
@@ -509,7 +680,13 @@ function DetalheAtividade({
                   disabled={!podeConcluir || ocupado}
                   onClick={() =>
                     void executar(
-                      () => api.post(`/api/pre-sales-ops/activities/${a.id}/complete`),
+                      () =>
+                        api
+                          .post<{ estudo?: ResultadoRegistroEstudo | null }>(
+                            `/api/pre-sales-ops/activities/${a.id}/complete`,
+                            comCommit ? { artefatoIds: marcados, descricao: descricao.trim() } : undefined,
+                          )
+                          .then((r) => onEstudoConcluido(r?.estudo)),
                       a.tipo === 'ESTUDO'
                         ? t('psops.backlog.concluidaFicha')
                         : t('psops.backlog.concluida'),
@@ -519,14 +696,18 @@ function DetalheAtividade({
                 >
                   {t('psops.backlog.concluir')}
                 </button>
-                {!podeConcluir ? (
-                  <span className="text-label text-psops-muted">
-                    {t('psops.backlog.faltam', {
-                      itens: a.pendencias.faltamCheck,
-                      evidencias: a.pendencias.faltamEvidencia,
-                    })}
-                  </span>
+                {faltaCommit ? (
+                  <span className="text-label text-psops-muted">{t('psops.backlog.faltaCommit')}</span>
                 ) : null}
+                <button
+                  type="button"
+                  disabled={ocupado}
+                  onClick={() => void mover('CANCELADA', t('psops.backlog.arquivadaOk')).then(onFechar)}
+                  className={btnSecundario}
+                  title={t('psops.backlog.arquivarDica')}
+                >
+                  <Archive size={14} aria-hidden /> {t('psops.backlog.arquivar')}
+                </button>
               </>
             )}
             <button type="button" onClick={onFechar} className={`${btnSecundario} ml-auto`}>
@@ -536,5 +717,20 @@ function DetalheAtividade({
         </div>
       </div>
     </Portal>
+  );
+}
+
+/** Score de relevância da novidade (o mesmo da fila de triagem). */
+function Score({ valor }: { valor: number }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      title={t('psops.backlog.scoreDica')}
+      className={`shrink-0 whitespace-nowrap rounded-full border px-2 py-[3px] text-caption font-bold tabular-nums ${
+        corDoScore(valor, 'selo')
+      }`}
+    >
+      {t('psops.triagem.score')} {valor}
+    </span>
   );
 }

@@ -14,11 +14,17 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '@/components/LanguageProvider';
 import { api, ErroRequisicao } from '@/lib/psops/client/api';
 import {
+  ABAS_MODULO,
+  ABA_EAP,
+  abaDoSinal,
+  ordenarFila,
+  type OrdemFila,
   IMPACTOS_ORDEM,
   type ErroApi,
   type Impacto,
   type RespostaFila,
-  type RespostaTriagem,
+  type RespostaDecisao,
+  marcadasDeSaida,
   type ResultadoColeta,
   type SinalDetalhe,
 } from '@/lib/psops/client/tipos';
@@ -59,26 +65,93 @@ function Conteudo({ gestor }: { gestor: boolean }) {
   const [ocupado, setOcupado] = useState(false);
   const [mostrarDescarte, setMostrarDescarte] = useState(false);
 
-  const sinais = fila?.itens ?? [];
+  // Abas por módulo (EAPs e betas numa aba própria): a fila inteira continua
+  // carregada; a aba só filtra o que se vê, e o teclado anda nela. A ordem é
+  // por relevância (score) ou pela data de publicação da novidade.
+  const [aba, setAba] = useState<string>('TODOS');
+  // Fila de quem? "minhas": o que espera a MINHA decisão; "todas": tudo em aberto
+  const [modo, setModoEstado] = useState<'minhas' | 'todas'>('minhas');
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('psops:fila:modo') === 'todas') setModoEstado('todas');
+    } catch {
+      /* fica "minhas" */
+    }
+  }, []);
+  const setModo = (m: 'minhas' | 'todas') => {
+    setModoEstado(m);
+    try {
+      window.localStorage.setItem('psops:fila:modo', m);
+    } catch {
+      /* ignora */
+    }
+  };
+  // ?sinal=<id> (link do sininho): abre direto nessa novidade
+  const sinalDoLink = useRef<string | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('sinal');
+    if (!id) return;
+    sinalDoLink.current = id;
+    window.history.replaceState(null, '', window.location.pathname);
+  }, []);
+  const [ordem, setOrdemEstado] = useState<OrdemFila>('relevancia');
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem('psops:fila:ordem') === 'data') setOrdemEstado('data');
+    } catch {
+      /* sem armazenamento: fica a relevância */
+    }
+  }, []);
+  const setOrdem = (o: OrdemFila) => {
+    setOrdemEstado(o);
+    try {
+      window.localStorage.setItem('psops:fila:ordem', o);
+    } catch {
+      /* ignora */
+    }
+  };
+  const todosSinais = useMemo(() => ordenarFila(fila?.itens ?? [], ordem), [fila, ordem]);
+  const porAba = useMemo(() => {
+    const m: Record<string, number> = {};
+    todosSinais.forEach((s) => { const a = abaDoSinal(s); m[a] = (m[a] ?? 0) + 1; });
+    return m;
+  }, [todosSinais]);
+  const sinais = useMemo(
+    () => (aba === 'TODOS' ? todosSinais : todosSinais.filter((s) => abaDoSinal(s) === aba)),
+    [todosSinais, aba],
+  );
   const selecionado = useMemo(
     () => sinais.find((s) => s.id === selecionadoId) ?? null,
     [sinais, selecionadoId],
   );
+  // Trocou de aba (ou a aba esvaziou): seleciona o primeiro visível.
+  useEffect(() => {
+    if (aba !== 'TODOS' && !porAba[aba]) setAba('TODOS');
+    else if (!selecionado && sinais[0]) setSelecionadoId(sinais[0].id);
+  }, [aba, porAba, selecionado, sinais]);
 
   // ── carga da fila ─────────────────────────────────────────────────────────
   const carregar = useCallback(async () => {
     setEstado('carregando');
     setErro(null);
     try {
-      const dados = await api.get<RespostaFila>('/api/pre-sales-ops/signals?status=NOVO&limite=200');
+      const dados = await api.get<RespostaFila>(`/api/pre-sales-ops/signals?status=NOVO&limite=200&modo=${modo}`);
       setFila(dados);
       setImpactosPorSinal((atual) => {
         const novo = { ...atual };
-        for (const s of dados.itens) if (!novo[s.id]) novo[s.id] = [...s.impactosSugeridos];
+        // já marcadas: as MINHAS frentes pendentes que o sistema ou alguém sugeriu
+        for (const s of dados.itens) if (!novo[s.id]) novo[s.id] = marcadasDeSaida(s);
         return novo;
       });
+      const doLink = sinalDoLink.current;
+      sinalDoLink.current = null;
+      if (doLink && dados.itens.some((s) => s.id === doLink)) setAba('TODOS');
       setSelecionadoId((atual) =>
-        atual && dados.itens.some((s) => s.id === atual) ? atual : (dados.itens[0]?.id ?? null),
+        doLink && dados.itens.some((s) => s.id === doLink)
+          ? doLink
+          : atual && dados.itens.some((s) => s.id === atual)
+            ? atual
+            : (dados.itens[0]?.id ?? null),
       );
       setEstado('pronto');
     } catch (e) {
@@ -94,7 +167,7 @@ function Conteudo({ gestor }: { gestor: boolean }) {
       );
       setEstado('erro');
     }
-  }, [t]);
+  }, [t, modo]);
 
   useEffect(() => {
     void carregar();
@@ -154,25 +227,38 @@ function Conteudo({ gestor }: { gestor: boolean }) {
   const gerar = useCallback(async () => {
     if (!selecionado || ocupado) return;
     const impactos = impactosPorSinal[selecionado.id] ?? [];
-    if (impactos.length === 0) return;
+    // sem nada marcado só vale para quem tem frente própria pendente ("não vou fazer")
+    if (impactos.length === 0 && !(selecionado.minhasPendentes ?? []).length) return;
 
     setOcupado(true);
     try {
-      const r = await api.post<RespostaTriagem>(`/api/pre-sales-ops/signals/${selecionado.id}/triage`, {
+      const r = await api.post<RespostaDecisao>(`/api/pre-sales-ops/signals/${selecionado.id}/triage`, {
         impactos,
       });
-      removerDaFila(selecionado.id);
-
-      avisar(t('psops.avisos.geradas', { count: r.atividades.length }));
-      for (const nome of r.artefatosCriados) {
-        avisar(t('psops.avisos.artefatoNovo', { nome }), 'neutro');
+      if (modo === 'minhas' || r.status !== 'NOVO') {
+        removerDaFila(selecionado.id);
+      } else {
+        // em "todas", a novidade continua: só não espera mais a minha decisão
+        setFila((f) =>
+          f ? { ...f, itens: f.itens.map((s) => (s.id === selecionado.id ? { ...s, minhasPendentes: [], sugestoesParaMim: [] } : s)) } : f,
+        );
+        // o detalhe (donos e decisões) é buscado de novo
+        setDetalhes((d) => {
+          const resto = { ...d };
+          delete resto[selecionado.id];
+          return resto;
+        });
       }
+
+      if (r.atividades.length) avisar(t('psops.avisos.paraVoce', { count: r.atividades.length }));
+      if (r.sugestoes.length) avisar(t('psops.avisos.sugestoesEnviadas', { count: r.sugestoes.length }), 'neutro');
+      if (!r.atividades.length && !r.sugestoes.length) avisar(t('psops.avisos.nadaParaVoce'), 'neutro');
     } catch (e) {
       avisar((e as Error).message, 'erro');
     } finally {
       setOcupado(false);
     }
-  }, [selecionado, impactosPorSinal, ocupado, avisar, removerDaFila, t]);
+  }, [selecionado, impactosPorSinal, ocupado, avisar, removerDaFila, t, modo]);
 
   const descartar = useCallback(
     async (motivo: string) => {
@@ -264,14 +350,14 @@ function Conteudo({ gestor }: { gestor: boolean }) {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         void gerar();
-      } else if (e.key.toLowerCase() === 'x') {
+      } else if (e.key.toLowerCase() === 'x' && gestor) {
         e.preventDefault();
         setMostrarDescarte(true);
       }
     };
     window.addEventListener('keydown', aoTeclar);
     return () => window.removeEventListener('keydown', aoTeclar);
-  }, [sinais, selecionadoId, alternarImpacto, gerar, mostrarDescarte, ocupado]);
+  }, [sinais, selecionadoId, alternarImpacto, gerar, mostrarDescarte, ocupado, gestor]);
 
   // ── render ────────────────────────────────────────────────────────────────
   if (estado === 'erro') {
@@ -354,6 +440,32 @@ function Conteudo({ gestor }: { gestor: boolean }) {
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(340px,1fr)_minmax(460px,1.15fr)]">
         <Painel
           titulo={t('psops.triagem.sinaisNovos')}
+          acoes={
+            <>
+              <label className="inline-flex items-center gap-1.5 text-caption text-psops-muted">
+                {t('psops.triagem.ver')}
+                <select
+                  value={modo}
+                  onChange={(e) => setModo(e.target.value as 'minhas' | 'todas')}
+                  className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
+                >
+                  <option value="minhas">{t('psops.triagem.modoMinhas')}</option>
+                  <option value="todas">{t('psops.triagem.modoTodas')}</option>
+                </select>
+              </label>
+              <label className="inline-flex items-center gap-1.5 text-caption text-psops-muted">
+                {t('psops.triagem.ordenarPor')}
+                <select
+                  value={ordem}
+                  onChange={(e) => setOrdem(e.target.value as OrdemFila)}
+                  className="rounded-lg border border-psops-linha bg-psops-surf1 px-2 py-1 text-caption text-psops-texto"
+                >
+                  <option value="relevancia">{t('psops.triagem.ordemRelevancia')}</option>
+                  <option value="data">{t('psops.triagem.ordemData')}</option>
+                </select>
+              </label>
+            </>
+          }
           dica={
             <>
               <kbd>↑</kbd>
@@ -370,14 +482,59 @@ function Conteudo({ gestor }: { gestor: boolean }) {
               acao={botaoColetar}
             />
           ) : sinais.length === 0 ? (
-            <CaixaVazia titulo={t('psops.triagem.filaZerada')} texto={t('psops.triagem.filaZeradaTexto')} />
-          ) : (
-            <ListaSinais
-              sinais={sinais}
-              selecionadoId={selecionadoId}
-              impactosPorSinal={impactosPorSinal}
-              onSelecionar={setSelecionadoId}
+            <CaixaVazia
+              titulo={t(modo === 'minhas' ? 'psops.triagem.filaZeradaMinhas' : 'psops.triagem.filaZerada')}
+              texto={t(modo === 'minhas' ? 'psops.triagem.filaZeradaMinhasTexto' : 'psops.triagem.filaZeradaTexto')}
+              acao={
+                modo === 'minhas' ? (
+                  <button type="button" onClick={() => setModo('todas')} className={btnPrimario}>
+                    {t('psops.triagem.verTodas')}
+                  </button>
+                ) : undefined
+              }
             />
+          ) : (
+            <>
+              <div
+                role="tablist"
+                aria-label={t('psops.triagem.abasModulo')}
+                className="flex flex-wrap items-center gap-1.5 border-b border-psops-linha px-5 py-3"
+              >
+                {[{ id: 'TODOS' }, { id: ABA_EAP }, ...ABAS_MODULO].filter((a) => a.id === 'TODOS' || porAba[a.id]).map((a) => {
+                  const ativo = aba === a.id;
+                  const total = a.id === 'TODOS' ? todosSinais.length : porAba[a.id];
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={ativo}
+                      onClick={() => setAba(a.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1.5 text-caption font-medium transition ${
+                        ativo
+                          ? 'border-psops-acento bg-psops-acento/10 text-psops-tinta'
+                          : 'border-psops-linha bg-psops-surf1 text-psops-muted hover:text-psops-texto'
+                      }`}
+                    >
+                      {a.id === 'TODOS'
+                        ? t('psops.triagem.abaTodos')
+                        : a.id === ABA_EAP
+                          ? t('psops.triagem.abaEap')
+                          : a.id === 'OUTROS'
+                          ? t('psops.triagem.abaOutros')
+                          : t(`psops.produto.${a.id}`)}
+                      <span className="opacity-70">{total}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <ListaSinais
+                sinais={sinais}
+                selecionadoId={selecionadoId}
+                impactosPorSinal={impactosPorSinal}
+                onSelecionar={setSelecionadoId}
+              />
+            </>
           )}
         </Painel>
 
@@ -403,7 +560,7 @@ function Conteudo({ gestor }: { gestor: boolean }) {
               impactos={impactosPorSinal[selecionado.id] ?? []}
               onAlternarImpacto={alternarImpacto}
               onGerar={() => void gerar()}
-              onDescartar={() => setMostrarDescarte(true)}
+              onDescartar={gestor ? () => setMostrarDescarte(true) : null}
               ocupado={ocupado}
             />
           ) : (

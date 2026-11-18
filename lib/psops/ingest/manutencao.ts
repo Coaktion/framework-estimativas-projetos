@@ -162,6 +162,17 @@ export interface ResultadoTraducao {
 }
 
 export const TRADUCAO_LOCALE = 'pt-br';
+
+/**
+ * Idiomas em que o Zendesk publica as notas e que o portal usa: pt-br e
+ * espanhol. Cada um tem seus campos no sinal e a sua marca de "já aplicado"
+ * no artigo — um pode já ter saído e o outro ainda não.
+ */
+export const IDIOMAS_TRADUCAO = {
+  pt: { locale: 'pt-br', marca: 'traducaoPtEm', titulo: 'tituloPt', trecho: 'trechoPt' },
+  es: { locale: 'es', marca: 'traducaoEsEm', titulo: 'tituloEs', trecho: 'trechoEs' },
+} as const;
+export type IdiomaTraducao = keyof typeof IDIOMAS_TRADUCAO;
 /** Por quantos dias um artigo continua sendo conferido à espera da tradução. */
 export const TRADUCAO_JANELA_DIAS = 30;
 /**
@@ -218,14 +229,15 @@ export function ancorasTraduziveis(en: SinalBruto[], pt: SinalBruto[]): Set<stri
 export async function traduzirPendentes(
   prisma: PrismaClient,
   hc: ClienteHc,
-  opts: { agora: () => Date; ate?: number },
+  opts: { agora: () => Date; ate?: number; idioma?: IdiomaTraducao },
 ): Promise<ResultadoTraducao> {
   const r: ResultadoTraducao = { conferidos: 0, artigosTraduzidos: 0, sinaisTraduzidos: 0, estruturaDiferente: 0, parciais: 0 };
   if (!hc.pegarTraducao) return r;
+  const cfg = IDIOMAS_TRADUCAO[opts.idioma ?? 'pt'];
 
   const desde = new Date(opts.agora().getTime() - TRADUCAO_JANELA_DIAS * 86_400_000);
   const candidatos = ((await prisma.psOpsRawItem.findMany({
-    where: { traducaoPtEm: null, criadoEm: { gte: desde } },
+    where: { [cfg.marca]: null, criadoEm: { gte: desde } },
   })) as unknown as RawLinha[]).sort((a, b) => +b.criadoEm - +a.criadoEm); // mais novos primeiro
 
   const fontes = await fontesPorId(prisma, Array.from(new Set(candidatos.map((c) => c.sourceId))));
@@ -247,7 +259,7 @@ export async function traduzirPendentes(
     const resultados = await Promise.all(
       lote.map(async (raw) => {
         try {
-          return { raw, traducao: await hc.pegarTraducao!({ zendeskId: raw.externalId, locale: TRADUCAO_LOCALE }) };
+          return { raw, traducao: await hc.pegarTraducao!({ zendeskId: raw.externalId, locale: cfg.locale }) };
         } catch (e) {
           console.warn(`[psops] tradução de ${raw.externalId} falhou:`, e instanceof Error ? e.message : e);
           return { raw, traducao: null };
@@ -301,11 +313,11 @@ export async function traduzirPendentes(
       if (!b) continue;
       await prisma.psOpsSignal.update({
         where: { id: s.id },
-        data: { tituloPt: tituloDoBruto(b), trechoPt: b.texto },
+        data: { [cfg.titulo]: tituloDoBruto(b), [cfg.trecho]: b.texto },
       });
       r.sinaisTraduzidos += 1;
     }
-    await prisma.psOpsRawItem.update({ where: { id: raw.id }, data: { traducaoPtEm: opts.agora() } });
+    await prisma.psOpsRawItem.update({ where: { id: raw.id }, data: { [cfg.marca]: opts.agora() } });
     r.artigosTraduzidos += 1;
   }
 

@@ -93,6 +93,13 @@ const LEGACY_SEGMENT_MAP: Record<string, Segment> = {
 };
 
 /** Converte qualquer valor vindo do banco/sessão num segmento válido. */
+/** Todos os valores de `User.role` (atuais e legados) que caem neste segmento. */
+export function roleValuesOf(segment: Segment): string[] {
+  return Object.entries(LEGACY_SEGMENT_MAP)
+    .filter(([, seg]) => seg === segment)
+    .map(([raw]) => raw);
+}
+
 export function normalizeSegment(value?: string | null): Segment {
   if (!value) return DEFAULT_SEGMENT;
   const upper = String(value).trim().toUpperCase();
@@ -257,4 +264,45 @@ export function canAccessFolders(
 ): boolean {
   if (!user) return false;
   return Boolean(user.isAdmin) || FOLDERS_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/**
+ * Quem enxerga Estudos (acompanhamento semanal, matriz de conhecimento,
+ * resumo e relatório do time de pré-vendas): só Solution Consultants, além
+ * do ADMIN, como as demais ferramentas do time.
+ */
+const ESTUDOS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem enxerga Estudos. */
+export function canAccessEstudos(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || ESTUDOS_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/**
+ * Quem vê o sininho de notificações do cabeçalho sempre: SCs (e ADMIN). As
+ * demais pessoas só o veem quando têm notificação (ex.: relato resolvido).
+ */
+const NOTIFICACOES_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem vê o sininho. */
+export function canAccessNotificacoes(
+  user?: { isAdmin?: boolean; role?: string | null } | null,
+): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || NOTIFICACOES_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
+/**
+ * Solution Engineers e ADMIN: quem cria uma estimativa do Framework a partir
+ * da Calculadora AE, acompanha os relatos de bugs e sugestões e cuida do
+ * changelog (rascunhos e registro de alterações do painel).
+ */
+const SE_TOOLS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+export function canUseSeTools(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || SE_TOOLS_SEGMENTS.includes(normalizeSegment(user.role));
 }

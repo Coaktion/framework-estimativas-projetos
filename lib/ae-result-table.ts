@@ -151,7 +151,7 @@ export function buildAEResultTable(
   if (modules.has('Copilot') && b.copilotConfig) {
     sections.push(
       section('copilot', t('aeTable.copilotConfig'), [
-        row(t('cfg.intents'), q.intencoes, UH.intencoes),
+        row(t('cfg.topics'), q.intencoes, UH.intencoes),
         row(t('cfg.entities'), q.entidades, UH.entidades),
         row(t('cfg.procedures'), q.procedimentos, UH.procedimentos),
       ], b.copilotConfig),

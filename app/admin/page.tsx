@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { buildCategoryOrderBy, sortCategories } from "@/lib/category-utils";
 import { getActiveAeConfig, listAeConfigs } from "@/lib/ae-config-server";
 import { loadZohoConfig, zohoConfigured } from "@/lib/zoho";
+import { loadEditorShortcuts } from "@/lib/editor-shortcuts-server";
+import { loadFrameworkCatalog } from "@/lib/framework-catalog";
 
 export default async function AdminPage() {
   const session = await getServerSession(authOptions);
@@ -79,6 +81,16 @@ export default async function AdminPage() {
   const [activeAeConfig, aeConfigHistory] = await Promise.all([getActiveAeConfig(), listAeConfigs()]);
   // Zoho CRM: campos que entram no prompt de escopo (Admin › Zoho CRM).
   const zohoConfig = await loadZohoConfig();
+  // Atalhos do editor (Biblioteca › Atalhos) e a árvore de itens para as regras.
+  const editorShortcuts = await loadEditorShortcuts();
+  const catalog = await loadFrameworkCatalog();
+  const shortcutCatalog = {
+    items: Object.entries(catalog.packagesByCategory).flatMap(([root, pkgs]) =>
+      (pkgs || []).map((p: any) => ({ id: p.id, name: p.name, root, sub: String(p.__subcategory || '') }))),
+    roots: catalog.categories.map((c) => ({ key: c, label: catalog.categoryLabels[c] || c })),
+    subcategories: Object.entries(catalog.subcategoriesByCategory).flatMap(([root, subs]) =>
+      subs.map((sub) => ({ key: sub, root, label: `${catalog.categoryLabels[root] || root} › ${catalog.categoryLabels[sub] || sub}` }))),
+  };
 
   return (
     <AdminClient 
@@ -92,6 +104,8 @@ export default async function AdminPage() {
       aeConfigHistory={aeConfigHistory}
       zohoConfig={zohoConfig}
       zohoConfigured={zohoConfigured()}
+      editorShortcuts={editorShortcuts}
+      shortcutCatalog={shortcutCatalog}
     />
   );
 }

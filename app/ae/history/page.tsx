@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AEHistoryClient from "./AEHistoryClient";
 import { getServerT } from "@/app/i18n/server";
+import { aeSeesOthers, aeVisibleWhere } from "@/lib/ae-access";
 
 export const dynamic = 'force-dynamic';
 
@@ -25,19 +26,20 @@ export default async function AEHistoryPage({
   const isAdmin = Boolean(userSession.isAdmin) || (userSession.role && String(userSession.role).toUpperCase() === 'ADMIN');
   const userId = parseInt(session.user.id);
 
+  // Admin vê todas; SC vê as próprias + as dos AEs; os demais, só as próprias
+  // (regras em lib/ae-access.ts). Quem vê outras pessoas escolhe Meus/Todos.
+  const seesOthers = aeSeesOthers(userSession);
   const rawScope = String(searchParams?.scope || '').toLowerCase();
-  let scope: HistoryScope = isAdmin ? 'all' : 'mine';
-  if (isAdmin && (rawScope === 'mine' || rawScope === 'all')) {
+  let scope: HistoryScope = seesOthers ? 'all' : 'mine';
+  if (seesOthers && (rawScope === 'mine' || rawScope === 'all')) {
     scope = rawScope;
   }
 
-  const createdByFilter =
-    !isAdmin || scope === 'mine'
-      ? { createdBy: userId }
-      : {};
+  const createdByFilter = aeVisibleWhere(userSession, scope);
 
   const estimates = await prisma.aEEstimate.findMany({
-    where: createdByFilter,
+    // Excluídas (só na tela) ficam de fora; o admin as vê em Admin › Estimativas excluídas.
+    where: { ...createdByFilter, deletedAt: null },
     orderBy: { createdAt: 'desc' },
     include: {
       creator: {
@@ -110,6 +112,7 @@ export default async function AEHistoryPage({
         version: r.version,
         createdAt: r.createdAt,
         needsSC: Boolean(r.needsSC),
+        createdBy: Number(r.createdBy),
         // Total gravado no momento em que a versão foi calculada. Vem do banco,
         // e não de um recálculo: o histórico deve mostrar o que foi acordado
         // naquela versão, ainda que a tabela de preços tenha mudado depois.
@@ -125,6 +128,7 @@ export default async function AEHistoryPage({
     <AEHistoryClient
       groups={groups}
       isAdmin={isAdmin}
+      seesOthers={seesOthers}
       currentUserId={userId}
       scope={scope}
     />

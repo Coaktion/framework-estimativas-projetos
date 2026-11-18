@@ -2,9 +2,10 @@
 import { useTranslation } from 'react-i18next';
 import { useSession } from 'next-auth/react';
 import { useLanguage } from '@/components/LanguageProvider';
-import { canViewExecutiveReport } from '@/lib/segments';
+import { canUseSeTools, canViewExecutiveReport } from '@/lib/segments';
 import AEResultTable from '@/components/AEResultTable';
 import AEInputsSummary from '@/components/AEInputsSummary';
+import AEToEstimateButton from '@/components/AEToEstimateButton';
 import AEConfigVersionNotice, { type AEConfigInfo } from '@/components/AEConfigVersionNotice';
 import ExportPreview from '@/components/ExportPreview';
 import { buildAEResultTable } from '@/lib/ae-result-table';
@@ -20,14 +21,18 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from "next/link";
 import {
   Zap, ArrowLeft, ExternalLink, MessageSquare, Shield,
-  Clock, Hash, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers, Download, Loader2
+  Clock, Hash, CheckCircle2, AlertTriangle, Plus, ChevronDown, X, Layers, Download, Loader2, Trash2
 } from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { deleteAEEstimatesAction } from '../actions';
 import {
   calculateAEEstimate,
   validateAEInputs,
 } from '@/lib/ae-engine';
 import { buildAEScopePrompt, marketplaceAppsForPrompt, type AEScopePromptInput } from '@/lib/ae-scope-prompt';
 import { zohoSectionFor } from '@/lib/zoho-section';
+import { aeChannelLabel } from '@/lib/ae-channel-options';
+import { CHANNEL_KEYS as AE_CHANNEL_KEYS } from '@/lib/ae-engine-keys';
 import { buildEngineInputs, normalizeAESku } from '@/lib/ae-inputs';
 import { DEFAULT_AE_CONFIG } from '@/lib/ae-config';
 
@@ -42,10 +47,11 @@ export default function AEViewClient(props: any) {
   const {
     estimateId, clientName, zohoLink, resultHours, needsSC,
     version, createdAt, parentId, data, variables, packages, categories, allVersions,
-    owner, aeConfig = DEFAULT_AE_CONFIG, aeConfigInfo,
+    owner, aeConfig = DEFAULT_AE_CONFIG, aeConfigInfo, deletedAt, createdBy,
   } = props as typeof props & { aeConfigInfo?: AEConfigInfo };
+  const router = useRouter();
 
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { language, dateLocale } = useLanguage();
   const { data: session } = useSession();
   // Dono da estimativa: visível só para administradores.
@@ -152,9 +158,11 @@ export default function AEViewClient(props: any) {
     const byName = new Map((packages || []).map((p: any) => [p.name, p]));
     return aeInputDetails(data, t, {
       clientName: String(clientName || ''),
+      // O link do Zoho fica na coluna da estimativa, não no JSON dos inputs.
+      zohoLink: zohoLink || null,
       packageLabel: (name) => (byName.has(name) ? packageName(byName.get(name), language) : name),
     });
-  }, [data, t, clientName, packages, language]);
+  }, [data, t, clientName, zohoLink, packages, language]);
 
   /* ------------------------------------------------------------------------ */
   /*      EXPORTAÇÃO (CSV, XLSX, PDF, PNG) — mesma tabela que o leitor vê      */
@@ -251,6 +259,20 @@ export default function AEViewClient(props: any) {
       inputs: engineInputs,
       clientName: String(clientName || ''),
       versionLabel: version != null ? `v${version}` : 'v1',
+      versionPosition: (() => {
+        const list = Array.isArray(allVersions) ? allVersions : [];
+        const index = list.findIndex((v: any) => Number(v.id) === Number(estimateId));
+        return list.length && index >= 0 ? { index: index + 1, total: list.length } : null;
+      })(),
+      versionCreatedAt: createdAt || null,
+      estimateId: Number(estimateId) || null,
+      baseUrl: typeof window !== 'undefined' ? window.location.origin : '',
+      configInfo: aeConfigInfo
+        ? { usedId: aeConfigInfo.usedId, usedAt: aeConfigInfo.usedAt, activeId: aeConfigInfo.activeId, valuesChanged: aeConfigInfo.valuesChanged }
+        : null,
+      otherVersions: (Array.isArray(allVersions) ? allVersions : [])
+        .filter((v: any) => Number(v.id) !== Number(estimateId))
+        .map((v: any) => ({ name: `v${v.version}`, description: null, hours: Number(v.resultHours) || 0, createdAt: v.createdAt || null })),
       zohoLink: zohoLink || null,
       preSalesName: (session?.user as any)?.name || null,
       clientObjectives: d.clientObjectives || null,
@@ -262,13 +284,16 @@ export default function AEViewClient(props: any) {
       hasAppCondicionais: Boolean(d.hasAppCondicionais),
       hasAppTicketManager: Boolean(d.hasAppTicketManager),
       locale: language,
+      // Tabela de itens e rótulos de canal no idioma do bloco.
+      t: i18n.getFixedT(language) as any,
+      channelLabels: Object.fromEntries(AE_CHANNEL_KEYS.map((key) => [key, aeChannelLabel(key, i18n.getFixedT(language) as any)])),
       skuLabel:
         normalizeSku(d.skuType) === 'ES'
           ? t('plans.employeeService')
           : t('plans.customerService'),
       generatedAt: new Date(),
     };
-  }, [engineResult, engineInputs, data, clientName, version, zohoLink, session, language, t]);
+  }, [engineResult, engineInputs, data, clientName, version, zohoLink, session, language, t, i18n, allVersions, estimateId, createdAt, aeConfigInfo]);
 
   const scopePrompt = useMemo(() => buildAEScopePrompt(scopePromptInput), [scopePromptInput]);
 
@@ -278,7 +303,7 @@ export default function AEViewClient(props: any) {
   const handleCopyScopePrompt = async () => {
     if (!scopePrompt) return;
     setScopePromptLoading(true);
-    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink);
+    const zohoSection = await zohoSectionFor(scopePromptInput.zohoLink, language);
     setScopePromptLoading(false);
     const text = buildAEScopePrompt({ ...scopePromptInput, zohoSection });
     try {
@@ -295,8 +320,27 @@ export default function AEViewClient(props: any) {
     setTimeout(() => setScopePromptCopied(false), 2500);
   };
 
+  // Excluir esta versão (só na tela): quem a criou, ou admin.
+  const viewer = (session?.user || {}) as any;
+  const canDeleteEstimate = !deletedAt && (Boolean(viewer.isAdmin) || Number(createdBy) === Number(viewer.id));
+  const [deleting, setDeleting] = useState(false);
+  const handleDeleteEstimate = async () => {
+    if (!confirm(t('aeView.deleteVersionConfirm', { name: clientName, version: version ?? 1 }))) return;
+    setDeleting(true);
+    const res = await deleteAEEstimatesAction([Number(estimateId)]).catch(() => null);
+    setDeleting(false);
+    if (!res || !res.ok) { alert(t('aeView.deleteError')); return; }
+    router.push('/ae/history');
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-700 py-10">
+      {deletedAt && (
+        <div role="status" className="bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-3xl p-5 flex items-start gap-3">
+          <Trash2 className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+          <p className="text-label text-red-800 dark:text-red-200">{t('aeView.deletedBanner')}</p>
+        </div>
+      )}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="space-y-4">
           <h1 className="text-brand-dark font-heading text-page leading-none break-words">
@@ -389,6 +433,21 @@ export default function AEViewClient(props: any) {
               </div>
             )}
           </div>
+          {canDeleteEstimate && (
+            <button
+              type="button"
+              onClick={handleDeleteEstimate}
+              disabled={deleting}
+              title={t('aeView.deleteVersion')}
+              aria-label={t('aeView.deleteVersion')}
+              className="px-4 py-3 rounded-2xl text-label font-medium flex items-center gap-2 border-2 border-slate-200 text-slate-500 hover:border-red-300 hover:text-red-600 transition-all disabled:opacity-50"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            </button>
+          )}
+          {canUseSeTools(session?.user as any) && (
+            <AEToEstimateButton estimateId={Number(estimateId)} clientName={String(clientName || '')} />
+          )}
           <Link
             href={`/ae?cloneFrom=${estimateId}`}
             className="brand-bg-primary text-brand-ink px-8 py-3 rounded-2xl text-label font-medium flex items-center space-x-2 shadow-xl shadow-green-900/10 hover:scale-[1.02] transition-transform"

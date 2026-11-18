@@ -1,0 +1,200 @@
+Gere o Escopo Técnico deste projeto usando a skill scope-creator.
+
+REGRA DE PRECEDÊNCIA: os dados do bloco abaixo são a fonte de verdade e prevalecem sobre qualquer documento anexado. Use anexos apenas para enriquecer contexto (dores, objetivos, cenário atual). Nada que apareça só no anexo entra no escopo.
+
+REGRA DE REDAÇÃO: quantidades e horas servem para dimensionar o esforço e o preço. O documento descreve O QUE será feito, não quantas vezes — "3 e-mails + 1 Facebook + 3 linhas" vira "configurar os canais de e-mail, Facebook e telefonia no Zendesk". Cite um número só quando ele for relevante para o cliente entender o escopo (ex.: número de marcas ou de idiomas, integrações nomeadas, limites combinados).
+
+===== Aktie Now Tool Center · ESCOPO TÉCNICO · v3 =====
+ORIGEM: calculadora-ae
+IDIOMA DO BLOCO: pt-BR
+
+[PROJETO]
+# Identificação da versão. "---" = informação que o Tool Center não tem.
+Cliente: Elemental Machines
+Projeto: Elemental Machines
+Versão da proposta técnica: v7
+Versão: 7 de 7
+Data: 11/11/2026
+Versão criada em: 11/11/2026
+Pre-Sales responsável: Arthur Oliveira
+Link do escopo técnico: ---
+Link do negócio: https://crm.zoho.com/crm/org882513013/tab/Potentials/6713453000046758010
+Tipo de projeto: Nova implantação
+ID da estimativa: 999
+Link da estimativa no Tool Center: https://aktienowtc.netlify.app/ae/999
+
+[CONTEXTO DO CLIENTE]
+# Texto livre escrito pelo Account Executive. Use para redigir as seções de contexto, dores e objetivos — nunca para acrescentar entregas ao escopo.
+Objetivos e dores do cliente:
+- Better transparency and traceability from engineering bugs (Jira) to the support tickets they affect.
+Indicadores de sucesso:
+- Reduzir carga manual de trabalho.
+
+[DADOS INFORMADOS]
+# Dados digitados na tela. Servem para entender e dimensionar; não são texto para o documento.
+Agentes: 5
+Marcas: 1
+Áreas / times com roteamento próprio: 1
+Tipos de operação: B2B (empresas)
+Artigos do Knowledge: 0
+Single Sign-On (SSO): não
+Conversas paralelas via Teams: não
+Conversas paralelas via Slack: sim
+Conexões nativas: Jira, Salesforce, Slack
+Action Flow: nenhum
+Apps de Marketplace: nenhum
+App Condicionais Avançadas (Aktie Now): não
+App Ticket Manager (Aktie Now): não
+Outros apps do Marketplace (texto livre): ---
+
+[DIMENSIONAMENTO]
+# Horas do site, prontas: nunca recalcule, arredonde nem redistribua.
+Total de horas: 51,40h
+Horas por skill:
+- Implantação: 44,92h
+- Solution Design: 0,00h
+- Gerente de Projeto: 6,48h
+- Desenvolvimento: 0,00h
+- Design: 0,00h
+Horas calculadas:
+- Itens de configuração: 33,78h
+- Discovery: 4,46h
+- Validação: 3,34h
+- Go-live: 1,11h
+- Comunicação técnica: 2,23h
+- GP: 6,48h
+Percentuais aplicados: Discovery 20% · Validação 15% · Go-live 5% · Comunicação técnica 10% · GP 17,65%
+Base de cada percentual:
+- Discovery 20% sobre 22,28h = 4,46h
+- Validação 15% sobre 22,28h = 3,34h
+- Go-live 5% sobre 22,28h = 1,11h
+- Comunicação técnica 10% sobre 22,28h = 2,23h
+- GP 17,65% sobre 36,70h = 6,48h
+
+[PLATAFORMA]
+# Plano e tipo de instância para a tabela de configuração.
+Plano Zendesk: Suite Professional
+Tipo de instância: Customer Service
+
+[MÓDULOS EM ESCOPO]
+# Módulos para a tabela de configuração. Fases de serviço (Workshop, Treinamentos, Go-Live) não são módulos do Zendesk.
+Support, Knowledge, Voice
+
+[CANAIS EM ESCOPO]
+# Canais para a tabela de configuração. As quantidades só dimensionam.
+- Web Form: 1
+- Email: 1
+- Voice (Zendesk Talk): 1
+
+[INTEGRAÇÕES E APPS]
+# Integrações e apps para a tabela de configuração (pelo nome).
+- Integração nativa: Jira
+- Integração nativa: Salesforce
+- Integração nativa: Slack
+- Conversas paralelas: Slack
+
+[FLAGS DE SUPRESSÃO]
+# "nao" significa REMOVER do documento o trecho correspondente. Copie esta seção literalmente.
+whatsapp: nao  # Premissas de ativação do número WhatsApp na Meta / Facebook Business
+sso: nao  # Premissa de SSO (SAML/JWT) e provisionamento
+conteudo-dinamico: nao  # Premissa de tradução do Conteúdo Dinâmico
+central-de-ajuda: sim  # Premissas de mapeamento de host/CNAME e itens de Central de Ajuda
+email: sim  # Premissa de SPF/DKIM/DNS do canal de e-mail
+voz: sim  # Seção de capacidades Zendesk Voice e itens de URA/fila
+knowledge: sim  # Seção Zendesk Knowledge e premissas de conteúdo de artigos
+community: nao  # Seção de capacidades Zendesk Community
+analytics: nao  # Seção de capacidades Zendesk Analytics / Explore
+copilot: nao  # Seção Copilot e premissa de responsabilidade sobre Procedimentos
+ai-agents: nao  # Seção AI Agents
+ai-agents-api: nao  # Bloco longo de premissas de API/endpoints do AI Agents
+wfm: nao  # Seção de capacidades Zendesk WFM
+qa: nao  # Seção de capacidades Zendesk QA
+adpp: nao  # Seção ADPP (Advanced Data Privacy and Protection)
+marketplace-apps: nao  # Premissa de responsabilidade sobre apps de Marketplace (apps de terceiros e apps da Aktie Now)
+action-flow: nao  # Menção a Action Builder / Fluxos de Ação
+integracoes-nativas: sim  # Lista de integrações NATIVAS do Zendesk no escopo (Jira, Salesforce, Slack...); apps de Marketplace ficam em marketplace-apps
+migracao-de-dados: nao  # Bloco de Migração de Dados
+itam: nao  # Bloco de Gestão de Ativos (ITAM) e integrações Intune/Jamf
+objetos-customizados: nao  # Bullet de Objetos Customizados
+sla: sim  # Bullet de políticas de SLA
+side-conversations: sim  # Bullet de Conversas Paralelas
+csat: sim  # Bullet de pesquisa de satisfação
+desenvolvimento: nao  # Premissas de Desenvolvimento (horas de Desenvolvimento > 0)
+design: nao  # Tema da Central de Ajuda sob medida (horas de Design > 0)
+
+[DETALHAMENTO POR CATEGORIA]
+# Horas por categoria: evidência de que um módulo ou seção tem horas.
+Configuração de Support — 8,89h
+Configuração de Voice — 4,89h
+Setup base — 0,67h
+Apps, integrações, Side Conversations e Action Flows — 6,50h
+Configurações gerais, treinamentos, workshops e conteúdo — 12,83h
+Variáveis e camadas percentuais — 17,62h
+Total dos itens: 33,78h
+Esforço total: 51,40h
+
+[ITENS SELECIONADOS]
+# Use para decidir quais bullets de capacidade permanecem no documento. "Descrição", "Inclui" e "Não inclui" descrevem a entrega de cada item.
+Calculadora AE / Grupos de esforço
+- Configuração Support — 8,89h
+- Configuração Voice — 4,89h
+- Cadastro de agentes — 0,25h
+- Configuração de marcas — 0,25h
+- Configuração de canais — 0,17h
+- Configurações gerais — 1,50h
+- Treinamento — 5,50h
+- Pacotes fixos Support — 2,33h
+- Integrações nativas — 6,00h
+- Configuração geral Knowledge (artigos) — 2,00h
+- Conversas paralelas (Side Conversations) — 0,50h
+- Workshop — 1,50h
+Canais / Canais
+- Web Form — horas no grupo "Configuração Support"
+- Email — 1 × 0,17h = 0,17h
+- Voice (Zendesk Talk) — horas no grupo "Configuração Voice"
+Integração nativa / Integrações
+- Jira — 1 × 2,00h = 2,00h
+- Salesforce — 1 × 2,00h = 2,00h
+- Slack — 1 × 2,00h = 2,00h
+Calculadora AE / Itens considerados — Configuração de Support
+# Quantidades estimadas pela Calculadora AE a partir dos dados informados, não contagens confirmadas pelo cliente. Mostram quais capacidades foram dimensionadas.
+- Grupos — 0,8 × 0,05h = 0,04h
+- Campos de Ticket — 24,84 × 0,08h = 1,99h
+- Formulários — 1 × 0,08h = 0,08h
+- Condicionais de Campos — 12,42 × 0,02h = 0,25h
+- Campos de Usuário — 3,6 × 0,05h = 0,18h
+- Campos de Organização — 8 × 0,05h = 0,40h
+- Visualizações — 15,48 × 0,08h = 1,24h
+- Macros — 12,42 × 0,08h = 0,99h
+- Gatilhos Simples — 13,24 × 0,08h = 1,06h
+- Gatilhos Complexos — 3,31 × 0,33h = 1,09h
+- Automações Simples — 4,66 × 0,08h = 0,37h
+- Automações Complexas — 1,16 × 0,33h = 0,38h
+- Políticas de SLA — 4,8 × 0,17h = 0,82h
+Calculadora AE / Itens considerados — Configuração de Voice
+- IVR — 6 × 0,59h = 3,54h
+- Saudações — 27 × 0,05h = 1,35h
+Calculadora AE / Itens considerados — Setup base
+- Agentes — 5 × 0,05h = 0,25h
+- Marcas — 1 × 0,25h = 0,25h
+- Canal: E-mail — 1 × 0,17h = 0,17h
+Calculadora AE / Itens considerados — Apps, integrações, Side Conversations e Action Flows
+- Integração nativa: Jira — 1 × 2,00h = 2,00h
+- Integração nativa: Salesforce — 1 × 2,00h = 2,00h
+- Integração nativa: Slack — 1 × 2,00h = 2,00h
+- Side Conversations: Slack — 1 × 0,50h = 0,50h
+Calculadora AE / Itens considerados — Configurações gerais, treinamentos, workshops e conteúdo
+- Configuração geral: Support — 1 × 1,00h = 1,00h
+- Configuração geral: Voice — 1 × 0,50h = 0,50h
+- Treinamento: Suite (Support / Knowledge / Analytics) — 1 × 3,00h = 3,00h
+- Treinamento: Voice — 1 × 2,50h = 2,50h
+- Workshop: Suite (Support / Knowledge / Analytics) — 1 × 1,00h = 1,00h
+- Workshop: Voice — 1 × 0,50h = 0,50h
+- Encaminhamento omnichannel — 1 × 1,00h = 1,00h
+- Gatilho de webhook da instância — 1 × 0,50h = 0,50h
+- Webhooks — 1 × 0,33h = 0,33h
+- Pesquisa de satisfação (CSAT) — 1 × 0,25h = 0,25h
+- Programação de feriados — 1 × 0,25h = 0,25h
+- Configuração geral: Knowledge (0 artigos) — 1 × 2,00h = 2,00h
+
+===== FIM =====

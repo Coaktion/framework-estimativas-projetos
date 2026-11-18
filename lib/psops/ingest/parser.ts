@@ -51,6 +51,13 @@ export interface SinalBruto {
 /** Cabeçalhos que dizem o tipo da mudança, e não o componente. */
 export const RX_MARCADOR = /^(new|fixed|fixes|bug fixes|updates?|changes?|improvements?|novo|novidades|corrigido|correções|corrigidos|melhorias|atualizações|nuevo|corregido|correcciones)$/i;
 
+/** Palavras que não contam para dizer se um rótulo é nome de feature (en/pt/es). */
+const STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'into', 'your', 'new',
+  'dos', 'das', 'para', 'com', 'por', 'uma', 'novo', 'nova', 'novos', 'novas',
+  'los', 'las', 'del', 'con', 'una', 'nuevo', 'nueva',
+]);
+
 /** Seção sem conteúdo: só lista os produtos que não mudaram. */
 const RX_SEM_ATUALIZACOES = /(no updates|sem atualiza|sin actualizaciones)/i;
 
@@ -97,8 +104,32 @@ export function parseReleaseNote(bodyHtml: string): SinalBruto[] {
   };
 
   /**
-   * Um <li> que tem lista dentro só agrupa: o texto dele (sem a lista) é o
-   * rótulo, e cada filho vira sinal. Sem lista dentro, o <li> é o sinal.
+   * O rótulo do grupo é o NOME DE UMA FEATURE (os filhos são detalhes dela)?
+   * Sim quando traz etiqueta de status ("(GA)", "(EAP)"), quando é um app numa
+   * seção de Marketplace, ou quando tem 4+ palavras de conteúdo ("Custom
+   * summaries for tickets and calls"). Rótulo curto ("Help Center", "Auto
+   * assist", "Intelligent triage") é COMPONENTE: cada filho é uma mudança.
+   * Contar só palavras de conteúdo faz o inglês e o português decidirem igual
+   * ("AI Agents Insights" / "Agentes de IA Insights"), senão a tradução não casa.
+   */
+  const rotuloEhFeature = (r: string) => {
+    const n = limpar(r).toLowerCase();
+    if (!n || RX_MARCADOR.test(n)) return false;
+    if (n === (grupoProduto ?? '').toLowerCase() || n === (grupoComponente ?? '').toLowerCase()) return false;
+    if (/\((ga|eap|beta|early access|paid|pago|support|suporte)\)/i.test(n)) return true;
+    if (/marketplace|aplicativos/i.test(grupoProduto ?? '')) return true;
+    const conteudo = n.replace(/\(.*?\)/g, ' ').split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
+    return conteudo.length >= 4;
+  };
+
+  /**
+   * Um <li> que tem lista dentro só agrupa. Duas situações:
+   *   · o rótulo repete o produto/componente ("Contact Center"): cada filho é
+   *     uma mudança diferente e vira um sinal, com o rótulo como contexto;
+   *   · o rótulo é o NOME de uma feature ("Custom summaries for tickets and
+   *     calls (GA)", ou um app do Marketplace): os filhos são detalhes dela e
+   *     viram UM sinal, com o nome como destaque e os detalhes como texto.
+   * Sem lista dentro, o <li> é o sinal.
    */
   const percorrerLista = ($lista: cheerio.Cheerio<AnyNode>, rotulo: string | null) => {
     $lista.children('li').each((__, liEl) => {
@@ -108,6 +139,11 @@ export function parseReleaseNote(bodyHtml: string): SinalBruto[] {
         const $semSub = $li.clone();
         $semSub.find('ul, ol').remove();
         const proprio = limpar($semSub.text()).replace(/[:\-–]\s*$/, '');
+        if (proprio && rotuloEhFeature(proprio)) {
+          const detalhes = limpar(sublistas.children('li').toArray().map((x) => limpar($(x).text())).join(' '));
+          if (detalhes.length >= 12) emitir(detalhes, $li, { rotulo: proprio, destaque: proprio });
+          return;
+        }
         sublistas.each((___, sub) => percorrerLista($(sub), proprio || rotulo));
         return;
       }
