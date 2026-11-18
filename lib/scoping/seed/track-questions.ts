@@ -31,7 +31,7 @@ const yn = (
 export const AI_AGENTS_QUESTIONS: SeedQuestion[] = [
   {
     key: 'ai.usecases', section: 'ai_agent', tracks: AI, type: 'ai_usecases', priority: 'essencial',
-    text: t('Quais casos de uso o AI Agent deve resolver?', 'Which use cases should the AI Agent resolve?', '¿Qué casos de uso debe resolver el AI Agent?'),
+    text: t('Quais casos de uso o assistente virtual (bot) deve resolver sozinho?', 'Which use cases should the virtual assistant (bot) resolve on its own?', '¿Qué casos de uso debe resolver solo el asistente virtual (bot)?'),
     help: t('Cada linha vira um procedimento simples, intermediário ou complexo na estimativa, pela coluna Complexidade.', 'Each row becomes a simple, intermediate or complex procedure in the estimate, by the Complexity column.', 'Cada fila se convierte en un procedimiento simple, intermedio o complejo en la estimación, según la columna Complejidad.'),
     tableColumns: AI_USECASE_COLUMNS,
     mappings: [{
@@ -43,11 +43,11 @@ export const AI_AGENTS_QUESTIONS: SeedQuestion[] = [
       },
     }],
   },
-  num('ai.bots', 'ai_agent', AI, U.bots, t('Quantos bots (por marca, idioma ou público)?', 'How many bots (per brand, language or audience)?', '¿Cuántos bots (por marca, idioma o público)?'),
+  num('ai.bots', 'ai_agent', AI, U.bots, t('Quantos assistentes virtuais (por marca, idioma ou público)?', 'How many virtual assistants (per brand, language or audience)?', '¿Cuántos asistentes virtuales (por marca, idioma o público)?'),
     [qty(105, 'Configurações gerais (AI Agents)')], 'essencial'),
   {
     key: 'ai.api_endpoints', section: 'ai_agent', tracks: AI, type: 'table', priority: 'essencial',
-    text: t('Quais endpoints o bot vai chamar?', 'Which endpoints will the bot call?', '¿Qué endpoints llamará el bot?'),
+    text: t('Quais consultas ou ações em outros sistemas o bot vai fazer (endpoints)?', 'Which lookups or actions in other systems will the bot perform (endpoints)?', '¿Qué consultas o acciones en otros sistemas hará el bot (endpoints)?'),
     tableColumns: [
       col('system', 'text', 'Sistema', 'System', 'Sistema'),
       col('endpoint', 'text', 'Endpoint', 'Endpoint', 'Endpoint'),
@@ -58,17 +58,17 @@ export const AI_AGENTS_QUESTIONS: SeedQuestion[] = [
     ],
     mappings: [tableCount(175, 'Integrações por API')],
   },
-  num('ai.actions', 'ai_agent', AI, U.actions, t('Quantas ações (somando todos os bots)?', 'How many actions (across all bots)?', '¿Cuántas acciones (sumando todos los bots)?'), [qty(168, 'Ações (AI Agents)')]),
-  num('ai.entities', 'ai_agent', AI, U.entities, t('Quantas entidades?', 'How many entities?', '¿Cuántas entidades?'), [qty(169, 'Entidades (AI Agents)')]),
-  num('ai.instructions', 'ai_agent', AI, U.instructions, t('Quantas instruções?', 'How many instructions?', '¿Cuántas instrucciones?'), [qty(171, 'Instruções')]),
+  num('ai.actions', 'ai_agent', AI, U.actions, t('Quantas ações o bot executa, somando todos os bots?', 'How many actions does the bot perform, across all bots?', '¿Cuántas acciones ejecuta el bot, sumando todos los bots?'), [qty(168, 'Ações (AI Agents)')]),
+  num('ai.entities', 'ai_agent', AI, U.entities, t('Quantos dados o bot precisa reconhecer na conversa, como número do pedido ou CPF (entidades)?', 'How many data points must the bot recognize in the conversation, such as order number or tax ID (entities)?', '¿Cuántos datos debe reconocer el bot en la conversación, como número de pedido o documento (entidades)?'), [qty(169, 'Entidades (AI Agents)')]),
+  num('ai.instructions', 'ai_agent', AI, U.instructions, t('Quantas instruções de comportamento o bot precisa?', 'How many behavior instructions does the bot need?', '¿Cuántas instrucciones de comportamiento necesita el bot?'), [qty(171, 'Instruções')]),
   num('ai.segments', 'ai_agent', AI, U.segments, t('Quantos segmentos de público?', 'How many audience segments?', '¿Cuántos segmentos de público?'), [qty(165, 'Segmentos')]),
   num('ai.hours', 'ai_agent', AI, U.schedules, t('Quantos horários de operação diferentes?', 'How many different operating hours?', '¿Cuántos horarios de operación diferentes?'), [qty(170, 'Horários de operação')]),
   num('ai.search_rules', 'ai_agent', AI, U.rules, t('Quantas regras de busca (mínimo 1 por bot)?', 'How many search rules (at least 1 per bot)?', '¿Cuántas reglas de búsqueda (mínimo 1 por bot)?'), [qty(166, 'Regras de busca')]),
-  num('ai.structured_forms', 'ai_agent', AI, U.messages, t('Quantas mensagens estruturadas de formulário?', 'How many structured form messages?', '¿Cuántos mensajes estructurados de formulario?'), [qty(172, 'Modelo de mensagem estruturada - formulário')], 'opcional'),
-  num('ai.structured_webview', 'ai_agent', AI, U.messages, t('Quantas mensagens estruturadas de visualização web?', 'How many structured web view messages?', '¿Cuántos mensajes estructurados de vista web?'), [qty(173, 'Modelo de mensagem estruturada - visualização da web')], 'opcional'),
-  num('ai.structured_json', 'ai_agent', AI, U.messages, t('Quantas mensagens estruturadas em JSON personalizado?', 'How many custom JSON structured messages?', '¿Cuántos mensajes estructurados en JSON personalizado?'), [qty(174, 'Modelo de mensagem estruturada - personalizado (JSON)')], 'opcional',
+  num('ai.structured_forms', 'ai_agent', AI, U.messages, t('Quantas mensagens com formulário o bot vai enviar?', 'How many form messages will the bot send?', '¿Cuántos mensajes con formulario enviará el bot?'), [qty(172, 'Modelo de mensagem estruturada - formulário')], 'opcional'),
+  num('ai.structured_webview', 'ai_agent', AI, U.messages, t('Quantas mensagens que abrem uma página web o bot vai enviar?', 'How many messages that open a web page will the bot send?', '¿Cuántos mensajes que abren una página web enviará el bot?'), [qty(173, 'Modelo de mensagem estruturada - visualização da web')], 'opcional'),
+  num('ai.structured_json', 'ai_agent', AI, U.messages, t('Quantas mensagens em formato personalizado (JSON) o bot vai enviar?', 'How many custom-format (JSON) messages will the bot send?', '¿Cuántos mensajes en formato personalizado (JSON) enviará el bot?'), [qty(174, 'Modelo de mensagem estruturada - personalizado (JSON)')], 'opcional',
     { help: t('JSON personalizado: sempre validar com o time de desenvolvimento.', 'Custom JSON: always validate with the development team.', 'JSON personalizado: validar siempre con el equipo de desarrollo.') }),
-  yn('ai.custom_crm', 'ai_agent', AI, t('Precisa conectar um CRM personalizado?', 'Does it need to connect a custom CRM?', '¿Necesita conectar un CRM personalizado?'), [ifYes(176, 'Conectar CRM personalizado')]),
+  yn('ai.custom_crm', 'ai_agent', AI, t('O bot precisa consultar um CRM próprio?', 'Does the bot need to query an in-house CRM?', '¿El bot necesita consultar un CRM propio?'), [ifYes(176, 'Conectar CRM personalizado')]),
   {
     key: 'ai.handoff', section: 'ai_agent', tracks: AI, type: 'long_text', priority: 'essencial',
     text: t('Quando e como o bot transfere para humano, e o que precisa ir junto?', 'When and how does the bot hand off to a human, and what must go along?', '¿Cuándo y cómo transfiere el bot a un humano, y qué debe ir junto?'),
@@ -95,7 +95,7 @@ export const AI_AGENTS_QUESTIONS: SeedQuestion[] = [
     { max: 100, help: t('Registre o prazo da meta no comentário.', 'Record the target deadline in the note.', 'Registre el plazo de la meta en el comentario.') }),
   {
     key: 'ai.owner', section: 'ai_agent', tracks: AI, type: 'short_text', priority: 'recomendada',
-    text: t('Quem vai manter o bot depois do go-live?', 'Who will maintain the bot after go-live?', '¿Quién mantendrá el bot después del go-live?'),
+    text: t('Quem vai manter o bot depois que ele entrar em operação?', 'Who will maintain the bot once it is live?', '¿Quién mantendrá el bot una vez que esté en operación?'),
   },
 ];
 
@@ -135,9 +135,9 @@ export const VOICE_QUESTIONS: SeedQuestion[] = [
     key: 'voice.carrier_contract', section: 'voice', tracks: VOICE, type: 'short_text', priority: 'recomendada',
     text: t('Qual o provedor de telefonia atual e quando vence o contrato?', 'Who is the current telephony provider and when does the contract expire?', '¿Cuál es el proveedor de telefonía actual y cuándo vence el contrato?'),
   },
-  num('zcc.contact_flows', 'voice', VOICE, U.flows, t('Quantos fluxos de contato no ZCC?', 'How many contact flows in ZCC?', '¿Cuántos flujos de contacto en ZCC?'), [], 'recomendada', { noCatalogItem: true }),
-  num('zcc.queues', 'voice', VOICE, U.queues, t('Quantas filas no ZCC?', 'How many queues in ZCC?', '¿Cuántas colas en ZCC?'), [], 'recomendada', { noCatalogItem: true }),
-  num('zcc.routing_profiles', 'voice', VOICE, U.profiles, t('Quantos perfis de roteamento no ZCC?', 'How many routing profiles in ZCC?', '¿Cuántos perfiles de enrutamiento en ZCC?'), [], 'recomendada', { noCatalogItem: true }),
+  num('zcc.contact_flows', 'voice', VOICE, U.flows, t('Quantos fluxos de atendimento telefônico (contact flows)?', 'How many phone contact flows?', '¿Cuántos flujos de atención telefónica (contact flows)?'), [], 'recomendada', { noCatalogItem: true }),
+  num('zcc.queues', 'voice', VOICE, U.queues, t('Quantas filas de atendimento telefônico?', 'How many phone queues?', '¿Cuántas colas de atención telefónica?'), [], 'recomendada', { noCatalogItem: true }),
+  num('zcc.routing_profiles', 'voice', VOICE, U.profiles, t('Quantos perfis de direcionamento das ligações?', 'How many call routing profiles?', '¿Cuántos perfiles de enrutamiento de llamadas?'), [], 'recomendada', { noCatalogItem: true }),
 ];
 
 // ---------------------------------------------------------------------------
@@ -145,10 +145,10 @@ export const VOICE_QUESTIONS: SeedQuestion[] = [
 // ---------------------------------------------------------------------------
 
 export const COPILOT_QUESTIONS: SeedQuestion[] = [
-  yn('copilot.enabled', 'copilot', COPILOT, t('Vai usar Copilot?', 'Will you use Copilot?', '¿Se usará Copilot?'), [ifYes(95, 'Configurações gerais (Copilot)')], 'essencial'),
-  num('copilot.procedures', 'copilot', COPILOT, U.procedures, t('Quantos procedimentos guiados?', 'How many guided procedures?', '¿Cuántos procedimientos guiados?'), [qty(98, 'Procedimentos')], 'essencial'),
-  num('copilot.entities', 'copilot', COPILOT, U.entities, t('Quantas entidades?', 'How many entities?', '¿Cuántas entidades?'), [qty(97, 'Entidades (Copilot)')]),
-  num('copilot.topics', 'copilot', COPILOT, U.topics, t('Quantos tópicos personalizados?', 'How many custom topics?', '¿Cuántos temas personalizados?'), [qty(96, 'Tópicos personalizados')]),
+  yn('copilot.enabled', 'copilot', COPILOT, t('Os agentes vão contar com assistência de IA (sugestão de resposta, resumo, procedimentos guiados)?', 'Will agents have AI assistance (reply suggestions, summaries, guided procedures)?', '¿Los agentes contarán con asistencia de IA (sugerencia de respuesta, resumen, procedimientos guiados)?'), [ifYes(95, 'Configurações gerais (Copilot)')], 'essencial'),
+  num('copilot.procedures', 'copilot', COPILOT, U.procedures, t('Quantos procedimentos guiados a IA deve sugerir aos agentes?', 'How many guided procedures should the AI suggest to agents?', '¿Cuántos procedimientos guiados debe sugerir la IA a los agentes?'), [qty(98, 'Procedimentos')], 'essencial'),
+  num('copilot.entities', 'copilot', COPILOT, U.entities, t('Quantos dados a IA deve extrair dos chamados, como número do pedido (entidades)?', 'How many data points should the AI extract from tickets, such as order number (entities)?', '¿Cuántos datos debe extraer la IA de los tickets, como número de pedido (entidades)?'), [qty(97, 'Entidades (Copilot)')]),
+  num('copilot.topics', 'copilot', COPILOT, U.topics, t('Quantos assuntos próprios a IA deve usar para classificar os chamados (tópicos)?', 'How many custom topics should the AI use to classify tickets?', '¿Cuántos temas propios debe usar la IA para clasificar los tickets?'), [qty(96, 'Tópicos personalizados')]),
   {
     key: 'copilot.auto_assist_actions', section: 'copilot', tracks: COPILOT, type: 'table', priority: 'recomendada',
     text: t('Quais ações a assistência automática deve executar em outros sistemas?', 'Which actions should auto assist execute in other systems?', '¿Qué acciones debe ejecutar la asistencia automática en otros sistemas?'),
@@ -211,7 +211,7 @@ export const ITSM_QUESTIONS: SeedQuestion[] = [
   yn('itsm.asset_ticket_link', 'itsm', ITSM, t('O ativo precisa estar vinculado ao ticket e ao usuário?', 'Must the asset be linked to the ticket and the user?', '¿El activo debe estar vinculado al ticket y al usuario?')),
   {
     key: 'itsm.asset_lifecycle', section: 'itsm', tracks: ITSM, type: 'multi', priority: 'recomendada',
-    text: t('Quais etapas do ciclo de vida do ativo passam pelo Zendesk?', 'Which asset lifecycle stages go through Zendesk?', '¿Qué etapas del ciclo de vida del activo pasan por Zendesk?'),
+    text: t('Quais etapas do ciclo de vida do ativo devem passar pela plataforma de atendimento?', 'Which asset lifecycle stages should go through the service platform?', '¿Qué etapas del ciclo de vida del activo deben pasar por la plataforma de atención?'),
     options: [
       opt('acquisition', 'Aquisição', 'Acquisition', 'Adquisición'),
       opt('allocation', 'Alocação', 'Allocation', 'Asignación'),
@@ -262,7 +262,7 @@ export const ITSM_QUESTIONS: SeedQuestion[] = [
 export const MIGRATION_QUESTIONS: SeedQuestion[] = [
   {
     key: 'mig.source', section: 'migration', tracks: MIG, type: 'short_text', priority: 'essencial',
-    text: t('De qual plataforma, versão e plano?', 'From which platform, version and plan?', '¿Desde qué plataforma, versión y plan?'),
+    text: t('De qual plataforma (e versão ou plano) os dados viriam?', 'Which platform (and version or plan) would the data come from?', '¿De qué plataforma (y versión o plan) vendrían los datos?'),
   },
   {
     key: 'mig.objects', section: 'migration', tracks: MIG, type: 'multi', priority: 'essencial',
@@ -279,7 +279,7 @@ export const MIGRATION_QUESTIONS: SeedQuestion[] = [
   },
   num('mig.tickets_volume', 'migration', MIG, U.tickets, t('Quantos tickets no período a migrar?', 'How many tickets in the period to migrate?', '¿Cuántos tickets en el período a migrar?'), [], 'essencial'),
   num('mig.years', 'migration', MIG, U.years, t('Quantos anos de histórico?', 'How many years of history?', '¿Cuántos años de histórico?')),
-  yn('mig.searchable', 'migration', MIG, t('O histórico precisa ficar consultável no Zendesk, ou basta um arquivo exportado?', 'Must the history be searchable in Zendesk, or is an exported file enough?', '¿El histórico debe ser consultable en Zendesk o basta un archivo exportado?'), [], 'essencial',
+  yn('mig.searchable', 'migration', MIG, t('O histórico precisa ficar consultável na nova plataforma, ou basta um arquivo exportado?', 'Must the history be searchable in the new platform, or is an exported file enough?', '¿El histórico debe ser consultable en la nueva plataforma o basta un archivo exportado?'), [], 'essencial',
     { help: t('Sim = consultável no Zendesk; Não = basta o arquivo exportado.', 'Yes = searchable in Zendesk; No = an exported file is enough.', 'Sí = consultable en Zendesk; No = basta el archivo exportado.') }),
   num('mig.field_mapping', 'migration', MIG, U.fields, t('Quantos campos personalizados precisam de mapeamento?', 'How many custom fields need mapping?', '¿Cuántos campos personalizados necesitan mapeo?')),
   num('mig.attachments_size', 'migration', MIG, U.gb, t('Qual o volume de anexos?', 'What is the attachments volume?', '¿Cuál es el volumen de adjuntos?')),
@@ -287,7 +287,7 @@ export const MIGRATION_QUESTIONS: SeedQuestion[] = [
     key: 'mig.cutover_window', section: 'migration', tracks: MIG, type: 'long_text', priority: 'recomendada',
     text: t('Janela de corte e período de convivência das duas plataformas?', 'Cutover window and period with both platforms running?', '¿Ventana de corte y período de convivencia de las dos plataformas?'),
   },
-  num('mig.hours', 'migration', MIG, U.hours, t('Horas de desenvolvimento estimadas para a migração', 'Estimated development hours for the migration', 'Horas de desarrollo estimadas para la migración'),
+  num('mig.hours', 'migration', MIG, U.hours, t('Horas de desenvolvimento estimadas para a migração (preenchido pela Aktie)', 'Estimated development hours for the migration (filled in by Aktie)', 'Horas de desarrollo estimadas para la migración (completado por Aktie)'),
     [qty(234, 'Desenvolvimento')], 'recomendada',
     { help: t('Não há item específico de migração no catálogo: a quantidade entra como horas de Desenvolvimento, estimadas com o time de dev.', 'There is no specific migration item in the catalog: the quantity goes in as Development hours, estimated with the dev team.', 'No hay un ítem específico de migración en el catálogo: la cantidad entra como horas de Desarrollo, estimadas con el equipo de desarrollo.') }),
 ];

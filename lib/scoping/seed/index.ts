@@ -14,7 +14,16 @@ import { TRACK_QUESTIONS } from './track-questions';
 import { AKTIE_SECTIONS, SECTION_ORDER, TRACKS } from './tracks';
 import type { SeedQuestion, SeedSection } from './types';
 
-export const SEED_BANK_VERSION = 1;
+/**
+ * Versão do banco que o seed gera. Uma versão publicada nunca muda no banco de
+ * dados (as sessões ficam presas a ela): QUALQUER mudança no seed exige subir
+ * este número, senão a mudança não chega às sessões novas.
+ *
+ *  - v1: primeira versão (18/11/2026).
+ *  - v2: perguntas reescritas sem pressupor que o cliente já escolheu o Zendesk;
+ *        Bloco 0 com momento da decisão, plataformas consideradas e critérios.
+ */
+export const SEED_BANK_VERSION = 2;
 
 const TEMPLATE_KEYS = new Set(TEMPLATE_QUESTIONS.map((q) => q.key).concat(HIDDEN_QUESTIONS.map((q) => q.key)));
 

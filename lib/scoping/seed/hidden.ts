@@ -30,9 +30,9 @@ export const HIDDEN_QUESTIONS: SeedQuestion[] = [
     section: 'hidden',
     type: 'long_text',
     text: {
-      pt: 'O que os agentes fazem fora do Zendesk hoje?',
-      en: 'What are your agents doing outside Zendesk today?',
-      es: '¿Qué hacen hoy los agentes fuera de Zendesk?',
+      pt: 'O que os agentes fazem hoje fora da ferramenta de atendimento?',
+      en: 'What are your agents doing outside your customer service tool today?',
+      es: '¿Qué hacen hoy los agentes fuera de la herramienta de atención?',
     },
     help: {
       pt: 'Revela planilhas de controle, caixas de e-mail compartilhadas, gambiarras no Slack e relatórios manuais.',
@@ -46,7 +46,7 @@ export const HIDDEN_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.hidden.agent_lookups',
@@ -99,9 +99,9 @@ export const HIDDEN_QUESTIONS: SeedQuestion[] = [
     section: 'hidden',
     type: 'long_text',
     text: {
-      pt: 'Se automatizássemos 50% dos tickets amanhã, quais 50% você escolheria?',
-      en: 'If we automated 50% of tickets tomorrow, which 50% would you choose?',
-      es: 'Si automatizáramos el 50 % de los tickets mañana, ¿qué 50 % elegiría?',
+      pt: 'Se fosse possível automatizar 50% dos chamados amanhã, quais 50% você escolheria?',
+      en: 'If 50% of tickets could be automated tomorrow, which 50% would you choose?',
+      es: 'Si se pudiera automatizar el 50 % de los tickets mañana, ¿qué 50 % elegiría?',
     },
     help: {
       pt: 'Caminho mais rápido para identificar procedimentos de AI Agents, regras de automação e integrações necessárias.',
@@ -115,7 +115,7 @@ export const HIDDEN_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.hidden.before_first_reply',

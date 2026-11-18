@@ -123,7 +123,7 @@ export const TEMPLATE_SECTIONS: { key: string; title: I18nText; deliverable: I18
   },
   {
     key: 'knowledge',
-    title: { pt: 'Base de conhecimento e Central de Ajuda', en: 'Knowledge Base & Help Center', es: 'Base de conocimiento y Centro de ayuda' },
+    title: { pt: 'Base de conhecimento e autoatendimento', en: 'Knowledge Base & Self-Service', es: 'Base de conocimiento y autoservicio' },
     deliverable: {
       pt: 'Escopo da migração de conteúdo • Arquitetura do conhecimento • Fluxo de aprovação',
       en: 'Content migration scope • Knowledge architecture • Approval workflow',
@@ -188,9 +188,9 @@ export const TEMPLATE_SECTIONS: { key: string; title: I18nText; deliverable: I18
     key: 'launch',
     title: { pt: 'Lançamento e gestão da mudança', en: 'Launch & Change Management', es: 'Lanzamiento y gestión del cambio' },
     deliverable: {
-      pt: 'Cronograma de implantação • Escopo de treinamento • Plano de hypercare',
-      en: 'Implementation timeline • Training scope • Hypercare plan',
-      es: 'Cronograma de implementación • Alcance de la capacitación • Plan de hypercare',
+      pt: 'Cronograma • Escopo de treinamento • Plano de hypercare',
+      en: 'Timeline • Training scope • Hypercare plan',
+      es: 'Cronograma • Alcance de la capacitación • Plan de hypercare',
     },
   },
 ];
@@ -222,9 +222,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'business_goals',
     type: 'long_text',
     text: {
-      pt: 'Por que vocês estão implantando o Zendesk?',
-      en: 'Why are you implementing Zendesk?',
-      es: '¿Por qué están implementando Zendesk?',
+      pt: 'O que leva vocês a buscar uma nova plataforma de atendimento agora?',
+      en: 'What is leading you to look for a new customer service platform now?',
+      es: '¿Qué los lleva a buscar una nueva plataforma de atención ahora?',
     },
     configImpact: {
       pt: 'Define o escopo do projeto e a priorização das fases de configuração.',
@@ -233,7 +233,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.business_goals.problems',
@@ -258,9 +258,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'business_goals',
     type: 'long_text',
     text: {
-      pt: 'Como é o sucesso 90 dias após o go-live?',
-      en: 'What does success look like 90 days post-go-live?',
-      es: '¿Cómo se ve el éxito 90 días después del go-live?',
+      pt: 'Como seria o sucesso 90 dias depois de a nova plataforma entrar em operação?',
+      en: 'What would success look like 90 days after the new platform is up and running?',
+      es: '¿Cómo se vería el éxito 90 días después de que la nueva plataforma entre en operación?',
     },
     configImpact: {
       pt: 'Direciona a configuração de KPIs nos painéis do Explore.',
@@ -269,7 +269,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.business_goals.top_pain_points',
@@ -294,9 +294,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'business_goals',
     type: 'long_text',
     text: {
-      pt: 'Por que vocês estão saindo da plataforma atual?',
-      en: 'Why are you moving away from your current platform?',
-      es: '¿Por qué están dejando la plataforma actual?',
+      pt: 'O que motiva uma possível troca da plataforma atual?',
+      en: 'What is motivating a possible move away from your current platform?',
+      es: '¿Qué motiva un posible cambio de la plataforma actual?',
     },
     configImpact: {
       pt: 'Sinaliza a complexidade da migração e lacunas de funcionalidade a tratar na configuração.',
@@ -305,7 +305,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.business_goals.outcome_response_time',
@@ -541,9 +541,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'teams',
     type: 'long_text',
     text: {
-      pt: 'Quais times vão usar o Zendesk? (Suporte, Técnico, Financeiro, Vendas, TI, RH…)',
-      en: 'Which teams will use Zendesk? (Support, Technical, Billing, Sales, IT, HR…)',
-      es: '¿Qué equipos usarán Zendesk? (Soporte, Técnico, Facturación, Ventas, TI, RR. HH.…)',
+      pt: 'Quais times participam do atendimento hoje ou deveriam usar a nova plataforma? (Suporte, Técnico, Financeiro, Vendas, TI, RH…)',
+      en: 'Which teams handle customer service today or should use the new platform? (Support, Technical, Billing, Sales, IT, HR…)',
+      es: '¿Qué equipos participan hoy en la atención o deberían usar la nueva plataforma? (Soporte, Técnico, Facturación, Ventas, TI, RR. HH.…)',
     },
     configImpact: {
       pt: 'Criação de grupos — um grupo por time; regras de roteamento por grupo.',
@@ -552,7 +552,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   // "Number of agents per team?" — substituída por core.users.agents
   {
@@ -646,9 +646,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'channels',
     type: 'long_text',
     text: {
-      pt: 'Números de telefone existentes para o Zendesk Talk? Portabilidade ou números novos?',
-      en: 'Existing phone number(s) for Zendesk Talk? Port or new numbers?',
-      es: '¿Números de teléfono existentes para Zendesk Talk? ¿Portabilidad o números nuevos?',
+      pt: 'Vocês já têm números de telefone de atendimento? No futuro, querem manter esses números (portabilidade) ou usar números novos?',
+      en: 'Do you have existing customer service phone numbers? Going forward, would you keep them (port) or use new numbers?',
+      es: '¿Ya tienen números de teléfono de atención? En el futuro, ¿quieren conservarlos (portabilidad) o usar números nuevos?',
     },
     configImpact: {
       pt: 'Zendesk Talk — portar números existentes ou provisionar novos.',
@@ -657,16 +657,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.channels.whatsapp_account',
     section: 'channels',
     type: 'yes_no',
     text: {
-      pt: 'Já existe conta do WhatsApp Business para conectar?',
-      en: 'WhatsApp Business account connected?',
-      es: '¿Ya existe una cuenta de WhatsApp Business para conectar?',
+      pt: 'Vocês já têm uma conta do WhatsApp Business?',
+      en: 'Do you already have a WhatsApp Business account?',
+      es: '¿Ya tienen una cuenta de WhatsApp Business?',
     },
     help: {
       pt: 'A conexão depende de aprovação da Meta, que pode atrasar o go-live.',
@@ -680,16 +680,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.channels.social_pages',
     section: 'channels',
     type: 'long_text',
     text: {
-      pt: 'Páginas do Facebook / Instagram a conectar?',
-      en: 'Facebook / Instagram pages to connect?',
-      es: '¿Páginas de Facebook / Instagram para conectar?',
+      pt: 'Há páginas do Facebook / Instagram cujas mensagens devem ser atendidas pela plataforma de atendimento?',
+      en: 'Are there Facebook / Instagram pages whose messages should be handled in the customer service platform?',
+      es: '¿Hay páginas de Facebook / Instagram cuyos mensajes deben atenderse desde la plataforma de atención?',
     },
     configImpact: {
       pt: 'Canais de mensagens sociais na Central de administração.',
@@ -698,7 +698,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.channels.volume',
@@ -715,13 +715,13 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       },
       {
         key: 'expected_monthly', type: 'number',
-        label: { pt: 'Volume mensal esperado após go-live', en: 'Expected monthly volume after go-live', es: 'Volumen mensual esperado tras el go-live' },
+        label: { pt: 'Volume mensal esperado no futuro', en: 'Expected future monthly volume', es: 'Volumen mensual esperado a futuro' },
       },
     ],
     text: {
-      pt: 'Volume de tickets por canal: mensal atual e esperado após o go-live.',
-      en: 'Ticket volume per channel: current monthly and expected after go-live.',
-      es: 'Volumen de tickets por canal: mensual actual y esperado tras el go-live.',
+      pt: 'Volume de chamados por canal: mensal hoje e esperado no futuro.',
+      en: 'Ticket volume per channel: monthly today and expected in the future.',
+      es: 'Volumen de tickets por canal: mensual hoy y esperado a futuro.',
     },
     configImpact: {
       pt: 'Dimensiona visualizações, capacidade de roteamento e metas de SLA por canal; gatilhos por volume e visões de capacidade no Explore.',
@@ -730,7 +730,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   // "Expected volume after go-live per channel?" — incorporada em core.channels.volume (coluna própria)
   {
@@ -862,9 +862,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'forms',
     type: 'long_text',
     text: {
-      pt: 'Nome e finalidade de cada formulário?',
-      en: 'Form names and their purpose?',
-      es: '¿Nombre y propósito de cada formulario?',
+      pt: 'Quais formulários de chamado (um por tipo de solicitação) vocês usam hoje ou precisariam ter? Nome e finalidade de cada um.',
+      en: 'Which request forms (one per request type) do you use today or would you need? Name and purpose of each.',
+      es: '¿Qué formularios de solicitud (uno por tipo de solicitud) usan hoy o necesitarían? Nombre y propósito de cada uno.',
     },
     configImpact: {
       pt: 'Nome de cada formulário — exibido a usuários finais e agentes; ligado ao roteamento dos tickets.',
@@ -873,7 +873,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.forms.required_fields',
@@ -939,9 +939,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'fields',
     type: 'long_text',
     text: {
-      pt: 'Tipo de cada campo? (Texto, Suspenso, Caixa de seleção, Data, Número, Lookup)',
-      en: 'Field type for each? (Text, Drop-down, Checkbox, Date, Number, Lookup)',
-      es: '¿Tipo de cada campo? (Texto, Desplegable, Casilla, Fecha, Número, Búsqueda)',
+      pt: 'Tipo de cada campo? (Texto, Lista suspensa, Caixa de seleção, Data, Número, Vínculo com outro registro/lookup)',
+      en: 'Field type for each? (Text, Drop-down, Checkbox, Date, Number, Link to another record/lookup)',
+      es: '¿Tipo de cada campo? (Texto, Desplegable, Casilla, Fecha, Número, Vínculo con otro registro/lookup)',
     },
     configImpact: {
       pt: 'O tipo define a capacidade de busca/filtro e as dimensões de relatório no Explore.',
@@ -950,7 +950,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.fields.required_to_solve',
@@ -1350,9 +1350,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'automations',
     type: 'long_text',
     text: {
-      pt: 'Que trabalho repetitivo o Zendesk deve automatizar?',
-      en: 'What repetitive work should Zendesk automate?',
-      es: '¿Qué trabajo repetitivo debe automatizar Zendesk?',
+      pt: 'Que trabalho repetitivo vocês gostariam de automatizar no atendimento?',
+      en: 'What repetitive work would you like to automate in your customer service?',
+      es: '¿Qué trabajo repetitivo les gustaría automatizar en la atención?',
     },
     configImpact: {
       pt: 'Gatilhos (tempo real) e automações (por tempo) — um por caso de uso.',
@@ -1361,7 +1361,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.automations.auto_assign',
@@ -1499,9 +1499,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'macros',
     type: 'yes_no',
     text: {
-      pt: 'Existem procedimentos (SOPs) ou roteiros de resposta a migrar?',
-      en: 'Do you have existing SOPs or response scripts to migrate?',
-      es: '¿Existen procedimientos (SOP) o guiones de respuesta para migrar?',
+      pt: 'Existem procedimentos (SOPs) ou roteiros de resposta documentados que deveriam ser aproveitados?',
+      en: 'Do you have documented SOPs or response scripts that should be reused?',
+      es: '¿Existen procedimientos (SOP) o guiones de respuesta documentados que deberían aprovecharse?',
     },
     configImpact: {
       pt: 'Converter SOPs em macros + modelos de nota interna; vincular a artigos da Central de Ajuda.',
@@ -1510,7 +1510,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.macros.visibility',
@@ -1522,9 +1522,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       { value: 'mixed', label: { pt: 'Misto', en: 'Mixed', es: 'Mixto' } },
     ],
     text: {
-      pt: 'As macros devem estar disponíveis para todos os agentes ou por time?',
-      en: 'Should some macros be available to all agents, or team-specific?',
-      es: '¿Las macros deben estar disponibles para todos los agentes o por equipo?',
+      pt: 'As respostas prontas (macros) devem ficar disponíveis para todos ou por time?',
+      en: 'Should canned responses (macros) be available to all agents, or team-specific?',
+      es: '¿Las respuestas predefinidas (macros) deben estar disponibles para todos los agentes o por equipo?',
     },
     configImpact: {
       pt: 'Visibilidade da macro: pessoal, por grupo ou todos os agentes.',
@@ -1533,16 +1533,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.macros.update_fields',
     section: 'macros',
     type: 'yes_no',
     text: {
-      pt: 'Há macros que também devem atualizar campos ou tags do ticket?',
-      en: 'Are there macros that should also update ticket fields or tags?',
-      es: '¿Hay macros que también deben actualizar campos o etiquetas del ticket?',
+      pt: 'Há respostas prontas (macros) que também devem atualizar campos ou etiquetas do chamado?',
+      en: 'Are there canned responses (macros) that should also update ticket fields or tags?',
+      es: '¿Hay respuestas predefinidas (macros) que también deben actualizar campos o etiquetas del ticket?',
     },
     configImpact: {
       pt: 'Ações da macro: definir valor de campo, adicionar tag, mudar status — encadear com gatilhos.',
@@ -1551,7 +1551,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
 
   // ---------------------------------------------------------------------------
@@ -1562,9 +1562,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'knowledge',
     type: 'yes_no',
     text: {
-      pt: 'Existe documentação a migrar? (artigos, FAQs, PDFs, conteúdo do site)',
-      en: 'Do you have existing documentation to migrate? (Articles, FAQs, PDFs, website content)',
-      es: '¿Existe documentación para migrar? (artículos, preguntas frecuentes, PDF, contenido del sitio)',
+      pt: 'Existe documentação que poderia ser aproveitada? (artigos, FAQs, PDFs, conteúdo do site)',
+      en: 'Do you have existing documentation that could be reused? (Articles, FAQs, PDFs, website content)',
+      es: '¿Existe documentación que podría aprovecharse? (artículos, preguntas frecuentes, PDF, contenido del sitio)',
     },
     configImpact: {
       pt: 'Configuração do Guide; ferramenta de migração de conteúdo ou importação manual; formatação dos artigos.',
@@ -1573,7 +1573,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   // "How many articles approximately?" — substituída por core.knowledge.articles
   {
@@ -1581,9 +1581,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'knowledge',
     type: 'short_text',
     text: {
-      pt: 'Quem é dono e mantém o conteúdo da Central de Ajuda?',
-      en: 'Who owns and maintains Help Center content?',
-      es: '¿Quién es dueño y mantiene el contenido del Centro de ayuda?',
+      pt: 'Quem é ou seria dono do conteúdo da central de ajuda/FAQ?',
+      en: 'Who owns, or would own, your help center/FAQ content?',
+      es: '¿Quién es o sería dueño del contenido del centro de ayuda/preguntas frecuentes?',
     },
     configImpact: {
       pt: 'Atribuição do papel de gerente do Guide; fluxo de publicação (rascunho → revisão → publicado).',
@@ -1592,16 +1592,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.knowledge.languages',
     section: 'knowledge',
     type: 'long_text',
     text: {
-      pt: 'Quais idiomas a Central de Ajuda precisa ter?',
-      en: 'Languages needed for Help Center?',
-      es: '¿Qué idiomas necesita el Centro de ayuda?',
+      pt: 'Em quais idiomas a central de ajuda/FAQ precisa estar?',
+      en: 'Which languages does your help center/FAQ need?',
+      es: '¿En qué idiomas debe estar el centro de ayuda/preguntas frecuentes?',
     },
     configImpact: {
       pt: 'Central de Ajuda multilíngue; conteúdo dinâmico para e-mails automáticos.',
@@ -1610,7 +1610,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.knowledge.approval_process',
@@ -1640,9 +1640,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       { value: 'mixed', label: { pt: 'Mista (parte pública, parte restrita)', en: 'Mixed', es: 'Mixto (parte pública, parte restringida)' } },
     ],
     text: {
-      pt: 'A Central de Ajuda deve ser pública ou restrita (exigir login)?',
-      en: 'Should Help Center be public or gated (login required)?',
-      es: '¿El Centro de ayuda debe ser público o restringido (requerir inicio de sesión)?',
+      pt: 'A central de ajuda/FAQ deve ser pública ou restrita (exigir login)?',
+      en: 'Should your help center/FAQ be public or gated (login required)?',
+      es: '¿El centro de ayuda/preguntas frecuentes debe ser público o restringido (requerir inicio de sesión)?',
     },
     configImpact: {
       pt: 'Configuração de acesso da Central de Ajuda — aberta a todos ou só usuários conectados.',
@@ -1651,16 +1651,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.knowledge.ai_uses_articles',
     section: 'knowledge',
     type: 'yes_no',
     text: {
-      pt: 'A IA vai usar os artigos da Central de Ajuda para responder clientes?',
-      en: 'Will AI use Help Center articles to answer customer questions?',
-      es: '¿La IA usará los artículos del Centro de ayuda para responder a los clientes?',
+      pt: 'Vocês gostariam que uma IA usasse os artigos da central de ajuda/FAQ para responder aos clientes?',
+      en: 'Would you like AI to use your help center/FAQ articles to answer customer questions?',
+      es: '¿Les gustaría que una IA usara los artículos del centro de ayuda/preguntas frecuentes para responder a los clientes?',
     },
     configImpact: {
       pt: 'AI Agents conectados ao Guide — artigos precisam estar publicados e bem marcados.',
@@ -1669,7 +1669,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
 
   // ---------------------------------------------------------------------------
@@ -1762,9 +1762,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'integrations',
     type: 'long_text',
     text: {
-      pt: 'Quais sistemas precisam se integrar ao Zendesk? (CRM, ERP, cobrança, e-commerce…)',
-      en: 'Which systems need to integrate with Zendesk? (CRM, ERP, billing, e-commerce…)',
-      es: '¿Qué sistemas deben integrarse con Zendesk? (CRM, ERP, facturación, e-commerce…)',
+      pt: 'Quais sistemas precisam se integrar à plataforma de atendimento? (CRM, ERP, cobrança, e-commerce…)',
+      en: 'Which systems need to integrate with the customer service platform? (CRM, ERP, billing, e-commerce…)',
+      es: '¿Qué sistemas deben integrarse con la plataforma de atención? (CRM, ERP, facturación, e-commerce…)',
     },
     configImpact: {
       pt: 'App do Marketplace ou integração personalizada via API para cada sistema.',
@@ -1773,16 +1773,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.integrations.salesforce',
     section: 'integrations',
     type: 'yes_no',
     text: {
-      pt: 'Salesforce — ler dados do CRM na barra lateral do Zendesk? Sincronizar tickets com casos do SF?',
-      en: 'Salesforce — read CRM data in Zendesk sidebar? Sync tickets to SF cases?',
-      es: 'Salesforce: ¿leer datos del CRM en la barra lateral de Zendesk? ¿Sincronizar tickets con casos de SF?',
+      pt: 'Os agentes precisam ver dados do Salesforce durante o atendimento? E sincronizar os chamados com os casos do Salesforce?',
+      en: 'Do agents need to see Salesforce data while handling a ticket? And sync tickets with Salesforce cases?',
+      es: '¿Los agentes necesitan ver datos de Salesforce durante la atención? ¿Y sincronizar los tickets con los casos de Salesforce?',
     },
     configImpact: {
       pt: 'App Zendesk for Salesforce; configuração de sincronização bidirecional.',
@@ -1791,16 +1791,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.integrations.hubspot',
     section: 'integrations',
     type: 'yes_no',
     text: {
-      pt: 'HubSpot — exibir dados de contato/negócio na barra lateral do ticket?',
-      en: 'HubSpot — surface contact/deal data in ticket sidebar?',
-      es: 'HubSpot: ¿mostrar datos de contacto/negocio en la barra lateral del ticket?',
+      pt: 'Os agentes precisam ver dados de contato/negócio do HubSpot durante o atendimento?',
+      en: 'Do agents need to see HubSpot contact/deal data while handling a ticket?',
+      es: '¿Los agentes necesitan ver datos de contacto/negocio de HubSpot durante la atención?',
     },
     configImpact: {
       pt: 'App HubSpot for Zendesk do Marketplace ou app de barra lateral personalizado via API.',
@@ -1809,16 +1809,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.integrations.ecommerce',
     section: 'integrations',
     type: 'yes_no',
     text: {
-      pt: 'Shopify / e-commerce — exibir dados do pedido no ticket?',
-      en: 'Shopify / e-commerce — show order data in ticket?',
-      es: 'Shopify / e-commerce: ¿mostrar datos del pedido en el ticket?',
+      pt: 'Os agentes precisam ver dados dos pedidos (Shopify / e-commerce) durante o atendimento?',
+      en: 'Do agents need to see order data (Shopify / e-commerce) while handling a ticket?',
+      es: '¿Los agentes necesitan ver datos de los pedidos (Shopify / e-commerce) durante la atención?',
     },
     configImpact: {
       pt: 'App Shopify for Zendesk; agentes veem o pedido sem sair do ticket.',
@@ -1827,16 +1827,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.integrations.jira',
     section: 'integrations',
     type: 'yes_no',
     text: {
-      pt: 'Jira — criar issues no Jira a partir de tickets para escalonamentos à engenharia?',
+      pt: 'Jira — os escalonamentos para a engenharia devem gerar issues no Jira a partir dos chamados?',
       en: 'Jira — create Jira issues from tickets for engineering escalations?',
-      es: 'Jira: ¿crear incidencias en Jira desde los tickets para escalamientos a ingeniería?',
+      es: 'Jira: ¿los escalamientos a ingeniería deben generar incidencias en Jira a partir de los tickets?',
     },
     configImpact: {
       pt: 'App Zendesk for Jira; vincular ticket ↔ issue; sincronizar o status de volta no ticket.',
@@ -1906,9 +1906,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     tracks: ['usecase.migration'],
     type: 'short_text',
     text: {
-      pt: 'Vocês estão migrando de outra plataforma? Qual?',
-      en: 'Are you migrating from another platform? Which one?',
-      es: '¿Están migrando desde otra plataforma? ¿Cuál?',
+      pt: 'Qual plataforma vocês usam hoje (de onde viriam os dados numa migração)?',
+      en: 'Which platform do you use today (where data would be migrated from)?',
+      es: '¿Qué plataforma usan hoy (de donde vendrían los datos en una migración)?',
     },
     configImpact: {
       pt: 'Escolha da ferramenta de migração (ex.: Help Desk Migration, script próprio).',
@@ -1917,7 +1917,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   // "What data objects to migrate?" — substituída por mig.objects
   // "How many total tickets to migrate?" — substituída por mig.tickets_volume
@@ -1928,9 +1928,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     tracks: ['usecase.migration'],
     type: 'yes_no',
     text: {
-      pt: 'Os valores de campos personalizados precisam ser mapeados para novos campos no Zendesk?',
-      en: 'Do custom field values need to be mapped to new Zendesk fields?',
-      es: '¿Los valores de campos personalizados deben mapearse a nuevos campos en Zendesk?',
+      pt: 'Numa eventual migração, os valores de campos personalizados precisariam ser mapeados para novos campos?',
+      en: 'In a potential migration, would custom field values need to be mapped to new fields?',
+      es: 'En una eventual migración, ¿los valores de campos personalizados tendrían que mapearse a nuevos campos?',
     },
     configImpact: {
       pt: 'Documento de mapeamento de campos antes da migração; divergências causam perda de dados.',
@@ -1939,7 +1939,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.migration.reopen_or_archive',
@@ -1952,9 +1952,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       { value: 'mixed', label: { pt: 'Abertos reabrem, fechados ficam arquivados', en: 'Open ones re-open, closed ones archived', es: 'Los abiertos se reabren, los cerrados quedan archivados' } },
     ],
     text: {
-      pt: 'Os tickets migrados poderão ser reabertos ou ficam como arquivo somente leitura?',
-      en: 'Will migrated tickets need to be re-opened or are they read-only archive?',
-      es: '¿Los tickets migrados podrán reabrirse o quedan como archivo de solo lectura?',
+      pt: 'Os chamados migrados precisariam poder ser reabertos ou ficariam como arquivo somente leitura?',
+      en: 'Would migrated tickets need to be re-opened, or would they be a read-only archive?',
+      es: '¿Los tickets migrados tendrían que poder reabrirse o quedarían como archivo de solo lectura?',
     },
     configImpact: {
       pt: 'Tickets fechados/arquivados e tickets abertos têm tratamentos diferentes no Zendesk.',
@@ -1963,7 +1963,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
 
   // ---------------------------------------------------------------------------
@@ -2147,9 +2147,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       { value: 'other', label: { pt: 'Outro', en: 'Other', es: 'Otro' } },
     ],
     text: {
-      pt: 'Qual provedor de identidade será usado no SSO dos agentes?',
-      en: 'Which identity provider for agent SSO? (Okta, Azure AD, Google)',
-      es: '¿Qué proveedor de identidad se usará para el SSO de los agentes?',
+      pt: 'Qual provedor de identidade vocês usam para o login único (SSO) dos agentes? (Okta, Azure AD, Google)',
+      en: 'Which identity provider do you use for agent single sign-on (SSO)? (Okta, Azure AD, Google)',
+      es: '¿Qué proveedor de identidad usan para el inicio de sesión único (SSO) de los agentes? (Okta, Azure AD, Google)',
     },
     help: {
       pt: 'Se o SSO é necessário fica em core.sso; aqui, qual o provedor.',
@@ -2164,7 +2164,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     showIf: { questionKey: 'core.sso', equals: 'sim' },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.security.mfa',
@@ -2251,9 +2251,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     unit: { pt: 'administradores', en: 'admins', es: 'administradores' },
     min: 0,
     text: {
-      pt: 'Quantos administradores são necessários?',
-      en: 'How many admins needed?',
-      es: '¿Cuántos administradores se necesitan?',
+      pt: 'Quantas pessoas administrariam a plataforma de atendimento?',
+      en: 'How many people would administer the customer service platform?',
+      es: '¿Cuántas personas administrarían la plataforma de atención?',
     },
     help: {
       pt: 'Boa prática: 2 a 3 administradores no máximo, para reduzir o risco de configuração indevida.',
@@ -2267,16 +2267,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.users.scim',
     section: 'users',
     type: 'yes_no',
     text: {
-      pt: 'Provisionamento via SCIM a partir do sistema de RH / IdP?',
-      en: 'SCIM provisioning from HR system / IdP?',
-      es: '¿Aprovisionamiento vía SCIM desde el sistema de RR. HH. / IdP?',
+      pt: 'Os usuários devem ser criados e desativados automaticamente a partir do sistema de RH / provedor de identidade (SCIM)?',
+      en: 'Should users be created and deactivated automatically from your HR system / identity provider (SCIM)?',
+      es: '¿Los usuarios deben crearse y desactivarse automáticamente desde el sistema de RR. HH. / proveedor de identidad (SCIM)?',
     },
     configImpact: {
       pt: 'SCIM 2.0 para criar/desativar agentes automaticamente via Okta/Azure AD.',
@@ -2285,7 +2285,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'opcional',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   // "Custom roles needed beyond default Agent/Admin?" — substituída por core.users.custom_roles
   {
@@ -2315,9 +2315,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'launch',
     type: 'date',
     text: {
-      pt: 'Data-alvo do go-live?',
-      en: 'Target go-live date?',
-      es: '¿Fecha objetivo del go-live?',
+      pt: 'Existe uma data-alvo para a nova plataforma entrar em operação?',
+      en: 'Is there a target date for the new platform to be up and running?',
+      es: '¿Existe una fecha objetivo para que la nueva plataforma entre en operación?',
     },
     configImpact: {
       pt: 'Ancora o plano do projeto e o cronograma dos sprints de configuração.',
@@ -2326,7 +2326,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.launch.rollout',
@@ -2337,9 +2337,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
       { value: 'big_bang', label: { pt: 'Big-bang (todos os times de uma vez)', en: 'Big-bang (all teams at once)', es: 'Big-bang (todos los equipos a la vez)' } },
     ],
     text: {
-      pt: 'Implantação em fases (time a time) ou big-bang (todos os times de uma vez)?',
-      en: 'Phased rollout (team by team) or big-bang launch (all teams at once)?',
-      es: '¿Implementación por fases (equipo por equipo) o big-bang (todos los equipos a la vez)?',
+      pt: 'A entrada em operação seria em fases (time a time) ou de uma vez (big-bang, todos os times juntos)?',
+      en: 'Would the rollout be phased (team by team) or big-bang (all teams at once)?',
+      es: '¿La puesta en marcha sería por fases (equipo por equipo) o de una vez (big-bang, todos los equipos juntos)?',
     },
     configImpact: {
       pt: 'Em fases: configurar o time A, testar e depois incluir os demais; afeta a sequência de grupos/roteamento.',
@@ -2348,7 +2348,7 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'media',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.launch.training_needs',
@@ -2379,9 +2379,9 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     section: 'launch',
     type: 'short_text',
     text: {
-      pt: 'Quem é o dono interno do projeto, com autoridade final de aprovação?',
-      en: 'Who is the internal project owner with final sign-off authority?',
-      es: '¿Quién es el responsable interno del proyecto con autoridad final de aprobación?',
+      pt: 'Quem é o responsável interno por essa iniciativa, com autoridade final de decisão?',
+      en: 'Who is the internal owner of this initiative, with final sign-off authority?',
+      es: '¿Quién es el responsable interno de esta iniciativa, con autoridad final de decisión?',
     },
     configImpact: {
       pt: 'Responsável nomeado para o caminho de escalonamento e a aprovação de mudanças.',
@@ -2390,16 +2390,16 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'essencial',
     complexity: 'baixa',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
   {
     key: 'core.launch.uat',
     section: 'launch',
     type: 'long_text',
     text: {
-      pt: 'Processo de UAT (teste de aceitação) — como vocês vão validar a configuração?',
-      en: 'UAT (User Acceptance Testing) process — how will you validate configuration?',
-      es: 'Proceso de UAT (pruebas de aceptación): ¿cómo validarán la configuración?',
+      pt: 'Como vocês costumam validar uma nova ferramenta antes de colocá-la em uso (teste de aceitação/UAT)?',
+      en: 'How do you usually validate a new tool before putting it into use (UAT – user acceptance testing)?',
+      es: '¿Cómo suelen validar una nueva herramienta antes de ponerla en uso (pruebas de aceptación/UAT)?',
     },
     configImpact: {
       pt: 'Checklist de UAT: testar canais, roteamento, SLAs, macros e integrações antes da virada.',
@@ -2408,6 +2408,6 @@ export const TEMPLATE_QUESTIONS: SeedQuestion[] = [
     },
     priority: 'recomendada',
     complexity: 'alta',
-    translation: TR,
+    translation: { en: 'machine', pt: 'machine', es: 'machine' },
   },
 ];

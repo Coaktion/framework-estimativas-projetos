@@ -58,6 +58,12 @@ test('seed: RF-04, nenhuma pergunta de quantidade guardada como texto nas pergun
   assert.deepEqual(offenders.map((q) => q.key), []);
 });
 
+test('seed: as perguntas não pressupõem que o cliente já escolheu o Zendesk', () => {
+  const rx = /zendesk|go-live|implanta[çc][ãa]o|implementaci[óo]n|implementation|vai usar|will you use/i;
+  const offenders = bank.questions.filter((q) => (['pt', 'en', 'es'] as const).some((l) => rx.test(q.text[l] || '')));
+  assert.deepEqual(offenders.map((q) => `${q.key}: ${q.text.pt}`), []);
+});
+
 test('seed: todo item mapeado existe no catálogo de produção (conferido em 18/11/2026)', () => {
   // IDs ativos no get_catalog de produção em 18/11/2026.
   const PROD_IDS = new Set([1, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 31, 32, 33, 34, 35, 36, 47, 49, 50, 51, 52, 53, 56, 61, 62, 64, 66, 67, 68, 69, 70, 73, 74, 75, 77, 78, 83, 84, 85, 86, 87, 88, 89, 92, 93, 94, 95, 96, 97, 98, 105, 106, 110, 111, 112, 116, 117, 118, 119, 120, 121, 122, 125, 128, 133, 134, 135, 138, 163, 164, 165, 166, 167, 168, 169, 170, 171, 172, 173, 174, 175, 176, 178, 179, 181, 182, 183, 184, 185, 186, 187, 188, 193, 194, 196, 197, 211, 222, 223, 224, 228, 229, 230, 231, 234]);
@@ -261,12 +267,12 @@ test('exportação: Markdown e .xlsx com respostas e pendências', async () => {
   const s = { clientName: 'Nimbo Varejo', title: '', language: 'pt' as const, ...NIMBO_CONTEXT, trackKeys: [...NIMBO_TRACKS, 'usecase.migration'], status: 'em_andamento', createdAt: '2026-11-18T12:00:00Z' };
   const md = exportMarkdown(bank, s, answers, 'pt', 'nota livre');
   assert.match(md, /# Scoping · Nimbo Varejo/);
-  assert.match(md, /Quantas visualizações\?/);
+  assert.match(md, /\(visualizações\)\?/);
   assert.match(md, /Gerente de CX/);
   assert.match(md, /nota livre/);
   assert.doesNotMatch(md, /\bh\b.*horas/i);
   const en = exportMarkdown(bank, s, answers, 'en');
-  assert.match(en, /How many views\?/);
+  assert.match(en, /\(views\)\?/);
   const buf = await exportXlsx(bank, s, answers, 'es');
   assert.ok(buf.length > 5000);
   assert.equal(buf.subarray(0, 2).toString(), 'PK');
