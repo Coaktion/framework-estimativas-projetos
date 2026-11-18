@@ -14,6 +14,8 @@ const BUILD_DEPLOY_URL =
 const nextConfig = {
     env: {
         BUILD_DEPLOY_URL,
+        // Relatos e Changelog: desligados só no build de produção (lib/feature-flags.ts)
+        RELATOS_CHANGELOG: netlifyContext === 'production' ? '' : '1',
     },
     eslint: {
         ignoreDuringBuilds: true,

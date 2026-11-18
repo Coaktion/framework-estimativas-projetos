@@ -8,6 +8,7 @@ import { Moon, Sun, Maximize2, Minimize2, ChevronDown } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking, canAccessFolders, canAccessEstudos, canUseSeTools } from "@/lib/segments";
 
 /** Botão de ícone do cabeçalho (densidade, tema). Mesmo visual do LanguageToggle e do FeedbackButton. */
@@ -91,8 +92,8 @@ export default function Navbar() {
     { show: canAccessZdAutoConfig(user), href: '/zd-auto-config', match: '/zd-auto-config', label: t('nav.zdAutoConfig'), title: t('nav.zdAutoConfigTitle'), grupo: 2 },
     { show: isAdmin, href: '/admin', match: '/admin', label: t('nav.admin'), grupo: 2 },
     // grupo 3: relatos de bugs/sugestões (SE e admin) e o changelog (todos)
-    { show: canUseSeTools(user), href: '/reports', match: '/reports', label: t('nav.reports'), title: t('nav.reportsTitle'), grupo: 3 },
-    { show: true, href: '/changelog', match: '/changelog', label: t('nav.changelog'), title: t('nav.changelogTitle'), grupo: 3 },
+    { show: relatosEChangelogLigados && canUseSeTools(user), href: '/reports', match: '/reports', label: t('nav.reports'), title: t('nav.reportsTitle'), grupo: 3 },
+    { show: relatosEChangelogLigados, href: '/changelog', match: '/changelog', label: t('nav.changelog'), title: t('nav.changelogTitle'), grupo: 3 },
   ].filter((l) => l.show) : [];
   /** O primeiro link de um grupo novo leva o separador antes dele. */
   const abreGrupo = (i: number) => i > 0 && links[i]!.grupo !== links[i - 1]!.grupo;

@@ -10,8 +10,10 @@ import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { canUseSeTools } from '@/lib/segments';
 import { normalizeEntryData, type ChangelogEntryData } from '@/lib/changelog';
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 
 async function requireEditor() {
+  if (!relatosEChangelogLigados) throw new Error('forbidden');
   const session: any = await getServerSession(authOptions);
   if (!canUseSeTools(session?.user)) throw new Error('forbidden');
   return Number(session.user.id) || null;

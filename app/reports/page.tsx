@@ -1,4 +1,5 @@
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
@@ -9,6 +10,7 @@ export const dynamic = 'force-dynamic';
 
 /** Bugs e sugestões enviados pela janela do cabeçalho. Só SE e admin. */
 export default async function ReportsPage() {
+  if (!relatosEChangelogLigados) notFound();
   const session: any = await getServerSession(authOptions);
   if (!canUseSeTools(session?.user)) redirect('/');
 

@@ -10,9 +10,11 @@ import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { canUseSeTools } from '@/lib/segments';
 import { notificarRelatoResolvido } from '@/lib/notificacoes';
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 import { FEATURE_KEYS, FEEDBACK_KINDS, FEEDBACK_STATUSES } from '@/lib/tool-features';
 
 export async function createFeedbackAction(input: { feature: string; kind: string; body: string; pageUrl?: string | null }) {
+  if (!relatosEChangelogLigados) return { ok: false as const, error: 'unauthorized' };
   const session: any = await getServerSession(authOptions);
   if (!session?.user?.id) return { ok: false as const, error: 'unauthorized' };
   const feature = String(input.feature || '');

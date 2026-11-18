@@ -1,4 +1,6 @@
 import { getServerSession } from 'next-auth';
+import { notFound } from 'next/navigation';
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
 import { canUseSeTools } from '@/lib/segments';
@@ -14,6 +16,7 @@ export const dynamic = 'force-dynamic';
  * das alterações feitas no Admin.
  */
 export default async function ChangelogPage() {
+  if (!relatosEChangelogLigados) notFound();
   const session: any = await getServerSession(authOptions);
   const editor = canUseSeTools(session?.user);
 

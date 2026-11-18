@@ -8,11 +8,13 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import prisma from '@/lib/prisma';
 import { authOptions } from '@/lib/auth';
+import { relatosEChangelogLigados } from '@/lib/feature-flags';
 import { ATTACHMENT_MAX_BYTES, ATTACHMENT_MAX_COUNT, isAllowedAttachment } from '@/lib/tool-features';
 
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
+  if (!relatosEChangelogLigados) return NextResponse.json({ error: 'not found' }, { status: 404 });
   const session: any = await getServerSession(authOptions);
   if (!session?.user?.id) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   const form = await req.formData().catch(() => null);
