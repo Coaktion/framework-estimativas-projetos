@@ -302,6 +302,18 @@ export function canAccessNotificacoes(
  */
 const SE_TOOLS_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
 
+/**
+ * Quem enxerga o Scoping (discovery de requisitos com banco de perguntas):
+ * time de pré-vendas (SC) e ADMIN, como as demais ferramentas do time.
+ */
+const SCOPING_SEGMENTS: readonly Segment[] = ['ADMIN', 'SC'];
+
+/** Quem enxerga o Scoping. */
+export function canAccessScoping(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
+  if (!user) return false;
+  return Boolean(user.isAdmin) || SCOPING_SEGMENTS.includes(normalizeSegment(user.role));
+}
+
 export function canUseSeTools(user?: { isAdmin?: boolean; role?: string | null } | null): boolean {
   if (!user) return false;
   return Boolean(user.isAdmin) || SE_TOOLS_SEGMENTS.includes(normalizeSegment(user.role));

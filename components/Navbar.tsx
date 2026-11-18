@@ -8,8 +8,8 @@ import { Moon, Sun, Maximize2, Minimize2, ChevronDown } from "lucide-react";
 import { useTheme } from "./ThemeProvider";
 import { useTranslation } from "react-i18next";
 import LanguageToggle from "./LanguageToggle";
-import { relatosEChangelogLigados } from '@/lib/feature-flags';
-import { canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking, canAccessFolders, canAccessEstudos, canUseSeTools } from "@/lib/segments";
+import { relatosEChangelogLigados, scopingLigado } from '@/lib/feature-flags';
+import { canAccessScoping, canAccessScopes, canAccessAE, canAccessZdAutoConfig, canAccessPreSalesOps, canAccessBooking, canAccessFolders, canAccessEstudos, canUseSeTools } from "@/lib/segments";
 
 /** Botão de ícone do cabeçalho (densidade, tema). Mesmo visual do LanguageToggle e do FeedbackButton. */
 export const HEADER_ICON_BUTTON =
@@ -84,6 +84,7 @@ export default function Navbar() {
   const links = user ? [
     // grupo 1: o dia a dia comercial · grupo 2: as ferramentas do time de pré-vendas
     { show: canAccessScopes(user), href: '/sc', match: '/sc', label: t('nav.projects'), grupo: 1 },
+    { show: scopingLigado && canAccessScoping(user), href: '/scoping', match: '/scoping', label: t('nav.scoping'), title: t('nav.scopingTitle'), grupo: 1 },
     { show: canAccessAE(user), href: '/ae/history', match: '/ae', label: t('nav.history'), grupo: 1 },
     { show: canAccessBooking(user), href: '/booking', match: '/booking', label: t('nav.booking'), title: t('nav.bookingTitle'), grupo: 1 },
     { show: canAccessFolders(user), href: '/folders', match: '/folders', label: t('nav.folders'), title: t('nav.foldersTitle'), grupo: 1 },

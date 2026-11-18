@@ -1003,3 +1003,225 @@ model AdminChange {
   @@index([publishedAt, createdAt])
   @@map("admin_changes")
 }
+
+// =============================================================================
+// Scoping (lib/scoping): banco de perguntas versionado e sessões de scoping.
+// -----------------------------------------------------------------------------
+// Módulo ISOLADO: nenhuma relação com as outras tabelas do Tool Center (nem
+// Project, nem User). A sessão guarda só o nome do cliente; ids de pessoa são
+// Int sem relação. Textos traduzidos ficam em Json { pt, en, es }.
+// =============================================================================
+
+model ScopingBankVersion {
+  id          Int               @id @default(autoincrement())
+  version     Int               @unique
+  /// draft | published (rascunho só existe a partir do editor da Fase 2)
+  status      String            @default("published")
+  /// avisos da carga do seed (ex.: item do catálogo que não existe)
+  notes       String            @default("")
+  /// hash do seed que gerou a versão
+  seedHash    String?
+  publishedAt DateTime?
+  publishedBy Int?
+  createdAt   DateTime          @default(now())
+  tracks      ScopingTrack[]
+  sections    ScopingSection[]
+  questions   ScopingQuestion[]
+  sessions    ScopingSession[]
+
+  @@map("scoping_bank_versions")
+}
+
+model ScopingTrack {
+  id            Int                @id @default(autoincrement())
+  bankVersionId Int
+  bankVersion   ScopingBankVersion @relation(fields: [bankVersionId], references: [id], onDelete: Cascade)
+  key           String
+  /// core | product | usecase | segment
+  type          String
+  order         Int                @default(0)
+  name          Json
+  description   Json               @default("{}")
+  /// [{ sku?, plan?, deploymentType? }]: qualquer regra que bata sugere a trilha
+  suggestRules  Json               @default("[]")
+  /// [{ itemId, itemName, quantity }]: itens que a trilha soma sozinha
+  fixedItems    Json               @default("[]")
+  active        Boolean            @default(true)
+
+  @@unique([bankVersionId, key])
+  @@map("scoping_tracks")
+}
+
+model ScopingSection {
+  id            Int                @id @default(autoincrement())
+  bankVersionId Int
+  bankVersion   ScopingBankVersion @relation(fields: [bankVersionId], references: [id], onDelete: Cascade)
+  key           String
+  order         Int                @default(0)
+  title         Json
+  deliverable   Json               @default("{}")
+  questions     ScopingQuestion[]
+
+  @@unique([bankVersionId, key])
+  @@map("scoping_sections")
+}
+
+model ScopingQuestion {
+  id                Int                @id @default(autoincrement())
+  bankVersionId     Int
+  bankVersion       ScopingBankVersion @relation(fields: [bankVersionId], references: [id], onDelete: Cascade)
+  sectionId         Int
+  section           ScopingSection     @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  key               String
+  order             Int                @default(0)
+  trackKeys         String[]           @default([])
+  /// short_text | long_text | number | single | multi | yes_no | date | table | ai_usecases
+  type              String
+  options           Json               @default("[]")
+  unit              Json?
+  min               Float?
+  max               Float?
+  tableColumns      Json               @default("[]")
+  text              Json
+  help              Json               @default("{}")
+  configImpact      Json               @default("{}")
+  translationStatus Json               @default("{}")
+  /// essencial | recomendada | opcional
+  priority          String             @default("recomendada")
+  /// baixa | media | alta
+  defaultComplexity String?
+  showIf            Json?
+  followUps         Json               @default("[]")
+  catalogMappings   Json               @default("[]")
+  noCatalogItem     Boolean            @default(false)
+  dataKey           String?
+  active            Boolean            @default(true)
+
+  @@unique([bankVersionId, key])
+  @@index([sectionId])
+  @@map("scoping_questions")
+}
+
+model ScopingSession {
+  id             String             @id @default(cuid())
+  clientName     String
+  bankVersionId  Int
+  bankVersion    ScopingBankVersion @relation(fields: [bankVersionId], references: [id], onDelete: Restrict)
+  title          String             @default("")
+  language       String             @default("pt")
+  /// new | optimization
+  deploymentType String             @default("new")
+  /// CS | ES
+  sku            String             @default("CS")
+  plan           String             @default("professional")
+  trackKeys      String[]           @default([])
+  /// em_andamento | concluida
+  status         String             @default("em_andamento")
+  /// { minutesEssential, minutesRecommended }
+  settings       Json               @default("{}")
+  completedAt    DateTime?
+  completedBy    Int?
+  createdBy      Int
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  deletedAt      DateTime?
+  deletedBy      Int?
+  answers        ScopingAnswer[]
+  note           ScopingNote?
+  proposals      ScopingProposal[]
+  retros         ScopingRetro[]
+
+  @@index([createdBy])
+  @@map("scoping_sessions")
+}
+
+model ScopingAnswer {
+  id           String                 @id @default(cuid())
+  sessionId    String
+  session      ScopingSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionKey  String
+  value        Json?
+  /// nao_perguntada | respondida | pendente | nao_se_aplica
+  status       String                 @default("nao_perguntada")
+  pendingOwner String?
+  pendingDue   DateTime?
+  naReason     String?
+  /// manual | notes | tldv | claude_meetings | import
+  source       String                 @default("manual")
+  sourceRef    Json?
+  confidence   String?
+  version      Int                    @default(1)
+  updatedBy    Int?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+  history      ScopingAnswerHistory[]
+
+  @@unique([sessionId, questionKey])
+  @@index([sessionId, status])
+  @@map("scoping_answers")
+}
+
+model ScopingAnswerHistory {
+  id             String        @id @default(cuid())
+  answerId       String
+  answer         ScopingAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  previousValue  Json?
+  newValue       Json?
+  previousStatus String?
+  newStatus      String
+  source         String
+  sourceRef      Json?
+  changedBy      Int?
+  changedAt      DateTime      @default(now())
+
+  @@index([answerId, changedAt])
+  @@map("scoping_answer_history")
+}
+
+model ScopingNote {
+  id        String         @id @default(cuid())
+  sessionId String         @unique
+  session   ScopingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  content   String         @default("")
+  version   Int            @default(1)
+  updatedBy Int?
+  updatedAt DateTime       @updatedAt
+
+  @@map("scoping_notes")
+}
+
+/// Fase 1b: respostas propostas pelo Claude a partir de gravações (sempre revisadas por humano).
+model ScopingProposal {
+  id           String         @id @default(cuid())
+  sessionId    String
+  session      ScopingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionKey  String
+  value        Json
+  /// alta | media | baixa
+  confidence   String
+  rationale    String         @default("")
+  sourceRef    Json
+  /// proposta | aceita | rejeitada
+  state        String         @default("proposta")
+  createdBy    Int?
+  createdAt    DateTime       @default(now())
+  decidedBy    Int?
+  decidedAt    DateTime?
+  rejectReason String?
+
+  @@index([sessionId, state])
+  @@map("scoping_proposals")
+}
+
+/// Fase 1b: retro de 1 minuto ao concluir a sessão.
+model ScopingRetro {
+  id        String         @id @default(cuid())
+  sessionId String
+  session   ScopingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  answers   Json
+  createdBy Int?
+  createdAt DateTime       @default(now())
+
+  @@index([sessionId])
+  @@map("scoping_retros")
+}

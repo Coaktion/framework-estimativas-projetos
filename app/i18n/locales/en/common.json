@@ -820,7 +820,9 @@
     "reports": "Reports",
     "reportsTitle": "Bugs and suggestions sent by the team",
     "changelog": "Changelog",
-    "changelogTitle": "Tool Center news, improvements and fixes"
+    "changelogTitle": "Tool Center news, improvements and fixes",
+    "scoping": "Scoping",
+    "scopingTitle": "Requirements discovery with a question bank, open items and hour simulation"
   },
   "plans": {
     "categoryGateHint": "Below the minimum plan the whole category disappears from the framework, even if some item inside it has no restriction of its own. Empty = no restriction.",
@@ -2414,5 +2416,217 @@
     "area_zoho": "Zoho CRM",
     "area_shortcuts": "Shortcuts",
     "area_deletedEstimates": "Deleted estimates"
+  },
+  "scoping": {
+    "answer": {
+      "addRow": "Add row",
+      "exact": "Exact value",
+      "max": "Max",
+      "min": "Min",
+      "note": "Comment",
+      "range": "Use range",
+      "rangeHint": "The estimate uses the top of the range.",
+      "removeRow": "Remove row"
+    },
+    "catalogLinked": "· adds to catalog",
+    "conflict": {
+      "keepMine": "Keep mine",
+      "mine": "Your version",
+      "theirs": "{{name}}'s version",
+      "title": "Someone else changed this answer",
+      "useTheirs": "Use theirs"
+    },
+    "context": {
+      "catalog": "Catalog item",
+      "empty": "Open a question to see its context.",
+      "followUps": "Suggested follow-ups",
+      "history": "View history",
+      "impact": "Zendesk configuration impact",
+      "label": "Question context",
+      "manualHours": "estimate hours separately",
+      "noHistory": "No recorded changes.",
+      "noMapping": "This question doesn't add hours.",
+      "source": "Source",
+      "why": "Why ask"
+    },
+    "errors": {
+      "completed": "The session is completed. Reopen it to edit.",
+      "conflict": "Someone else changed this answer.",
+      "forbidden": "You don't have access to Scoping.",
+      "incomplete": "There are still essential questions without a status.",
+      "invalid": "Invalid data. Check the fields.",
+      "not_found": "Session not found.",
+      "server_error": "Couldn't save right now. Try again."
+    },
+    "footer": {
+      "essentialsOpen": "essentials open",
+      "pending": "open items"
+    },
+    "list": {
+      "client": "Client",
+      "confirmDelete": "Delete the {{name}} session? It will disappear from the list.",
+      "coreOnly": "Core only",
+      "delete": "Delete session",
+      "empty": "No sessions yet. Start a new one.",
+      "essentials": "Essentials",
+      "new": "New session",
+      "noMatch": "No sessions found.",
+      "pending": "Open items",
+      "search": "Search client",
+      "status": "Status",
+      "subtitle": "Requirements discovery during and after the meeting, with open items and hour simulation.",
+      "titleA": "Scoping",
+      "titleB": "sessions",
+      "tracks": "Tracks",
+      "updated": "Updated"
+    },
+    "meeting": {
+      "empty": "No questions to show.",
+      "essentials": "Essentials handled",
+      "fits": "{{n}} essentials left, about {{min}} min: they fit in 30 minutes.",
+      "keys": "Enter answers · P pending · N not applicable · S skips · J/K navigate · Esc leaves the field",
+      "next": "Answer and continue",
+      "noFit": "{{n}} essentials left, about {{min}} min: they don't fit in 30 minutes.",
+      "only30": "I have 30 minutes",
+      "timer": "Meeting time",
+      "upNext": "Up next"
+    },
+    "meter": {
+      "fromTrack": "included by the track",
+      "footnote": "Simulation on the current estimate engine. Nothing is saved.",
+      "items": "Items",
+      "loading": "Recalculating",
+      "manualHint": "No catalog item: hours must be estimated separately.",
+      "manualTitle": "Manual hours",
+      "mapped": "Mapped items",
+      "missing": "{{n}} without quantity",
+      "missingTitle": "Mapped questions without an answer",
+      "none": "No items yet.",
+      "range": "(range)",
+      "rangeShort": "range, uses max",
+      "title": "Hours",
+      "validation": "Validation",
+      "warn": {
+        "dependency": "{{item}} depends on item {{dep}}, which has no quantity, and doesn't count.",
+        "item_off_plan": "{{item}} isn't available on the selected plan and doesn't count.",
+        "module_off_plan": "The {{module}} module isn't available on the selected plan.",
+        "not_found": "{{item}} no longer exists in the catalog."
+      },
+      "warnings": "Engine warnings"
+    },
+    "na": {
+      "reason": "Reason",
+      "reasonPh": "Why doesn't it apply?",
+      "required": "Enter a reason for it to count toward completeness."
+    },
+    "nav": {
+      "filter": {
+        "all": "All",
+        "essential": "Essentials",
+        "open": "Unanswered",
+        "pending": "Pending"
+      },
+      "label": "Sections",
+      "noResults": "No questions match this filter.",
+      "results": "{{n}} question(s)",
+      "ring": "{{done}} answered, {{pending}} pending of {{total}}",
+      "search": "Search question"
+    },
+    "noCatalogItem": "no catalog item",
+    "notes": {
+      "close": "Close notes",
+      "hint": "Saved automatically. Shortcut: / (or Ctrl+/). Esc closes.",
+      "placeholder": "Take free notes during the meeting…",
+      "title": "Notes"
+    },
+    "pending": {
+      "due": "Due date",
+      "owner": "Owner (person or area)",
+      "ownerPh": "e.g. Client IT",
+      "required": "An open item needs an owner and a due date to count toward completeness.",
+      "short": "Pending · {{owner}} · {{due}}"
+    },
+    "priority": {
+      "essencial": "Essential",
+      "opcional": "Optional",
+      "recomendada": "Recommended"
+    },
+    "save": {
+      "conflict": "Notes merged with the other version",
+      "error": "Error saving",
+      "offline": "No connection to the server: your changes are kept here and will be sent when it comes back.",
+      "saved": "Saved",
+      "saving": "Saving…"
+    },
+    "session": {
+      "back": "Sessions",
+      "bankVersion": "bank v{{v}}",
+      "complete": "Complete",
+      "completeHint": "All essentials need a status",
+      "completedMsg": "Session completed.",
+      "export": "Export",
+      "fullMode": "Full mode",
+      "incomplete": "{{n}} essentials still have no status. They are filtered below.",
+      "meetingMode": "Meeting mode",
+      "readOnly": "Session completed: read-only. Reopen it to edit.",
+      "reopen": "Reopen",
+      "settings": "Context and tracks",
+      "tracksHint": "Removing a track only hides its questions: the answers are kept."
+    },
+    "sessionStatus": {
+      "concluida": "Completed",
+      "em_andamento": "In progress"
+    },
+    "source": {
+      "claude_meetings": "Claude Meetings",
+      "import": "Import",
+      "manual": "Manual",
+      "notes": "Meeting notes",
+      "tldv": "tl;dv"
+    },
+    "status": {
+      "clear": "Clear status",
+      "nao_perguntada": "Not asked",
+      "nao_se_aplica": "Not applicable",
+      "pendente": "Pending",
+      "respondida": "Answered"
+    },
+    "trackType": {
+      "core": "Core",
+      "product": "Products",
+      "segment": "Segments",
+      "usecase": "Use cases"
+    },
+    "wizard": {
+      "alwaysOn": "Always included",
+      "back": "Sessions",
+      "client": "Client",
+      "context": "Context",
+      "deployment": "Deployment type",
+      "deploymentNew": "New",
+      "deploymentOpt": "Optimization",
+      "estimatedTime": "Estimated time",
+      "language": "Session language",
+      "languageTip": "Language of the questions. The screen stays in your language.",
+      "minEssential": "Minutes per essential",
+      "minRecommended": "Minutes per recommended",
+      "next": "Next",
+      "plan": "Expected Zendesk plan",
+      "prev": "Back",
+      "sessionTitle": "Title (optional)",
+      "sessionTitlePh": "e.g. Scoping meeting 1",
+      "start": "Start",
+      "step1": "Context",
+      "step2": "Tracks",
+      "step3": "Summary",
+      "steps": "Steps",
+      "suggested": "suggested",
+      "timeHint": "Meeting time: essentials and recommended only, using the minutes set.",
+      "titleA": "New",
+      "titleB": "Scoping session",
+      "totalQuestions": "Questions",
+      "trackCost": "{{n}} questions · {{e}} essentials · {{time}}",
+      "tracksLabel": "Tracks"
+    }
   }
 }

@@ -820,7 +820,9 @@
     "reports": "Relatos",
     "reportsTitle": "Bugs e sugestões enviados pelo time",
     "changelog": "Changelog",
-    "changelogTitle": "Novidades, melhorias e correções do Tool Center"
+    "changelogTitle": "Novidades, melhorias e correções do Tool Center",
+    "scoping": "Scoping",
+    "scopingTitle": "Discovery de requisitos com banco de perguntas, pendências e simulação de horas"
   },
   "plans": {
     "categoryGateHint": "Abaixo do plano mínimo a categoria inteira desaparece do framework, mesmo que algum item dentro dela não tenha restrição própria. Vazio = sem restrição.",
@@ -2414,5 +2416,217 @@
     "area_zoho": "Zoho CRM",
     "area_shortcuts": "Atalhos",
     "area_deletedEstimates": "Estimativas excluídas"
+  },
+  "scoping": {
+    "answer": {
+      "addRow": "Adicionar linha",
+      "exact": "Valor exato",
+      "max": "Máx.",
+      "min": "Mín.",
+      "note": "Comentário",
+      "range": "Usar faixa",
+      "rangeHint": "A estimativa usa o máximo da faixa.",
+      "removeRow": "Remover linha"
+    },
+    "catalogLinked": "· soma no catálogo",
+    "conflict": {
+      "keepMine": "Manter a minha",
+      "mine": "Sua versão",
+      "theirs": "Versão de {{name}}",
+      "title": "Outra pessoa alterou esta resposta",
+      "useTheirs": "Usar a outra"
+    },
+    "context": {
+      "catalog": "Item do catálogo",
+      "empty": "Abra uma pergunta para ver o contexto.",
+      "followUps": "Aprofundamento sugerido",
+      "history": "Ver histórico",
+      "impact": "Impacto na configuração Zendesk",
+      "label": "Contexto da pergunta",
+      "manualHours": "estimar horas à parte",
+      "noHistory": "Sem alterações registradas.",
+      "noMapping": "Esta pergunta não soma horas.",
+      "source": "Origem",
+      "why": "Por que perguntar"
+    },
+    "errors": {
+      "completed": "A sessão está concluída. Reabra para editar.",
+      "conflict": "Outra pessoa alterou esta resposta.",
+      "forbidden": "Você não tem acesso ao Scoping.",
+      "incomplete": "Ainda há perguntas essenciais sem status.",
+      "invalid": "Dados inválidos. Confira os campos.",
+      "not_found": "Sessão não encontrada.",
+      "server_error": "Não deu para salvar agora. Tente de novo."
+    },
+    "footer": {
+      "essentialsOpen": "essenciais em aberto",
+      "pending": "pendências"
+    },
+    "list": {
+      "client": "Cliente",
+      "confirmDelete": "Excluir a sessão de {{name}}? Ela some da lista.",
+      "coreOnly": "Só o núcleo",
+      "delete": "Excluir sessão",
+      "empty": "Nenhuma sessão ainda. Comece uma nova.",
+      "essentials": "Essenciais",
+      "new": "Nova sessão",
+      "noMatch": "Nenhuma sessão encontrada.",
+      "pending": "Pendências",
+      "search": "Buscar cliente",
+      "status": "Status",
+      "subtitle": "Discovery de requisitos durante e depois da reunião, com pendências e simulação de horas.",
+      "titleA": "Sessões de",
+      "titleB": "Scoping",
+      "tracks": "Trilhas",
+      "updated": "Atualizada"
+    },
+    "meeting": {
+      "empty": "Nenhuma pergunta para mostrar.",
+      "essentials": "Essenciais tratadas",
+      "fits": "{{n}} essenciais restantes, cerca de {{min}} min: cabem em 30 minutos.",
+      "keys": "Enter responde · P pendente · N não se aplica · S pula · J/K navega · Esc sai do campo",
+      "next": "Responder e avançar",
+      "noFit": "{{n}} essenciais restantes, cerca de {{min}} min: não cabem em 30 minutos.",
+      "only30": "Tenho 30 minutos",
+      "timer": "Tempo de reunião",
+      "upNext": "A seguir"
+    },
+    "meter": {
+      "fromTrack": "incluído pela trilha",
+      "footnote": "Simulação no motor de estimativa atual. Nada é gravado.",
+      "items": "Itens",
+      "loading": "Recalculando",
+      "manualHint": "Sem item no catálogo: as horas precisam ser estimadas à parte.",
+      "manualTitle": "Horas manuais",
+      "mapped": "Itens mapeados",
+      "missing": "{{n}} sem quantidade",
+      "missingTitle": "Perguntas mapeadas sem resposta",
+      "none": "Nenhum item ainda.",
+      "range": "(faixa)",
+      "rangeShort": "faixa, usa o máx.",
+      "title": "Horas",
+      "validation": "Validação",
+      "warn": {
+        "dependency": "{{item}} depende do item {{dep}}, que não tem quantidade, e não conta.",
+        "item_off_plan": "{{item}} não está disponível no plano escolhido e não conta.",
+        "module_off_plan": "O módulo {{module}} não está disponível no plano escolhido.",
+        "not_found": "{{item}} não existe mais no catálogo."
+      },
+      "warnings": "Avisos do motor"
+    },
+    "na": {
+      "reason": "Motivo",
+      "reasonPh": "Por que não se aplica?",
+      "required": "Informe o motivo para contar na completude."
+    },
+    "nav": {
+      "filter": {
+        "all": "Todas",
+        "essential": "Essenciais",
+        "open": "Sem resposta",
+        "pending": "Pendentes"
+      },
+      "label": "Seções",
+      "noResults": "Nenhuma pergunta com esse filtro.",
+      "results": "{{n}} pergunta(s)",
+      "ring": "{{done}} respondidas, {{pending}} pendentes de {{total}}",
+      "search": "Buscar pergunta"
+    },
+    "noCatalogItem": "sem item no catálogo",
+    "notes": {
+      "close": "Fechar notas",
+      "hint": "Salvas sozinhas. Atalho: / (ou Ctrl+/). Esc fecha.",
+      "placeholder": "Anote livremente durante a reunião…",
+      "title": "Notas"
+    },
+    "pending": {
+      "due": "Prazo",
+      "owner": "Dono (pessoa ou área)",
+      "ownerPh": "Ex.: TI do cliente",
+      "required": "Pendência precisa de dono e prazo para contar na completude.",
+      "short": "Pendente · {{owner}} · {{due}}"
+    },
+    "priority": {
+      "essencial": "Essencial",
+      "opcional": "Opcional",
+      "recomendada": "Recomendada"
+    },
+    "save": {
+      "conflict": "Notas mescladas com a outra versão",
+      "error": "Erro ao salvar",
+      "offline": "Sem conexão com o servidor: as alterações estão guardadas aqui e serão enviadas quando voltar.",
+      "saved": "Salvo",
+      "saving": "Salvando…"
+    },
+    "session": {
+      "back": "Sessões",
+      "bankVersion": "banco v{{v}}",
+      "complete": "Concluir",
+      "completeHint": "Todas as essenciais precisam de status",
+      "completedMsg": "Sessão concluída.",
+      "export": "Exportar",
+      "fullMode": "Modo completo",
+      "incomplete": "Faltam {{n}} essenciais sem status. Elas estão filtradas abaixo.",
+      "meetingMode": "Modo reunião",
+      "readOnly": "Sessão concluída: somente leitura. Reabra para editar.",
+      "reopen": "Reabrir",
+      "settings": "Contexto e trilhas",
+      "tracksHint": "Remover uma trilha só esconde as perguntas: as respostas ficam guardadas."
+    },
+    "sessionStatus": {
+      "concluida": "Concluída",
+      "em_andamento": "Em andamento"
+    },
+    "source": {
+      "claude_meetings": "Claude Meetings",
+      "import": "Importação",
+      "manual": "Manual",
+      "notes": "Notas da reunião",
+      "tldv": "tl;dv"
+    },
+    "status": {
+      "clear": "Limpar status",
+      "nao_perguntada": "Não perguntada",
+      "nao_se_aplica": "Não se aplica",
+      "pendente": "Pendente",
+      "respondida": "Respondida"
+    },
+    "trackType": {
+      "core": "Núcleo",
+      "product": "Produtos",
+      "segment": "Segmentos",
+      "usecase": "Casos de uso"
+    },
+    "wizard": {
+      "alwaysOn": "Sempre incluído",
+      "back": "Sessões",
+      "client": "Cliente",
+      "context": "Contexto",
+      "deployment": "Tipo de implantação",
+      "deploymentNew": "Nova",
+      "deploymentOpt": "Otimização",
+      "estimatedTime": "Tempo estimado",
+      "language": "Idioma da sessão",
+      "languageTip": "Idioma das perguntas. A tela continua no seu idioma.",
+      "minEssential": "Minutos por essencial",
+      "minRecommended": "Minutos por recomendada",
+      "next": "Avançar",
+      "plan": "Plano Zendesk previsto",
+      "prev": "Voltar",
+      "sessionTitle": "Título (opcional)",
+      "sessionTitlePh": "Ex.: Reunião de scoping 1",
+      "start": "Começar",
+      "step1": "Contexto",
+      "step2": "Trilhas",
+      "step3": "Resumo",
+      "steps": "Etapas",
+      "suggested": "sugerida",
+      "timeHint": "Tempo de reunião: só essenciais e recomendadas, pelos minutos definidos.",
+      "titleA": "Nova sessão de",
+      "titleB": "Scoping",
+      "totalQuestions": "Perguntas",
+      "trackCost": "{{n}} perguntas · {{e}} essenciais · {{time}}",
+      "tracksLabel": "Trilhas"
+    }
   }
 }
