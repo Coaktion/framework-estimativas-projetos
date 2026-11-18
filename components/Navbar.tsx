@@ -120,7 +120,9 @@ export default function Navbar() {
 
   const shown = links.slice(0, visible);
   const overflow = links.slice(visible);
-  const overflowActive = overflow.some((l) => pathname.startsWith(l.match));
+  // Ativo = a própria rota ou uma sub-rota dela ("/sc" não pode acender em "/scoping").
+  const isActive = (match: string) => pathname === match || pathname.startsWith(`${match}/`);
+  const overflowActive = overflow.some((l) => isActive(l.match));
   const linkClass = (active: boolean) =>
     `px-[0.8em] py-[0.53em] leading-[1.55] font-medium whitespace-nowrap transition-colors ${
       active
@@ -149,7 +151,7 @@ export default function Navbar() {
 
         <div className="flex items-center gap-[0.27em]" style={{ fontSize: `calc(var(--fs-body) * ${scale})` }}>
           {shown.map((l, i) => {
-            const active = pathname.startsWith(l.match);
+            const active = isActive(l.match);
             return (
               <Link
                 key={l.href}
@@ -181,7 +183,7 @@ export default function Navbar() {
                   className="absolute left-0 mt-2 min-w-[200px] bg-white rounded-2xl border border-slate-200 shadow-xl p-2 z-[60] text-body"
                 >
                   {overflow.map((l, j) => {
-                    const active = pathname.startsWith(l.match);
+                    const active = isActive(l.match);
                     const sep = j > 0 && abreGrupo(visible + j);
                     return (
                       <Link

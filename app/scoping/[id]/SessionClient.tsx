@@ -9,6 +9,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { ArrowLeft, Download, NotebookPen, Presentation, LayoutPanelLeft, Search, Settings2 } from 'lucide-react';
 import { Banner, Button, CARD, Check, INPUT, Label, SELECT, TextInput, chipClass } from '@/components/booking/ui';
@@ -89,6 +90,9 @@ export default function SessionClient({
   const [sectionKey, setSectionKey] = useState<string | null>(null);
   const [message, setMessage] = useState<{ tone: 'error' | 'ok' | 'warn'; text: string } | null>(null);
   const [busy, startTransition] = useTransition();
+  // Rodapé e notas vão direto no <body>: o layout largo usa transform, que prende `fixed`.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const visible = useMemo(() => visibleQuestions(bank, session.trackKeys, answerList), [bank, session.trackKeys, answerList]);
   const comp = useMemo(() => completeness(bank, session.trackKeys, answerList), [bank, session.trackKeys, answerList]);
@@ -328,7 +332,7 @@ export default function SessionClient({
       ) : (
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)_330px]">
           {/* Esquerda: navegação */}
-          <nav aria-label={t('scoping.nav.label')} className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto pr-1">
+          <nav aria-label={t('scoping.nav.label')} className="space-y-4 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto pr-1">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" aria-hidden />
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('scoping.nav.search')} aria-label={t('scoping.nav.search')} className={`${INPUT} h-10 pl-9 text-label`} />
@@ -397,7 +401,7 @@ export default function SessionClient({
           </main>
 
           {/* Direita: contexto */}
-          <aside className={`hidden xl:block ${CARD} p-5 self-start sticky top-4 max-h-[calc(100vh-8rem)] overflow-y-auto`} aria-label={t('scoping.context.label')}>
+          <aside className={`hidden xl:block ${CARD} p-5 self-start sticky top-4 max-h-[calc(100vh-12rem)] overflow-y-auto`} aria-label={t('scoping.context.label')}>
             {focusQ && <h3 className="text-label font-semibold text-brand-dark mb-4">{tr(focusQ.text, lang)}</h3>}
             <ContextPanel sessionId={session.id} q={focusQ} answer={focusKey ? answers[focusKey] : undefined} lang={lang} estimate={estimate} />
           </aside>
@@ -405,21 +409,23 @@ export default function SessionClient({
       )}
 
       {/* Rodapé fixo */}
-      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur px-4 py-3">
+      {mounted && createPortal(
+      <footer className="fixed bottom-0 left-0 right-0 z-[80] border-t border-slate-200 dark:border-[color:var(--border-main)] bg-[color:var(--bg-card-solid)] text-[color:var(--text-main)] shadow-[0_-4px_16px_rgba(0,0,0,0.08)] px-4 py-3">
         <div className="mx-auto w-[min(1600px,100%)] flex flex-wrap items-center gap-3">
           <HoursMeter data={estimate} loading={estimating} bank={bank} lang={lang} onJump={jumpTo} />
-          <button type="button" onClick={() => { setMode('full'); setFilter('open'); setSearch(''); }} className="rounded-full border border-slate-200 px-4 h-11 text-label hover:border-slate-400">
+          <button type="button" onClick={() => { setMode('full'); setFilter('open'); setSearch(''); }} className="rounded-full border border-slate-200 dark:border-[color:var(--border-strong)] px-4 h-11 text-label text-[color:var(--text-main)] hover:border-slate-400">
             <span className="tabular-nums font-semibold text-[#F87171]">{comp.essentialOpen.length}</span> {t('scoping.footer.essentialsOpen')}
           </button>
-          <button type="button" onClick={() => { setMode('full'); setFilter('pending'); setSearch(''); }} className="rounded-full border border-slate-200 px-4 h-11 text-label hover:border-slate-400">
+          <button type="button" onClick={() => { setMode('full'); setFilter('pending'); setSearch(''); }} className="rounded-full border border-slate-200 dark:border-[color:var(--border-strong)] px-4 h-11 text-label text-[color:var(--text-main)] hover:border-slate-400">
             <span className="tabular-nums font-semibold text-amber-600">{pend.length}</span> {t('scoping.footer.pending')}
           </button>
           <div className="ml-auto flex items-center gap-3">
-            <span className={`text-caption ${saveState === 'error' ? 'text-red-600' : 'text-slate-500'}`} aria-live="polite">{saveState === 'idle' ? '' : t(`scoping.save.${saveState}`)}</span>
+            <span className={`text-caption ${saveState === 'error' ? 'text-red-600' : 'text-[color:var(--text-muted)]'}`} aria-live="polite">{saveState === 'idle' ? '' : t(`scoping.save.${saveState}`)}</span>
             <Button size="sm" onClick={() => setNotesOpen((o) => !o)} title="/"><NotebookPen className="w-4 h-4" /> {t('scoping.notes.title')} <kbd className="text-[10px] opacity-60">/</kbd></Button>
           </div>
         </div>
-      </footer>
+      </footer>,
+      document.body)}
 
       <NotesDrawer sessionId={session.id} initial={initialNote} open={notesOpen} onClose={() => setNotesOpen(false)} />
     </div>

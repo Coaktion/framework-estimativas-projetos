@@ -229,7 +229,7 @@ test('simulação: chama o motor sem gravar e avisa item fora do plano', () => {
   assert.ok(est.grandTotal > 0);
   assert.ok(est.warnings.some((w) => w.kind === 'item_off_plan' && w.itemId === 18), 'Funções exige Enterprise no CS');
   const ent = simulateScopingEstimate(catalog, { plan: 'enterprise', sku: 'CS', deploymentType: 'new' }, r.items);
-  assert.ok(!ent.warnings.some((w) => w.itemId === 18 as any));
+  assert.ok(!ent.warnings.some((w) => 'itemId' in w && w.itemId === 18));
   assert.ok(ent.grandTotal > est.grandTotal);
 });
 
