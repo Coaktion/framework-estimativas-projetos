@@ -122,13 +122,14 @@ export async function ensureBank(userId?: number): Promise<number> {
   }
 }
 
-/** Versão publicada mais recente (a que sessões novas usam). */
+/**
+ * Versão que as sessões novas usam: a do seed que está no código
+ * (SEED_BANK_VERSION), não a mais alta gravada no banco. Assim, reverter o
+ * código volta as sessões novas para a versão anterior, mesmo que a mais nova
+ * já tenha sido gravada; as sessões criadas nela continuam abrindo.
+ */
 export async function latestBankVersionId(userId?: number): Promise<number> {
-  await ensureBank(userId);
-  const latest = await prisma.scopingBankVersion.findFirst({
-    where: { status: 'published' }, orderBy: { version: 'desc' }, select: { id: true },
-  });
-  return latest!.id;
+  return ensureBank(userId);
 }
 
 // Versões publicadas não mudam: dá para guardar em memória por instância.
