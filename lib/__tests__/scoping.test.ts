@@ -15,7 +15,8 @@ import { buildSeedBank } from '../scoping/seed';
 import { validateAgainstCatalog } from '../scoping/bank';
 import { tr, normalizeScopingLang } from '../scoping/i18n';
 import { mapAnswersToItems } from '../scoping/mapping';
-import { completeness, pendingItems, suggestedTracks, visibleQuestions, meetingOrder } from '../scoping/rules';
+import { completeness, pendingItems, suggestedByAnswers, suggestedTracks, visibleQuestions, meetingOrder } from '../scoping/rules';
+import { THEMES, groupByTheme } from '../scoping/themes';
 import { simulateScopingEstimate } from '../scoping/estimate';
 import { exportMarkdown, exportXlsx } from '../scoping/export';
 import { answerValueSchema, type Bank, type SessionAnswer } from '../scoping/types';
@@ -276,4 +277,56 @@ test('exportação: Markdown e .xlsx com respostas e pendências', async () => {
   const buf = await exportXlsx(bank, s, answers, 'es');
   assert.ok(buf.length > 5000);
   assert.equal(buf.subarray(0, 2).toString(), 'PK');
+});
+
+// ---------------------------------------------------------------------------
+// Banco v3: obrigatórias, situacionais, temas e trilhas sugeridas pela conversa
+// ---------------------------------------------------------------------------
+
+test('v3: poucas obrigatórias no núcleo e só elas travam a conclusão', () => {
+  const start = visibleQuestions(bank, [], []);
+  const req = start.filter((q) => q.priority === 'essencial');
+  assert.ok(req.length <= 12, `núcleo começa com ${req.length} obrigatórias`);
+  const done = req.map((q) => a(q.key, 'x', { status: 'nao_se_aplica', naReason: 'teste' }));
+  assert.equal(completeness(bank, [], done).canComplete, true, 'recomendadas em branco não travam');
+});
+
+test('v3: situacionais aparecem só quando a conversa pede', () => {
+  const keys = (ans: SessionAnswer[]) => new Set(visibleQuestions(bank, [], ans).map((q) => q.key));
+  assert.ok(!keys([]).has('core.ctx.platforms'));
+  assert.ok(keys([a('core.ctx.decision_stage', 'evaluating')]).has('core.ctx.platforms'));
+  assert.ok(!keys([a('core.ctx.decision_stage', 'zendesk_customer')]).has('core.ctx.platforms'));
+  assert.ok(!keys([]).has('core.slas.breach_handling'));
+  assert.ok(keys([a('core.slas.existing', 'sim')]).has('core.slas.breach_handling'));
+  assert.ok(keys([a('core.channels.list', ['instagram'])]).has('core.channels.social_pages'), 'multi com "in"');
+  assert.ok(keys([a('core.integrations.systems', 'ERP')]).has('core.integrations.read_write'), 'answered');
+});
+
+test('v3: obrigatória escondida não trava (ex.: plataformas quando já usa Zendesk)', () => {
+  const c = completeness(bank, [], [a('core.ctx.decision_stage', 'zendesk_customer')]);
+  assert.ok(!c.essentialOpen.some((q) => q.key === 'core.ctx.platforms'));
+});
+
+test('v3: situacional vem logo depois da pergunta que a dispara', () => {
+  const sec = bank.questions.filter((q) => q.sectionKey === 'slas').map((q) => q.key);
+  assert.equal(sec[sec.indexOf('core.slas.existing') + 1], 'core.slas.targets');
+});
+
+test('v3: duplicadas do template saíram', () => {
+  const keys = new Set(bank.questions.map((q) => q.key));
+  ['core.ai_agent.handoff', 'core.migration.source_platform', 'core.hidden.agent_lookups'].forEach((k) => assert.ok(!keys.has(k), k));
+});
+
+test('temas: toda seção do banco está em um tema', () => {
+  const inThemes = new Set(THEMES.flatMap((th) => th.sections));
+  assert.deepEqual(bank.sections.map((s) => s.key).filter((k) => !inThemes.has(k)), []);
+  const groups = groupByTheme(bank, visibleQuestions(bank, [], []));
+  assert.equal(groups[0].theme.key, 'context');
+});
+
+test('trilhas sugeridas pela conversa', () => {
+  assert.deepEqual(suggestedByAnswers(bank.tracks, [], []), []);
+  assert.ok(suggestedByAnswers(bank.tracks, [], [a('core.channels.list', ['voice'])]).includes('product.voice_zcc'));
+  assert.ok(!suggestedByAnswers(bank.tracks, ['product.voice_zcc'], [a('core.channels.list', ['voice'])]).includes('product.voice_zcc'), 'já ativa');
+  assert.ok(!suggestedTracks(bank.tracks, { sku: 'CS', plan: 'professional', deploymentType: 'new' }).includes('product.voice_zcc'), 'regra de resposta não vira regra de contexto');
 });

@@ -30,13 +30,15 @@ function Block({ title, children }: { title: string; children: React.ReactNode }
 }
 
 export default function ContextPanel({
-  sessionId, q, answer, lang, estimate,
+  sessionId, q, answer, lang, estimate, trigger,
 }: {
   sessionId: string;
   q: BankQuestion | null;
   answer: SessionAnswer | undefined;
   lang: ScopingLang;
   estimate: SessionEstimate | null;
+  /** texto da pergunta que fez esta aparecer (situacional) */
+  trigger?: string | null;
 }) {
   const { t, i18n } = useTranslation();
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -57,6 +59,9 @@ export default function ContextPanel({
 
   return (
     <div className="space-y-5">
+      <p className="text-caption text-slate-500">
+        {t(`scoping.priority.${q.priority}`)}{trigger ? ` · ${t('scoping.context.appearedBecause', { q: trigger })}` : ''}
+      </p>
       {tr(q.help, lang) && <Block title={t('scoping.context.why')}>{tr(q.help, lang)}</Block>}
       {tr(q.configImpact, lang) && <Block title={t('scoping.context.impact')}>{tr(q.configImpact, lang)}</Block>}
 

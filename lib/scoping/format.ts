@@ -17,9 +17,9 @@ export const STATUS_LABEL: L<AnswerStatus> = {
 };
 
 export const PRIORITY_LABEL: L<Priority> = {
-  essencial: { pt: 'Essencial', en: 'Essential', es: 'Esencial' },
+  essencial: { pt: 'Obrigatória', en: 'Required', es: 'Obligatoria' },
   recomendada: { pt: 'Recomendada', en: 'Recommended', es: 'Recomendada' },
-  opcional: { pt: 'Opcional', en: 'Optional', es: 'Opcional' },
+  opcional: { pt: 'Aprofundamento', en: 'Deep-dive', es: 'Profundización' },
 };
 
 export const YES_NO_LABEL: L<'sim' | 'nao' | 'nao_sei'> = {

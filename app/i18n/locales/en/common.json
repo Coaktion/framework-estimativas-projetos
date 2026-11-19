@@ -2447,19 +2447,20 @@
       "noHistory": "No recorded changes.",
       "noMapping": "This question doesn't add hours.",
       "source": "Source",
-      "why": "Why ask"
+      "why": "Why ask",
+      "appearedBecause": "shown because of: {{q}}"
     },
     "errors": {
       "completed": "The session is completed. Reopen it to edit.",
       "conflict": "Someone else changed this answer.",
       "forbidden": "You don't have access to Scoping.",
-      "incomplete": "There are still essential questions without a status.",
+      "incomplete": "There are still required questions without a status.",
       "invalid": "Invalid data. Check the fields.",
       "not_found": "Session not found.",
       "server_error": "Couldn't save right now. Try again."
     },
     "footer": {
-      "essentialsOpen": "essentials open",
+      "essentialsOpen": "required open",
       "pending": "open items"
     },
     "list": {
@@ -2468,7 +2469,7 @@
       "coreOnly": "Core only",
       "delete": "Delete session",
       "empty": "No sessions yet. Start a new one.",
-      "essentials": "Essentials",
+      "essentials": "Required",
       "new": "New session",
       "noMatch": "No sessions found.",
       "pending": "Open items",
@@ -2483,13 +2484,20 @@
     "meeting": {
       "empty": "No questions to show.",
       "essentials": "Essentials handled",
-      "fits": "{{n}} essentials left, about {{min}} min: they fit in 30 minutes.",
-      "keys": "Enter answers · P pending · N not applicable · S skips · J/K navigate · Esc leaves the field",
+      "fits": "{{n}} required left, about {{min}} min: they fit in 30 minutes.",
+      "keys": "Enter answers · P pending · N not applicable · S skips · J/K navigate · Ctrl+K search · Esc leaves the field",
       "next": "Answer and continue",
-      "noFit": "{{n}} essentials left, about {{min}} min: they don't fit in 30 minutes.",
+      "noFit": "{{n}} required left, about {{min}} min: they don't fit in 30 minutes.",
       "only30": "I have 30 minutes",
       "timer": "Meeting time",
-      "upNext": "Up next"
+      "upNext": "Up next",
+      "themes": "Conversation themes",
+      "required": "Required",
+      "requiredOpen": "{{n}} required open",
+      "deep": "Show deep-dive",
+      "themeDone": "Theme covered.",
+      "nextTheme": "Go to {{name}}",
+      "endOfTheme": "End of theme"
     },
     "meter": {
       "fromTrack": "included by the track",
@@ -2522,7 +2530,7 @@
     "nav": {
       "filter": {
         "all": "All",
-        "essential": "Essentials",
+        "essential": "Required",
         "open": "Unanswered",
         "pending": "Pending"
       },
@@ -2547,8 +2555,8 @@
       "short": "Pending · {{owner}} · {{due}}"
     },
     "priority": {
-      "essencial": "Essential",
-      "opcional": "Optional",
+      "essencial": "Required",
+      "opcional": "Deep-dive",
       "recomendada": "Recommended"
     },
     "save": {
@@ -2562,11 +2570,11 @@
       "back": "Sessions",
       "bankVersion": "bank v{{v}}",
       "complete": "Complete",
-      "completeHint": "All essentials need a status",
+      "completeHint": "Required questions need a status",
       "completedMsg": "Session completed.",
       "export": "Export",
       "fullMode": "Full mode",
-      "incomplete": "{{n}} essentials still have no status. They are filtered below.",
+      "incomplete": "{{n}} required questions still have no status. They are filtered below.",
       "meetingMode": "Meeting mode",
       "readOnly": "Session completed: read-only. Reopen it to edit.",
       "reopen": "Reopen",
@@ -2608,7 +2616,7 @@
       "estimatedTime": "Estimated time",
       "language": "Session language",
       "languageTip": "Language of the questions. The screen stays in your language.",
-      "minEssential": "Minutes per essential",
+      "minEssential": "Minutes per required",
       "minRecommended": "Minutes per recommended",
       "next": "Next",
       "plan": "Expected Zendesk plan",
@@ -2625,8 +2633,26 @@
       "titleA": "New",
       "titleB": "Scoping session",
       "totalQuestions": "Questions",
-      "trackCost": "{{n}} questions · {{e}} essentials · {{time}}",
+      "trackCost": "{{n}} questions · {{e}} required · {{time}}",
       "tracksLabel": "Tracks"
+    },
+    "quickJump": {
+      "title": "Quick search",
+      "placeholder": "Type part of a question or theme…",
+      "hint": "No text: unanswered questions. Arrows select, Enter opens.",
+      "button": "Search"
+    },
+    "bulkNa": {
+      "hint": "{{n}} without a status will be set to \"not applicable\".",
+      "apply": "Apply",
+      "cancel": "Cancel",
+      "theme": "Theme doesn't apply",
+      "section": "Section doesn't apply"
+    },
+    "suggest": {
+      "text": "Based on the customer's answers, the {{name}} track looks relevant.",
+      "add": "Add track",
+      "dismiss": "Not now"
     }
   }
 }

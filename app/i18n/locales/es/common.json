@@ -2447,19 +2447,20 @@
       "noHistory": "Sin cambios registrados.",
       "noMapping": "Esta pregunta no suma horas.",
       "source": "Origen",
-      "why": "Por qué preguntar"
+      "why": "Por qué preguntar",
+      "appearedBecause": "apareció por: {{q}}"
     },
     "errors": {
       "completed": "La sesión está concluida. Reábrala para editar.",
       "conflict": "Otra persona cambió esta respuesta.",
       "forbidden": "No tiene acceso a Scoping.",
-      "incomplete": "Aún hay preguntas esenciales sin estado.",
+      "incomplete": "Aún hay preguntas obligatorias sin estado.",
       "invalid": "Datos inválidos. Revise los campos.",
       "not_found": "Sesión no encontrada.",
       "server_error": "No se pudo guardar ahora. Intente de nuevo."
     },
     "footer": {
-      "essentialsOpen": "esenciales abiertas",
+      "essentialsOpen": "obligatorias abiertas",
       "pending": "pendientes"
     },
     "list": {
@@ -2468,7 +2469,7 @@
       "coreOnly": "Solo el núcleo",
       "delete": "Eliminar sesión",
       "empty": "Aún no hay sesiones. Comience una nueva.",
-      "essentials": "Esenciales",
+      "essentials": "Obligatorias",
       "new": "Nueva sesión",
       "noMatch": "No se encontraron sesiones.",
       "pending": "Pendientes",
@@ -2483,13 +2484,20 @@
     "meeting": {
       "empty": "No hay preguntas para mostrar.",
       "essentials": "Esenciales tratadas",
-      "fits": "Quedan {{n}} esenciales, unos {{min}} min: caben en 30 minutos.",
-      "keys": "Enter responde · P pendiente · N no aplica · S salta · J/K navega · Esc sale del campo",
+      "fits": "Quedan {{n}} obligatorias, unos {{min}} min: caben en 30 minutos.",
+      "keys": "Enter responde · P pendiente · N no aplica · S salta · J/K navega · Ctrl+K busca · Esc sale del campo",
       "next": "Responder y avanzar",
-      "noFit": "Quedan {{n}} esenciales, unos {{min}} min: no caben en 30 minutos.",
+      "noFit": "Quedan {{n}} obligatorias, unos {{min}} min: no caben en 30 minutos.",
       "only30": "Tengo 30 minutos",
       "timer": "Tiempo de reunión",
-      "upNext": "A continuación"
+      "upNext": "A continuación",
+      "themes": "Temas de la conversación",
+      "required": "Obligatorias",
+      "requiredOpen": "{{n}} obligatoria(s) abierta(s)",
+      "deep": "Mostrar profundización",
+      "themeDone": "Tema cubierto.",
+      "nextTheme": "Ir a {{name}}",
+      "endOfTheme": "Fin del tema"
     },
     "meter": {
       "fromTrack": "incluido por la ruta",
@@ -2522,7 +2530,7 @@
     "nav": {
       "filter": {
         "all": "Todas",
-        "essential": "Esenciales",
+        "essential": "Obligatorias",
         "open": "Sin respuesta",
         "pending": "Pendientes"
       },
@@ -2547,8 +2555,8 @@
       "short": "Pendiente · {{owner}} · {{due}}"
     },
     "priority": {
-      "essencial": "Esencial",
-      "opcional": "Opcional",
+      "essencial": "Obligatoria",
+      "opcional": "Profundización",
       "recomendada": "Recomendada"
     },
     "save": {
@@ -2562,11 +2570,11 @@
       "back": "Sesiones",
       "bankVersion": "banco v{{v}}",
       "complete": "Concluir",
-      "completeHint": "Todas las esenciales necesitan estado",
+      "completeHint": "Las obligatorias necesitan estado",
       "completedMsg": "Sesión concluida.",
       "export": "Exportar",
       "fullMode": "Modo completo",
-      "incomplete": "Faltan {{n}} esenciales sin estado. Están filtradas abajo.",
+      "incomplete": "Faltan {{n}} obligatorias sin estado. Están filtradas abajo.",
       "meetingMode": "Modo reunión",
       "readOnly": "Sesión concluida: solo lectura. Reábrala para editar.",
       "reopen": "Reabrir",
@@ -2608,7 +2616,7 @@
       "estimatedTime": "Tiempo estimado",
       "language": "Idioma de la sesión",
       "languageTip": "Idioma de las preguntas. La pantalla sigue en su idioma.",
-      "minEssential": "Minutos por esencial",
+      "minEssential": "Minutos por obligatoria",
       "minRecommended": "Minutos por recomendada",
       "next": "Avanzar",
       "plan": "Plan Zendesk previsto",
@@ -2625,8 +2633,26 @@
       "titleA": "Nueva sesión de",
       "titleB": "Scoping",
       "totalQuestions": "Preguntas",
-      "trackCost": "{{n}} preguntas · {{e}} esenciales · {{time}}",
+      "trackCost": "{{n}} preguntas · {{e}} obligatorias · {{time}}",
       "tracksLabel": "Rutas"
+    },
+    "quickJump": {
+      "title": "Búsqueda rápida",
+      "placeholder": "Escriba parte de la pregunta o del tema…",
+      "hint": "Sin texto: preguntas aún sin respuesta. Flechas eligen, Enter abre.",
+      "button": "Buscar"
+    },
+    "bulkNa": {
+      "hint": "{{n}} sin estado pasarán a \"no aplica\".",
+      "apply": "Aplicar",
+      "cancel": "Cancelar",
+      "theme": "El tema no aplica",
+      "section": "La sección no aplica"
+    },
+    "suggest": {
+      "text": "Por lo que respondió el cliente, la ruta {{name}} parece relevante.",
+      "add": "Activar ruta",
+      "dismiss": "Ahora no"
     }
   }
 }

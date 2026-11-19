@@ -18,10 +18,13 @@ import MeetingMode from '@/components/scoping/MeetingMode';
 import ContextPanel from '@/components/scoping/ContextPanel';
 import HoursMeter from '@/components/scoping/HoursMeter';
 import NotesDrawer from '@/components/scoping/NotesDrawer';
+import QuickJump from '@/components/scoping/QuickJump';
+import BulkNaButton from '@/components/scoping/BulkNaButton';
+import { groupByTheme } from '@/lib/scoping/themes';
 import { useAnswerStore, type AnswerPatch } from '@/components/scoping/useAnswerStore';
 import { tr } from '@/lib/scoping/i18n';
 import { formatValue } from '@/lib/scoping/format';
-import { completeness, isAddressed, meetingOrder, pendingItems, visibleQuestions, DEFAULT_MINUTES } from '@/lib/scoping/rules';
+import { completeness, isAddressed, pendingItems, suggestedByAnswers, visibleQuestions, DEFAULT_MINUTES } from '@/lib/scoping/rules';
 import type { SessionEstimate, SessionRecord } from '@/lib/scoping/server';
 import { PLANS, type Bank, type BankQuestion, type ScopingLang, type SessionAnswer } from '@/lib/scoping/types';
 import { completeSessionAction, previewEstimateAction, reopenSessionAction, updateSessionAction } from '../actions';
@@ -111,22 +114,29 @@ export default function SessionClient({
 
   const filtered = useMemo(() => visible.filter(matches), [visible, matches]);
 
-  /** Seções com perguntas visíveis, agrupadas pela trilha que mais aparece nelas. */
-  const groups = useMemo(() => {
-    const bySection = new Map<string, BankQuestion[]>();
-    visible.forEach((q) => bySection.set(q.sectionKey, [...(bySection.get(q.sectionKey) || []), q]));
-    const out = new Map<string, { sectionKey: string; questions: BankQuestion[] }[]>();
-    bank.sections.forEach((s) => {
-      const qs = bySection.get(s.key);
-      if (!qs) return;
-      const count = new Map<string, number>();
-      qs.forEach((q) => q.trackKeys.forEach((k) => count.set(k, (count.get(k) || 0) + 1)));
-      const nonCore = Array.from(count.entries()).filter(([k]) => k !== 'core').sort((a, b) => b[1] - a[1]);
-      const group = nonCore.length && nonCore[0][1] >= (count.get('core') || 0) ? nonCore[0][0] : 'core';
-      out.set(group, [...(out.get(group) || []), { sectionKey: s.key, questions: qs }]);
+  /** Seções com perguntas visíveis, agrupadas pelos temas da conversa. */
+  const groups = useMemo(() => groupByTheme(bank, visible).map(({ theme, questions }) => {
+    const sections: { sectionKey: string; questions: BankQuestion[] }[] = [];
+    questions.forEach((q) => {
+      const last = sections[sections.length - 1];
+      if (last && last.sectionKey === q.sectionKey) last.questions.push(q);
+      else sections.push({ sectionKey: q.sectionKey, questions: [q] });
     });
-    return bank.tracks.filter((tk) => out.has(tk.key)).map((tk) => ({ track: tk, sections: out.get(tk.key)! }));
-  }, [visible, bank]);
+    return { theme, sections };
+  }), [visible, bank]);
+
+  const [quickOpen, setQuickOpen] = useState(false);
+  const [jump, setJump] = useState<{ key: string; n: number } | null>(null);
+  const [dismissedTracks, setDismissedTracks] = useState<string[]>([]);
+  const conversationTracks = useMemo(
+    () => suggestedByAnswers(bank.tracks, session.trackKeys, answerList).filter((k) => !dismissedTracks.includes(k)),
+    [bank.tracks, session.trackKeys, answerList, dismissedTracks],
+  );
+
+  /** "Não se aplica" em lote (tema ou seção), com um único motivo. */
+  const bulkNa = useCallback((keys: string[], reason: string) => {
+    keys.forEach((k) => update(k, { status: 'nao_se_aplica', naReason: reason, pendingOwner: null, pendingDue: null }, { immediate: true }));
+  }, [update]);
 
   const currentSection = sectionKey && filtered.some((q) => q.sectionKey === sectionKey) ? sectionKey : filtered[0]?.sectionKey ?? null;
   const sectionQuestions = filter === 'all' && !search.trim() ? filtered.filter((q) => q.sectionKey === currentSection) : filtered;
@@ -137,13 +147,13 @@ export default function SessionClient({
   const jumpTo = useCallback((key: string) => {
     const q = visible.find((x) => x.key === key);
     if (!q) return;
-    setMode('full');
+    if (mode === 'meeting') { setJump((j) => ({ key, n: (j?.n ?? 0) + 1 })); return; }
     setFilter('all');
     setSearch('');
     setSectionKey(q.sectionKey);
     setFocusKey(key);
     setTimeout(() => document.getElementById(`q-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
-  }, [visible]);
+  }, [visible, mode]);
 
   /** Responder e avançar sozinho para a próxima sem resposta (Modo completo). */
   const onPatch = useCallback((q: BankQuestion, p: AnswerPatch, immediate?: boolean) => {
@@ -163,6 +173,7 @@ export default function SessionClient({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === '/' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setNotesOpen((o) => !o); return; }
+      if (e.key.toLowerCase() === 'k' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); setQuickOpen(true); return; }
       if (isTyping(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key === '/') { e.preventDefault(); setNotesOpen(true); }
       else if (e.key.toLowerCase() === 'm') { e.preventDefault(); setMode((m) => (m === 'full' ? 'meeting' : 'full')); }
@@ -205,7 +216,7 @@ export default function SessionClient({
   };
 
   const pend = useMemo(() => pendingItems(bank, session.trackKeys, answerList), [bank, session.trackKeys, answerList]);
-  const meetingList = useMemo(() => meetingOrder(visible, bank), [visible, bank]);
+  const triggerText = focusQ?.showIf ? tr(bank.questions.find((x) => x.key === focusQ.showIf!.questionKey)?.text, lang) : null;
 
   return (
     <div className="pb-28">
@@ -224,6 +235,7 @@ export default function SessionClient({
             {mode === 'full' ? <Presentation className="w-4 h-4" /> : <LayoutPanelLeft className="w-4 h-4" />}
             {mode === 'full' ? t('scoping.session.meetingMode') : t('scoping.session.fullMode')} <kbd className="text-[10px] opacity-60">M</kbd>
           </Button>
+          <Button size="sm" onClick={() => setQuickOpen(true)} title="Ctrl+K"><Search className="w-4 h-4" /> {t('scoping.quickJump.button')} <kbd className="text-[10px] opacity-60">Ctrl+K</kbd></Button>
           <Button size="sm" onClick={() => setSettingsOpen((o) => !o)} aria-expanded={settingsOpen}><Settings2 className="w-4 h-4" /> {t('scoping.session.settings')}</Button>
           <div className="relative">
             <Button size="sm" onClick={() => setExportOpen((o) => !o)} aria-expanded={exportOpen}><Download className="w-4 h-4" /> {t('scoping.session.export')}</Button>
@@ -273,6 +285,18 @@ export default function SessionClient({
         );
       })}
 
+      {!readOnly && conversationTracks.map((key) => {
+        const tk = bank.tracks.find((x) => x.key === key);
+        if (!tk) return null;
+        return (
+          <div key={key} className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-[color:var(--primary)] px-4 py-3">
+            <span className="text-label text-brand-dark flex-1 min-w-[200px]">{t('scoping.suggest.text', { name: tr(tk.name, lang) })}</span>
+            <Button size="sm" variant="primary" onClick={() => saveSettings({ trackKeys: [...session.trackKeys, key] })}>{t('scoping.suggest.add')}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setDismissedTracks((d) => [...d, key])}>{t('scoping.suggest.dismiss')}</Button>
+          </div>
+        );
+      })}
+
       {settingsOpen && (
         <section className={`${CARD} p-5 mb-6 space-y-5`}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -318,7 +342,10 @@ export default function SessionClient({
 
       {mode === 'meeting' ? (
         <MeetingMode
-          questions={meetingList}
+          bank={bank}
+          questions={visible}
+          jump={jump}
+          onBulkNa={bulkNa}
           answers={answers}
           onPatch={(key, p, imm) => update(key, p, { immediate: imm })}
           lang={lang}
@@ -326,7 +353,6 @@ export default function SessionClient({
           disabled={readOnly}
           minutesEssential={minutesEssential}
           sectionTitle={sectionTitle}
-          startKey={focusKey}
           onFocusChange={setFocusKey}
         />
       ) : (
@@ -342,9 +368,9 @@ export default function SessionClient({
                 <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={chipClass(filter === f)}>{t(`scoping.nav.filter.${f}`)}</button>
               ))}
             </div>
-            {groups.map(({ track, sections }) => (
-              <div key={track.key}>
-                <div className="text-caption font-semibold uppercase tracking-wide text-slate-500 mb-1">{tr(track.name, lang)}</div>
+            {groups.map(({ theme, sections }) => (
+              <div key={theme.key}>
+                <div className="text-caption font-semibold uppercase tracking-wide text-slate-500 mb-1">{tr(theme.title, lang)}</div>
                 <ul className="space-y-0.5">
                   {sections.map(({ sectionKey: sk, questions }) => {
                     const done = questions.filter((q) => isAddressed(answers[q.key]) && answers[q.key]?.status !== 'pendente').length;
@@ -373,9 +399,17 @@ export default function SessionClient({
           {/* Centro: perguntas */}
           <main className="space-y-3 min-w-0">
             {filter === 'all' && !search.trim() && sectionMeta && (
-              <div className="mb-2">
-                <h2 className="font-heading text-section text-brand-dark">{tr(sectionMeta.title, lang)}</h2>
-                {tr(sectionMeta.deliverable, lang) && <p className="text-label text-slate-500 mt-1">{tr(sectionMeta.deliverable, lang)}</p>}
+              <div className="mb-2 space-y-2">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h2 className="font-heading text-section text-brand-dark">{tr(sectionMeta.title, lang)}</h2>
+                  <BulkNaButton
+                    label={t('scoping.bulkNa.section')}
+                    count={sectionQuestions.filter((q) => !isAddressed(answers[q.key])).length}
+                    disabled={readOnly}
+                    onApply={(reason) => bulkNa(sectionQuestions.filter((q) => !isAddressed(answers[q.key])).map((q) => q.key), reason)}
+                  />
+                </div>
+                {tr(sectionMeta.deliverable, lang) && <p className="text-label text-slate-500">{tr(sectionMeta.deliverable, lang)}</p>}
               </div>
             )}
             {filter !== 'all' || search.trim() ? <p className="text-label text-slate-500">{t('scoping.nav.results', { n: sectionQuestions.length })}</p> : null}
@@ -403,7 +437,7 @@ export default function SessionClient({
           {/* Direita: contexto */}
           <aside className={`hidden xl:block ${CARD} p-5 self-start sticky top-4 max-h-[calc(100vh-12rem)] overflow-y-auto`} aria-label={t('scoping.context.label')}>
             {focusQ && <h3 className="text-label font-semibold text-brand-dark mb-4">{tr(focusQ.text, lang)}</h3>}
-            <ContextPanel sessionId={session.id} q={focusQ} answer={focusKey ? answers[focusKey] : undefined} lang={lang} estimate={estimate} />
+            <ContextPanel sessionId={session.id} q={focusQ} answer={focusKey ? answers[focusKey] : undefined} lang={lang} estimate={estimate} trigger={triggerText} />
           </aside>
         </div>
       )}
@@ -428,6 +462,7 @@ export default function SessionClient({
       document.body)}
 
       <NotesDrawer sessionId={session.id} initial={initialNote} open={notesOpen} onClose={() => setNotesOpen(false)} />
+      <QuickJump open={quickOpen} onClose={() => setQuickOpen(false)} questions={visible} answers={answers} lang={lang} onPick={jumpTo} />
     </div>
   );
 }

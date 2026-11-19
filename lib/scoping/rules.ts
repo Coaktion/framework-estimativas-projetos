@@ -4,7 +4,7 @@
  */
 
 import type {
-  AnswerValue, Bank, BankQuestion, BankTrack, NumberValue, SessionAnswer, SessionContext, ShowIf,
+  AnswerValue, Bank, BankQuestion, BankTrack, NumberValue, SessionAnswer, SessionContext, ShowIf, SuggestRule,
 } from './types';
 
 export const CORE_TRACK = 'core';
@@ -40,9 +40,11 @@ export function isRange(v: unknown): v is { min: number; max: number } {
   return !!v && typeof v === 'object' && !Array.isArray(v) && 'max' in (v as any) && 'min' in (v as any);
 }
 
-function showIfMatches(cond: ShowIf, answers: Map<string, SessionAnswer>): boolean {
+export function showIfMatches(cond: ShowIf, answers: Map<string, SessionAnswer>): boolean {
   const v = valueOf(answers.get(cond.questionKey));
   if (v === undefined) return false;
+  if (cond.answered) return true;
+  if (cond.in !== undefined) return Array.isArray(v) ? (v as string[]).some((x) => cond.in!.includes(x)) : cond.in.includes(String(v));
   if (cond.equals !== undefined) return v === cond.equals;
   if (cond.includes !== undefined) return Array.isArray(v) && (v as string[]).includes(cond.includes);
   if (cond.gt !== undefined) {
@@ -137,14 +139,26 @@ export function groupByOwner(items: PendingItem[]): Map<string, PendingItem[]> {
   return out;
 }
 
+const isContextRule = (r: SuggestRule) => !r.answer && (r.sku !== undefined || r.plan !== undefined || r.deploymentType !== undefined);
+
 /** RF-08: trilhas sugeridas pelo contexto (SKU, plano, tipo de implantação). */
 export function suggestedTracks(tracks: BankTrack[], ctx: Pick<SessionContext, 'sku' | 'plan' | 'deploymentType'>): string[] {
   return tracks
     .filter((t) => t.type !== 'core')
-    .filter((t) => t.suggestRules.some((r) =>
+    .filter((t) => t.suggestRules.filter(isContextRule).some((r) =>
       (r.sku === undefined || r.sku === ctx.sku) &&
       (r.plan === undefined || r.plan === ctx.plan) &&
       (r.deploymentType === undefined || r.deploymentType === ctx.deploymentType)))
+    .map((t) => t.key);
+}
+
+/** Trilhas que a própria conversa indica e que ainda não estão ativas. */
+export function suggestedByAnswers(tracks: BankTrack[], trackKeys: string[], answers: SessionAnswer[]): string[] {
+  const active = activeTracks(trackKeys);
+  const map = answerMap(answers);
+  return tracks
+    .filter((t) => t.type !== 'core' && !active.has(t.key))
+    .filter((t) => t.suggestRules.some((r) => r.answer && showIfMatches(r.answer, map)))
     .map((t) => t.key);
 }
 

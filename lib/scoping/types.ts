@@ -71,6 +71,10 @@ export interface ShowIf {
   includes?: string;
   /** number: maior que */
   gt?: number;
+  /** single: valor entre estes; multi: alguma destas opções marcada */
+  in?: string[];
+  /** basta a pergunta ter qualquer resposta */
+  answered?: boolean;
 }
 
 /** Item do catálogo (id + nome guardado para exibir mesmo se o catálogo mudar). */
@@ -114,6 +118,8 @@ export interface SuggestRule {
   sku?: string;
   plan?: string;
   deploymentType?: string;
+  /** sugere a trilha quando a conversa indicar (resposta de outra pergunta) */
+  answer?: ShowIf;
 }
 
 // ---------------------------------------------------------------------------
