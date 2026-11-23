@@ -53,7 +53,7 @@ export interface SessionRecord {
   plan: string;
   trackKeys: string[];
   status: string;
-  settings: { minutesEssential?: number; minutesRecommended?: number };
+  settings: { minutesEssential?: number; minutesRecommended?: number; tier?: 'P' | 'M' | 'G' };
   createdBy: number;
   createdByName: string | null;
   createdAt: string;

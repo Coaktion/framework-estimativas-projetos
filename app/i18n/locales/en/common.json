@@ -2491,13 +2491,13 @@
       "only30": "I have 30 minutes",
       "timer": "Meeting time",
       "upNext": "Up next",
-      "themes": "Conversation themes",
+      "themes": "Conversation stages",
       "required": "Required",
       "requiredOpen": "{{n}} required open",
-      "deep": "Show deep-dive",
-      "themeDone": "Theme covered.",
+      "deep": "Go deeper",
+      "themeDone": "Stage covered.",
       "nextTheme": "Go to {{name}}",
-      "endOfTheme": "End of theme"
+      "endOfTheme": "End of stage"
     },
     "meter": {
       "fromTrack": "included by the track",
@@ -2646,13 +2646,25 @@
       "hint": "{{n}} without a status will be set to \"not applicable\".",
       "apply": "Apply",
       "cancel": "Cancel",
-      "theme": "Theme doesn't apply",
+      "theme": "Stage doesn't apply",
       "section": "Section doesn't apply"
     },
     "suggest": {
       "text": "Based on the customer's answers, the {{name}} track looks relevant.",
       "add": "Add track",
       "dismiss": "Not now"
+    },
+    "tier": {
+      "label": "Opportunity size",
+      "hint": "Sets how many questions go into the meeting. You can go deeper at any time.",
+      "P": "Small",
+      "M": "Medium",
+      "G": "Large",
+      "Pdesc": "Up to 30 agents, 1 or 2 channels, Support only. ~30 min meeting.",
+      "Mdesc": "30 to 150 agents, 3+ channels or one product beyond Support. ~45 min.",
+      "Gdesc": "Over 150 agents, several products, migration or ITSM. Two meetings.",
+      "current": "Size: {{name}}",
+      "only": "{{name}} size only"
     }
   }
 }

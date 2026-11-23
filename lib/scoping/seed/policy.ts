@@ -125,9 +125,14 @@ export const SHOW_IF: Record<string, ShowIf> = {
 export const TRACK_ANSWER_RULES: Record<string, SuggestRule[]> = {
   'product.voice_zcc': [{ answer: { questionKey: 'core.channels.list', includes: 'voice' } }],
   'product.ai_agents': [
+    { answer: { questionKey: 'core.future.wants_bot', equals: 'sim' } },
     { answer: { questionKey: 'core.knowledge.ai_uses_articles', equals: 'sim' } },
     { answer: { questionKey: 'core.business_goals.outcome_self_service', equals: 'sim' } },
   ],
-  'usecase.migration': [{ answer: { questionKey: 'core.business_goals.why_leaving', answered: true } }],
+  'usecase.migration': [
+    { answer: { questionKey: 'core.future.data_migration', equals: 'sim' } },
+    { answer: { questionKey: 'core.business_goals.why_leaving', answered: true } },
+  ],
+  'product.copilot': [{ answer: { questionKey: 'core.future.agent_ai', equals: 'sim' } }],
   'segment.retail': [{ answer: { questionKey: 'core.integrations.ecommerce', equals: 'sim' } }],
 };

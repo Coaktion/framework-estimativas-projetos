@@ -7,7 +7,7 @@
 
 import { createHash } from 'crypto';
 import type { Bank, BankQuestion, BankSection, BankTrack, ScopingLang } from '../types';
-import { CORE_CONTEXT, CORE_QUANTITIES } from './core-aktie';
+import { CORE_CONTEXT, CORE_FUTURE, CORE_QUANTITIES } from './core-aktie';
 import { HIDDEN_QUESTIONS, HIDDEN_SECTION } from './hidden';
 import { TEMPLATE_QUESTIONS, TEMPLATE_SECTIONS } from './template';
 import { TRACK_QUESTIONS } from './track-questions';
@@ -25,8 +25,10 @@ import { DROPPED_KEYS, OPTIONAL_KEYS, REQUIRED_KEYS, SHOW_IF, TRACK_ANSWER_RULES
  *        Bloco 0 com momento da decisão, plataformas consideradas e critérios.
  *  - v3: poucas obrigatórias, perguntas situacionais e aprofundamento
  *        (seed/policy.ts); duplicadas do template removidas.
+ *  - v4: perguntas-gatilho do roteiro (bot, migração, IA para agentes). Etapas
+ *        e porte ficam em lib/scoping/themes.ts (código, não banco).
  */
-export const SEED_BANK_VERSION = 3;
+export const SEED_BANK_VERSION = 4;
 
 const TEMPLATE_KEYS = new Set(TEMPLATE_QUESTIONS.map((q) => q.key).concat(HIDDEN_QUESTIONS.map((q) => q.key)));
 
@@ -54,7 +56,7 @@ function priorityOf(q: SeedQuestion): SeedQuestion['priority'] {
  * duas estão na mesma seção.
  */
 function allSeedQuestions(): SeedQuestion[] {
-  const list = [...CORE_CONTEXT, ...TEMPLATE_QUESTIONS, ...CORE_QUANTITIES, ...TRACK_QUESTIONS, ...HIDDEN_QUESTIONS]
+  const list = [...CORE_CONTEXT, ...TEMPLATE_QUESTIONS, ...CORE_FUTURE, ...CORE_QUANTITIES, ...TRACK_QUESTIONS, ...HIDDEN_QUESTIONS]
     .filter((q) => !DROPPED_KEYS.has(q.key))
     .map((q) => ({ ...q, priority: priorityOf(q), showIf: SHOW_IF[q.key] ?? q.showIf }));
   const bySection = new Map<string, SeedQuestion[]>();

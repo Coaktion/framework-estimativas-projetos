@@ -20,7 +20,7 @@ import HoursMeter from '@/components/scoping/HoursMeter';
 import NotesDrawer from '@/components/scoping/NotesDrawer';
 import QuickJump from '@/components/scoping/QuickJump';
 import BulkNaButton from '@/components/scoping/BulkNaButton';
-import { groupByTheme } from '@/lib/scoping/themes';
+import { TIERS, groupByStage, inTier, normalizeTier, stageOf } from '@/lib/scoping/themes';
 import { useAnswerStore, type AnswerPatch } from '@/components/scoping/useAnswerStore';
 import { tr } from '@/lib/scoping/i18n';
 import { formatValue } from '@/lib/scoping/format';
@@ -90,7 +90,9 @@ export default function SessionClient({
   const [filter, setFilter] = useState<Filter>('all');
   const [search, setSearch] = useState('');
   const [focusKey, setFocusKey] = useState<string | null>(null);
-  const [sectionKey, setSectionKey] = useState<string | null>(null);
+  const [stageKey, setStageKey] = useState<string | null>(null);
+  /** Modo completo: só as perguntas do porte (as de depois da reunião sempre aparecem). */
+  const [tierOnly, setTierOnly] = useState(true);
   const [message, setMessage] = useState<{ tone: 'error' | 'ok' | 'warn'; text: string } | null>(null);
   const [busy, startTransition] = useTransition();
   // Rodapé e notas vão direto no <body>: o layout largo usa transform, que prende `fixed`.
@@ -112,18 +114,12 @@ export default function SessionClient({
     return true;
   }, [answers, filter, search, lang]);
 
-  const filtered = useMemo(() => visible.filter(matches), [visible, matches]);
+  const tier = normalizeTier(session.settings.tier);
+  const inScope = useCallback((q: BankQuestion) => !tierOnly || stageOf(q) === 'after' || inTier(q, tier), [tierOnly, tier]);
+  const filtered = useMemo(() => visible.filter((q) => inScope(q) && matches(q)), [visible, matches, inScope]);
 
-  /** Seções com perguntas visíveis, agrupadas pelos temas da conversa. */
-  const groups = useMemo(() => groupByTheme(bank, visible).map(({ theme, questions }) => {
-    const sections: { sectionKey: string; questions: BankQuestion[] }[] = [];
-    questions.forEach((q) => {
-      const last = sections[sections.length - 1];
-      if (last && last.sectionKey === q.sectionKey) last.questions.push(q);
-      else sections.push({ sectionKey: q.sectionKey, questions: [q] });
-    });
-    return { theme, sections };
-  }), [visible, bank]);
+  /** Perguntas por etapa do roteiro (e "Depois da reunião"), já no porte. */
+  const groups = useMemo(() => groupByStage(bank, visible.filter(inScope)), [visible, bank, inScope]);
 
   const [quickOpen, setQuickOpen] = useState(false);
   const [jump, setJump] = useState<{ key: string; n: number } | null>(null);
@@ -138,22 +134,26 @@ export default function SessionClient({
     keys.forEach((k) => update(k, { status: 'nao_se_aplica', naReason: reason, pendingOwner: null, pendingDue: null }, { immediate: true }));
   }, [update]);
 
-  const currentSection = sectionKey && filtered.some((q) => q.sectionKey === sectionKey) ? sectionKey : filtered[0]?.sectionKey ?? null;
-  const sectionQuestions = filter === 'all' && !search.trim() ? filtered.filter((q) => q.sectionKey === currentSection) : filtered;
-  const sectionMeta = bank.sections.find((s) => s.key === currentSection);
+  const currentStage = stageKey && groups.some((g) => g.stage.key === stageKey) ? stageKey : groups[0]?.stage.key ?? null;
+  const stageMeta = groups.find((g) => g.stage.key === currentStage)?.stage;
+  const sectionQuestions = filter === 'all' && !search.trim()
+    ? (groups.find((g) => g.stage.key === currentStage)?.questions || []).filter(matches)
+    : filtered;
   const focusQ = bank.questions.find((q) => q.key === focusKey) || null;
   const sectionTitle = useCallback((key: string) => tr(bank.sections.find((s) => s.key === key)?.title, lang), [bank, lang]);
 
   const jumpTo = useCallback((key: string) => {
     const q = visible.find((x) => x.key === key);
     if (!q) return;
-    if (mode === 'meeting') { setJump((j) => ({ key, n: (j?.n ?? 0) + 1 })); return; }
+    if (mode === 'meeting' && stageOf(q) !== 'after') { setJump((j) => ({ key, n: (j?.n ?? 0) + 1 })); return; }
+    setMode('full');
     setFilter('all');
     setSearch('');
-    setSectionKey(q.sectionKey);
+    if (!inScope(q)) setTierOnly(false);
+    setStageKey(stageOf(q));
     setFocusKey(key);
     setTimeout(() => document.getElementById(`q-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60);
-  }, [visible, mode]);
+  }, [visible, mode, inScope]);
 
   /** Responder e avançar sozinho para a próxima sem resposta (Modo completo). */
   const onPatch = useCallback((q: BankQuestion, p: AnswerPatch, immediate?: boolean) => {
@@ -226,7 +226,7 @@ export default function SessionClient({
           <Link href="/scoping" className="inline-flex items-center gap-1 text-label text-slate-500 hover:text-brand-dark mb-2"><ArrowLeft className="w-4 h-4" /> {t('scoping.session.back')}</Link>
           <h1 className="text-brand-dark font-heading text-page leading-none">{session.clientName}</h1>
           <p className="text-label text-slate-500 mt-2">
-            {[session.title, `${session.sku} · ${session.plan}`, session.deploymentType === 'new' ? t('scoping.wizard.deploymentNew') : t('scoping.wizard.deploymentOpt'), session.language.toUpperCase(), t('scoping.session.bankVersion', { v: bank.version })].filter(Boolean).join(' · ')}
+            {[session.title, t('scoping.tier.current', { name: t(`scoping.tier.${tier}`) }), `${session.sku} · ${session.plan}`, session.deploymentType === 'new' ? t('scoping.wizard.deploymentNew') : t('scoping.wizard.deploymentOpt'), session.language.toUpperCase(), t('scoping.session.bankVersion', { v: bank.version })].filter(Boolean).join(' · ')}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -317,6 +317,12 @@ export default function SessionClient({
               </select>
             </div>
             <div>
+              <Label htmlFor="ss-tier">{t('scoping.tier.label')}</Label>
+              <select id="ss-tier" className={SELECT} value={tier} disabled={readOnly} onChange={(e) => saveSettings({ settings: { ...session.settings, tier: normalizeTier(e.target.value) } } as any)}>
+                {TIERS.map((x) => <option key={x} value={x}>{t(`scoping.tier.${x}`)}</option>)}
+              </select>
+            </div>
+            <div>
               <Label htmlFor="ss-plan">{t('scoping.wizard.plan')}</Label>
               <select id="ss-plan" className={SELECT} value={session.plan} disabled={readOnly} onChange={(e) => saveSettings({ plan: e.target.value })}>
                 {PLANS.map((p) => <option key={p} value={p}>{p}</option>)}
@@ -343,6 +349,7 @@ export default function SessionClient({
       {mode === 'meeting' ? (
         <MeetingMode
           bank={bank}
+          tier={tier}
           questions={visible}
           jump={jump}
           onBulkNa={bulkNa}
@@ -368,48 +375,49 @@ export default function SessionClient({
                 <button key={f} type="button" aria-pressed={filter === f} onClick={() => setFilter(f)} className={chipClass(filter === f)}>{t(`scoping.nav.filter.${f}`)}</button>
               ))}
             </div>
-            {groups.map(({ theme, sections }) => (
-              <div key={theme.key}>
-                <div className="text-caption font-semibold uppercase tracking-wide text-slate-500 mb-1">{tr(theme.title, lang)}</div>
-                <ul className="space-y-0.5">
-                  {sections.map(({ sectionKey: sk, questions }) => {
-                    const done = questions.filter((q) => isAddressed(answers[q.key]) && answers[q.key]?.status !== 'pendente').length;
-                    const pending = questions.filter((q) => answers[q.key]?.status === 'pendente').length;
-                    const shown = questions.filter(matches).length;
-                    return (
-                      <li key={sk}>
-                        <button
-                          type="button"
-                          onClick={() => { setSectionKey(sk); setFilter('all'); setSearch(''); }}
-                          aria-current={currentSection === sk && filter === 'all' ? 'true' : undefined}
-                          className={`w-full flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-label ${currentSection === sk && filter === 'all' && !search ? 'bg-slate-100 font-medium text-brand-dark' : 'text-slate-600 hover:bg-slate-50'} ${shown === 0 ? 'opacity-50' : ''}`}
-                        >
-                          <Ring done={done} pending={pending} total={questions.length} label={t('scoping.nav.ring', { done, pending, total: questions.length })} />
-                          <span className="flex-1 min-w-0 truncate">{sectionTitle(sk)}</span>
-                          <span className="text-caption tabular-nums text-slate-400">{done + pending}/{questions.length}</span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ))}
+            <button type="button" aria-pressed={tierOnly} onClick={() => setTierOnly((v) => !v)} className={chipClass(tierOnly)}>
+              {t('scoping.tier.only', { name: t(`scoping.tier.${tier}`) })}
+            </button>
+            <ul className="space-y-0.5">
+              {groups.map(({ stage, questions }, gi) => {
+                const done = questions.filter((q) => isAddressed(answers[q.key]) && answers[q.key]?.status !== 'pendente').length;
+                const pending = questions.filter((q) => answers[q.key]?.status === 'pendente').length;
+                const reqOpen = questions.filter((q) => q.priority === 'essencial' && !isAddressed(answers[q.key])).length;
+                const active = currentStage === stage.key && filter === 'all' && !search;
+                return (
+                  <li key={stage.key} className={stage.afterMeeting ? 'pt-3 mt-2 border-t border-slate-200 dark:border-[color:var(--border-main)]' : ''}>
+                    <button
+                      type="button"
+                      onClick={() => { setStageKey(stage.key); setFilter('all'); setSearch(''); }}
+                      aria-current={active ? 'true' : undefined}
+                      className={`w-full flex items-center gap-2 rounded-lg px-2 py-2 text-left text-label ${active ? 'bg-slate-100 font-medium text-brand-dark' : 'text-slate-600 hover:bg-slate-50'}`}
+                    >
+                      <span className="font-heading text-[20px] leading-none w-4 tabular-nums text-brand-primary" aria-hidden>{stage.afterMeeting ? '+' : gi + 1}</span>
+                      <span className="flex-1 min-w-0 truncate">{tr(stage.title, lang)}</span>
+                      {reqOpen > 0 && <span className="h-2 w-2 rounded-full bg-[#F87171]" title={t('scoping.meeting.requiredOpen', { n: reqOpen })} aria-label={t('scoping.meeting.requiredOpen', { n: reqOpen })} />}
+                      <Ring done={done} pending={pending} total={questions.length} label={t('scoping.nav.ring', { done, pending, total: questions.length })} />
+                      <span className="text-caption tabular-nums text-slate-400">{done + pending}/{questions.length}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
           </nav>
 
           {/* Centro: perguntas */}
           <main className="space-y-3 min-w-0">
-            {filter === 'all' && !search.trim() && sectionMeta && (
+            {filter === 'all' && !search.trim() && stageMeta && (
               <div className="mb-2 space-y-2">
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h2 className="font-heading text-section text-brand-dark">{tr(sectionMeta.title, lang)}</h2>
+                  <h2 className="font-heading text-section text-brand-dark">{tr(stageMeta.title, lang)}</h2>
                   <BulkNaButton
-                    label={t('scoping.bulkNa.section')}
+                    label={t('scoping.bulkNa.theme')}
                     count={sectionQuestions.filter((q) => !isAddressed(answers[q.key])).length}
                     disabled={readOnly}
                     onApply={(reason) => bulkNa(sectionQuestions.filter((q) => !isAddressed(answers[q.key])).map((q) => q.key), reason)}
                   />
                 </div>
-                {tr(sectionMeta.deliverable, lang) && <p className="text-label text-slate-500">{tr(sectionMeta.deliverable, lang)}</p>}
+                <p className="text-label text-slate-500">{tr(stageMeta.goal, lang)}</p>
               </div>
             )}
             {filter !== 'all' || search.trim() ? <p className="text-label text-slate-500">{t('scoping.nav.results', { n: sectionQuestions.length })}</p> : null}

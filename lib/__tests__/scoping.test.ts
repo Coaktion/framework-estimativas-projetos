@@ -16,7 +16,7 @@ import { validateAgainstCatalog } from '../scoping/bank';
 import { tr, normalizeScopingLang } from '../scoping/i18n';
 import { mapAnswersToItems } from '../scoping/mapping';
 import { completeness, pendingItems, suggestedByAnswers, suggestedTracks, visibleQuestions, meetingOrder } from '../scoping/rules';
-import { THEMES, groupByTheme } from '../scoping/themes';
+import { groupByStage, inTier, stageOf, suggestTier, tierOf, unmappedSections } from '../scoping/themes';
 import { simulateScopingEstimate } from '../scoping/estimate';
 import { exportMarkdown, exportXlsx } from '../scoping/export';
 import { answerValueSchema, type Bank, type SessionAnswer } from '../scoping/types';
@@ -317,11 +317,36 @@ test('v3: duplicadas do template saíram', () => {
   ['core.ai_agent.handoff', 'core.migration.source_platform', 'core.hidden.agent_lookups'].forEach((k) => assert.ok(!keys.has(k), k));
 });
 
-test('temas: toda seção do banco está em um tema', () => {
-  const inThemes = new Set(THEMES.flatMap((th) => th.sections));
-  assert.deepEqual(bank.sections.map((s) => s.key).filter((k) => !inThemes.has(k)), []);
-  const groups = groupByTheme(bank, visibleQuestions(bank, [], []));
-  assert.equal(groups[0].theme.key, 'context');
+test('etapas: toda seção tem etapa e a reunião abre pela abertura', () => {
+  assert.deepEqual(unmappedSections(bank), []);
+  const groups = groupByStage(bank, visibleQuestions(bank, [], []));
+  assert.equal(groups[0].stage.key, 'opening');
+  assert.equal(groups[0].questions[0].key, 'core.ctx.problem');
+});
+
+test('etapas: contagens de configuração ficam para depois da reunião', () => {
+  const q = (k: string) => bank.questions.find((x) => x.key === k)!;
+  assert.equal(stageOf(q('core.macros')), 'after');
+  assert.equal(stageOf(q('core.rules.triggers_simple')), 'after');
+  assert.equal(stageOf(q('core.training.groups')), 'after');
+  assert.equal(stageOf(q('core.users.agents')), 'operation', 'nº de agentes é do roteiro');
+  assert.equal(stageOf(q('ai.usecases')), 'future');
+});
+
+test('porte: a reunião cresce de P para G e as obrigatórias estão sempre no P', () => {
+  const vis = visibleQuestions(bank, [], []);
+  const meeting = (tier: 'P' | 'M' | 'G') => vis.filter((x) => stageOf(x) !== 'after' && inTier(x, tier)).length;
+  assert.ok(meeting('P') < meeting('M') && meeting('M') < meeting('G'), `${meeting('P')} ${meeting('M')} ${meeting('G')}`);
+  assert.ok(meeting('M') <= 30, `porte médio com ${meeting('M')} perguntas no início`);
+  bank.questions.filter((x) => x.priority === 'essencial').forEach((x) => assert.equal(tierOf(x), 'P', x.key));
+  assert.ok(vis.some((x) => x.priority === 'opcional' && !inTier(x, 'G')), 'aprofundamento só com "aprofundar"');
+});
+
+test('porte: sugestão por agentes e trilhas', () => {
+  assert.equal(suggestTier(20, []), 'P');
+  assert.equal(suggestTier(80, []), 'M');
+  assert.equal(suggestTier(20, ['usecase.migration']), 'G');
+  assert.equal(suggestTier(400, []), 'G');
 });
 
 test('trilhas sugeridas pela conversa', () => {

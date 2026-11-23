@@ -21,7 +21,7 @@ import BulkNaButton from './BulkNaButton';
 import { PRIORITY_DOT, StatusControls, StatusIcon, patchForValue } from './QuestionCard';
 import { tr } from '@/lib/scoping/i18n';
 import { isAddressed, valueOf } from '@/lib/scoping/rules';
-import { groupByTheme, themeOf } from '@/lib/scoping/themes';
+import { groupByStage, inTier, stageOf, type Tier } from '@/lib/scoping/themes';
 import type { Bank, BankQuestion, ScopingLang, SessionAnswer } from '@/lib/scoping/types';
 import type { AnswerPatch } from './useAnswerStore';
 
@@ -32,9 +32,11 @@ const isTyping = (el: EventTarget | null) => {
 
 
 export default function MeetingMode({
-  bank, questions, answers, onPatch, lang, owners, disabled, minutesEssential, sectionTitle, jump, onFocusChange, onBulkNa,
+  bank, questions, answers, onPatch, lang, owners, disabled, minutesEssential, sectionTitle, jump, onFocusChange, onBulkNa, tier,
 }: {
   bank: Bank;
+  /** porte da oportunidade: decide quais perguntas entram na reunião */
+  tier: Tier;
   /** perguntas visíveis da sessão (todas as prioridades) */
   questions: BankQuestion[];
   answers: Record<string, SessionAnswer>;
@@ -52,10 +54,14 @@ export default function MeetingMode({
   const { t } = useTranslation();
   const [only30, setOnly30] = useState(false);
   const [deep, setDeep] = useState(false);
-  const groups = useMemo(() => groupByTheme(bank, questions), [bank, questions]);
+  // Só as etapas da conversa (as contagens ficam para depois da reunião) e só o que cabe no porte.
+  const groups = useMemo(
+    () => groupByStage(bank, questions.filter((q) => stageOf(q) !== 'after' && inTier(q, tier, deep))),
+    [bank, questions, tier, deep],
+  );
   const [themeKey, setThemeKey] = useState<string>(() => {
     const open = groups.find((g) => g.questions.some((q) => q.priority === 'essencial' && !isAddressed(answers[q.key])));
-    return (open || groups[0])?.theme.key ?? 'context';
+    return (open || groups[0])?.stage.key ?? 'opening';
   });
   const [currentKey, setCurrentKey] = useState<string | null>(null);
   const [form, setForm] = useState<{ key: string; kind: 'pendente' | 'nao_se_aplica' } | null>(null);
@@ -66,11 +72,9 @@ export default function MeetingMode({
   /** Perguntas do tema na ordem da reunião: obrigatórias primeiro, sem aprofundamento (a não ser que peça). */
   const list = useMemo(() => {
     if (only30) return groups.flatMap((g) => g.questions.filter((q) => q.priority === 'essencial'));
-    const g = groups.find((x) => x.theme.key === themeKey);
-    const qs = (g?.questions || []).filter((q) => deep || q.priority !== 'opcional');
-    // Obrigatórias primeiro; o resto na ordem do banco, que já põe a situacional logo depois da que a dispara.
-    return [...qs.filter((x) => x.priority === 'essencial'), ...qs.filter((x) => x.priority !== 'essencial')];
-  }, [groups, themeKey, only30, deep]);
+    // A ordem da etapa é a do roteiro (obrigatórias na frente, situacional logo depois da que a dispara).
+    return groups.find((x) => x.stage.key === themeKey)?.questions || [];
+  }, [groups, themeKey, only30]);
 
   // Salto externo: abre o tema da pergunta e a pergunta.
   useEffect(() => {
@@ -78,8 +82,8 @@ export default function MeetingMode({
     const q = questions.find((x) => x.key === jump.key);
     if (!q) return;
     setOnly30(false);
-    if (q.priority === 'opcional') setDeep(true);
-    setThemeKey(themeOf(q.sectionKey));
+    if (!inTier(q, tier)) setDeep(true);
+    setThemeKey(stageOf(q));
     setCurrentKey(q.key);
     setForm(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -90,10 +94,10 @@ export default function MeetingMode({
   const next = list[index + 1];
   useEffect(() => { if (q) onFocusChange?.(q.key); }, [q, onFocusChange]);
 
-  const themeIdx = groups.findIndex((g) => g.theme.key === themeKey);
+  const themeIdx = groups.findIndex((g) => g.stage.key === themeKey);
   const nextTheme = groups.slice(themeIdx + 1).find((g) => g.questions.some((x) => x.priority !== 'opcional' && !isAddressed(answers[x.key]))) || groups[themeIdx + 1];
 
-  const allEss = questions.filter((x) => x.priority === 'essencial');
+  const allEss = questions.filter((x) => x.priority === 'essencial' && stageOf(x) !== 'after');
   const essDone = allEss.filter((x) => isAddressed(answers[x.key])).length;
   const remainingEss = allEss.length - essDone;
   const fits = remainingEss * minutesEssential <= 30;
@@ -147,13 +151,14 @@ export default function MeetingMode({
   });
 
   const a = q ? answers[q.key] : undefined;
-  const currentGroup = groups.find((g) => g.theme.key === themeKey);
+  const currentGroup = groups.find((g) => g.stage.key === themeKey);
   const openInTheme = (currentGroup?.questions || []).filter((x) => !isAddressed(answers[x.key]));
 
   return (
     <div className="grid gap-6 lg:grid-cols-[250px_minmax(0,1fr)]">
       {/* Temas */}
       <nav aria-label={t('scoping.meeting.themes')} className="lg:sticky lg:top-4 lg:self-start space-y-3">
+        <div className="text-caption text-slate-500">{t('scoping.tier.current', { name: t(`scoping.tier.${tier}`) })}</div>
         <div className="flex items-center gap-2 text-label text-slate-500 tabular-nums" aria-label={t('scoping.meeting.timer')}>
           <Timer className="w-4 h-4" />{clock}
           <span className="ml-auto text-caption">{t('scoping.meeting.required')} {essDone}/{allEss.length}</span>
@@ -162,8 +167,8 @@ export default function MeetingMode({
           <div className="h-full brand-bg-primary transition-all" style={{ width: `${allEss.length ? (essDone / allEss.length) * 100 : 0}%` }} />
         </div>
         <ul className="flex lg:flex-col gap-1 overflow-x-auto pb-1">
-          {groups.map(({ theme, questions: qs }) => {
-            const shown = qs.filter((x) => x.priority !== 'opcional');
+          {groups.map(({ stage: theme, questions: qs }, gi) => {
+            const shown = qs;
             const done = shown.filter((x) => isAddressed(answers[x.key])).length;
             const essOpen = qs.filter((x) => x.priority === 'essencial' && !isAddressed(answers[x.key])).length;
             const active = !only30 && theme.key === themeKey;
@@ -175,6 +180,7 @@ export default function MeetingMode({
                   aria-current={active ? 'true' : undefined}
                   className={`w-full flex items-center gap-2 rounded-xl px-3 py-2 text-left text-label whitespace-nowrap ${active ? 'brand-bg-primary text-brand-ink font-medium' : 'text-slate-600 hover:bg-slate-100'}`}
                 >
+                  <span className="font-heading text-[20px] leading-none w-4 tabular-nums" aria-hidden>{gi + 1}</span>
                   <span className="flex-1 min-w-0 truncate">{tr(theme.title, lang)}</span>
                   {essOpen > 0 && <span className="h-2 w-2 rounded-full bg-[#F87171]" title={t('scoping.meeting.requiredOpen', { n: essOpen })} aria-label={t('scoping.meeting.requiredOpen', { n: essOpen })} />}
                   <span className={`text-caption tabular-nums ${active ? '' : 'text-slate-400'}`}>{done}/{shown.length}</span>
@@ -198,7 +204,10 @@ export default function MeetingMode({
       <div className="max-w-3xl w-full space-y-5">
         {!only30 && currentGroup && (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-heading text-section text-brand-dark">{tr(currentGroup.theme.title, lang)}</h2>
+            <div className="min-w-0">
+              <h2 className="font-heading text-section text-brand-dark">{tr(currentGroup.stage.title, lang)}</h2>
+              <p className="text-label text-slate-500">{tr(currentGroup.stage.goal, lang)}</p>
+            </div>
             <BulkNaButton
               label={t('scoping.bulkNa.theme')}
               count={openInTheme.length}
@@ -212,8 +221,8 @@ export default function MeetingMode({
           <div className="rounded-2xl border border-slate-200 bg-white p-6 space-y-3">
             <p className="text-body text-brand-dark">{list.length ? t('scoping.meeting.themeDone') : t('scoping.meeting.empty')}</p>
             {nextTheme && !only30 && (
-              <Button variant="primary" onClick={() => openTheme(nextTheme.theme.key)}>
-                {t('scoping.meeting.nextTheme', { name: tr(nextTheme.theme.title, lang) })} <ChevronRight className="w-4 h-4" />
+              <Button variant="primary" onClick={() => openTheme(nextTheme.stage.key)}>
+                {t('scoping.meeting.nextTheme', { name: tr(nextTheme.stage.title, lang) })} <ChevronRight className="w-4 h-4" />
               </Button>
             )}
           </div>
@@ -254,9 +263,9 @@ export default function MeetingMode({
                 <div className="text-body text-brand-dark">{tr(next.text, lang)}</div>
               </button>
             ) : nextTheme && !only30 ? (
-              <button type="button" onClick={() => openTheme(nextTheme.theme.key)} className="w-full text-left rounded-2xl border border-dashed border-slate-300 px-5 py-4 hover:border-slate-400">
+              <button type="button" onClick={() => openTheme(nextTheme.stage.key)} className="w-full text-left rounded-2xl border border-dashed border-slate-300 px-5 py-4 hover:border-slate-400">
                 <div className="text-caption uppercase tracking-wide text-slate-500">{t('scoping.meeting.endOfTheme')}</div>
-                <div className="text-body text-brand-dark">{t('scoping.meeting.nextTheme', { name: tr(nextTheme.theme.title, lang) })}</div>
+                <div className="text-body text-brand-dark">{t('scoping.meeting.nextTheme', { name: tr(nextTheme.stage.title, lang) })}</div>
               </button>
             ) : null}
           </>

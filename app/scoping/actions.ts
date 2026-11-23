@@ -13,6 +13,7 @@ import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { latestBankVersionId, loadBank } from '@/lib/scoping/bank';
 import { completeness } from '@/lib/scoping/rules';
+import { normalizeTier } from '@/lib/scoping/themes';
 import {
   estimateFor, requireScopingUser, toSessionAnswer, userNames, type SessionEstimate,
 } from '@/lib/scoping/server';
@@ -58,6 +59,8 @@ export interface SessionInput {
   sku: string;
   plan: string;
   trackKeys: string[];
+  /** porte da oportunidade: P, M ou G (decide a profundidade das perguntas) */
+  tier?: string;
 }
 
 function validateContext(input: Partial<SessionInput>) {
@@ -85,6 +88,7 @@ export async function createSessionAction(input: SessionInput): Promise<{ ok: tr
         sku: input.sku,
         plan: input.plan,
         trackKeys: cleanTracks(input.trackKeys, new Set(bank.tracks.map((t) => t.key))),
+        settings: json({ tier: normalizeTier(input.tier) }),
         createdBy: u.id,
       },
     });
@@ -97,7 +101,7 @@ export async function createSessionAction(input: SessionInput): Promise<{ ok: tr
 
 export async function updateSessionAction(
   id: string,
-  patch: Partial<SessionInput> & { settings?: { minutesEssential?: number; minutesRecommended?: number } },
+  patch: Partial<SessionInput> & { settings?: { minutesEssential?: number; minutesRecommended?: number; tier?: string } },
 ): Promise<{ ok: true; error?: undefined } | Fail> {
   try {
     await requireScopingUser();
@@ -121,7 +125,13 @@ export async function updateSessionAction(
     }
     if (patch.settings !== undefined) {
       const m = (n: unknown) => Math.max(0, Math.min(30, Number(n) || 0));
-      data.settings = json({ minutesEssential: m(patch.settings.minutesEssential), minutesRecommended: m(patch.settings.minutesRecommended) });
+      // Junta com o que já existe: cada tela manda só o que mudou.
+      const cur = ((s.settings as any) || {}) as Record<string, unknown>;
+      const next: Record<string, unknown> = { ...cur };
+      if (patch.settings.minutesEssential !== undefined) next.minutesEssential = m(patch.settings.minutesEssential);
+      if (patch.settings.minutesRecommended !== undefined) next.minutesRecommended = m(patch.settings.minutesRecommended);
+      if (patch.settings.tier !== undefined) next.tier = normalizeTier(patch.settings.tier);
+      data.settings = json(next);
     }
     await prisma.scopingSession.update({ where: { id: s.id }, data });
     return { ok: true };

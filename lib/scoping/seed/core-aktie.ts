@@ -152,6 +152,28 @@ const TRAINING_ITEMS: Record<string, { itemId: number; itemName: string; label: 
   qa_admin: { itemId: 186, itemName: 'QA - admin', label: t('QA · admin', 'QA · admin', 'QA · admin') },
 };
 
+/**
+ * Perguntas-gatilho da etapa "Onde querem chegar" (roteiro de 23/11/2026):
+ * a resposta sugere a trilha correspondente (seed/policy.ts).
+ */
+export const CORE_FUTURE: SeedQuestion[] = [
+  {
+    key: 'core.future.wants_bot', section: 'ai_agent', type: 'yes_no', priority: 'recomendada',
+    text: t('Vocês querem um assistente virtual (bot) resolvendo parte dos atendimentos sozinho?', 'Do you want a virtual assistant (bot) resolving part of the interactions on its own?', '¿Quieren un asistente virtual (bot) que resuelva parte de las atenciones por sí solo?'),
+    help: t('Se sim, a trilha AI Agents é sugerida e entram os casos de uso do bot.', 'If yes, the AI Agents track is suggested and the bot use cases come in.', 'Si es así, se sugiere la ruta AI Agents y entran los casos de uso del bot.'),
+  },
+  {
+    key: 'core.future.data_migration', section: 'migration', type: 'yes_no', priority: 'recomendada',
+    text: t('Os dados de hoje (chamados, clientes, artigos) precisariam vir de outra plataforma?', 'Would today\'s data (tickets, customers, articles) need to come from another platform?', '¿Los datos de hoy (tickets, clientes, artículos) tendrían que venir de otra plataforma?'),
+    help: t('Se sim, a trilha Migração é sugerida.', 'If yes, the Migration track is suggested.', 'Si es así, se sugiere la ruta Migración.'),
+  },
+  {
+    key: 'core.future.agent_ai', section: 'copilot', type: 'yes_no', priority: 'recomendada',
+    text: t('Os agentes vão contar com assistência de IA no dia a dia (sugestão de resposta, resumo, procedimentos guiados)?', 'Will agents have day-to-day AI assistance (reply suggestions, summaries, guided procedures)?', '¿Los agentes contarán con asistencia de IA en el día a día (sugerencia de respuesta, resumen, procedimientos guiados)?'),
+    help: t('Se sim, a trilha Copilot é sugerida.', 'If yes, the Copilot track is suggested.', 'Si es así, se sugiere la ruta Copilot.'),
+  },
+];
+
 export const CORE_QUANTITIES: SeedQuestion[] = [
   // Times e estrutura
   n('core.users.agents', 'teams', U.agents, t('Quantos agentes atendem clientes (licença completa)?', 'How many agents handle customers (full license)?', '¿Cuántos agentes atienden clientes (licencia completa)?'),

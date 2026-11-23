@@ -2491,13 +2491,13 @@
       "only30": "Tenho 30 minutos",
       "timer": "Tempo de reunião",
       "upNext": "A seguir",
-      "themes": "Temas da conversa",
+      "themes": "Etapas da conversa",
       "required": "Obrigatórias",
       "requiredOpen": "{{n}} obrigatória(s) em aberto",
-      "deep": "Mostrar aprofundamento",
-      "themeDone": "Tema coberto.",
+      "deep": "Aprofundar",
+      "themeDone": "Etapa coberta.",
       "nextTheme": "Ir para {{name}}",
-      "endOfTheme": "Fim do tema"
+      "endOfTheme": "Fim da etapa"
     },
     "meter": {
       "fromTrack": "incluído pela trilha",
@@ -2646,13 +2646,25 @@
       "hint": "{{n}} sem status vão para \"não se aplica\".",
       "apply": "Aplicar",
       "cancel": "Cancelar",
-      "theme": "Tema não se aplica",
+      "theme": "Etapa não se aplica",
       "section": "Seção não se aplica"
     },
     "suggest": {
       "text": "Pelo que o cliente respondeu, a trilha {{name}} parece relevante.",
       "add": "Ativar trilha",
       "dismiss": "Agora não"
+    },
+    "tier": {
+      "label": "Porte da oportunidade",
+      "hint": "Decide quantas perguntas entram na reunião. Dá para aprofundar a qualquer momento.",
+      "P": "Pequena",
+      "M": "Média",
+      "G": "Grande",
+      "Pdesc": "Até 30 agentes, 1 ou 2 canais, só Support. Reunião de ~30 min.",
+      "Mdesc": "30 a 150 agentes, 3+ canais ou um produto além do Support. ~45 min.",
+      "Gdesc": "Mais de 150 agentes, vários produtos, migração ou ITSM. Duas reuniões.",
+      "current": "Porte: {{name}}",
+      "only": "Só o porte {{name}}"
     }
   }
 }

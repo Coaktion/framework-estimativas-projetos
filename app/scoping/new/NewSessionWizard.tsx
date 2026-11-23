@@ -15,6 +15,7 @@ import { Banner, Button, CARD, INPUT, Label, PageHeader, SELECT, TextInput } fro
 import { normalizeScopingLang, tr } from '@/lib/scoping/i18n';
 import { suggestedTracks } from '@/lib/scoping/rules';
 import { PLANS, type I18nText, type SuggestRule, type TrackType } from '@/lib/scoping/types';
+import { TIERS, type Tier } from '@/lib/scoping/themes';
 import { createSessionAction, updateSessionAction } from '../actions';
 
 export interface WizardTrack {
@@ -23,9 +24,8 @@ export interface WizardTrack {
   name: I18nText;
   description: I18nText;
   suggestRules: SuggestRule[];
-  essential: number;
-  recommended: number;
-  questions: number;
+  /** perguntas da trilha que entram na reunião, por porte (sem as contagens de depois da reunião) */
+  byTier: Record<Tier, { essential: number; recommended: number; questions: number }>;
 }
 
 const TYPE_ORDER: TrackType[] = ['core', 'product', 'usecase', 'segment'];
@@ -41,6 +41,7 @@ export default function NewSessionWizard({ tracks, defaultMinutes }: { tracks: W
   const [deploymentType, setDeploymentType] = useState('new');
   const [sku, setSku] = useState('CS');
   const [plan, setPlan] = useState('professional');
+  const [tier, setTier] = useState<Tier>('M');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [touched, setTouched] = useState(false);
   const [minEss, setMinEss] = useState(defaultMinutes.essential);
@@ -56,7 +57,7 @@ export default function NewSessionWizard({ tracks, defaultMinutes }: { tracks: W
   useEffect(() => { if (!touched) setSelected(new Set(suggested)); }, [suggested, touched]);
 
   const active = tracks.filter((x) => x.type === 'core' || selected.has(x.key));
-  const totals = active.reduce((acc, x) => ({ essential: acc.essential + x.essential, recommended: acc.recommended + x.recommended, questions: acc.questions + x.questions }), { essential: 0, recommended: 0, questions: 0 });
+  const totals = active.reduce((acc, x) => ({ essential: acc.essential + x.byTier[tier].essential, recommended: acc.recommended + x.byTier[tier].recommended, questions: acc.questions + x.byTier[tier].questions }), { essential: 0, recommended: 0, questions: 0 });
   const minutes = (x: { essential: number; recommended: number }) => x.essential * minEss + x.recommended * minRec;
 
   const toggle = (key: string) => {
@@ -71,7 +72,7 @@ export default function NewSessionWizard({ tracks, defaultMinutes }: { tracks: W
   const start = () => {
     setError(null);
     startTransition(async () => {
-      const res = await createSessionAction({ clientName, title, language, deploymentType, sku, plan, trackKeys: Array.from(selected) });
+      const res = await createSessionAction({ clientName, title, language, deploymentType, sku, plan, tier, trackKeys: Array.from(selected) });
       if (!res.ok) {
         setError(t(`scoping.errors.${res.error}`, { defaultValue: t('scoping.errors.server_error') }));
         return;
@@ -150,6 +151,25 @@ export default function NewSessionWizard({ tracks, defaultMinutes }: { tracks: W
               {PLANS.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
             </select>
           </div>
+          <fieldset className="sm:col-span-2">
+            <legend className="block text-label font-medium text-brand-dark mb-1.5">{t('scoping.tier.label')}</legend>
+            <p className="text-caption text-slate-500 mb-2">{t('scoping.tier.hint')}</p>
+            <div className="grid gap-2 sm:grid-cols-3" role="radiogroup">
+              {TIERS.map((tr2) => (
+                <button
+                  key={tr2}
+                  type="button"
+                  role="radio"
+                  aria-checked={tier === tr2}
+                  onClick={() => setTier(tr2)}
+                  className={`text-left rounded-xl border p-3 ${tier === tr2 ? 'border-transparent ring-2 ring-[color:var(--primary)]' : 'border-slate-200 hover:border-slate-400'}`}
+                >
+                  <span className="block text-body font-semibold text-brand-dark">{t(`scoping.tier.${tr2}`)}</span>
+                  <span className="block text-caption text-slate-500">{t(`scoping.tier.${tr2}desc`)}</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
           <div className="sm:col-span-2 flex justify-end">
             <Button variant="primary" disabled={!canNext} onClick={() => setStep(2)}>{t('scoping.wizard.next')}</Button>
           </div>
@@ -182,7 +202,7 @@ export default function NewSessionWizard({ tracks, defaultMinutes }: { tracks: W
                         </div>
                         <p className="text-caption text-slate-500 mt-1">{tr(x.description, uiLang)}</p>
                         <p className="text-caption text-slate-600 mt-3 tabular-nums">
-                          {t('scoping.wizard.trackCost', { n: x.questions, e: x.essential, time: fmtMin(minutes(x)) })}
+                          {t('scoping.wizard.trackCost', { n: x.byTier[tier].questions, e: x.byTier[tier].essential, time: fmtMin(minutes(x.byTier[tier])) })}
                         </p>
                         {type === 'core' && <span className="mt-2 inline-block text-caption text-slate-500">{t('scoping.wizard.alwaysOn')}</span>}
                         {type !== 'core' && suggested.has(x.key) && <span className="mt-2 inline-block rounded-full border border-dashed border-slate-400 px-2 py-[2px] text-caption text-slate-600">{t('scoping.wizard.suggested')}</span>}

@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { Search } from 'lucide-react';
 import { tr } from '@/lib/scoping/i18n';
 import { isAddressed } from '@/lib/scoping/rules';
-import { THEMES, themeOf } from '@/lib/scoping/themes';
+import { STAGES, stageOf } from '@/lib/scoping/themes';
 import type { BankQuestion, ScopingLang, SessionAnswer } from '@/lib/scoping/types';
 import { PRIORITY_DOT, StatusIcon } from './QuestionCard';
 
@@ -34,11 +34,11 @@ export default function QuickJump({
 
   useEffect(() => { if (open) { setQ(''); setSel(0); setTimeout(() => input.current?.focus(), 20); } }, [open]);
 
-  const themeTitle = (sectionKey: string) => tr(THEMES.find((th) => th.key === themeOf(sectionKey))?.title, lang);
+  const themeTitle = (q: BankQuestion) => tr(STAGES.find((s) => s.key === stageOf(q))?.title, lang);
   const results = useMemo(() => {
     const terms = fold(q).split(/\s+/).filter(Boolean);
     const list = terms.length
-      ? questions.filter((x) => { const text = fold(`${tr(x.text, lang)} ${themeTitle(x.sectionKey)}`); return terms.every((w) => text.includes(w)); })
+      ? questions.filter((x) => { const text = fold(`${tr(x.text, lang)} ${themeTitle(x)}`); return terms.every((w) => text.includes(w)); })
       : questions.filter((x) => !isAddressed(answers[x.key]));
     return list.slice(0, 12);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -86,7 +86,7 @@ export default function QuickJump({
                 <span className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${PRIORITY_DOT[x.priority]}`} aria-hidden />
                 <span className="flex-1 min-w-0">
                   <span className="block text-label text-brand-dark">{tr(x.text, lang)}</span>
-                  <span className="block text-caption text-slate-500">{themeTitle(x.sectionKey)}</span>
+                  <span className="block text-caption text-slate-500">{themeTitle(x)}</span>
                 </span>
                 <StatusIcon answer={answers[x.key]} />
               </button>
