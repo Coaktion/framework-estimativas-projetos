@@ -703,7 +703,9 @@
     "deletedProjectBanner": "Este projeto foi excluído e só aparece para admins. Para trazê-lo de volta, use Admin › Estimativas excluídas.",
     "deletedVersionBanner": "Esta versão foi excluída e só aparece para admins. Para trazê-la de volta, use Admin › Estimativas excluídas.",
     "shortcutFilledHint_one": "O atalho está preenchendo {{count}} item.",
-    "shortcutFilledHint_other": "O atalho está preenchendo {{count}} itens."
+    "shortcutFilledHint_other": "O atalho está preenchendo {{count}} itens.",
+    "aiAgentsManagedTitle": "Serviço gerenciado obrigatório",
+    "aiAgentsManagedText": "Esta estimativa tem AI Agents. Inclua o serviço gerenciado na proposta: ele é necessário sempre que houver AI Agents."
   },
   "errors": {
     "aeClientNameRequired": "Informe o nome do cliente antes de salvar.",

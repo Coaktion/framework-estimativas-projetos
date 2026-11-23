@@ -1443,6 +1443,14 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
     return [...withHours, ...withoutHours];
   })();
 
+  /**
+   * AI Agents na estimativa (módulo selecionado ou com horas) exige o serviço
+   * gerenciado na proposta: o alerta acima do Resumo de Horas aparece sempre.
+   */
+  const temAiAgents = liveSummaryModules.some(
+    (m) => /ai\s*agents?/i.test(String(m.cat)) || /ai\s*agents?/i.test(catLabelOf(m.cat)),
+  );
+
   /** Rola até o cabeçalho do módulo (expandindo-o, se estiver recolhido). */
   const jumpToCategory = (cat: string) => {
     if (cat === REMOVED_CATEGORY) return;
@@ -3623,8 +3631,19 @@ export default function ProjectEditorClient({ project, categories, categoryLabel
         </div>
       </div>
 
+      {/* AI Agents exige serviço gerenciado: alerta fixo acima do Resumo de Horas */}
+      {temAiAgents && (
+        <div role="alert" className="mt-12 bg-red-50 dark:bg-red-900/20 border-2 border-red-400 dark:border-red-700 rounded-3xl px-6 py-4 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-label font-bold text-red-800 dark:text-red-200">{t('editor.aiAgentsManagedTitle')}</p>
+            <p className="text-label text-red-700 dark:text-red-300">{t('editor.aiAgentsManagedText')}</p>
+          </div>
+        </div>
+      )}
+
       {/* Totals & Calculations Summary */}
-      <div id="resumo-horas" className="scroll-mt-24 bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-3xl shadow-xl mt-12">
+      <div id="resumo-horas" className={`scroll-mt-24 bg-white dark:bg-[color:var(--bg-card-solid)] dark:border dark:border-[color:var(--border-main)] border-2 border-brand-primary p-6 md:p-8 rounded-3xl shadow-xl ${temAiAgents ? 'mt-4' : 'mt-12'}`}>
         <div className="max-w-7xl mx-auto flex flex-col space-y-8">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-brand-dark dark:text-[color:var(--text-main)] font-heading text-section leading-none">

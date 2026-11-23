@@ -703,7 +703,9 @@
     "deletedProjectBanner": "Este proyecto fue eliminado y solo lo ven los admins. Para recuperarlo, usa Admin › Estimaciones eliminadas.",
     "deletedVersionBanner": "Esta versión fue eliminada y solo la ven los admins. Para recuperarla, usa Admin › Estimaciones eliminadas.",
     "shortcutFilledHint_one": "El atajo está completando {{count}} ítem.",
-    "shortcutFilledHint_other": "El atajo está completando {{count}} ítems."
+    "shortcutFilledHint_other": "El atajo está completando {{count}} ítems.",
+    "aiAgentsManagedTitle": "Servicio gestionado obligatorio",
+    "aiAgentsManagedText": "Esta estimación incluye AI Agents. Incluya el servicio gestionado en la propuesta: es necesario siempre que haya AI Agents."
   },
   "errors": {
     "aeClientNameRequired": "Ingresa el nombre del cliente antes de guardar.",

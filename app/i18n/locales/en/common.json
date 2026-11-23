@@ -703,7 +703,9 @@
     "deletedProjectBanner": "This project was deleted and is only visible to admins. To bring it back, use Admin › Deleted estimates.",
     "deletedVersionBanner": "This version was deleted and is only visible to admins. To bring it back, use Admin › Deleted estimates.",
     "shortcutFilledHint_one": "This shortcut is filling in {{count}} item.",
-    "shortcutFilledHint_other": "This shortcut is filling in {{count}} items."
+    "shortcutFilledHint_other": "This shortcut is filling in {{count}} items.",
+    "aiAgentsManagedTitle": "Managed service required",
+    "aiAgentsManagedText": "This estimate includes AI Agents. Add the managed service to the proposal: it is required whenever AI Agents is included."
   },
   "errors": {
     "aeClientNameRequired": "Enter the client name before saving.",
