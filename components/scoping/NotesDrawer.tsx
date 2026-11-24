@@ -43,7 +43,14 @@ export default function NotesDrawer({
     setTimeout(() => area.current?.focus(), 30);
   }, [open]);
 
+  const inflight = useRef(false);
+  const again = useRef(false);
+
+  // Uma gravação por vez: se a pessoa digitou durante a gravação, grava de novo
+  // depois, com a versão nova (duas ao mesmo tempo dariam conflito consigo mesma).
   const save = async () => {
+    if (inflight.current) { again.current = true; return; }
+    inflight.current = true;
     setState('saving');
     try {
       const res = await saveNoteAction(sessionId, latest.current, version.current);
@@ -55,20 +62,23 @@ export default function NotesDrawer({
         setContent(merged);
         latest.current = merged;
         setState('conflict');
-        const again = await saveNoteAction(sessionId, merged, version.current);
-        if (again.ok) version.current = again.version;
+        const retry = await saveNoteAction(sessionId, merged, version.current);
+        if (retry.ok) version.current = retry.version;
         return;
       }
       setState('error');
     } catch {
       setState('error');
+    } finally {
+      inflight.current = false;
+      if (again.current) { again.current = false; void save(); }
     }
   };
 
   const onChange = (v: string) => {
     setContent(v);
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(save, 1000);
+    timer.current = setTimeout(save, 2500);
   };
 
   if (!open || !mounted) return null;

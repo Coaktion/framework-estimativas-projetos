@@ -4,7 +4,8 @@
  * Autosave das respostas (RNF-01 e 4.5).
  *
  *  - Cada alteração atualiza a tela na hora e agenda a gravação da pergunta
- *    (texto: 900 ms depois de parar de digitar; status: na hora).
+ *    (texto: 2,5 s depois de parar de digitar; status: na hora). A resposta
+ *    da gravação só atualiza a versão; o que está na tela não é trocado.
  *  - A gravação manda a versão que a tela conhece; se outra pessoa gravou
  *    antes, a pergunta entra em conflito e a tela pede a escolha.
  *  - Falha de rede ou do servidor: estado "error" (faixa vermelha), as
@@ -38,6 +39,9 @@ const blank = (questionKey: string): SessionAnswer => ({
 });
 
 const storageKey = (sessionId: string) => `scoping-queue:${sessionId}`;
+
+/** Espera depois da última tecla antes de gravar. */
+const TYPING_DELAY_MS = 2500;
 
 export function useAnswerStore(sessionId: string, initial: SessionAnswer[], opts: { readOnly: boolean; onSaved?: () => void }) {
   const [answers, setAnswers] = useState<Record<string, SessionAnswer>>(() => Object.fromEntries(initial.map((a) => [a.questionKey, a])));
@@ -82,7 +86,9 @@ export function useAnswerStore(sessionId: string, initial: SessionAnswer[], opts
     if (res && res.ok) {
       baseVersion.current[key] = res.answer.version;
       // Se a pessoa alterou de novo durante a gravação, a versão local continua valendo.
-      setAnswers((cur) => (dirty.current.has(key) ? { ...cur, [key]: { ...cur[key], version: res!.answer.version } } : { ...cur, [key]: res!.answer }));
+      // Só a versão e a origem vêm do servidor: o texto continua o da tela,
+      // senão o campo é redesenhado e o cursor pula enquanto a pessoa digita.
+      setAnswers((cur) => ({ ...cur, [key]: cur[key] ? { ...cur[key], version: res!.answer.version, source: res!.answer.source, sourceRef: res!.answer.sourceRef } : res!.answer }));
       onSavedRef.current?.();
     } else if (res && !res.ok && res.error === 'conflict' && 'current' in res) {
       const theirs = res.current;
@@ -121,7 +127,7 @@ export function useAnswerStore(sessionId: string, initial: SessionAnswer[], opts
       answersRef.current = { ...cur, [key]: next };
       return answersRef.current;
     });
-    schedule(key, opts2.immediate ? 50 : 900);
+    schedule(key, opts2.immediate ? 50 : TYPING_DELAY_MS);
   }, [opts.readOnly, schedule]);
 
   /** Resolve um conflito: 'mine' regrava a minha versão por cima; 'theirs' aceita a outra. */
@@ -157,6 +163,16 @@ export function useAnswerStore(sessionId: string, initial: SessionAnswer[], opts
     } catch { /* fila corrompida: ignora */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
+
+  // Trocou de aba ou de janela: grava na hora o que estava esperando a pausa.
+  useEffect(() => {
+    const now = () => {
+      if (document.visibilityState !== 'hidden') return;
+      Array.from(dirty.current).forEach((k) => { clearTimeout(timers.current[k]); void flush(k); });
+    };
+    document.addEventListener('visibilitychange', now);
+    return () => document.removeEventListener('visibilitychange', now);
+  }, [flush]);
 
   // Avisa antes de fechar a aba com alteração não gravada.
   useEffect(() => {
