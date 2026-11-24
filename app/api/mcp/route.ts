@@ -25,6 +25,17 @@ import {
   estimateInput, createEstimateVersion,
   getVersionInput, getVersion,
 } from '@/lib/toolcenter';
+import {
+  scopingToolsEnabled,
+  listTracksInput, scopingListTracks,
+  searchSessionsInput, scopingSearchSessions,
+  createSessionInput, scopingCreateSession,
+  getSessionInput, scopingGetSession,
+  proposeInput, scopingProposeAnswers,
+  setPendingInput, scopingSetPending,
+  sessionIdInput, scopingPreviewEstimate, scopingGetNotes,
+  exportInput, scopingExport,
+} from '@/lib/toolcenter-scoping';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -39,6 +50,13 @@ const INSTRUCTIONS = [
   '(3) simulate_estimate para conferir totais e avisos (não grava; o projeto é opcional);',
   '(4) create_project se o cliente ainda não tiver projeto; (5) create_estimate_version para salvar a versão nova.',
   'Nenhuma ferramenta altera ou apaga versões existentes. Responda ao usuário com o link da versão.',
+  ...(scopingToolsEnabled ? [
+    'Scoping a partir de uma gravação: (1) leia a transcrição com as ferramentas de reunião que você tiver;',
+    '(2) scoping_search_sessions (ou scoping_create_session) para achar a sessão; (3) scoping_get_session com onlyOpen=true;',
+    '(4) scoping_propose_answers só com o que o cliente disse, cada proposta com citação literal e o minuto;',
+    '(5) scoping_set_pending para o que ficou de o cliente confirmar; (6) responda com o link de revisão e a lista de reuniões usadas.',
+    'Propostas nunca viram resposta sozinhas: o pré-vendas revisa no Tool Center.',
+  ] : []),
 ].join(' ');
 
 type Tool = {
@@ -235,6 +253,159 @@ const TOOLS: Tool[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Scoping (lib/toolcenter-scoping.ts): só onde o módulo está ligado
+// ---------------------------------------------------------------------------
+
+const LANG_PROP = { type: 'string', enum: ['pt', 'en', 'es'], description: 'Idioma dos textos. Padrão: o da sessão.' };
+const SESSION_PROP = { type: 'string', description: 'sessionId (de scoping_search_sessions ou scoping_create_session).' };
+
+const SCOPING_TOOLS: Tool[] = [
+  {
+    name: 'scoping_list_tracks',
+    title: 'Scoping: trilhas e etapas',
+    description: 'Trilhas do banco de perguntas (núcleo, produtos, casos de uso, segmentos), os portes da oportunidade (P, M, G) e as etapas do roteiro da reunião.',
+    inputSchema: { type: 'object', properties: { language: LANG_PROP }, additionalProperties: false },
+    annotations: READ_ONLY,
+    input: listTracksInput,
+    run: scopingListTracks,
+  },
+  {
+    name: 'scoping_search_sessions',
+    title: 'Scoping: buscar sessões',
+    description: 'Sessões de scoping pelo nome do cliente ou título (as 20 mais recentes sem filtro). Use antes de criar, para não duplicar.',
+    inputSchema: { type: 'object', properties: { query: { type: 'string', description: 'Parte do nome do cliente ou do título.' } }, additionalProperties: false },
+    annotations: READ_ONLY,
+    input: searchSessionsInput,
+    run: scopingSearchSessions,
+  },
+  {
+    name: 'scoping_create_session',
+    title: 'Scoping: criar sessão',
+    description: 'Cria uma sessão de scoping para um cliente. Só crie se scoping_search_sessions não encontrar uma.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        clientName: { type: 'string' },
+        title: { type: 'string', description: 'Ex.: "Reunião de scoping 1".' },
+        language: { type: 'string', enum: ['pt', 'en', 'es'], description: 'Idioma das perguntas. Padrão: pt.' },
+        deploymentType: { type: 'string', enum: ['new', 'optimization'] },
+        sku: { type: 'string', enum: ['CS', 'ES'] },
+        plan: { type: 'string', enum: ['team', 'growth', 'professional', 'enterprise'] },
+        tier: { type: 'string', enum: ['P', 'M', 'G'], description: 'Porte da oportunidade: P até 30 agentes; M 30 a 150; G acima de 150, vários produtos, migração ou ITSM. Padrão: M.' },
+        trackKeys: { type: 'array', items: { type: 'string' }, description: 'Trilhas além do núcleo (keys de scoping_list_tracks).' },
+      },
+      required: ['clientName'],
+      additionalProperties: false,
+    },
+    annotations: CREATES,
+    input: createSessionInput,
+    run: scopingCreateSession,
+  },
+  {
+    name: 'scoping_get_session',
+    title: 'Scoping: perguntas da sessão',
+    description: 'Perguntas ativas da sessão com key, etapa, porte, texto, tipo, opções, unidade, colunas, itens do catálogo, resposta atual, status e origem. Com onlyOpen=true, só as que não estão respondidas: é o ponto de partida para propor respostas a partir de uma gravação.',
+    inputSchema: { type: 'object', properties: { sessionId: SESSION_PROP, language: LANG_PROP, onlyOpen: { type: 'boolean' } }, required: ['sessionId'], additionalProperties: false },
+    annotations: READ_ONLY,
+    input: getSessionInput,
+    run: scopingGetSession,
+  },
+  {
+    name: 'scoping_propose_answers',
+    title: 'Scoping: propor respostas',
+    description: 'Grava PROPOSTAS de resposta tiradas de uma gravação ou das notas. Nada vira resposta: um humano aceita, edita ou rejeita na aba "Para revisar". Cada proposta precisa de citação literal (source.quote); sem ela é recusada. Proponha só o que o cliente disse de fato, no formato do tipo da pergunta (valueFormats de scoping_get_session). Não chute contagens de configuração (gatilhos, macros etc.) que o cliente não falou.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: SESSION_PROP,
+        proposals: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              questionKey: { type: 'string' },
+              value: { description: 'Valor no formato do tipo da pergunta.' },
+              note: { type: 'string', description: 'Comentário que acompanha a resposta (ex.: contexto, ressalva).' },
+              confidence: { type: 'string', enum: ['alta', 'media', 'baixa'] },
+              rationale: { type: 'string', description: 'Por que esta resposta, em uma frase.' },
+              source: {
+                type: 'object',
+                properties: {
+                  provider: { type: 'string', enum: ['tldv', 'claude_meetings', 'notes', 'other'] },
+                  meetingTitle: { type: 'string' },
+                  meetingDate: { type: 'string', description: 'AAAA-MM-DD' },
+                  url: { type: 'string', description: 'Link da gravação (de preferência já no minuto do trecho).' },
+                  timestamp: { type: 'string', description: 'Minuto do trecho, ex.: "00:23:41".' },
+                  quote: { type: 'string', description: 'Citação literal da transcrição. Obrigatória.' },
+                },
+                required: ['provider', 'quote'],
+                additionalProperties: false,
+              },
+            },
+            required: ['questionKey', 'value', 'confidence', 'source'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['sessionId', 'proposals'],
+      additionalProperties: false,
+    },
+    annotations: CREATES,
+    input: proposeInput,
+    run: scopingProposeAnswers,
+  },
+  {
+    name: 'scoping_set_pending',
+    title: 'Scoping: marcar pendência',
+    description: 'Marca uma pergunta como pendente, com dono e prazo (ex.: "o cliente vai confirmar com a TI até sexta"). Não age sobre pergunta já respondida.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: SESSION_PROP,
+        questionKey: { type: 'string' },
+        owner: { type: 'string', description: 'Pessoa ou área do cliente ou da Aktie.' },
+        dueDate: { type: 'string', description: 'AAAA-MM-DD' },
+        note: { type: 'string' },
+      },
+      required: ['sessionId', 'questionKey', 'owner', 'dueDate'],
+      additionalProperties: false,
+    },
+    annotations: CREATES,
+    input: setPendingInput,
+    run: scopingSetPending,
+  },
+  {
+    name: 'scoping_preview_estimate',
+    title: 'Scoping: simular horas',
+    description: 'Simula as horas com as respostas ACEITAS da sessão, no mesmo motor do simulate_estimate. Não grava nada.',
+    inputSchema: { type: 'object', properties: { sessionId: SESSION_PROP }, required: ['sessionId'], additionalProperties: false },
+    annotations: READ_ONLY,
+    input: sessionIdInput,
+    run: scopingPreviewEstimate,
+  },
+  {
+    name: 'scoping_get_notes',
+    title: 'Scoping: notas da reunião',
+    description: 'Notas livres que o pré-vendas escreveu na sessão. Úteis para propor respostas (provider "notes").',
+    inputSchema: { type: 'object', properties: { sessionId: SESSION_PROP }, required: ['sessionId'], additionalProperties: false },
+    annotations: READ_ONLY,
+    input: sessionIdInput,
+    run: scopingGetNotes,
+  },
+  {
+    name: 'scoping_export',
+    title: 'Scoping: exportar',
+    description: 'A sessão em Markdown (respostas, status e pendências), e o link do .xlsx no formato do template.',
+    inputSchema: { type: 'object', properties: { sessionId: SESSION_PROP, language: LANG_PROP }, required: ['sessionId'], additionalProperties: false },
+    annotations: READ_ONLY,
+    input: exportInput,
+    run: scopingExport,
+  },
+];
+
+const ALL_TOOLS: Tool[] = scopingToolsEnabled ? [...TOOLS, ...SCOPING_TOOLS] : TOOLS;
+
+// ---------------------------------------------------------------------------
 // JSON-RPC
 // ---------------------------------------------------------------------------
 
@@ -252,7 +423,7 @@ function appOrigin(req: Request): string {
 }
 
 async function callTool(ctx: ToolCenterContext, params: any) {
-  const tool = TOOLS.find((t) => t.name === params?.name);
+  const tool = ALL_TOOLS.find((t) => t.name === params?.name);
   if (!tool) return null;
   const parsed = tool.input.safeParse(params?.arguments ?? {});
   if (!parsed.success) {
@@ -289,7 +460,7 @@ async function handleMessage(ctx: ToolCenterContext, msg: JsonRpcMessage) {
       return rpcResult(msg.id, {});
     case 'tools/list':
       return rpcResult(msg.id, {
-        tools: TOOLS.map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations })),
+        tools: ALL_TOOLS.map(({ name, title, description, inputSchema, annotations }) => ({ name, title, description, inputSchema, annotations })),
       });
     case 'tools/call': {
       const result = await callTool(ctx, msg.params);

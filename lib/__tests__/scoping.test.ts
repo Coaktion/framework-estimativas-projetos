@@ -17,6 +17,7 @@ import { tr, normalizeScopingLang } from '../scoping/i18n';
 import { mapAnswersToItems } from '../scoping/mapping';
 import { completeness, pendingItems, suggestedByAnswers, suggestedTracks, visibleQuestions, meetingOrder } from '../scoping/rules';
 import { groupByStage, inTier, stageOf, suggestTier, tierOf, unmappedSections } from '../scoping/themes';
+import { answerSourceOf, proposalInputSchema, validateProposalValue } from '../scoping/proposals';
 import { simulateScopingEstimate } from '../scoping/estimate';
 import { exportMarkdown, exportXlsx } from '../scoping/export';
 import { answerValueSchema, type Bank, type SessionAnswer } from '../scoping/types';
@@ -354,4 +355,33 @@ test('trilhas sugeridas pela conversa', () => {
   assert.ok(suggestedByAnswers(bank.tracks, [], [a('core.channels.list', ['voice'])]).includes('product.voice_zcc'));
   assert.ok(!suggestedByAnswers(bank.tracks, ['product.voice_zcc'], [a('core.channels.list', ['voice'])]).includes('product.voice_zcc'), 'já ativa');
   assert.ok(!suggestedTracks(bank.tracks, { sku: 'CS', plan: 'professional', deploymentType: 'new' }).includes('product.voice_zcc'), 'regra de resposta não vira regra de contexto');
+});
+
+// ---------------------------------------------------------------------------
+// Fase 1b: propostas vindas da gravação
+// ---------------------------------------------------------------------------
+
+test('propostas: sem citação literal é recusada', () => {
+  const base = { questionKey: 'core.users.agents', value: 140, confidence: 'alta', source: { provider: 'tldv' } };
+  assert.equal(proposalInputSchema.safeParse({ ...base, source: { provider: 'tldv' } }).success, false);
+  assert.equal(proposalInputSchema.safeParse({ ...base, source: { provider: 'tldv', quote: 'temos 140 agentes no total' } }).success, true);
+});
+
+test('propostas: valor validado pelo tipo da pergunta', () => {
+  const q = (k: string) => bank.questions.find((x) => x.key === k)!;
+  assert.equal(validateProposalValue(q('core.users.agents'), 140).ok, true);
+  assert.equal(validateProposalValue(q('core.users.agents'), { min: 120, max: 150 }).ok, true);
+  assert.equal(validateProposalValue(q('core.users.agents'), 'muitos').ok, false);
+  const yes = validateProposalValue(q('core.sso'), true);
+  assert.ok(yes.ok && (yes as any).value.v === 'sim', 'true vira "sim"');
+  assert.equal(validateProposalValue(q('core.channels.list'), ['whatsapp', 'voice']).ok, true);
+  const bad = validateProposalValue(q('core.channels.list'), ['telegram']);
+  assert.ok(!bad.ok && /telegram/.test((bad as any).reason));
+  assert.equal(validateProposalValue(q('core.launch.golive_date'), '2027-04-01').ok, true);
+});
+
+test('propostas: provedor da gravação vira a origem da resposta', () => {
+  assert.equal(answerSourceOf('tldv'), 'tldv');
+  assert.equal(answerSourceOf('claude_meetings'), 'claude_meetings');
+  assert.equal(answerSourceOf('other'), 'import');
 });

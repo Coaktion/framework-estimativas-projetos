@@ -2667,6 +2667,36 @@
       "Gdesc": "Mais de 150 agentes, vários produtos, migração ou ITSM. Duas reuniões.",
       "current": "Porte: {{name}}",
       "only": "Só o porte {{name}}"
+    },
+    "review": {
+      "title": "Para revisar",
+      "subtitle": "Respostas propostas pelo Claude a partir da gravação ou das notas. Nada entra sem você aceitar.",
+      "button": "Para revisar",
+      "acceptSelected": "Aceitar selecionadas ({{n}})",
+      "acceptHigh": "Aceitar as {{n}} de confiança alta",
+      "confirmHigh": "Aceitar {{n}} propostas de confiança alta?",
+      "yes": "Sim, aceitar",
+      "meetings": "Reuniões usadas como fonte",
+      "acceptedN": "{{n}} aceita(s)",
+      "open": "abrir",
+      "empty": "Nenhuma proposta aguardando revisão.",
+      "howTo": "Depois da reunião, peça ao Claude: \"preenche o scoping de <cliente> a partir da gravação de hoje\". Ele lê a transcrição e as propostas aparecem aqui.",
+      "select": "Selecionar proposta",
+      "conf": {
+        "alta": "Confiança alta",
+        "media": "Confiança média",
+        "baixa": "Confiança baixa"
+      },
+      "overrides": "Já tem resposta: aceitar substitui a atual",
+      "current": "Resposta atual",
+      "proposed": "Proposta",
+      "openRecording": "abrir a gravação",
+      "rejectReason": "Motivo (opcional)",
+      "reject": "Rejeitar",
+      "saveAccept": "Salvar e aceitar",
+      "accept": "Aceitar",
+      "edit": "Editar e aceitar",
+      "someFailed": "{{n}} proposta(s) não puderam ser aceitas (já decididas ou sessão concluída)."
     }
   }
 }

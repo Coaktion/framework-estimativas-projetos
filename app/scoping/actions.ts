@@ -13,6 +13,9 @@ import type { Prisma } from '@prisma/client';
 import prisma from '@/lib/prisma';
 import { latestBankVersionId, loadBank } from '@/lib/scoping/bank';
 import { completeness } from '@/lib/scoping/rules';
+import {
+  acceptProposal, meetingsUsed, pendingProposals, rejectProposal, type MeetingUsed, type ProposalView,
+} from '@/lib/scoping/proposals';
 import { normalizeTier } from '@/lib/scoping/themes';
 import {
   estimateFor, requireScopingUser, toSessionAnswer, userNames, type SessionEstimate,
@@ -333,6 +336,61 @@ export async function previewEstimateAction(sessionId: string): Promise<({ ok: t
     const answers = (await prisma.scopingAnswer.findMany({ where: { sessionId: s.id } })).map((a) => toSessionAnswer(a));
     const result = await estimateFor(bank, s, answers);
     return { ok: true, ...result };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Propostas da IA (Fase 1b, RF-51 a RF-53)
+// ---------------------------------------------------------------------------
+
+export async function listProposalsAction(sessionId: string): Promise<{ ok: true; proposals: ProposalView[]; meetings: MeetingUsed[]; error?: undefined } | Fail> {
+  try {
+    await requireScopingUser();
+    const s = await openSession(sessionId, { allowCompleted: true });
+    return { ok: true, proposals: await pendingProposals(s.id), meetings: await meetingsUsed(s.id) };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Aceitar (ou editar e aceitar, com `editedValue`): vira resposta "respondida" com a origem da gravação. */
+export async function acceptProposalAction(proposalId: string, editedValue?: unknown): Promise<{ ok: true; answer: SessionAnswer; error?: undefined } | Fail> {
+  try {
+    const u = await requireScopingUser();
+    const saved = await acceptProposal(String(proposalId), u.id, editedValue);
+    return { ok: true, answer: toSessionAnswer(saved, new Map([[u.id, u.name]])) };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+export async function rejectProposalAction(proposalId: string, reason?: string): Promise<{ ok: true; error?: undefined } | Fail> {
+  try {
+    const u = await requireScopingUser();
+    await rejectProposal(String(proposalId), u.id, reason);
+    return { ok: true };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Aceita uma lista de propostas (seleção ou "todas de confiança alta"); devolve as respostas gravadas. */
+export async function acceptManyAction(proposalIds: string[]): Promise<{ ok: true; answers: SessionAnswer[]; failed: number; error?: undefined } | Fail> {
+  try {
+    const u = await requireScopingUser();
+    if (!Array.isArray(proposalIds) || proposalIds.length > 200) throw new Error('invalid');
+    const answers: SessionAnswer[] = [];
+    let failed = 0;
+    for (const id of proposalIds) {
+      try {
+        answers.push(toSessionAnswer(await acceptProposal(String(id), u.id), new Map([[u.id, u.name]])));
+      } catch {
+        failed += 1;
+      }
+    }
+    return { ok: true, answers, failed };
   } catch (e) {
     return fail(e);
   }

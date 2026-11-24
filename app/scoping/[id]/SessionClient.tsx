@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { ArrowLeft, Download, NotebookPen, Presentation, LayoutPanelLeft, Search, Settings2 } from 'lucide-react';
+import { ArrowLeft, Download, NotebookPen, Presentation, LayoutPanelLeft, Search, Settings2, Sparkles } from 'lucide-react';
 import { Banner, Button, CARD, Check, INPUT, Label, SELECT, TextInput, chipClass } from '@/components/booking/ui';
 import QuestionCard from '@/components/scoping/QuestionCard';
 import MeetingMode from '@/components/scoping/MeetingMode';
@@ -27,7 +27,12 @@ import { formatValue } from '@/lib/scoping/format';
 import { completeness, isAddressed, pendingItems, suggestedByAnswers, visibleQuestions, DEFAULT_MINUTES } from '@/lib/scoping/rules';
 import type { SessionEstimate, SessionRecord } from '@/lib/scoping/server';
 import { PLANS, type Bank, type BankQuestion, type ScopingLang, type SessionAnswer } from '@/lib/scoping/types';
-import { completeSessionAction, previewEstimateAction, reopenSessionAction, updateSessionAction } from '../actions';
+import {
+  acceptManyAction, acceptProposalAction, completeSessionAction, listProposalsAction, previewEstimateAction,
+  rejectProposalAction, reopenSessionAction, updateSessionAction,
+} from '../actions';
+import ReviewPanel from '@/components/scoping/ReviewPanel';
+import type { MeetingUsed, ProposalView } from '@/lib/scoping/proposals';
 
 type Filter = 'all' | 'essential' | 'open' | 'pending';
 const FILTERS: Filter[] = ['all', 'essential', 'open', 'pending'];
@@ -52,13 +57,15 @@ function Ring({ done, pending, total, label }: { done: number; pending: number; 
 }
 
 export default function SessionClient({
-  session: initialSession, bank, initialAnswers, initialNote, initialEstimate,
+  session: initialSession, bank, initialAnswers, initialNote, initialEstimate, initialProposals, initialMeetings,
 }: {
   session: SessionRecord;
   bank: Bank;
   initialAnswers: SessionAnswer[];
   initialNote: { content: string; version: number };
   initialEstimate: SessionEstimate | null;
+  initialProposals: ProposalView[];
+  initialMeetings: MeetingUsed[];
   canDelete: boolean;
 }) {
   const { t } = useTranslation();
@@ -80,10 +87,42 @@ export default function SessionClient({
     }, 500);
   }, [initialSession.id]);
 
-  const { answers, update, saveState, conflicts, resolveConflict, readOnlyError } = useAnswerStore(initialSession.id, initialAnswers, { readOnly, onSaved: refreshEstimate });
+  const { answers, update, saveState, conflicts, resolveConflict, readOnlyError, applyServer } = useAnswerStore(initialSession.id, initialAnswers, { readOnly, onSaved: refreshEstimate });
   const answerList = useMemo(() => Object.values(answers), [answers]);
 
-  const [mode, setMode] = useState<'full' | 'meeting'>('full');
+  const [mode, setMode] = useState<'full' | 'meeting' | 'review'>('full');
+  const [proposals, setProposals] = useState<ProposalView[]>(initialProposals);
+  const [meetings, setMeetings] = useState<MeetingUsed[]>(initialMeetings);
+  // Link de revisão que o Claude devolve pelo MCP: /scoping/<id>#revisar
+  useEffect(() => { try { if (window.location.hash === '#revisar') setMode('review'); } catch { /* sem hash */ } }, []);
+
+  const reloadProposals = useCallback(async () => {
+    const res = await listProposalsAction(initialSession.id).catch(() => null);
+    if (res && res.ok) { setProposals(res.proposals); setMeetings(res.meetings); }
+  }, [initialSession.id]);
+  const reviewError = (error?: string) => setMessage({ tone: 'error', text: t(`scoping.errors.${error || 'server_error'}`, { defaultValue: t('scoping.errors.server_error') }) });
+  const acceptOne = async (id: string, edited?: unknown) => {
+    const res = await acceptProposalAction(id, edited);
+    if (!res.ok) { reviewError(res.error); return false; }
+    applyServer(res.answer);
+    await reloadProposals();
+    refreshEstimate();
+    return true;
+  };
+  const rejectOne = async (id: string, reason?: string) => {
+    const res = await rejectProposalAction(id, reason);
+    if (!res.ok) { reviewError(res.error); return false; }
+    setProposals((cur) => cur.filter((p) => p.id !== id));
+    return true;
+  };
+  const acceptMany = async (ids: string[]) => {
+    const res = await acceptManyAction(ids);
+    if (!res.ok) { reviewError(res.error); return; }
+    res.answers.forEach(applyServer);
+    if (res.failed) setMessage({ tone: 'warn', text: t('scoping.review.someFailed', { n: res.failed }) });
+    await reloadProposals();
+    refreshEstimate();
+  };
   const [notesOpen, setNotesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
@@ -235,6 +274,10 @@ export default function SessionClient({
             {mode === 'full' ? <Presentation className="w-4 h-4" /> : <LayoutPanelLeft className="w-4 h-4" />}
             {mode === 'full' ? t('scoping.session.meetingMode') : t('scoping.session.fullMode')} <kbd className="text-[10px] opacity-60">M</kbd>
           </Button>
+          <Button size="sm" variant={mode === 'review' ? 'primary' : 'secondary'} onClick={() => setMode((m) => (m === 'review' ? 'full' : 'review'))}>
+            <Sparkles className="w-4 h-4" /> {t('scoping.review.button')}
+            {proposals.length > 0 && <span className="ml-1 rounded-full bg-[#F87171] text-white px-1.5 text-[11px] tabular-nums">{proposals.length}</span>}
+          </Button>
           <Button size="sm" onClick={() => setQuickOpen(true)} title="Ctrl+K"><Search className="w-4 h-4" /> {t('scoping.quickJump.button')} <kbd className="text-[10px] opacity-60">Ctrl+K</kbd></Button>
           <Button size="sm" onClick={() => setSettingsOpen((o) => !o)} aria-expanded={settingsOpen}><Settings2 className="w-4 h-4" /> {t('scoping.session.settings')}</Button>
           <div className="relative">
@@ -346,7 +389,19 @@ export default function SessionClient({
         </section>
       )}
 
-      {mode === 'meeting' ? (
+      {mode === 'review' ? (
+        <ReviewPanel
+          proposals={proposals}
+          meetings={meetings}
+          bank={bank}
+          answers={answers}
+          lang={lang}
+          readOnly={readOnly}
+          onAccept={acceptOne}
+          onReject={rejectOne}
+          onAcceptMany={acceptMany}
+        />
+      ) : mode === 'meeting' ? (
         <MeetingMode
           bank={bank}
           tier={tier}

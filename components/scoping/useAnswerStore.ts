@@ -167,5 +167,14 @@ export function useAnswerStore(sessionId: string, initial: SessionAnswer[], opts
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
-  return { answers, update, saveState, conflicts, resolveConflict, readOnlyError };
+  /** Resposta gravada por outro caminho (ex.: proposta aceita): entra na tela com a versão nova. */
+  const applyServer = useCallback((a: SessionAnswer) => {
+    baseVersion.current[a.questionKey] = a.version;
+    dirty.current.delete(a.questionKey);
+    setAnswers((cur) => ({ ...cur, [a.questionKey]: a }));
+    answersRef.current = { ...answersRef.current, [a.questionKey]: a };
+    persistQueue();
+  }, [persistQueue]);
+
+  return { answers, update, saveState, conflicts, resolveConflict, readOnlyError, applyServer };
 }

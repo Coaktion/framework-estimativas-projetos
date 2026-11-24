@@ -2667,6 +2667,36 @@
       "Gdesc": "Over 150 agents, several products, migration or ITSM. Two meetings.",
       "current": "Size: {{name}}",
       "only": "{{name}} size only"
+    },
+    "review": {
+      "title": "To review",
+      "subtitle": "Answers proposed by Claude from the recording or the notes. Nothing goes in until you accept it.",
+      "button": "To review",
+      "acceptSelected": "Accept selected ({{n}})",
+      "acceptHigh": "Accept the {{n}} high-confidence ones",
+      "confirmHigh": "Accept {{n}} high-confidence proposals?",
+      "yes": "Yes, accept",
+      "meetings": "Meetings used as source",
+      "acceptedN": "{{n}} accepted",
+      "open": "open",
+      "empty": "No proposals waiting for review.",
+      "howTo": "After the meeting, ask Claude: \"fill in <client>'s scoping from today's recording\". It reads the transcript and the proposals show up here.",
+      "select": "Select proposal",
+      "conf": {
+        "alta": "High confidence",
+        "media": "Medium confidence",
+        "baixa": "Low confidence"
+      },
+      "overrides": "Already answered: accepting replaces the current answer",
+      "current": "Current answer",
+      "proposed": "Proposed",
+      "openRecording": "open the recording",
+      "rejectReason": "Reason (optional)",
+      "reject": "Reject",
+      "saveAccept": "Save and accept",
+      "accept": "Accept",
+      "edit": "Edit and accept",
+      "someFailed": "{{n}} proposal(s) couldn't be accepted (already decided or session completed)."
     }
   }
 }
