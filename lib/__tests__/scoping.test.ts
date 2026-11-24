@@ -18,6 +18,7 @@ import { mapAnswersToItems } from '../scoping/mapping';
 import { completeness, pendingItems, suggestedByAnswers, suggestedTracks, visibleQuestions, meetingOrder } from '../scoping/rules';
 import { groupByStage, inTier, stageOf, suggestTier, tierOf, unmappedSections } from '../scoping/themes';
 import { answerSourceOf, proposalInputSchema, validateProposalValue } from '../scoping/proposals';
+import { mergeAnswerValues } from '../scoping/merge';
 import { simulateScopingEstimate } from '../scoping/estimate';
 import { exportMarkdown, exportXlsx } from '../scoping/export';
 import { answerValueSchema, type Bank, type SessionAnswer } from '../scoping/types';
@@ -384,4 +385,19 @@ test('propostas: provedor da gravação vira a origem da resposta', () => {
   assert.equal(answerSourceOf('tldv'), 'tldv');
   assert.equal(answerSourceOf('claude_meetings'), 'claude_meetings');
   assert.equal(answerSourceOf('other'), 'import');
+});
+
+test('complementar: junta com o que o pré-vendas anotou', () => {
+  const q = (k: string) => bank.questions.find((x) => x.key === k)!;
+  const text = mergeAnswerValues(q('core.ctx.problem'), { v: 'Centralizar ferramentas legado.' }, { v: 'Bot atual só faz menu.' });
+  assert.equal(text.v, 'Centralizar ferramentas legado.\nBot atual só faz menu.');
+  const same = mergeAnswerValues(q('core.ctx.problem'), { v: 'Centralizar ferramentas legado.' }, { v: 'centralizar ferramentas legado.' });
+  assert.equal(same.v, 'Centralizar ferramentas legado.', 'não repete o que já está anotado');
+  const multi = mergeAnswerValues(q('core.channels.list'), { v: ['whatsapp'] }, { v: ['whatsapp', 'voice'] });
+  assert.deepEqual(multi.v, ['whatsapp', 'voice']);
+  const rows = mergeAnswerValues(q('ai.usecases'), { v: [{ name: 'Cadastro', complexity: 'simples' }] }, { v: [{ name: 'Cadastro', complexity: 'simples' }, { name: 'Reembolso', complexity: 'complexo' }] });
+  assert.equal((rows.v as any[]).length, 2);
+  const num = mergeAnswerValues(q('core.users.agents'), { v: { min: 16, max: 20 }, note: 'N1 externo' }, { v: 18, note: 'confirmado na call' });
+  assert.equal(num.v, 18);
+  assert.equal(num.note, 'N1 externo\nconfirmado na call');
 });

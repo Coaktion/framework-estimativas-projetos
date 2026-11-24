@@ -291,6 +291,36 @@ export async function scopingGetNotes(ctx: ToolCenterContext, input: z.infer<typ
 
 export const exportInput = z.object({ sessionId: z.string().min(1), language: z.enum(SCOPING_LANGS).optional() });
 
+// ---------------------------------------------------------------------------
+// scoping_append_notes
+// ---------------------------------------------------------------------------
+
+export const appendNotesInput = z.object({
+  sessionId: z.string().min(1),
+  text: z.string().trim().min(3).max(20000),
+  /** de onde veio (ex.: "tl;dv · Discovery 24/11") */
+  sourceLabel: z.string().trim().max(200).optional(),
+});
+
+/**
+ * Acrescenta um bloco ao fim das notas da sessão, sem apagar nada: o que a
+ * gravação traz e não cabe em nenhuma pergunta (participantes, contexto,
+ * próximos passos). O bloco vem marcado como complemento do Claude.
+ */
+export async function scopingAppendNotes(ctx: ToolCenterContext, input: z.infer<typeof appendNotesInput>) {
+  assertScoping(ctx);
+  const s = await openSession(input.sessionId);
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const header = `--- Complemento do Claude${input.sourceLabel ? ` (${input.sourceLabel})` : ''} · ${stamp} UTC ---`;
+  const current = await prisma.scopingNote.findUnique({ where: { sessionId: s.id } });
+  const content = `${current?.content?.trimEnd() || ''}${current?.content?.trim() ? '\n\n' : ''}${header}\n${input.text.trim()}\n`;
+  if (content.length > 100_000) throw new ToolCenterError('As notas passariam do limite de 100 mil caracteres.');
+  const saved = current
+    ? await prisma.scopingNote.update({ where: { id: current.id }, data: { content, updatedBy: uid(ctx), version: { increment: 1 } } })
+    : await prisma.scopingNote.create({ data: { sessionId: s.id, content, updatedBy: uid(ctx) } });
+  return { sessionId: s.id, appended: input.text.length, notesLength: saved.content.length, url: sessionUrl(ctx, s.id) };
+}
+
 export async function scopingExport(ctx: ToolCenterContext, input: z.infer<typeof exportInput>) {
   assertScoping(ctx);
   const s = await openSession(input.sessionId);

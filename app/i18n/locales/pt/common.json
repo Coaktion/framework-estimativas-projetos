@@ -2696,7 +2696,9 @@
       "saveAccept": "Salvar e aceitar",
       "accept": "Aceitar",
       "edit": "Editar e aceitar",
-      "someFailed": "{{n}} proposta(s) não puderam ser aceitas (já decididas ou sessão concluída)."
+      "someFailed": "{{n}} proposta(s) não puderam ser aceitas (já decididas ou sessão concluída).",
+      "complements": "Já tem resposta: aceitar complementa a atual",
+      "afterAccept": "Como fica ao aceitar"
     }
   }
 }

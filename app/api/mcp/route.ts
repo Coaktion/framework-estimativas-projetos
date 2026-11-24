@@ -35,6 +35,7 @@ import {
   setPendingInput, scopingSetPending,
   sessionIdInput, scopingPreviewEstimate, scopingGetNotes,
   exportInput, scopingExport,
+  appendNotesInput, scopingAppendNotes,
 } from '@/lib/toolcenter-scoping';
 
 export const dynamic = 'force-dynamic';
@@ -52,8 +53,9 @@ const INSTRUCTIONS = [
   'Nenhuma ferramenta altera ou apaga versões existentes. Responda ao usuário com o link da versão.',
   ...(scopingToolsEnabled ? [
     'Scoping a partir de uma gravação: (1) leia a transcrição com as ferramentas de reunião que você tiver;',
-    '(2) scoping_search_sessions (ou scoping_create_session) para achar a sessão; (3) scoping_get_session com onlyOpen=true;',
-    '(4) scoping_propose_answers só com o que o cliente disse, cada proposta com citação literal e o minuto;',
+    '(2) scoping_search_sessions (ou scoping_create_session) para achar a sessão; (3) scoping_get_session (sem onlyOpen, para ver também o que o pré-vendas já anotou) e scoping_get_notes;',
+    '(4) scoping_propose_answers só com o que o cliente disse, cada proposta com citação literal e o minuto; para pergunta já respondida, proponha só o que falta (mode complement);',
+    '(4b) scoping_append_notes com o que não cabe em nenhuma pergunta;',
     '(5) scoping_set_pending para o que ficou de o cliente confirmar; (6) responda com o link de revisão e a lista de reuniões usadas.',
     'Propostas nunca viram resposta sozinhas: o pré-vendas revisa no Tool Center.',
   ] : []),
@@ -313,7 +315,7 @@ const SCOPING_TOOLS: Tool[] = [
   {
     name: 'scoping_propose_answers',
     title: 'Scoping: propor respostas',
-    description: 'Grava PROPOSTAS de resposta tiradas de uma gravação ou das notas. Nada vira resposta: um humano aceita, edita ou rejeita na aba "Para revisar". Cada proposta precisa de citação literal (source.quote); sem ela é recusada. Proponha só o que o cliente disse de fato, no formato do tipo da pergunta (valueFormats de scoping_get_session). Não chute contagens de configuração (gatilhos, macros etc.) que o cliente não falou.',
+    description: 'Grava PROPOSTAS de resposta tiradas de uma gravação ou das notas, inclusive para COMPLEMENTAR perguntas que o pré-vendas já respondeu (mode complement: proponha só o que falta, sem repetir o que já está anotado). Nada vira resposta: um humano aceita, edita ou rejeita na aba "Para revisar". Cada proposta precisa de citação literal (source.quote); sem ela é recusada. Proponha só o que o cliente disse de fato, no formato do tipo da pergunta (valueFormats de scoping_get_session). Não chute contagens de configuração (gatilhos, macros etc.) que o cliente não falou.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -328,6 +330,7 @@ const SCOPING_TOOLS: Tool[] = [
               note: { type: 'string', description: 'Comentário que acompanha a resposta (ex.: contexto, ressalva).' },
               confidence: { type: 'string', enum: ['alta', 'media', 'baixa'] },
               rationale: { type: 'string', description: 'Por que esta resposta, em uma frase.' },
+              mode: { type: 'string', enum: ['complement', 'replace'], description: 'complement (padrão quando já há resposta): junta com o que o pré-vendas anotou (texto acrescentado, opções e linhas somadas). replace: substitui, use só se a gravação contradiz a anotação, e diga isso no rationale.' },
               source: {
                 type: 'object',
                 properties: {
@@ -373,6 +376,24 @@ const SCOPING_TOOLS: Tool[] = [
     annotations: CREATES,
     input: setPendingInput,
     run: scopingSetPending,
+  },
+  {
+    name: 'scoping_append_notes',
+    title: 'Scoping: complementar as notas',
+    description: 'Acrescenta um bloco ao fim das notas da sessão (nunca apaga): o que a gravação trouxe e não cabe em nenhuma pergunta, como participantes e cargos, contexto do negócio e próximos passos combinados. Não repita o que já está nas notas (veja scoping_get_notes).',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        sessionId: SESSION_PROP,
+        text: { type: 'string' },
+        sourceLabel: { type: 'string', description: 'Ex.: "tl;dv · Discovery 24/11".' },
+      },
+      required: ['sessionId', 'text'],
+      additionalProperties: false,
+    },
+    annotations: CREATES,
+    input: appendNotesInput,
+    run: scopingAppendNotes,
   },
   {
     name: 'scoping_preview_estimate',

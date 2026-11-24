@@ -14,6 +14,7 @@ import { Button, INPUT } from '@/components/booking/ui';
 import AnswerInput from './AnswerInput';
 import { tr } from '@/lib/scoping/i18n';
 import { formatValue } from '@/lib/scoping/format';
+import { mergeAnswerValues } from '@/lib/scoping/merge';
 import type { MeetingUsed, ProposalView } from '@/lib/scoping/proposals';
 import type { AnswerValue, Bank, ScopingLang, SessionAnswer } from '@/lib/scoping/types';
 
@@ -102,7 +103,10 @@ export default function ReviewPanel({
         if (!q) return null;
         const current = answers[p.questionKey];
         const currentText = current?.status === 'respondida' ? formatValue(q, current.value?.v, lang) : '';
-        const proposedText = formatValue(q, p.value?.v, lang);
+        // Complementar: mostra como a resposta fica depois de juntar com a atual.
+        const complements = p.mode === 'complement' && current?.status === 'respondida';
+        const effective = complements ? mergeAnswerValues(q, current!.value, p.value || {}) : (p.value || {});
+        const proposedText = formatValue(q, effective.v, lang);
         const isEditing = editing?.id === p.id;
         const isRejecting = rejecting?.id === p.id;
         return (
@@ -115,7 +119,9 @@ export default function ReviewPanel({
                 <div className="text-body font-medium text-brand-dark">{tr(q.text, lang)}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
                   <span className={`rounded-full border px-2 py-[2px] text-caption font-medium ${CONF_CLASS[p.confidence] || CONF_CLASS.baixa}`}>{t(`scoping.review.conf.${p.confidence}`)}</span>
-                  {current?.status === 'respondida' && <span className="text-caption text-amber-700">{t('scoping.review.overrides')}</span>}
+                  {current?.status === 'respondida' && (complements
+                    ? <span className="text-caption text-slate-600">{t('scoping.review.complements')}</span>
+                    : <span className="text-caption text-amber-700">{t('scoping.review.overrides')}</span>)}
                 </div>
               </div>
             </div>
@@ -126,11 +132,11 @@ export default function ReviewPanel({
                 <div className="text-label whitespace-pre-line">{currentText || '—'}</div>
               </div>
               <div className="rounded-xl border border-[color:var(--primary)] p-3">
-                <div className="text-caption text-slate-500 mb-1">{t('scoping.review.proposed')}</div>
+                <div className="text-caption text-slate-500 mb-1">{complements ? t('scoping.review.afterAccept') : t('scoping.review.proposed')}</div>
                 {isEditing ? (
                   <AnswerInput q={q} value={editing!.value} lang={lang} onChange={(v) => setEditing({ id: p.id, value: v })} idPrefix={`rv-${p.id}`} />
                 ) : (
-                  <div className="text-label whitespace-pre-line">{proposedText || '—'}{p.value?.note ? `\n${p.value.note}` : ''}</div>
+                  <div className="text-label whitespace-pre-line">{proposedText || '—'}{effective.note ? `\n${effective.note}` : ''}</div>
                 )}
               </div>
             </div>
@@ -166,7 +172,7 @@ export default function ReviewPanel({
                   ) : (
                     <>
                       <Button size="sm" variant="primary" busy={busy === p.id} onClick={() => run(p.id, () => onAccept(p.id))}><Check className="w-4 h-4" /> {t('scoping.review.accept')}</Button>
-                      <Button size="sm" onClick={() => setEditing({ id: p.id, value: p.value || {} })}><Pencil className="w-4 h-4" /> {t('scoping.review.edit')}</Button>
+                      <Button size="sm" onClick={() => setEditing({ id: p.id, value: effective })}><Pencil className="w-4 h-4" /> {t('scoping.review.edit')}</Button>
                       <Button size="sm" variant="ghost" onClick={() => setRejecting({ id: p.id, reason: '' })}><X className="w-4 h-4" /> {t('scoping.review.reject')}</Button>
                     </>
                   )}

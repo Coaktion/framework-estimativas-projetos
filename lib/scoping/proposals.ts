@@ -13,6 +13,7 @@ import { z } from 'zod';
 import prisma from '@/lib/prisma';
 import { loadBank } from './bank';
 import { answerValueSchema, type AnswerSource, type AnswerValue, type BankQuestion } from './types';
+import { mergeAnswerValues } from './merge';
 
 export const PROPOSAL_PROVIDERS = ['tldv', 'claude_meetings', 'notes', 'other'] as const;
 export const CONFIDENCES = ['alta', 'media', 'baixa'] as const;
@@ -39,8 +40,15 @@ export const proposalInputSchema = z.object({
   confidence: z.enum(CONFIDENCES),
   rationale: z.string().trim().max(1000).default(''),
   source: proposalSourceSchema,
+  /**
+   * complement: junta com a resposta atual (texto acrescentado, opções e linhas
+   * somadas, comentário acrescentado); replace: substitui. Padrão: complement
+   * quando a pergunta já tem resposta, replace quando não tem.
+   */
+  mode: z.enum(['complement', 'replace']).optional(),
 });
 export type ProposalInput = z.infer<typeof proposalInputSchema>;
+export type ProposalMode = 'complement' | 'replace';
 
 const json = (v: unknown) => v as Prisma.InputJsonValue;
 
@@ -84,6 +92,7 @@ export async function createProposals(sessionId: string, userId: number, proposa
   const bank = await loadBank(session.bankVersionId);
   const byKey = new Map(bank.questions.map((q) => [q.key, q]));
   const pending = await prisma.scopingProposal.findMany({ where: { sessionId, state: 'proposta' }, select: { questionKey: true, value: true } });
+  const answered = new Set((await prisma.scopingAnswer.findMany({ where: { sessionId, status: 'respondida' }, select: { questionKey: true } })).map((a) => a.questionKey));
   const pendingSig = new Set(pending.map((p) => `${p.questionKey}|${JSON.stringify(p.value)}`));
 
   const result: CreateResult = { created: [], rejected: [] };
@@ -98,7 +107,9 @@ export async function createProposals(sessionId: string, userId: number, proposa
     const created = await prisma.scopingProposal.create({
       data: {
         sessionId, questionKey: p.questionKey, value: json(value), confidence: p.confidence,
-        rationale: p.rationale || '', sourceRef: json(p.source), createdBy: userId,
+        rationale: p.rationale || '', createdBy: userId,
+        // O modo viaja junto da origem (a tabela não tem coluna própria para ele).
+        sourceRef: json({ ...p.source, mode: p.mode ?? (answered.has(p.questionKey) ? 'complement' : 'replace') }),
       },
     });
     pendingSig.add(sig);
@@ -117,6 +128,7 @@ export async function acceptProposal(proposalId: string, userId: number, editedV
   if (p.session.status === 'concluida') throw new Error('completed');
   if (p.state !== 'proposta') throw new Error('invalid');
   let value = p.value as AnswerValue;
+  const mode: ProposalMode = (p.sourceRef as any)?.mode === 'complement' ? 'complement' : 'replace';
   if (editedValue !== undefined) {
     const bank = await loadBank(p.session.bankVersionId);
     const q = bank.questions.find((x) => x.key === p.questionKey);
@@ -127,8 +139,14 @@ export async function acceptProposal(proposalId: string, userId: number, editedV
   }
   const src = p.sourceRef as ProposalSource;
   const source = answerSourceOf(src?.provider);
+  const bankForMerge = mode === 'complement' && editedValue === undefined ? await loadBank(p.session.bankVersionId) : null;
   return prisma.$transaction(async (tx) => {
     const current = await tx.scopingAnswer.findUnique({ where: { sessionId_questionKey: { sessionId: p.sessionId, questionKey: p.questionKey } } });
+    // Complementar: junta com o que o pré-vendas já tinha (editar e aceitar grava exatamente o editado).
+    if (bankForMerge && current) {
+      const q = bankForMerge.questions.find((x) => x.key === p.questionKey);
+      if (q) value = mergeAnswerValues(q, current.value as AnswerValue, value);
+    }
     const data = {
       value: json(value), status: 'respondida', pendingOwner: null, pendingDue: null, naReason: null,
       source, sourceRef: json(src), confidence: p.confidence, updatedBy: userId,
@@ -173,6 +191,7 @@ export interface ProposalView {
   confidence: Confidence;
   rationale: string;
   source: ProposalSource;
+  mode: ProposalMode;
   createdAt: string;
 }
 
@@ -180,7 +199,8 @@ export async function pendingProposals(sessionId: string): Promise<ProposalView[
   const rows = await prisma.scopingProposal.findMany({ where: { sessionId, state: 'proposta' }, orderBy: { createdAt: 'asc' } });
   return rows.map((r) => ({
     id: r.id, questionKey: r.questionKey, value: r.value as AnswerValue, confidence: r.confidence as Confidence,
-    rationale: r.rationale, source: r.sourceRef as ProposalSource, createdAt: r.createdAt.toISOString(),
+    rationale: r.rationale, source: r.sourceRef as ProposalSource,
+    mode: (r.sourceRef as any)?.mode === 'complement' ? 'complement' : 'replace', createdAt: r.createdAt.toISOString(),
   }));
 }
 

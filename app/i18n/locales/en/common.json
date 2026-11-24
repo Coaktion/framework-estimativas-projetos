@@ -2696,7 +2696,9 @@
       "saveAccept": "Save and accept",
       "accept": "Accept",
       "edit": "Edit and accept",
-      "someFailed": "{{n}} proposal(s) couldn't be accepted (already decided or session completed)."
+      "someFailed": "{{n}} proposal(s) couldn't be accepted (already decided or session completed).",
+      "complements": "Already answered: accepting adds to the current answer",
+      "afterAccept": "After accepting"
     }
   }
 }
